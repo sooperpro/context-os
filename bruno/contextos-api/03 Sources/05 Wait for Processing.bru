@@ -1,0 +1,41 @@
+meta {
+  name: Wait for Processing
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/projects/{{projectId}}/sources/{{sourceId}}
+  body: none
+  auth: none
+}
+
+script:pre-request {
+  const token = bru.getEnvVar("accessToken");
+  const headers = token ? { Authorization: "Bearer " + token } : {};
+  const url = bru.getEnvVar("baseUrl") + "/projects/" + bru.getEnvVar("projectId") + "/sources/" + bru.getEnvVar("sourceId");
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const response = await bru.sendRequest({ method: "GET", url, headers, timeout: 5000 });
+    if (response.status !== 200) throw new Error("Cannot read processing status");
+    if (response.data.status === "ready" || response.data.status === "failed") break;
+    await bru.sleep(500);
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("sourceReady", res.getStatus() === 200 && res.getBody().status === "ready" ? "true" : "false");
+}
+
+tests {
+  test("Source processing completes before knowledge API tests", function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().status).to.equal("ready");
+    expect(res.getBody().chunkCount).to.be.greaterThan(0);
+  });
+}
+
+docs {
+  Polls the authorized source for up to 60 half-second intervals before checking readiness.
+  A failed/slow pipeline fails this test instead of silently testing empty knowledge APIs.
+  If a live model needs longer, inspect Jobs and rerun after processing completes.
+}

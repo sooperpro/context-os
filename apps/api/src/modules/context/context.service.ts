@@ -20,11 +20,13 @@ import type { Actor } from "../../types.js";
 import type { AuditService } from "../audit/audit.service.js";
 import type { ContextRepository, EvidenceWithSource } from "./context.repository.js";
 import type { ExtractionOutput } from "./extraction.schema.js";
+import type { IdentityService } from "../identity/identity.service.js";
 
 export interface ContextServiceDeps {
   repo: ContextRepository;
   audit: AuditService;
   logger: Logger;
+  identity: IdentityService;
 }
 
 interface Candidate {
@@ -153,7 +155,7 @@ function isCompatible(
   return true;
 }
 
-export function createContextService({ repo, audit, logger }: ContextServiceDeps) {
+export function createContextService({ repo, audit, logger, identity }: ContextServiceDeps) {
   const toEvidence = (row: EvidenceWithSource): Evidence => ({
     id: row.evidence.id,
     sourceObjectId: row.source.id,
@@ -166,18 +168,44 @@ export function createContextService({ repo, audit, logger }: ContextServiceDeps
     quoteVerified: row.evidence.quoteVerified,
   });
 
-  const toItems = (rows: ContextItemRow[]): ContextItem[] => {
+  const toItems = (rows: ContextItemRow[], allowedSources?: Set<string>): ContextItem[] => {
     const evidenceByItem = repo.listEvidenceForItems(rows.map((r) => r.id));
-    const conflicts = detectConflicts(rows);
+    const ready = new Set(
+      [...new Set(rows.map((row) => row.projectId))].flatMap((projectId) =>
+        repo.listReadySourceIds(projectId),
+      ),
+    );
+    const eligible = rows.filter((row) => {
+      const supporting = evidenceByItem.get(row.id) ?? [];
+      const dependencies =
+        row.data._generationSources ?? supporting.map((entry) => entry.source.id);
+      return (
+        supporting.length > 0 &&
+        Array.isArray(dependencies) &&
+        dependencies.length > 0 &&
+        dependencies.every(
+          (id) =>
+            typeof id === "string" && ready.has(id) && (!allowedSources || allowedSources.has(id)),
+        ) &&
+        supporting.every(
+          (entry) =>
+            entry.evidence.quoteVerified &&
+            entry.source.status === "ready" &&
+            (!allowedSources || allowedSources.has(entry.source.id)),
+        )
+      );
+    });
+    const conflicts = detectConflicts(eligible);
     const items: ContextItem[] = [];
-    for (const row of rows) {
+    for (const row of eligible) {
+      const { _generationSources: _ignored, ...publicData } = row.data;
       const parsed = ContextItemSchema.safeParse({
         id: row.id,
         projectId: row.projectId,
         kind: row.kind,
         title: row.title,
         summary: row.summary,
-        data: row.data,
+        data: publicData,
         eventAt: row.eventAt ? row.eventAt.toISOString() : null,
         asOf: row.asOf ? row.asOf.toISOString() : null,
         verification: row.verification,
@@ -198,12 +226,23 @@ export function createContextService({ repo, audit, logger }: ContextServiceDeps
   };
 
   return {
-    listItems(project: ProjectRow, kind?: ContextItemKind): ContextItem[] {
-      return toItems(repo.listItems(project.id, kind));
+    listItems(project: ProjectRow, kind?: ContextItemKind, actor?: Actor): ContextItem[] {
+      return toItems(
+        repo.listItems(project.id, kind),
+        actor ? new Set(identity.visibleSourceIds(actor, project.id)) : undefined,
+      );
     },
 
-    listItemsLinkedToSources(projectId: string, sourceIds: string[], limit: number): ContextItem[] {
-      return toItems(repo.listItemsLinkedToSources(projectId, sourceIds, limit));
+    listItemsLinkedToSources(
+      projectId: string,
+      sourceIds: string[],
+      limit: number,
+      actor?: Actor,
+    ): ContextItem[] {
+      return toItems(
+        repo.listItemsLinkedToSources(projectId, sourceIds, limit),
+        actor ? new Set(identity.visibleSourceIds(actor, projectId)) : undefined,
+      );
     },
 
     countsByKind(projectId: string): Record<ContextItemKind, number> {
@@ -231,6 +270,9 @@ export function createContextService({ repo, audit, logger }: ContextServiceDeps
     ): ContextItem {
       const row = repo.findItem(itemId, project.id);
       if (!row) throw new NotFoundError("Context item", itemId);
+      identity.requireAssignment(actor, "domain_owner", project.id);
+      if (!toItems([row], new Set(identity.visibleSourceIds(actor, project.id))).length)
+        throw new NotFoundError("Context item");
       const updated = repo.updateItem(row.id, { verification }) ?? row;
       audit.record({
         actor,
@@ -246,9 +288,10 @@ export function createContextService({ repo, audit, logger }: ContextServiceDeps
     },
 
     /** Remove everything derived from a source (before re-processing it). */
-    removeDerivedFromSource(projectId: string, sourceObjectId: string): void {
+    removeDerivedFromSource(projectId: string, sourceObjectId: string): number {
+      repo.preserveGenerationSources(sourceObjectId);
       repo.deleteEvidenceForSource(sourceObjectId);
-      repo.deleteOrphanedItems(projectId);
+      return repo.deleteOrphanedItems(projectId);
     },
 
     removeOrphanedItems(projectId: string): number {
@@ -257,8 +300,7 @@ export function createContextService({ repo, audit, logger }: ContextServiceDeps
 
     /**
      * Store extraction output as context items + evidence. Quotes are verified
-     * against the source text; unverifiable quotes are kept but flagged and
-     * the item's confidence is capped at "low".
+     * against the source text; unverifiable/unlocatable quotes are discarded.
      */
     persistExtraction(params: {
       source: SourceObjectRow;
@@ -272,12 +314,16 @@ export function createContextService({ repo, audit, logger }: ContextServiceDeps
       for (const candidate of toCandidates(output)) {
         const title = candidate.title.trim();
         if (!title) continue;
-        const quoteVerified = containsQuote(source.content, candidate.quote);
+        const quoteVerified =
+          candidate.quote.length >= 8 && source.content.includes(candidate.quote);
         const chunk = quoteVerified
           ? chunks.find((c) => containsQuote(c.content, candidate.quote))
           : undefined;
         const confidence: Confidence = quoteVerified ? candidate.confidence : "low";
-        if (!quoteVerified) stats.unverifiedQuotes += 1;
+        if (!quoteVerified || !chunk) {
+          stats.unverifiedQuotes += 1;
+          continue;
+        }
 
         const normalizedKey = `${candidate.kind}:${normalizeKey(title)}`;
         const existing = repo
@@ -289,7 +335,18 @@ export function createContextService({ repo, audit, logger }: ContextServiceDeps
           itemId = existing.id;
           stats.merged += 1;
           // Keep the stronger confidence and the longer summary.
-          const patch: Partial<Pick<ContextItemRow, "summary" | "confidence">> = {};
+          const supporting = repo.listEvidenceForItems([existing.id]).get(existing.id) ?? [];
+          const previous = Array.isArray(existing.data._generationSources)
+            ? existing.data._generationSources.filter((id): id is string => typeof id === "string")
+            : [];
+          const patch: Partial<Pick<ContextItemRow, "summary" | "confidence" | "data">> = {
+            data: {
+              ...existing.data,
+              _generationSources: [
+                ...new Set([...previous, ...supporting.map((ref) => ref.source.id), source.id]),
+              ],
+            },
+          };
           if (CONFIDENCE_RANK[confidence] > CONFIDENCE_RANK[existing.confidence])
             patch.confidence = confidence;
           if (candidate.summary.length > existing.summary.length + 40)
@@ -303,7 +360,7 @@ export function createContextService({ repo, audit, logger }: ContextServiceDeps
             normalizedKey,
             title,
             summary: candidate.summary,
-            data: candidate.data,
+            data: { ...candidate.data, _generationSources: [source.id] },
             eventAt: candidate.eventAt,
             asOf:
               candidate.asOf ?? (candidate.kind === "status_claim" ? source.sourceCreatedAt : null),

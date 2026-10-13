@@ -1,0 +1,38 @@
+meta {
+  name: Grant Manual Source Access
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{baseUrl}}/projects/{{projectId}}/sources/{{sourceId}}/access
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "userId": "{{managedUserId}}"
+  }
+}
+
+script:pre-request {
+  if (!bru.getEnvVar("managedUserId")) bru.runner.skipRequest();
+}
+
+tests {
+  test("Expected response", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+}
+
+docs {
+  See docs/backend-api-use-cases.md for required role, workflow and setup.
+  This request is skipped unless its prerequisite environment variable is configured: managedUserId.
+}
+

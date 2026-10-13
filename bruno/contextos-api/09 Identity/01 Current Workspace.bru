@@ -1,0 +1,30 @@
+meta {
+  name: Current Workspace
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/workspaces/current
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+script:post-response {
+  if (res.getStatus() === 200) bru.setEnvVar("workspaceVersion", res.getBody().version);
+}
+
+tests {
+  test("Expected response", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
+
+docs {
+  See docs/backend-api-use-cases.md for required role, workflow and setup.
+}
+

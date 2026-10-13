@@ -1,0 +1,3 @@
+environments/*.private.bru
+environments/*.private.json
+results/

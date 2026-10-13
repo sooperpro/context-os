@@ -1,0 +1,43 @@
+meta {
+  name: Create Domain Owner Assignment
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/assignments
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "userId": "{{actorId}}",
+    "type": "domain_owner",
+    "scopeType": "project",
+    "scopeId": "{{projectId}}"
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    const body = res.getBody();
+    bru.setEnvVar("assignmentId", body.id);
+  }
+}
+
+tests {
+  test("Expected response", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+}
+
+docs {
+  See docs/backend-api-use-cases.md for required role, workflow and setup.
+}
+

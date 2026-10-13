@@ -9,10 +9,12 @@ import type { ProjectRow } from "../../db/schema.js";
 import type { Actor } from "../../types.js";
 import type { AuditService } from "../audit/audit.service.js";
 import type { ProjectRepository } from "./projects.repository.js";
+import type { IdentityService } from "../identity/identity.service.js";
 
 export interface ProjectServiceDeps {
   repo: ProjectRepository;
   audit: AuditService;
+  identity: IdentityService;
 }
 
 export function toProject(row: ProjectRow): Project {
@@ -26,17 +28,27 @@ export function toProject(row: ProjectRow): Project {
   };
 }
 
-export function createProjectService({ repo, audit }: ProjectServiceDeps) {
-  const withStats = (row: ProjectRow): ProjectWithStats => ({
+export function createProjectService({ repo, audit, identity }: ProjectServiceDeps) {
+  const withStats = (row: ProjectRow, actor?: Actor): ProjectWithStats => ({
     ...toProject(row),
-    stats: repo.stats(row.id),
+    stats: actor ? identity.statsFor(actor, row.id) : repo.stats(row.id),
   });
 
   return {
     withStats,
 
     list(actor: Actor): ProjectWithStats[] {
-      return repo.list(actor.workspaceId).map(withStats);
+      return repo
+        .list(actor.workspaceId)
+        .filter((row) => {
+          try {
+            identity.requireProject(actor, row.id);
+            return true;
+          } catch {
+            return false;
+          }
+        })
+        .map((row) => withStats(row, actor));
     },
 
     create(actor: Actor, input: CreateProjectInput): ProjectWithStats {
@@ -53,7 +65,7 @@ export function createProjectService({ repo, audit }: ProjectServiceDeps) {
         targetType: "project",
         targetId: row.id,
       });
-      return withStats(row);
+      return withStats(row, actor);
     },
 
     update(actor: Actor, project: ProjectRow, input: UpdateProjectInput): ProjectWithStats {
@@ -71,7 +83,7 @@ export function createProjectService({ repo, audit }: ProjectServiceDeps) {
         targetId: project.id,
         metadata: { fields: Object.keys(patch) },
       });
-      return withStats(row);
+      return withStats(row, actor);
     },
 
     remove(actor: Actor, project: ProjectRow): void {

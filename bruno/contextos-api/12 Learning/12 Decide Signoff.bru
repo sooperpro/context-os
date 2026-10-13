@@ -1,0 +1,41 @@
+meta {
+  name: Decide Signoff
+  type: http
+  seq: 12
+}
+
+post {
+  url: {{baseUrl}}/learning/signoffs/{{progressId}}/decide
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "version": {{progressVersion}},
+    "approved": true,
+    "note": "Reviewed evidence"
+  }
+}
+
+script:pre-request {
+  if (!bru.getEnvVar("mentorAccessToken")) bru.runner.skipRequest();
+  if (bru.getEnvVar("mentorAccessToken")) req.setHeader("Authorization", "Bearer " + bru.getEnvVar("mentorAccessToken"));
+}
+
+tests {
+  test("Expected response", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
+
+docs {
+  See docs/backend-api-use-cases.md for required role, workflow and setup.
+  This request is skipped unless its prerequisite environment variable is configured: mentorAccessToken.
+}
+

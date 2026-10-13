@@ -1,0 +1,34 @@
+meta {
+  name: Record Interaction
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/companion/interactions
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "trigger": "opened",
+    "surface": "web"
+  }
+}
+
+tests {
+  test("Expected response", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+}
+
+docs {
+  See docs/backend-api-use-cases.md for required role, workflow and setup.
+}
+

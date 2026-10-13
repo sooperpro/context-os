@@ -1,0 +1,44 @@
+meta {
+  name: Create Project
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/projects
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Bruno Test Project",
+    "description": "A local project created while testing the ContextOS API."
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    const body = res.getBody();
+    bru.setEnvVar("projectId", body.id);
+    for (const key of ["sourceId", "contextItemId", "answerId", "jobId", "threadId", "assignmentId", "flagId", "correctionId", "pathId", "pathAssignmentId", "learningItemId", "departmentId", "teamId", "sourceReady"]) {
+      bru.setEnvVar(key, "");
+    }
+  }
+}
+
+tests {
+  test("Creates a project", function () {
+    expect(res.getStatus()).to.equal(201);
+    expect(res.getBody().id).to.be.a("string");
+  });
+}
+
+docs {
+  Run this first. It saves the new id as projectId for the remaining requests.
+}

@@ -1,0 +1,35 @@
+meta {
+  name: Create Department
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/org/departments
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {"name": "Bruno Engineering {{projectId}}"}
+}
+
+script:post-response {
+  if (res.getStatus() === 201) bru.setEnvVar("departmentId", res.getBody().id);
+}
+
+tests {
+  test("Expected response", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+}
+
+docs {
+  Use only a disposable development tenant. Workspace creation and member organization mutation are opt-in.
+  See docs/backend-api-use-cases.md for access rules and configuration.
+}
+

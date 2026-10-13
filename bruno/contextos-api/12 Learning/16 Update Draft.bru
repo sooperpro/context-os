@@ -1,0 +1,43 @@
+meta {
+  name: Update Draft
+  type: http
+  seq: 16
+}
+
+put {
+  url: {{baseUrl}}/learning/paths/{{pathId}}
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "projectId": "{{projectId}}",
+    "version": {{pathVersion}},
+    "title": "Reviewed local onboarding draft",
+    "roleFamily": "engineering",
+    "items": [
+      {
+        "type": "meet",
+        "title": "Meet the project owner",
+        "objective": "Understand source evidence and project ownership.",
+        "required": false,
+        "verification": "self"
+      }
+    ]
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 200) bru.setEnvVar("pathVersion", res.getBody().version);
+}
+
+tests {
+  test("Updates a draft with optimistic locking", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}

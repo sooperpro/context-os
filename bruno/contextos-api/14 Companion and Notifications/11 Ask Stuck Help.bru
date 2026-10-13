@@ -1,0 +1,35 @@
+meta {
+  name: Ask Stuck Help
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{baseUrl}}/companion/stuck-help
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "projectId": "{{projectId}}",
+    "sourceId": "{{sourceId}}",
+    "question": "Why is billing moving to the ledger service?"
+  }
+}
+
+tests {
+  test("Expected response", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
+
+docs {
+  See docs/backend-api-use-cases.md for workflow prerequisites and required permissions.
+  Skip is intentional when prerequisites or independent user sessions are not configured.
+}
+

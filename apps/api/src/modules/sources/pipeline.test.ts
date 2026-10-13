@@ -78,7 +78,7 @@ describe("source ingestion pipeline", () => {
     expect(detail.content).toBe(SAMPLE_SOURCE.content);
   });
 
-  it("flags unverifiable quotes and caps their confidence", async () => {
+  it("discards claims with unverifiable quotes", async () => {
     const gemini = createFakeGemini({
       extraction: {
         decisions: [],
@@ -105,9 +105,7 @@ describe("source ingestion pipeline", () => {
     const items = ContextItemListSchema.parse(
       await (await t.app.request(`/api/v1/projects/${project.id}/context-items`)).json(),
     );
-    expect(items.items).toHaveLength(1);
-    expect(items.items[0]).toMatchObject({ confidence: "low" });
-    expect(items.items[0]?.evidence[0]).toMatchObject({ quoteVerified: false, chunkId: null });
+    expect(items.items).toHaveLength(0);
   });
 
   it("keeps working when embeddings fail", async () => {

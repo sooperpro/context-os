@@ -1,0 +1,21 @@
+meta {
+  name: Delete Test Domain Assignment
+  type: http
+  seq: 3
+}
+
+delete {
+  url: {{baseUrl}}/assignments/{{assignmentId}}
+  body: none
+  auth: none
+}
+
+script:pre-request {
+  if (!bru.getEnvVar("assignmentId")) bru.runner.skipRequest();
+}
+
+tests {
+  test("Deletes the test assignment", function () {
+    expect(res.getStatus()).to.equal(204);
+  });
+}

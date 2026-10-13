@@ -1,0 +1,21 @@
+meta {
+  name: Delete My Thread
+  type: http
+  seq: 0
+}
+
+delete {
+  url: {{baseUrl}}/ask/threads/{{threadId}}
+  body: none
+  auth: none
+}
+
+script:pre-request {
+  if (!bru.getEnvVar("threadId")) bru.runner.skipRequest();
+}
+
+tests {
+  test("Deletes private thread", function () {
+    expect(res.getStatus()).to.equal(204);
+  });
+}

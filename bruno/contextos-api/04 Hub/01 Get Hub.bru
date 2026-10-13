@@ -1,0 +1,22 @@
+meta {
+  name: Get Hub
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/projects/{{projectId}}/hub
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+tests {
+  test("Returns the project hub", function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().sync).to.be.an("object");
+  });
+}

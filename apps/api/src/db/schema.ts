@@ -10,6 +10,8 @@ import type {
   SourceKind,
   SourceStatus,
   Verification,
+  SystemRole,
+  AssignmentType,
 } from "@contextos/shared";
 import { blob, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
@@ -20,6 +22,14 @@ const now = () => new Date();
 export const workspaces = sqliteTable("workspaces", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
+  slug: text("slug").unique(),
+  primaryDomain: text("primary_domain"),
+  region: text("region").notNull().default("us-east-1"),
+  settings: text("settings", { mode: "json" })
+    .$type<Record<string, unknown>>()
+    .notNull()
+    .default({}),
+  version: integer("version").notNull().default(1),
   createdAt: ts("created_at").notNull().$defaultFn(now),
 });
 
@@ -62,6 +72,12 @@ export const sourceObjects = sqliteTable(
     processedAt: ts("processed_at"),
     status: text("status").$type<SourceStatus>().notNull().default("pending"),
     error: text("error"),
+    visibility: text("visibility")
+      .$type<"workspace" | "restricted">()
+      .notNull()
+      .default("workspace"),
+    connectionId: text("connection_id"),
+    metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
   },
   (t) => [index("source_objects_project_idx").on(t.projectId, t.ingestedAt)],
 );
@@ -192,6 +208,7 @@ export const questions = sqliteTable(
     answer: text("answer", { mode: "json" }).$type<Answer>().notNull(),
     model: text("model").notNull(),
     actorId: text("actor_id").notNull(),
+    sourceIds: text("source_ids", { mode: "json" }).$type<string[]>(),
     createdAt: ts("created_at").notNull().$defaultFn(now),
   },
   (t) => [index("questions_project_idx").on(t.projectId, t.createdAt)],
@@ -255,6 +272,8 @@ export const auditLog = sqliteTable(
     targetType: text("target_type").notNull(),
     targetId: text("target_id").notNull(),
     metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
+    previousHash: text("previous_hash"),
+    entryHash: text("entry_hash"),
     createdAt: ts("created_at").notNull().$defaultFn(now),
   },
   (t) => [index("audit_log_project_idx").on(t.projectId, t.createdAt)],
@@ -275,3 +294,224 @@ export type QuestionRow = typeof questions.$inferSelect;
 export type FeedbackRow = typeof feedback.$inferSelect;
 export type JobRow = typeof jobs.$inferSelect;
 export type AuditLogRow = typeof auditLog.$inferSelect;
+
+export const users = sqliteTable("users", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email"),
+  preferences: text("preferences", { mode: "json" })
+    .$type<Record<string, unknown>>()
+    .notNull()
+    .default({}),
+  createdAt: ts("created_at").notNull().$defaultFn(now),
+});
+export const memberships = sqliteTable(
+  "memberships",
+  {
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    role: text("role").$type<SystemRole>().notNull(),
+    status: text("status")
+      .$type<"active" | "suspended" | "offboarded">()
+      .notNull()
+      .default("active"),
+    managerId: text("manager_id"),
+    guestExpiresAt: ts("guest_expires_at"),
+    organization: text("organization", { mode: "json" })
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+  },
+  (t) => [uniqueIndex("memberships_workspace_user_uq").on(t.workspaceId, t.userId)],
+);
+export const departments = sqliteTable(
+  "departments",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    createdAt: ts("created_at").notNull().$defaultFn(now),
+  },
+  (t) => [uniqueIndex("departments_workspace_name_uq").on(t.workspaceId, t.name)],
+);
+export const teams = sqliteTable(
+  "teams",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    departmentId: text("department_id")
+      .notNull()
+      .references(() => departments.id),
+    parentId: text("parent_id"),
+    name: text("name").notNull(),
+    createdAt: ts("created_at").notNull().$defaultFn(now),
+  },
+  (t) => [
+    uniqueIndex("teams_workspace_department_name_uq").on(t.workspaceId, t.departmentId, t.name),
+  ],
+);
+export const organizationLinks = sqliteTable("organization_links", {
+  organizationId: text("organization_id").primaryKey(),
+  workspaceId: text("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+});
+export const assignments = sqliteTable(
+  "assignments",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    type: text("type").$type<AssignmentType>().notNull(),
+    scopeType: text("scope_type").$type<"project" | "user" | "workspace">().notNull(),
+    scopeId: text("scope_id").notNull(),
+    expiresAt: ts("expires_at"),
+  },
+  (t) => [index("assignments_user_scope_idx").on(t.workspaceId, t.userId, t.scopeId)],
+);
+export const projectMemberships = sqliteTable(
+  "project_memberships",
+  {
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+  },
+  (t) => [uniqueIndex("project_memberships_uq").on(t.projectId, t.userId)],
+);
+export const sourceAccess = sqliteTable(
+  "source_access",
+  {
+    sourceId: text("source_id")
+      .notNull()
+      .references(() => sourceObjects.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    expiresAt: ts("expires_at"),
+  },
+  (t) => [uniqueIndex("source_access_uq").on(t.sourceId, t.userId)],
+);
+export const connectorConnections = sqliteTable(
+  "connector_connections",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    provider: text("provider").notNull(),
+    status: text("status").notNull().default("connected"),
+    credentials: text("credentials").notNull(),
+    scopes: text("scopes", { mode: "json" }).$type<string[]>().notNull(),
+    accountId: text("account_id").notNull(),
+    createdAt: ts("created_at").notNull().$defaultFn(now),
+  },
+  (t) => [index("connections_workspace_user_idx").on(t.workspaceId, t.userId)],
+);
+export const oauthStates = sqliteTable("oauth_states", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id),
+  expiresAt: ts("expires_at").notNull(),
+});
+export const askThreads = sqliteTable("ask_threads", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  projectId: text("project_id")
+    .notNull()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  sourceId: text("source_id").references(() => sourceObjects.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id),
+  title: text("title").notNull(),
+  createdAt: ts("created_at").notNull().$defaultFn(now),
+});
+export const threadMessages = sqliteTable("thread_messages", {
+  id: text("id").primaryKey(),
+  threadId: text("thread_id")
+    .notNull()
+    .references(() => askThreads.id, { onDelete: "cascade" }),
+  questionId: text("question_id")
+    .notNull()
+    .references(() => questions.id, { onDelete: "cascade" }),
+});
+
+/** Versioned documents for domain aggregates; only typed domain services expose these. */
+export const platformRecords = sqliteTable(
+  "platform_records",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    projectId: text("project_id").references(() => projects.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    ownerId: text("owner_id")
+      .notNull()
+      .references(() => users.id),
+    parentId: text("parent_id"),
+    status: text("status").notNull(),
+    data: text("data", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
+    version: integer("version").notNull().default(1),
+    createdAt: ts("created_at").notNull().$defaultFn(now),
+    updatedAt: ts("updated_at").notNull().$defaultFn(now),
+  },
+  (t) => [
+    index("records_kind_scope_idx").on(t.workspaceId, t.kind, t.projectId),
+    index("records_owner_idx").on(t.workspaceId, t.ownerId),
+  ],
+);
+export const pointsLedger = sqliteTable(
+  "points_ledger",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    amount: integer("amount").notNull(),
+    action: text("action").notNull(),
+    sourceId: text("source_id").notNull(),
+    reason: text("reason").notNull(),
+    createdAt: ts("created_at").notNull().$defaultFn(now),
+  },
+  (t) => [
+    uniqueIndex("points_action_source_user_uq").on(t.workspaceId, t.userId, t.action, t.sourceId),
+  ],
+);
+export const domainEvents = sqliteTable("domain_events", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  type: text("type").notNull(),
+  data: text("data", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
+  createdAt: ts("created_at").notNull().$defaultFn(now),
+  processedAt: ts("processed_at"),
+});

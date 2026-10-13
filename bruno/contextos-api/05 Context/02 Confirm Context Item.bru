@@ -1,0 +1,35 @@
+meta {
+  name: Confirm Context Item
+  type: http
+  seq: 2
+}
+
+patch {
+  url: {{baseUrl}}/projects/{{projectId}}/context-items/{{contextItemId}}/verification
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "verification": "confirmed"
+  }
+}
+
+script:pre-request {
+  if (!bru.getEnvVar("contextItemId")) {
+    bru.runner.skipRequest();
+  }
+}
+
+tests {
+  test("Confirms a context item", function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().verification).to.equal("confirmed");
+  });
+}

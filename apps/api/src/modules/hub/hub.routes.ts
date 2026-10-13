@@ -4,6 +4,6 @@ import type { HubService } from "./hub.service.js";
 
 export function createHubRoutes(service: HubService) {
   return new Hono<ProjectEnv>()
-    .get("/", (c) => c.json(service.getHub(c.get("project"))))
+    .get("/", (c) => c.json(service.getHub(c.get("project"), c.get("actor"))))
     .post("/refresh", (c) => c.json(service.requestRefresh(c.get("actor"), c.get("project")), 202));
 }

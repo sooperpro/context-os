@@ -1,0 +1,22 @@
+meta {
+  name: List Feedback
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/projects/{{projectId}}/feedback
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+tests {
+  test("Returns feedback", function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().items).to.be.an("array");
+  });
+}

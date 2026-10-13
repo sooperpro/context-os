@@ -1,0 +1,35 @@
+meta {
+  name: Self Verification Is Rejected
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/corrections/{{correctionId}}/verify
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "version": {{correctionVersion}},
+    "accepted": true,
+    "reason": "Attempted self verification"
+  }
+}
+
+tests {
+  test("Expected rejection", function () {
+    expect(res.getStatus()).to.equal(403);
+  });
+}
+
+docs {
+  See docs/backend-api-use-cases.md for required role, workflow and setup.
+}
+

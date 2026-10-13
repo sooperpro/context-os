@@ -9,6 +9,8 @@ import type { JobQueue } from "../jobs/jobs.queue.js";
 import type { ProjectService } from "../projects/projects.service.js";
 import { OVERVIEW_SECTION, type HubRepository } from "./hub.repository.js";
 import { generateOverview, OVERVIEW_PROMPT_VERSION, selectOverviewItems } from "./overview.js";
+import type { IdentityService } from "../identity/identity.service.js";
+import type { SourceRepository } from "../sources/sources.repository.js";
 
 export interface HubServiceDeps {
   repo: HubRepository;
@@ -18,6 +20,8 @@ export interface HubServiceDeps {
   gemini: GeminiClient;
   audit: AuditService;
   logger: Logger;
+  identity: IdentityService;
+  sources: SourceRepository;
 }
 
 export function createHubService({
@@ -28,10 +32,19 @@ export function createHubService({
   gemini,
   audit,
   logger,
+  identity,
+  sources,
 }: HubServiceDeps) {
-  const readOverview = (projectId: string): HubOverview | null => {
+  const readOverview = (projectId: string, allowedSources: Set<string>): HubOverview | null => {
     const snapshot = repo.getSnapshot(projectId, OVERVIEW_SECTION);
     if (!snapshot) return null;
+    const dependencies = snapshot.data.generationSourceIds;
+    if (
+      !Array.isArray(dependencies) ||
+      !dependencies.length ||
+      !dependencies.every((id) => typeof id === "string" && allowedSources.has(id))
+    )
+      return null;
     const parsed = HubOverviewSchema.safeParse({
       ...snapshot.data,
       model: snapshot.model,
@@ -49,13 +62,30 @@ export function createHubService({
   };
 
   return {
-    getHub(project: ProjectRow): Hub {
+    getHub(project: ProjectRow, actor: Actor): Hub {
       const sync: SyncStatus = queue.syncStatus(project.id);
+      const visible = context.listItems(project, undefined, actor);
+      const allowed = new Set(identity.visibleSourceIds(actor, project.id));
+      const completeAccess = sources.list(project.id).every((source) => allowed.has(source.id));
+      const ready = new Set(
+        sources
+          .list(project.id)
+          .filter((source) => source.status === "ready" && allowed.has(source.id))
+          .map((source) => source.id),
+      );
+      const counts = Object.fromEntries(
+        Object.keys(context.countsByKind(project.id)).map((kind) => [
+          kind,
+          visible.filter((item) => item.kind === kind).length,
+        ]),
+      ) as Hub["counts"];
       return {
-        project: projects.withStats(project),
-        overview: readOverview(project.id),
-        sync,
-        counts: context.countsByKind(project.id),
+        project: projects.withStats(project, actor),
+        overview: completeAccess ? readOverview(project.id, ready) : null,
+        sync: completeAccess
+          ? sync
+          : { state: "idle", queued: 0, running: 0, failed: 0, lastCompletedAt: null },
+        counts,
       };
     },
 
@@ -96,6 +126,9 @@ export function createHubService({
           .map((n) => items[n - 1]?.id)
           .filter((id): id is string => typeof id === "string");
       const data = {
+        generationSourceIds: [
+          ...new Set(items.flatMap((item) => item.evidence.map((ref) => ref.sourceObjectId))),
+        ],
         whatItIs: { text: output.whatItIs.text, evidenceItemIds: toIds(output.whatItIs.refs) },
         problem: { text: output.problem.text, evidenceItemIds: toIds(output.problem.refs) },
         users: { text: output.users.text, evidenceItemIds: toIds(output.users.refs) },

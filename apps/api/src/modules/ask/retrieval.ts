@@ -25,6 +25,7 @@ export interface RetrievalDeps {
 export interface RetrievalOptions {
   limit?: number;
   candidates?: number;
+  sourceIds?: string[];
 }
 
 /**
@@ -35,20 +36,22 @@ export async function retrievePassages(
   { sources, gemini, logger }: RetrievalDeps,
   projectId: string,
   question: string,
-  { limit = 8, candidates = 20 }: RetrievalOptions = {},
+  { limit = 8, candidates = 20, sourceIds }: RetrievalOptions = {},
 ): Promise<RetrievedPassage[]> {
   const rankings: string[][] = [];
 
   const match = buildFtsQuery(question);
   if (match) {
     try {
-      rankings.push(sources.searchChunks(projectId, match, candidates).map((hit) => hit.chunkId));
+      rankings.push(
+        sources.searchChunks(projectId, match, candidates, sourceIds).map((hit) => hit.chunkId),
+      );
     } catch (error) {
-      logger.warn({ err: error, match }, "FTS query failed; continuing with vector search only");
+      logger.warn({ err: error }, "FTS query failed; continuing with vector search only");
     }
   }
 
-  const embedded = sources.listEmbeddedChunks(projectId);
+  const embedded = sources.listEmbeddedChunks(projectId, sourceIds);
   if (embedded.length > 0) {
     try {
       const [queryVector] = await gemini.embed([question], "RETRIEVAL_QUERY");

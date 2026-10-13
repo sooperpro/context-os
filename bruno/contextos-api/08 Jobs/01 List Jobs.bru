@@ -1,0 +1,35 @@
+meta {
+  name: List Jobs
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/projects/{{projectId}}/jobs?limit=50
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const failedJob = res.getBody().items.find((job) => job.status === "failed");
+    if (failedJob) {
+      bru.setEnvVar("jobId", failedJob.id);
+    }
+  }
+}
+
+tests {
+  test("Returns background jobs", function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().items).to.be.an("array");
+  });
+}
+
+docs {
+  Optional status values: queued, running, done, failed. The first failed job is saved as jobId for Retry Job.
+}

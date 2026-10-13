@@ -16,7 +16,7 @@ import {
 
 export interface EvidenceWithSource {
   evidence: EvidenceRow;
-  source: Pick<SourceObjectRow, "id" | "title" | "kind" | "url" | "sourceCreatedAt">;
+  source: Pick<SourceObjectRow, "id" | "title" | "kind" | "url" | "sourceCreatedAt" | "status">;
 }
 
 export function createContextRepository(db: Db) {
@@ -26,9 +26,49 @@ export function createContextRepository(db: Db) {
     kind: sourceObjects.kind,
     url: sourceObjects.url,
     sourceCreatedAt: sourceObjects.sourceCreatedAt,
+    status: sourceObjects.status,
   };
 
   return {
+    listReadySourceIds(projectId: string): string[] {
+      return db
+        .select({ id: sourceObjects.id })
+        .from(sourceObjects)
+        .where(and(eq(sourceObjects.projectId, projectId), eq(sourceObjects.status, "ready")))
+        .all()
+        .map((row) => row.id);
+    },
+    /** Evidence deletion must not erase the provenance of already-merged prose. */
+    preserveGenerationSources(sourceId: string): void {
+      const affected = db
+        .selectDistinct({ id: evidence.contextItemId })
+        .from(evidence)
+        .where(eq(evidence.sourceObjectId, sourceId))
+        .all()
+        .map((row) => row.id);
+      if (!affected.length) return;
+      for (const row of db
+        .select()
+        .from(contextItems)
+        .where(inArray(contextItems.id, affected))
+        .all()) {
+        const supporting = db
+          .select({ id: evidence.sourceObjectId })
+          .from(evidence)
+          .where(eq(evidence.contextItemId, row.id))
+          .all()
+          .map((ref) => ref.id);
+        const previous = Array.isArray(row.data._generationSources)
+          ? row.data._generationSources.filter((id): id is string => typeof id === "string")
+          : [];
+        db.update(contextItems)
+          .set({
+            data: { ...row.data, _generationSources: [...new Set([...previous, ...supporting])] },
+          })
+          .where(eq(contextItems.id, row.id))
+          .run();
+      }
+    },
     // ----- extraction runs -----
     startRun(row: typeof extractionRuns.$inferInsert): ExtractionRunRow {
       return db.insert(extractionRuns).values(row).returning().get();

@@ -1,0 +1,33 @@
+meta {
+  name: Self Publication Is Rejected
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/learning/paths/{{pathId}}/publish
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "version": {{pathVersion}}
+  }
+}
+
+tests {
+  test("Expected rejection", function () {
+    expect(res.getStatus()).to.equal(403);
+  });
+}
+
+docs {
+  See docs/backend-api-use-cases.md for required role, workflow and setup.
+}
+

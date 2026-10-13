@@ -1,0 +1,21 @@
+meta {
+  name: Reprocess Source
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/projects/{{projectId}}/sources/{{sourceId}}/reprocess
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+tests {
+  test("Queues source reprocessing", function () {
+    expect(res.getStatus()).to.equal(202);
+  });
+}

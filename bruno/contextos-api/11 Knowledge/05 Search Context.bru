@@ -1,0 +1,26 @@
+meta {
+  name: Search Context
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/search?projectId={{projectId}}&q=testing&limit=50&offset=0
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+tests {
+  test("Expected response", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
+
+docs {
+  See docs/backend-api-use-cases.md for required role, workflow and setup.
+}
+

@@ -1,0 +1,45 @@
+meta {
+  name: Engagement Heartbeat
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/learning/assignments/{{pathAssignmentId}}/items/{{learningItemId}}/dwell
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "version": {{progressVersion}}
+  }
+}
+
+script:pre-request {
+  if (!bru.getEnvVar("engagementItemId")) bru.runner.skipRequest();
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const body = res.getBody();
+    bru.setEnvVar("progressVersion", body.version);
+  }
+}
+
+tests {
+  test("Expected response", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
+
+docs {
+  See docs/backend-api-use-cases.md for required role, workflow and setup.
+  This request is skipped unless its prerequisite environment variable is configured: engagementItemId.
+}
+

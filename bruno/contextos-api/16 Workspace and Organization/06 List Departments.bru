@@ -1,0 +1,27 @@
+meta {
+  name: List Departments
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/org/departments?limit=50&offset=0
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+tests {
+  test("Expected response", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
+
+docs {
+  Use only a disposable development tenant. Workspace creation and member organization mutation are opt-in.
+  See docs/backend-api-use-cases.md for access rules and configuration.
+}
+

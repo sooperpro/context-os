@@ -1,0 +1,36 @@
+meta {
+  name: List Context Items
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/projects/{{projectId}}/context-items
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const items = res.getBody().items;
+    if (items.length > 0) {
+      bru.setEnvVar("contextItemId", items[0].id);
+    }
+  }
+}
+
+tests {
+  test("Returns extracted context items", function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().items).to.be.an("array");
+    if (bru.getEnvVar("sourceReady") === "true") expect(res.getBody().items.length).to.be.greaterThan(0);
+  });
+}
+
+docs {
+  Optional kind values: decision, event, status_claim, person, component, dependency, term. The first returned item is saved as contextItemId.
+}

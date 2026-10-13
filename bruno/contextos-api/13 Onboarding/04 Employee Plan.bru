@@ -1,0 +1,32 @@
+meta {
+  name: Employee Plan
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/probation/employees/{{learnerId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+script:pre-request {
+  if (!bru.getEnvVar("managerAccessToken")) bru.runner.skipRequest();
+  if (bru.getEnvVar("managerAccessToken")) req.setHeader("Authorization", "Bearer " + bru.getEnvVar("managerAccessToken"));
+}
+
+tests {
+  test("Expected response", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
+
+docs {
+  See docs/backend-api-use-cases.md for required role, workflow and setup.
+  This request is skipped unless its prerequisite environment variable is configured: managerAccessToken.
+}
+

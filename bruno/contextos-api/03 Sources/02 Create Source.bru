@@ -1,0 +1,44 @@
+meta {
+  name: Create Source
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/projects/{{projectId}}/sources
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "kind": "document",
+    "title": "ADR-0007: Move billing to the ledger service",
+    "content": "# ADR-0007: Move billing to the ledger service\n\nStatus: Accepted on 2026-03-04.\n\n## Context\n\nBilling logic currently lives inside the monolith and shares a database with checkout. Priya Shah owns the billing area. The checkout service depends on billing for invoice totals.\n\n## Decision\n\nWe will move billing into a dedicated ledger service backed by Postgres. We considered keeping billing in the monolith and using a third-party billing SaaS, but rejected both because of audit requirements.\n\n## Consequences\n\nCheckout must call the ledger API instead of reading the shared table. Migration of historical invoices is planned for Q2 2026 and is currently blocked on the data retention review.",
+    "author": "Priya Shah",
+    "sourceCreatedAt": "2026-03-04T10:00:00.000Z"
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    const body = res.getBody();
+    bru.setEnvVar("sourceId", body.id);
+  }
+}
+
+tests {
+  test("Imports and queues a source", function () {
+    expect(res.getStatus()).to.equal(201);
+    expect(res.getBody().id).to.be.a("string");
+  });
+}
+
+docs {
+  Saves sourceId. The worker processes this asynchronously; use List Jobs and Get Source to observe progress.
+}

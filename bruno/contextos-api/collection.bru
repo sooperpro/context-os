@@ -1,0 +1,14 @@
+headers {
+  Accept: application/json
+}
+
+script:pre-request {
+  const token = bru.getEnvVar("accessToken");
+  if (token) req.setHeader("Authorization", "Bearer " + token);
+  else req.deleteHeader("Authorization");
+}
+
+docs {
+  Use Local for development or a git-ignored private environment for real Clerk session tokens.
+  Optional multi-user and live-provider requests are skipped until their prerequisites are configured.
+}

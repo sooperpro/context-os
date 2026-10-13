@@ -1,0 +1,35 @@
+meta {
+  name: Skip Provider Setup
+  type: http
+  seq: 3
+}
+
+patch {
+  url: {{baseUrl}}/workspaces/current/setup
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {"version": {{setupVersion}}, "step": "connect_source", "status": "skipped"}
+}
+
+script:post-response {
+  if (res.getStatus() === 200) bru.setEnvVar("setupVersion", res.getBody().version);
+}
+
+tests {
+  test("Expected response", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
+
+docs {
+  Use only a disposable development tenant. Workspace creation and member organization mutation are opt-in.
+  See docs/backend-api-use-cases.md for access rules and configuration.
+}
+

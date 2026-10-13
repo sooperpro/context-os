@@ -11,6 +11,7 @@ import type { SourceRepository } from "../sources/sources.repository.js";
 import { AnswerOutputSchema } from "./answer.schema.js";
 import type { AskRepository } from "./ask.repository.js";
 import { retrievePassages, type RetrievedPassage } from "./retrieval.js";
+import type { IdentityService } from "../identity/identity.service.js";
 
 export interface AskServiceDeps {
   repo: AskRepository;
@@ -19,6 +20,7 @@ export interface AskServiceDeps {
   gemini: GeminiClient;
   audit: AuditService;
   logger: Logger;
+  identity: IdentityService;
 }
 
 const SYSTEM_INSTRUCTION = [
@@ -42,6 +44,7 @@ export function createAskService({
   gemini,
   audit,
   logger,
+  identity,
 }: AskServiceDeps) {
   const formatPassage = (index: number, passage: RetrievedPassage): string => {
     const s = passage.source;
@@ -75,15 +78,26 @@ export function createAskService({
   });
 
   return {
-    async ask(actor: Actor, project: ProjectRow, input: AskInput): Promise<Answer> {
+    async ask(
+      actor: Actor,
+      project: ProjectRow,
+      input: AskInput,
+      sourceId?: string,
+    ): Promise<Answer> {
       const startedAt = performance.now();
       const passages = await retrievePassages(
         { sources, gemini, logger },
         project.id,
         input.question,
+        {
+          sourceIds: identity
+            .visibleSourceIds(actor, project.id)
+            .filter((id) => !sourceId || id === sourceId),
+        },
       );
 
       let draft: Omit<Answer, "id" | "createdAt">;
+      let generationSourceIds: string[] = [];
       if (passages.length === 0) {
         draft = insufficientAnswer(
           project,
@@ -92,7 +106,18 @@ export function createAskService({
         );
       } else {
         const sourceIds = [...new Set(passages.map((p) => p.source.id))];
-        const related = context.listItemsLinkedToSources(project.id, sourceIds, RELATED_ITEM_LIMIT);
+        const related = context.listItemsLinkedToSources(
+          project.id,
+          sourceIds,
+          RELATED_ITEM_LIMIT,
+          actor,
+        );
+        generationSourceIds = [
+          ...new Set([
+            ...sourceIds,
+            ...related.flatMap((item) => item.evidence.map((entry) => entry.sourceObjectId)),
+          ]),
+        ];
 
         const prompt = [
           `Question: ${input.question}`,
@@ -104,13 +129,48 @@ export function createAskService({
           ...related.map((item, i) => formatItemForPrompt(i + 1, item).replace(/^I/, "C")),
         ].join("\n");
 
-        const output = await gemini.generateStructured({
+        let output = await gemini.generateStructured({
           purpose: "ask",
           schema: AnswerOutputSchema,
           systemInstruction: SYSTEM_INSTRUCTION,
           prompt,
           temperature: 0.2,
         });
+
+        const supported = (draft: typeof output) => {
+          const valid = new Set(
+            draft.citations
+              .filter((citation) => passages[citation.ref - 1])
+              .map((citation) => citation.ref),
+          );
+          const inline = [...draft.answer.matchAll(/\[(\d+)\]/g)].map((match) => Number(match[1]));
+          return (
+            draft.confidence === "insufficient" ||
+            (draft.citations.length > 0 &&
+              draft.citations.every((citation) => passages[citation.ref - 1]) &&
+              inline.length > 0 &&
+              inline.every((ref) => valid.has(ref)))
+          );
+        };
+        if (!supported(output))
+          output = await gemini.generateStructured({
+            purpose: "ask",
+            schema: AnswerOutputSchema,
+            systemInstruction: SYSTEM_INSTRUCTION,
+            prompt:
+              prompt +
+              "\nYour previous output had unsupported citations. Cite every factual assertion using only provided passage numbers, or report insufficient evidence.",
+            temperature: 0,
+          });
+        if (!supported(output))
+          output = {
+            answer:
+              "The available evidence does not support a reliably cited answer. Please refine your question or add source evidence.",
+            confidence: "insufficient",
+            uncertainties: [],
+            citations: [],
+            relatedItemRefs: [],
+          };
 
         const citations: Citation[] = [];
         for (const c of output.citations) {
@@ -156,6 +216,16 @@ export function createAskService({
         };
       }
 
+      await identity.refreshSourceAccess(actor);
+      const currentSources = new Set(identity.visibleSourceIds(actor, project.id));
+      if (!generationSourceIds.every((sourceId) => currentSources.has(sourceId))) {
+        draft = insufficientAnswer(
+          project,
+          input.question,
+          "There is not enough available source evidence to answer this question.",
+        );
+        generationSourceIds = [];
+      }
       const id = randomUUID();
       const createdAt = new Date();
       const answer: Answer = { ...draft, id, createdAt: createdAt.toISOString() };
@@ -166,6 +236,7 @@ export function createAskService({
         answer,
         model: gemini.model,
         actorId: actor.id,
+        sourceIds: generationSourceIds,
         createdAt,
       });
       audit.record({
@@ -184,8 +255,12 @@ export function createAskService({
       return answer;
     },
 
-    history(project: ProjectRow, limit = 20): Answer[] {
-      return repo.list(project.id, limit).map((row) => row.answer);
+    history(actor: Actor, project: ProjectRow, limit = 20): Answer[] {
+      const allowed = new Set(identity.visibleSourceIds(actor, project.id));
+      return repo
+        .list(project.id, actor.id, limit)
+        .filter((row) => row.sourceIds?.every((id) => allowed.has(id)) === true)
+        .map((row) => row.answer);
     },
   };
 }

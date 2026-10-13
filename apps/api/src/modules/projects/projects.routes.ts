@@ -4,12 +4,14 @@ import { Hono } from "hono";
 import { validationHook } from "../../middleware/validation.js";
 import type { AppEnv, ProjectEnv } from "../../types.js";
 import type { ProjectService } from "./projects.service.js";
+import { requireRole } from "../identity/identity.service.js";
 
 /** Collection routes: /projects */
 export function createProjectsRoutes(service: ProjectService) {
   return new Hono<AppEnv>()
     .get("/", (c) => c.json({ items: service.list(c.get("actor")) }))
     .post("/", zValidator("json", CreateProjectInputSchema, validationHook), (c) => {
+      requireRole(c.get("actor"), "owner", "admin", "manager");
       const project = service.create(c.get("actor"), c.req.valid("json"));
       return c.json(project, 201);
     });
@@ -18,7 +20,7 @@ export function createProjectsRoutes(service: ProjectService) {
 /** Single-project routes: /projects/:projectId (project is loaded by projectScope). */
 export function createProjectRoutes(service: ProjectService) {
   return new Hono<ProjectEnv>()
-    .get("/", (c) => c.json(service.withStats(c.get("project"))))
+    .get("/", (c) => c.json(service.withStats(c.get("project"), c.get("actor"))))
     .patch("/", zValidator("json", UpdateProjectInputSchema, validationHook), (c) => {
       return c.json(service.update(c.get("actor"), c.get("project"), c.req.valid("json")));
     })

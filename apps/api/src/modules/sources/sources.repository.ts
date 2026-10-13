@@ -97,7 +97,11 @@ export function createSourceRepository(db: Db) {
     },
 
     /** Embedded chunks of *ready* sources, for brute-force vector scoring (pilot scale). */
-    listEmbeddedChunks(projectId: string): Array<Pick<SourceChunkRow, "id" | "embedding">> {
+    listEmbeddedChunks(
+      projectId: string,
+      sourceIds?: string[],
+    ): Array<Pick<SourceChunkRow, "id" | "embedding">> {
+      if (sourceIds?.length === 0) return [];
       return db
         .select({ id: sourceChunks.id, embedding: sourceChunks.embedding })
         .from(sourceChunks)
@@ -107,6 +111,7 @@ export function createSourceRepository(db: Db) {
             eq(sourceChunks.projectId, projectId),
             eq(sourceObjects.status, "ready"),
             isNotNull(sourceChunks.embedding),
+            sourceIds ? inArray(sourceObjects.id, sourceIds) : undefined,
           ),
         )
         .all();
@@ -124,11 +129,17 @@ export function createSourceRepository(db: Db) {
     },
 
     /** BM25 keyword search over the FTS5 index (maintained by triggers). */
-    searchChunks(projectId: string, match: string, limit: number): FtsHit[] {
+    searchChunks(projectId: string, match: string, limit: number, sourceIds?: string[]): FtsHit[] {
+      if (sourceIds?.length === 0) return [];
+      const sourceFilter = sourceIds
+        ? sql`AND ${inArray(sourceChunks.sourceObjectId, sourceIds)}`
+        : sql``;
+      const allowed = sql`AND chunk_id IN (SELECT source_chunks.id FROM source_chunks JOIN source_objects ON source_objects.id = source_chunks.source_object_id WHERE source_objects.status = 'ready' ${sourceFilter})`;
       return db.all<FtsHit>(sql`
         SELECT chunk_id AS chunkId, bm25(source_chunks_fts) AS score
         FROM source_chunks_fts
         WHERE source_chunks_fts MATCH ${match} AND project_id = ${projectId}
+        ${allowed}
         ORDER BY score
         LIMIT ${limit}
       `);

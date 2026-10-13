@@ -1,0 +1,35 @@
+meta {
+  name: Enable On Demand Companion
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/companion/preferences
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "enabled": true,
+    "onDemandOnly": true,
+    "proactiveNudges": false
+  }
+}
+
+tests {
+  test("Expected response", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
+
+docs {
+  See docs/backend-api-use-cases.md for required role, workflow and setup.
+}
+

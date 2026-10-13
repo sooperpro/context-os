@@ -44,8 +44,8 @@ export function createFeedbackService({ repo, audit }: FeedbackServiceDeps) {
       });
       return toFeedback(row);
     },
-    list(project: ProjectRow): Feedback[] {
-      return repo.list(project.id).map(toFeedback);
+    list(actor: Actor, project: ProjectRow): Feedback[] {
+      return repo.list(project.id, actor.id).map(toFeedback);
     },
   };
 }

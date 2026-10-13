@@ -15,7 +15,9 @@ const ItemParam = z.object({ itemId: IdSchema });
 export function createContextRoutes(service: ContextService) {
   return new Hono<ProjectEnv>()
     .get("/", zValidator("query", ListContextItemsQuerySchema, validationHook), (c) => {
-      return c.json({ items: service.listItems(c.get("project"), c.req.valid("query").kind) });
+      return c.json({
+        items: service.listItems(c.get("project"), c.req.valid("query").kind, c.get("actor")),
+      });
     })
     .patch(
       "/:itemId/verification",

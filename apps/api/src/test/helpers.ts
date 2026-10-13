@@ -139,10 +139,7 @@ export const SAMPLE_ANSWER: AnswerOutput = {
   timelineContext: "Accepted on 2026-03-04.",
   currentState: { statement: "Invoice migration is blocked.", asOf: "2026-03-04" },
   uncertainties: [],
-  citations: [
-    { ref: 1, claim: "Billing moves into a ledger service" },
-    { ref: 99, claim: "This citation points at nothing and must be dropped" },
-  ],
+  citations: [{ ref: 1, claim: "Billing moves into a ledger service" }],
   relatedItemRefs: [1, 2, 42],
 };
 
@@ -219,8 +216,21 @@ export function createFakeGemini(options: FakeGeminiOptions = {}): FakeGemini {
 const MIGRATIONS_DIR = fileURLToPath(new URL("../../drizzle", import.meta.url));
 
 /** Fully wired app + container on an in-memory SQLite database; worker is not started. */
-export function createTestApp<G extends GeminiClient = FakeGemini>(options: { gemini?: G } = {}) {
-  const env = loadEnv({ ...process.env, DATABASE_URL: ":memory:" });
+export function createTestApp<G extends GeminiClient = FakeGemini>(
+  options: { gemini?: G; env?: NodeJS.ProcessEnv } = {},
+) {
+  const env = loadEnv({
+    ...process.env,
+    CLERK_SECRET_KEY: undefined,
+    CLERK_PUBLISHABLE_KEY: undefined,
+    GOOGLE_CLIENT_ID: undefined,
+    GOOGLE_CLIENT_SECRET: undefined,
+    CONNECTOR_TOKEN_ENCRYPTION_KEY: undefined,
+    ...options.env,
+    NODE_ENV: "test",
+    AUTH_MODE: "development",
+    DATABASE_URL: ":memory:",
+  });
   const database = createDb(env.DATABASE_URL);
   runMigrations(database.db, MIGRATIONS_DIR);
   const gemini = (options.gemini ?? createFakeGemini()) as G;

@@ -1,0 +1,26 @@
+meta {
+  name: My Maintenance Queue
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/flags/queue
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+tests {
+  test("Expected response", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
+
+docs {
+  See docs/backend-api-use-cases.md for required role, workflow and setup.
+}
+

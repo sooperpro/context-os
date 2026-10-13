@@ -1,0 +1,31 @@
+meta {
+  name: List Drive Files
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/connectors/{{connectionId}}/files
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+script:pre-request {
+  if (!bru.getEnvVar("connectionId")) bru.runner.skipRequest();
+}
+
+tests {
+  test("Expected response", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
+
+docs {
+  See docs/backend-api-use-cases.md for required role, workflow and setup.
+  This request is skipped unless its prerequisite environment variable is configured: connectionId.
+}
+

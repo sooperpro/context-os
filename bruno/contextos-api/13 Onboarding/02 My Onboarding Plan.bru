@@ -1,0 +1,32 @@
+meta {
+  name: My Onboarding Plan
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/probation/my-plan
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+script:pre-request {
+  if (!bru.getEnvVar("learnerAccessToken")) bru.runner.skipRequest();
+  if (bru.getEnvVar("learnerAccessToken")) req.setHeader("Authorization", "Bearer " + bru.getEnvVar("learnerAccessToken"));
+}
+
+tests {
+  test("Expected response", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
+
+docs {
+  See docs/backend-api-use-cases.md for required role, workflow and setup.
+  This request is skipped unless its prerequisite environment variable is configured: learnerAccessToken.
+}
+

@@ -1,0 +1,27 @@
+meta {
+  name: OAuth Callback Invalid State
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/connectors/google-drive/callback?state=invalid-state-with-no-matching-record&code=synthetic-test-code
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+tests {
+  test("Expected response", function () {
+    expect(res.getStatus()).to.equal(400);
+  });
+}
+
+docs {
+  See docs/backend-api-use-cases.md for workflow prerequisites and required permissions.
+  Skip is intentional when prerequisites or independent user sessions are not configured.
+}
+

@@ -62,6 +62,7 @@ export const CreateSourceInputSchema = z.object({
   author: z.string().trim().max(200).optional(),
   sourceCreatedAt: IsoDateTimeSchema.optional(),
   sourceUpdatedAt: IsoDateTimeSchema.optional(),
+  visibility: z.enum(["workspace", "restricted"]).optional(),
 });
 export type CreateSourceInput = z.infer<typeof CreateSourceInputSchema>;
 

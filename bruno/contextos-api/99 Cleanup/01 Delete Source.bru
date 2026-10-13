@@ -1,0 +1,21 @@
+meta {
+  name: Delete Source
+  type: http
+  seq: 1
+}
+
+delete {
+  url: {{baseUrl}}/projects/{{projectId}}/sources/{{sourceId}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("Deletes the source", function () {
+    expect(res.getStatus()).to.equal(204);
+  });
+}
+
+docs {
+  Destructive cleanup request. Run after the source, hub, context, and Ask requests.
+}

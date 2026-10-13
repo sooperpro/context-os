@@ -7,6 +7,12 @@ import type { AppEnv } from "../types.js";
 
 export const errorHandler: ErrorHandler<AppEnv> = (error, c) => {
   const requestId = c.get("requestId");
+  if ("code" in error && error.code === "SQLITE_CONSTRAINT_UNIQUE") {
+    return c.json(
+      { error: { code: "CONFLICT", message: "This resource already exists", requestId } },
+      409,
+    );
+  }
 
   if (error instanceof AppError) {
     const log = error.status >= 500 ? logger.error.bind(logger) : logger.warn.bind(logger);

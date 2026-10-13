@@ -18,6 +18,6 @@ export function createAskRoutes(service: AskService) {
 
 export function createQuestionRoutes(service: AskService) {
   return new Hono<ProjectEnv>().get("/", (c) =>
-    c.json({ items: service.history(c.get("project")) }),
+    c.json({ items: service.history(c.get("actor"), c.get("project")) }),
   );
 }

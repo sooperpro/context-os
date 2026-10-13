@@ -1,0 +1,31 @@
+meta {
+  name: Rename Team
+  type: http
+  seq: 10
+}
+
+patch {
+  url: {{baseUrl}}/org/teams/{{teamId}}
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {"name": "Bruno Ledger"}
+}
+
+tests {
+  test("Expected response", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
+
+docs {
+  Use only a disposable development tenant. Workspace creation and member organization mutation are opt-in.
+  See docs/backend-api-use-cases.md for access rules and configuration.
+}
+

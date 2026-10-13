@@ -29,6 +29,7 @@ export function createWorker({
   let running = false;
   let timer: NodeJS.Timeout | null = null;
   let loopPromise: Promise<void> | null = null;
+  let wake: (() => void) | null = null;
 
   async function execute(job: JobRow): Promise<void> {
     const log = logger.child({
@@ -79,8 +80,10 @@ export function createWorker({
       if (!running) break;
       if (!processed) {
         await new Promise<void>((resolve) => {
+          wake = resolve;
           timer = setTimeout(resolve, pollIntervalMs);
         });
+        wake = null;
         timer = null;
       }
     }
@@ -97,6 +100,7 @@ export function createWorker({
     async stop(): Promise<void> {
       running = false;
       if (timer) clearTimeout(timer);
+      wake?.();
       await loopPromise;
       loopPromise = null;
     },

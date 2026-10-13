@@ -1,0 +1,40 @@
+meta {
+  name: Independent Correction Approval
+  type: http
+  seq: 12
+}
+
+post {
+  url: {{baseUrl}}/corrections/{{correctionId}}/verify
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "version": {{correctionVersion}},
+    "accepted": true,
+    "reason": "Reviewed source evidence independently."
+  }
+}
+
+script:pre-request {
+  if (!bru.getEnvVar("reviewerAccessToken") || !bru.getEnvVar("correctionId")) bru.runner.skipRequest();
+  else req.setHeader("Authorization", "Bearer " + bru.getEnvVar("reviewerAccessToken"));
+}
+
+tests {
+  test("Expected response", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
+
+docs {
+  See docs/backend-api-use-cases.md for workflow prerequisites and required permissions.
+  Skip is intentional when prerequisites or independent user sessions are not configured.
+}
+

@@ -2,9 +2,12 @@
 
 ContextOS reconstructs project context from a team's existing sources: **how the project got here, why decisions were made, what is true now, and where the evidence lives**. It is built for people joining a project (and, later, agents working on it). Retrieval is an implementation detail; the product promise is connected, temporal, evidence-backed context.
 
-- Product brief: `ContextOS_Knowledge_Handoff.md` (owner's document, not in this repo)
+- Product brief: [docs/ContextOS_Knowledge_Handoff.md](docs/ContextOS_Knowledge_Handoff.md)
 - Implementation plan and scope decisions: [docs/implementation-plan.md](docs/implementation-plan.md)
 - Decision log: [docs/decisions.md](docs/decisions.md)
+- Authentication, roles, Google Drive and file parsing additions: [docs/auth-and-connectors-stack.md](docs/auth-and-connectors-stack.md)
+- Backend API workflows and Bruno setup: [docs/backend-api-use-cases.md](docs/backend-api-use-cases.md)
+- PRD coverage and production release gates: [docs/backend-production-readiness.md](docs/backend-production-readiness.md)
 
 | Layer   | Stack                                                                                                                                    |
 | ------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
@@ -13,10 +16,27 @@ ContextOS reconstructs project context from a team's existing sources: **how the
 | Shared  | `@contextos/shared`: Zod schemas and types that define the API contract for both sides                                                   |
 | Tooling | pnpm 12 workspaces + catalogs, Turborepo, TypeScript 6, ESLint 10 (type-aware), Prettier, Vitest 5, Husky + lint-staged, GitHub Actions  |
 
+### Backend extensions for authenticated users and connected sources
+
+The backend now includes the following additions. Local development defaults to a development actor; production startup requires configured Clerk authentication. Google Drive requires separate OAuth configuration. The complete PRD and production release gates are not yet satisfied; see the coverage document above.
+
+The agreed delivery target is **Phase 1 first**. Later phases and production Clerk/Google account setup are deferred. Phase 1 itself remains in progress; missing connectors, context contracts and operational gates are documented explicitly.
+
+| Capability                 | Implementation status                                                                                                                        |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Authentication             | Installed `@clerk/backend` in Hono; Organizations and invitations. Frontend Clerk integration remains outstanding.                           |
+| Authorization              | Local memberships, Owner/Admin/Manager/Member/Guest roles, supported scoped assignments, source access and derived-content dependency checks |
+| Google Drive               | Installed official `googleapis` Node client; separate OAuth, file discovery and selected-file import                                         |
+| Document reading           | Google Docs text export; installed `pdfjs-dist` and `mammoth` with bounded parser workers                                                    |
+| Credential/file protection | Node crypto token encryption, bounded in-memory downloads and parser workers; encrypted storage/key rotation remain deployment work          |
+| Access regression testing  | Existing Vitest plus planned Playwright/Clerk browser tests and authenticated Bruno requests                                                 |
+
+App sign-in and Google Drive authorization are separate. Workspace roles do not grant access to private source files. See the [backend guide](docs/backend-api-use-cases.md) for the implemented roles, scopes, APIs and configuration; the stack extension remains historical planning context.
+
 ## What V0 does
 
-1. **Projects** inside a default workspace (every table carries tenant columns; identity provider is deferred, see D7 in the plan).
-2. **Sources** are imported manually as normalized source objects (document, conversation, ticket, pull request, note) with author, dates, link and content hash. OAuth connectors implement the same model later.
+1. **Projects** inside workspaces, with current membership and tenant checks in Clerk mode; local development uses one configured actor. Workspace/org APIs include settings, departments, teams and employment profiles.
+2. **Sources** are imported manually or from selected Google Drive files (when configured), with author, dates, link and content hash. Full sync and other connectors remain outstanding.
 3. **Pipeline** (background jobs on SQLite): chunk → FTS5 index → Gemini embeddings → Gemini structured extraction → **verbatim-quote verification** → de-duplication → hub refresh. Jobs retry with backoff; failures are visible in the UI.
 4. **Context model**: decisions, events, status claims, people/ownership, components, dependencies and terms, each with event time / as-of time, verification state (inferred, confirmed, stale, disputed, superseded), confidence and evidence rows pointing at source spans. Status claims about the same subject with different states are flagged as **conflicting**, never auto-resolved.
 5. **Project hub**: cited overview (each paragraph lists the items it rests on; items link to sources), timeline, decisions, current state, people, components, terms, sync status, honest empty states.
@@ -138,7 +158,7 @@ Request and response shapes live once in `packages/shared/src/schemas` and are v
 | `DATABASE_URL`                                           | `./data/contextos.db`          | SQLite path, or `:memory:`                                                    |
 | `WORKER_ENABLED` / `WORKER_POLL_INTERVAL_MS`             | `true` / `1000`                | Run the job worker in-process (set `false` for API-only)                      |
 | `WORKSPACE_NAME`, `DEV_ACTOR_ID`, `DEV_ACTOR_NAME`       | defaults                       | Single workspace + development actor until identity is wired                  |
-| `PORT` / `HOST`                                          | `3000` / `0.0.0.0`             |                                                                               |
+| `PORT` / `HOST`                                          | `3000` / `127.0.0.1`           | Set `HOST=0.0.0.0` explicitly only behind appropriate deployment controls.    |
 | `CORS_ORIGINS`                                           | `http://localhost:5173`        | Comma-separated                                                               |
 | `LOG_LEVEL`                                              | `info`                         | pino; pretty-printed in development                                           |
 | `RATE_LIMIT_WINDOW_MS` / `RATE_LIMIT_MAX`                | `60000` / `120`                | Per client IP; `0` disables                                                   |

@@ -1,0 +1,30 @@
+meta {
+  name: Decisions
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/projects/{{projectId}}/decisions
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+script:post-response {
+  if (res.getStatus() === 200) bru.setEnvVar("decisionId", res.getBody().items[0]?.id || "");
+}
+
+tests {
+  test("Expected response", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
+
+docs {
+  See docs/backend-api-use-cases.md for required role, workflow and setup.
+}
+

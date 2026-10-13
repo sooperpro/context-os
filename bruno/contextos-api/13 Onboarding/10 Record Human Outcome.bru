@@ -1,0 +1,41 @@
+meta {
+  name: Record Human Outcome
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/probation/employees/{{learnerId}}/outcome
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "version": {{planVersion}},
+    "outcome": "confirmed",
+    "note": "Manager decision after reviewing evidence"
+  }
+}
+
+script:pre-request {
+  if (!bru.getEnvVar("managerAccessToken")) bru.runner.skipRequest();
+  if (bru.getEnvVar("managerAccessToken")) req.setHeader("Authorization", "Bearer " + bru.getEnvVar("managerAccessToken"));
+}
+
+tests {
+  test("Expected response", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
+
+docs {
+  See docs/backend-api-use-cases.md for required role, workflow and setup.
+  This request is skipped unless its prerequisite environment variable is configured: managerAccessToken.
+}
+

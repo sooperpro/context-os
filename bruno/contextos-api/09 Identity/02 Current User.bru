@@ -1,0 +1,33 @@
+meta {
+  name: Current User
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/users/me
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const body = res.getBody();
+    bru.setEnvVar("actorId", body.id);
+  }
+}
+
+tests {
+  test("Expected response", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
+
+docs {
+  See docs/backend-api-use-cases.md for required role, workflow and setup.
+}
+

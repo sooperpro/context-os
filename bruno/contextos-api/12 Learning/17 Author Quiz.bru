@@ -1,0 +1,68 @@
+meta {
+  name: Author Quiz
+  type: http
+  seq: 17
+}
+
+post {
+  url: {{baseUrl}}/learning/paths/{{quizDraftPathId}}/items/{{quizDraftItemId}}/quiz
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "questions": [
+      {
+        "prompt": "What backs the dedicated ledger service?",
+        "options": [
+          "Postgres",
+          "A spreadsheet"
+        ],
+        "correctIndex": 0,
+        "claimId": "{{decisionId}}",
+        "explanation": "The ADR names Postgres."
+      },
+      {
+        "prompt": "Why were the alternatives rejected?",
+        "options": [
+          "Audit requirements",
+          "UI styling"
+        ],
+        "correctIndex": 0,
+        "claimId": "{{decisionId}}",
+        "explanation": "The ADR cites audit requirements."
+      },
+      {
+        "prompt": "Which alternative was considered?",
+        "options": [
+          "Keeping billing in the monolith",
+          "Deleting all invoices"
+        ],
+        "correctIndex": 0,
+        "claimId": "{{decisionId}}",
+        "explanation": "The ADR lists keeping billing in the monolith."
+      }
+    ]
+  }
+}
+
+script:pre-request {
+  if (!bru.getEnvVar("quizDraftPathId") || !bru.getEnvVar("quizDraftItemId") || !bru.getEnvVar("decisionId")) bru.runner.skipRequest();
+}
+
+tests {
+  test("Expected response", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+}
+
+docs {
+  See docs/backend-api-use-cases.md for workflow prerequisites and required permissions.
+  Skip is intentional when prerequisites or independent user sessions are not configured.
+}
+

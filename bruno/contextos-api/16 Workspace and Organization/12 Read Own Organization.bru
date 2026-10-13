@@ -1,0 +1,27 @@
+meta {
+  name: Read Own Organization
+  type: http
+  seq: 12
+}
+
+get {
+  url: {{baseUrl}}/users/{{actorId}}/organization
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+tests {
+  test("Expected response", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
+
+docs {
+  Use only a disposable development tenant. Workspace creation and member organization mutation are opt-in.
+  See docs/backend-api-use-cases.md for access rules and configuration.
+}
+

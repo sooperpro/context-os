@@ -1,0 +1,35 @@
+meta {
+  name: Create Team
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/org/teams
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {"departmentId": "{{departmentId}}", "name": "Bruno Payments"}
+}
+
+script:post-response {
+  if (res.getStatus() === 201) bru.setEnvVar("teamId", res.getBody().id);
+}
+
+tests {
+  test("Expected response", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+}
+
+docs {
+  Use only a disposable development tenant. Workspace creation and member organization mutation are opt-in.
+  See docs/backend-api-use-cases.md for access rules and configuration.
+}
+

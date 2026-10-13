@@ -15,6 +15,41 @@
       "when": 1791888325047,
       "tag": "0001_fts",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1791906822290,
+      "tag": "0002_platform",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1791907805587,
+      "tag": "0003_answer_dependencies",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1791907805588,
+      "tag": "0004_immutable_ledgers",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1791907805589,
+      "tag": "0005_platform_constraints",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1791909913416,
+      "tag": "0006_workspace_organization",
+      "breakpoints": true
     }
   ]
 }

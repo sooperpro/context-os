@@ -1,0 +1,31 @@
+meta {
+  name: Disconnect and Purge Drive
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{baseUrl}}/connectors/{{connectionId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+script:pre-request {
+  if (!bru.getEnvVar("enableConnectorCleanup")) bru.runner.skipRequest();
+}
+
+tests {
+  test("Expected response", function () {
+    expect(res.getStatus()).to.equal(204);
+  });
+}
+
+docs {
+  See docs/backend-api-use-cases.md for required role, workflow and setup.
+  This request is skipped unless its prerequisite environment variable is configured: enableConnectorCleanup.
+}
+

@@ -3,6 +3,10 @@ import { z } from "zod";
 /** Machine-readable error codes returned by the API. */
 export const ApiErrorCodeSchema = z.enum([
   "BAD_REQUEST",
+  "UNAUTHENTICATED",
+  "FORBIDDEN",
+  "CONFLICT",
+  "NOT_CONFIGURED",
   "VALIDATION_ERROR",
   "NOT_FOUND",
   "PAYLOAD_TOO_LARGE",

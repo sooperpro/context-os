@@ -1,0 +1,28 @@
+meta {
+  name: Update Project
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/projects/{{projectId}}
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "description": "Updated through the ContextOS Bruno collection."
+  }
+}
+
+tests {
+  test("Updates the project", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}

@@ -1,0 +1,31 @@
+meta {
+  name: Retry Failed Job
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/projects/{{projectId}}/jobs/{{jobId}}/retry
+  body: none
+  auth: none
+}
+
+script:pre-request {
+  if (!bru.getEnvVar("jobId")) {
+    bru.runner.skipRequest();
+  }
+}
+
+headers {
+  Accept: application/json
+}
+
+tests {
+  test("Retries a failed job", function () {
+    expect(res.getStatus()).to.equal(202);
+  });
+}
+
+docs {
+  Requires jobId to reference a failed job. Run List Jobs first.
+}

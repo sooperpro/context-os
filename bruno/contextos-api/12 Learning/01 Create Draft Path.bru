@@ -1,0 +1,52 @@
+meta {
+  name: Create Draft Path
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/learning/paths
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "projectId": "{{projectId}}",
+    "title": "Local testing onboarding",
+    "roleFamily": "engineering",
+    "items": [
+      {
+        "type": "meet",
+        "title": "Meet the project owner",
+        "objective": "Understand project ownership and source evidence.",
+        "required": false,
+        "verification": "self"
+      }
+    ]
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    const body = res.getBody();
+    bru.setEnvVar("pathId", body.id);
+    bru.setEnvVar("pathVersion", body.version);
+  }
+}
+
+tests {
+  test("Expected response", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+}
+
+docs {
+  See docs/backend-api-use-cases.md for required role, workflow and setup.
+}
+

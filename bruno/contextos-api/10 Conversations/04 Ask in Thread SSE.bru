@@ -1,0 +1,33 @@
+meta {
+  name: Ask in Thread (SSE)
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/ask/threads/{{threadId}}/messages
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "question": "What source evidence explains this project?"
+  }
+}
+
+tests {
+  test("Expected response", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
+
+docs {
+  See docs/backend-api-use-cases.md for required role, workflow and setup.
+}
+

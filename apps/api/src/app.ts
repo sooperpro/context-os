@@ -7,7 +7,6 @@ import { timeout } from "hono/timeout";
 import type { Env } from "./config/env.js";
 import type { Container } from "./container.js";
 import { PayloadTooLargeError } from "./lib/errors.js";
-import { actorMiddleware } from "./middleware/actor.js";
 import { errorHandler, notFoundHandler } from "./middleware/error-handler.js";
 import { projectScope } from "./middleware/project-scope.js";
 import { apiRateLimiter } from "./middleware/rate-limit.js";
@@ -21,6 +20,15 @@ import { createJobRoutes } from "./modules/jobs/jobs.routes.js";
 import { createProjectRoutes, createProjectsRoutes } from "./modules/projects/projects.routes.js";
 import { createSourceRoutes } from "./modules/sources/sources.routes.js";
 import type { AppEnv, ProjectEnv } from "./types.js";
+import { createIdentityRoutes } from "./modules/identity/identity.routes.js";
+import { createThreadRoutes } from "./modules/ask/threads.routes.js";
+import { createKnowledgeRoutes } from "./modules/platform/knowledge.routes.js";
+import { createLearningRoutes } from "./modules/platform/learning.routes.js";
+import { createCompanionRoutes } from "./modules/platform/companion.routes.js";
+import { createGoogleDriveService } from "./modules/connectors/google-drive.js";
+import { createConnectorRoutes } from "./modules/connectors/connectors.routes.js";
+import { createOnboardingRoutes } from "./modules/platform/onboarding.routes.js";
+import { createWorkspaceRoutes } from "./modules/workspace/workspace.routes.js";
 
 export interface AppDeps {
   env: Env;
@@ -39,6 +47,8 @@ const REQUEST_TIMEOUT_MS = 90_000; // Ask calls the model synchronously
 export function createApp({ env, container, version = "0.1.0" }: AppDeps) {
   const app = new Hono<AppEnv>();
   const { services, repos } = container;
+  const drive = createGoogleDriveService(container);
+  container.identity.setSourceVerifier((actor) => drive.refreshAccess(actor));
 
   // ----- global middleware -----
   app.use(requestId());
@@ -76,25 +86,41 @@ export function createApp({ env, container, version = "0.1.0" }: AppDeps) {
       }),
     );
   }
-  // Identity: single development actor until an identity provider is wired in.
-  app.use(
-    "/api/*",
-    actorMiddleware(() => container.devActor),
-  );
+  // Provider-authenticated identity, or the explicit local-only development actor.
+  app.use("/api/*", async (c, next) => {
+    if (c.req.path === "/api/v1/health" || c.req.path === "/api/v1/health/ready") return next();
+    if (c.req.path === "/api/v1/connectors/google-drive/callback") return next();
+    const creatingWorkspace = c.req.method === "POST" && c.req.path === "/api/v1/workspaces";
+    const actor = await container.identity.authenticate(c.req.raw, creatingWorkspace);
+    if (!creatingWorkspace) await drive.refreshAccess(actor);
+    c.set("actor", actor);
+    return next();
+  });
 
   // ----- project-scoped routes: project is loaded + tenant-checked once -----
   const projectRouter = new Hono<ProjectEnv>()
-    .use("*", projectScope(repos.projects))
+    .use("*", projectScope(repos.projects, container.identity))
     .route("/", createProjectRoutes(services.projects))
     .route("/hub", createHubRoutes(services.hub))
-    .route("/sources", createSourceRoutes(services.sources))
+    .route("/sources", createSourceRoutes(services.sources, container.identity))
     .route("/context-items", createContextRoutes(services.context))
     .route("/ask", createAskRoutes(services.ask))
     .route("/questions", createQuestionRoutes(services.ask))
     .route("/feedback", createFeedbackRoutes(services.feedback))
-    .route("/jobs", createJobRoutes(container.queue, container.audit));
+    .route(
+      "/jobs",
+      createJobRoutes(container.queue, container.audit, container.identity, repos.sources),
+    );
 
   const routes = app
+    .route("/api/v1", createWorkspaceRoutes(container))
+    .route("/api/v1", createIdentityRoutes(container))
+    .route("/api/v1", createThreadRoutes(container))
+    .route("/api/v1", createKnowledgeRoutes(container))
+    .route("/api/v1", createLearningRoutes(container))
+    .route("/api/v1", createCompanionRoutes(container))
+    .route("/api/v1", createConnectorRoutes(drive))
+    .route("/api/v1", createOnboardingRoutes(container))
     .route("/api/v1/health", createHealthRoutes({ db: container.db, version }))
     .route("/api/v1/projects", createProjectsRoutes(services.projects))
     .route("/api/v1/projects/:projectId", projectRouter);

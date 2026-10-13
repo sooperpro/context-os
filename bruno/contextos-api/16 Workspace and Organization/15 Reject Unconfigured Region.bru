@@ -1,0 +1,31 @@
+meta {
+  name: Reject Unconfigured Region
+  type: http
+  seq: 15
+}
+
+post {
+  url: {{baseUrl}}/workspaces
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {"name": "Bruno EU", "slug": "bruno-eu-test", "region": "eu-central-1"}
+}
+
+tests {
+  test("Expected response", function () {
+    expect(res.getStatus()).to.equal(503);
+  });
+}
+
+docs {
+  Use only a disposable development tenant. Workspace creation and member organization mutation are opt-in.
+  See docs/backend-api-use-cases.md for access rules and configuration.
+}
+

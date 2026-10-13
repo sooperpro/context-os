@@ -20,6 +20,8 @@ import { createSourceRepository } from "./modules/sources/sources.repository.js"
 import { createSourceService } from "./modules/sources/sources.service.js";
 import { ensureDefaultWorkspace } from "./modules/workspace/workspace.repository.js";
 import type { Actor } from "./types.js";
+import { memberships, users, assignments } from "./db/schema.js";
+import { createIdentityService } from "./modules/identity/identity.service.js";
 
 export interface ContainerDeps {
   env: Env;
@@ -35,6 +37,31 @@ export interface ContainerDeps {
  */
 export function createContainer({ env, db, gemini, logger }: ContainerDeps) {
   const workspace = ensureDefaultWorkspace(db, env.WORKSPACE_NAME);
+  const devActor: Actor = {
+    id: env.DEV_ACTOR_ID,
+    name: env.DEV_ACTOR_NAME,
+    workspaceId: workspace.id,
+    role: "owner",
+  };
+  if (env.AUTH_MODE === "development") {
+    db.insert(users).values({ id: devActor.id, name: devActor.name }).onConflictDoNothing().run();
+    db.insert(memberships)
+      .values({ workspaceId: workspace.id, userId: devActor.id, role: "owner" })
+      .onConflictDoNothing()
+      .run();
+    db.insert(assignments)
+      .values({
+        id: `dev-domain-owner:${workspace.id}`,
+        workspaceId: workspace.id,
+        userId: devActor.id,
+        type: "domain_owner",
+        scopeType: "workspace",
+        scopeId: workspace.id,
+      })
+      .onConflictDoNothing()
+      .run();
+  }
+  const identity = createIdentityService(db, env, devActor);
   const audit = createAuditService(db, logger);
   const queue = createJobQueue(db);
 
@@ -47,10 +74,12 @@ export function createContainer({ env, db, gemini, logger }: ContainerDeps) {
     feedback: createFeedbackRepository(db),
   };
 
-  const projects = createProjectService({ repo: repos.projects, audit });
-  const context = createContextService({ repo: repos.context, audit, logger });
+  const projects = createProjectService({ repo: repos.projects, audit, identity });
+  const context = createContextService({ repo: repos.context, audit, logger, identity });
   const hub = createHubService({
     repo: repos.hub,
+    identity,
+    sources: repos.sources,
     context,
     projects,
     queue,
@@ -58,7 +87,7 @@ export function createContainer({ env, db, gemini, logger }: ContainerDeps) {
     audit,
     logger,
   });
-  const sources = createSourceService({ repo: repos.sources, context, queue, audit });
+  const sources = createSourceService({ repo: repos.sources, context, queue, audit, db });
   const ask = createAskService({
     repo: repos.ask,
     sources: repos.sources,
@@ -66,6 +95,7 @@ export function createContainer({ env, db, gemini, logger }: ContainerDeps) {
     gemini,
     audit,
     logger,
+    identity,
   });
   const feedback = createFeedbackService({ repo: repos.feedback, audit });
 
@@ -86,17 +116,12 @@ export function createContainer({ env, db, gemini, logger }: ContainerDeps) {
     pollIntervalMs: env.WORKER_POLL_INTERVAL_MS,
   });
 
-  /** V0 has no identity provider: every request acts as this development user. */
-  const devActor: Actor = {
-    id: env.DEV_ACTOR_ID,
-    name: env.DEV_ACTOR_NAME,
-    workspaceId: workspace.id,
-  };
-
   return {
+    env,
     db,
     workspace,
     devActor,
+    identity,
     audit,
     queue,
     worker,

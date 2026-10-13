@@ -8,3 +8,4 @@ export * from "./schemas/hub.js";
 export * from "./schemas/job.js";
 export * from "./schemas/project.js";
 export * from "./schemas/source.js";
+export * from "./schemas/platform.js";

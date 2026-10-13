@@ -1,0 +1,31 @@
+meta {
+  name: Create Answer Feedback
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/projects/{{projectId}}/feedback
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "targetType": "answer",
+    "targetId": "{{answerId}}",
+    "kind": "correct",
+    "note": "Verified during the local Bruno walkthrough."
+  }
+}
+
+tests {
+  test("Creates feedback", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+}

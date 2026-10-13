@@ -1,6 +1,10 @@
 # ContextOS — Implementation plan
 
+**Historical V0 plan:** The sections below describe the original handoff-based prototype, not current release acceptance criteria. The requirements source is [ContextOS_PRD.md](../ContextOS_PRD.md), targeting **Phase 1 first** as selected by the owner. Use the [backend use-case guide](backend-api-use-cases.md) and [coverage/release gates](backend-production-readiness.md) for implementation status. Clerk authentication, source privacy, org management and learning foundations now exist; production accounts/live validation are deferred. Unverified extraction quotes are now discarded rather than retained, and the five-day roadmap is not used.
+
 **Source brief:** `ContextOS_Knowledge_Handoff.md` (13 Oct 2026). This plan turns that brief into a build sequence for the stack already chosen for this repository. Sections 1–3 restate the thesis and the decisions taken; 4–7 describe what V0 implements; 8–9 list the backlog and open questions.
+
+**Auth/connector follow-up:** [Authentication, authorization and connector stack](auth-and-connectors-stack.md) specifies proposed additions to the existing Node/React/Gemini stack, based on the product handoff and actual repository implementation.
 
 ## 1. Thesis (what we are building)
 
@@ -24,7 +28,7 @@ Non-negotiables carried into every phase:
 | D4  | **Structured extraction with verified quotes**                                                         | Gemini returns JSON that must match a Zod schema; each item carries a verbatim `evidenceQuote` that the API checks against the source text. Unverifiable quotes are kept but flagged `quoteVerified=false` and the item's confidence is capped.         | Extraction eval set exists (Phase 2 exit criterion).                                                                                                                                 |
 | D5  | **Relational "graph"**: typed context items + evidence rows, no graph database                         | Brief §6 recommends exactly this for MVP.                                                                                                                                                                                                               | Query patterns need multi-hop traversal.                                                                                                                                             |
 | D6  | **In-process job worker on a SQLite `jobs` table**                                                     | Ingestion and extraction are asynchronous and retry-safe without Redis. `WORKER_ENABLED=false` lets the API run without the worker so it can be split into its own process later.                                                                       | Second API instance, or jobs exceed single-process throughput.                                                                                                                       |
-| D7  | **Identity provider deferred; `Actor` abstraction now**                                                | Clerk vs SSO is an open question in the brief. Every table carries `workspace_id`/`project_id`, every mutation records the actor in the audit log, and all queries are project-scoped, so adding real auth is a middleware change.                      | Before any external user touches the system.                                                                                                                                         |
+| D7  | **V0 uses a development actor; Clerk proposed for the next phase**                                     | Project scope and audit are foundations, but authentication also requires organization mapping, memberships, roles, source permissions, access-aware generated content and cache lifecycle. See the stack extension.                                    | Before external users or shared private source data.                                                                                                                                 |
 | D8  | **Learning paths, video/visual artifacts, graph UI: deferred**                                         | Brief §4 says do not prioritise generated media before facts are reliable.                                                                                                                                                                              | Hub accuracy validated in pilot.                                                                                                                                                     |
 
 ## 3. Riskiest assumptions (test first)
@@ -65,7 +69,7 @@ Layering inside a module: `routes` (validation, HTTP) → `service` (rules, Gemi
 
 ## 6. Data model (SQLite)
 
-`workspaces`, `projects`, `source_objects`, `source_chunks` (+ `source_chunks_fts` FTS5), `extraction_runs`, `context_items`, `evidence`, `hub_snapshots`, `questions`, `feedback`, `jobs`, `audit_log`. Every derived row keeps: source ids, quote, extraction run (model + prompt version), ingestion time, verification state, event/as-of time. See `apps/api/src/db/schema/`.
+`workspaces`, `projects`, `source_objects`, `source_chunks` (+ `source_chunks_fts` FTS5), `extraction_runs`, `context_items`, `evidence`, `hub_snapshots`, `questions`, `feedback`, `jobs`, `audit_log`. Provenance is represented across these linked tables; not every row contains every field or a direct tenant column. See `apps/api/src/db/schema.ts`. Membership, connector, credential and source-access tables are proposed in the stack extension and are not yet implemented.
 
 ## 7. API surface (v1)
 
@@ -90,18 +94,20 @@ Errors use the shared envelope; all project routes 404 for unknown projects befo
 
 ## 8. Backlog (next two weeks, in order)
 
-| #   | Item                                                                                                                                        | Why                                          |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| B1  | Pilot persona + 20–30 real onboarding questions with expected evidence                                                                      | Brief §17.1–2; needed before tuning anything |
-| B2  | Identity: Clerk or OIDC middleware producing `Actor`; workspace membership table                                                            | D7                                           |
-| B3  | First connector spike (GitHub or Jira, whichever is easiest to authorise): implement `SourceConnector` with checkpoints, backfill, deletion | Brief phase 1                                |
-| B4  | Source-level ACL fields + enforcement in retrieval and hub queries                                                                          | Permission parity before any shared pilot    |
-| B5  | Evaluation harness: run B1 questions through `/ask`, score citation precision and temporal correctness                                      | Brief §14                                    |
-| B6  | Entity resolution across sources (aliases, Jira keys, GitHub handles)                                                                       | Assumption 2                                 |
-| B7  | Conflict reconciliation UI: user picks canonical claim; store resolution and sources                                                        | Brief §6 "handling conflicts"                |
-| B8  | Learning path generation from hub (role templates)                                                                                          | Brief §4.11                                  |
-| B9  | Chunk-level extraction for long documents, extraction cost accounting                                                                       | Cost/quality                                 |
-| B10 | Deployment: Docker build verification, backups of SQLite volume, observability (OpenTelemetry)                                              | Production readiness                         |
+For the auth/Drive work, the required delivery dependency is B2 → B4 → B3: establish identity and source-access enforcement before exposing connected private files.
+
+| #   | Item                                                                                                                                                                      | Why                                              |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| B1  | Pilot persona + 20–30 real onboarding questions with expected evidence                                                                                                    | Brief §17.1–2; needed before tuning anything     |
+| B2  | Clerk React/backend SDKs, organization-to-workspace mapping, membership lifecycle, local role policies, signed webhooks and web session/cache flow                        | D7; stack extension §4                           |
+| B3  | Google Drive first: selected-file OAuth/Picker, encrypted refresh tokens, Docs/PDF parsing and idempotent worker backfill/manual sync                                     | User's requested integration; stack extension §5 |
+| B4  | Source-access checks before ingestion exposure/retrieval, plus dependency-aware context/hub/history/citation/cache reads; implement before B3 imports shared private data | Permission parity; stack extension §6            |
+| B5  | Evaluation harness: run B1 questions through `/ask`, score citation precision and temporal correctness                                                                    | Brief §14                                        |
+| B6  | Entity resolution across sources (aliases, Jira keys, GitHub handles)                                                                                                     | Assumption 2                                     |
+| B7  | Conflict reconciliation UI: user picks canonical claim; store resolution and sources                                                                                      | Brief §6 "handling conflicts"                    |
+| B8  | Learning path generation from hub (role templates)                                                                                                                        | Brief §4.11                                      |
+| B9  | Chunk-level extraction for long documents, extraction cost accounting                                                                                                     | Cost/quality                                     |
+| B10 | Deployment: Docker build verification, backups of SQLite volume, observability (OpenTelemetry)                                                                            | Production readiness                             |
 
 ## 9. Open questions (unchanged from the brief, need owner decisions)
 

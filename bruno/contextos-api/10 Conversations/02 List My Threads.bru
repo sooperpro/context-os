@@ -1,0 +1,26 @@
+meta {
+  name: List My Threads
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/ask/threads
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+tests {
+  test("Expected response", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
+
+docs {
+  See docs/backend-api-use-cases.md for required role, workflow and setup.
+}
+
