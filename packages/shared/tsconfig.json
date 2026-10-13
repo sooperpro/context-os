@@ -1,0 +1,7 @@
+{
+  "extends": "@contextos/tsconfig/library.json",
+  "compilerOptions": {
+    "types": []
+  },
+  "include": ["src", "*.ts"]
+}

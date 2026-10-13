@@ -1,0 +1,8 @@
+{
+  "extends": "@contextos/tsconfig/node.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": ["src", "*.ts"]
+}

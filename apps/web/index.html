@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en" suppressHydrationWarning>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="ContextOS: AI-powered content analysis" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>ContextOS</title>
+    <script>
+      // Apply the saved/system theme before React renders to avoid a flash of the wrong theme.
+      // Keep the storage key in sync with src/components/theme-context.ts.
+      (function () {
+        try {
+          var stored = localStorage.getItem("contextos-theme");
+          var dark =
+            stored === "dark" ||
+            ((stored === null || stored === "system") &&
+              matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.classList.toggle("dark", dark);
+          document.documentElement.style.colorScheme = dark ? "dark" : "light";
+        } catch (_) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
