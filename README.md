@@ -113,6 +113,13 @@ Then: create a project → add two or three sources (paste a design doc, a decis
 
 Pre-commit runs `lint-staged` (ESLint fix + Prettier on staged files) via Husky.
 
+## Explore the codebase with Graphify
+
+Run `pnpm graph:build` to generate a local code relationship graph, then open
+`graphify-out/graph.html` in your browser. Use `pnpm graph:query "authentication"`
+to find related code or `pnpm graph:tree` to generate a folder/symbol tree.
+See [the Graphify guide](docs/graphify.md) for installation, examples, and limitations.
+
 ## API
 
 Base path `/api/v1`. Every error uses one envelope:

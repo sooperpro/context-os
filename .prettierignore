@@ -3,5 +3,6 @@ dist
 build
 coverage
 .turbo
+graphify-out
 pnpm-lock.yaml
 apps/api/drizzle/meta

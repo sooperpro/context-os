@@ -8,6 +8,7 @@ build/
 coverage/
 .turbo/
 .vitest/
+graphify-out/
 *.tsbuildinfo
 node_modules/.tmp/
 

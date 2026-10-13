@@ -1,0 +1,26 @@
+# Explicit rules: Graphify uses this file instead of the root .gitignore.
+.git/
+node_modules/
+.pnpm-store/
+dist/
+build/
+coverage/
+.turbo/
+.vitest/
+graphify-out/
+.env
+.env.*
+data/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+logs/
+*.log
+*.pem
+*.key
+pnpm-lock.yaml
+apps/api/drizzle/meta/
+# Historical roadmap is explicitly not a source of implementation requirements.
+docs/ContextOS_5Day_MVP_Roadmap.md
