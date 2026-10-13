@@ -21,6 +21,14 @@ export class ApiClientError extends Error {
 }
 
 type QueryValue = string | number | boolean | null | undefined;
+type AccessTokenProvider = () => Promise<string | null>;
+
+let accessTokenProvider: AccessTokenProvider | undefined;
+
+/** Connects the framework-agnostic API client to the active auth session. */
+export function setApiAccessTokenProvider(provider?: AccessTokenProvider): void {
+  accessTokenProvider = provider;
+}
 
 export interface ApiRequestOptions<TResponse> {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -51,10 +59,12 @@ export async function apiRequest<TResponse>(
   path: string,
   { method = "GET", body, query, schema, signal }: ApiRequestOptions<TResponse>,
 ): Promise<TResponse> {
+  const accessToken = await accessTokenProvider?.();
   const response = await fetch(buildUrl(path, query), {
     method,
     headers: {
       Accept: "application/json",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,

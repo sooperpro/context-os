@@ -1,3 +1,4 @@
+import { OrganizationSwitcher, UserButton } from "@clerk/react";
 import { SparklesIcon } from "lucide-react";
 import { NavLink, Outlet } from "react-router";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
@@ -11,7 +12,16 @@ export function AppShell() {
             <SparklesIcon className="size-5 text-primary" aria-hidden />
             ContextOS
           </NavLink>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <OrganizationSwitcher
+              hidePersonal
+              afterCreateOrganizationUrl="/"
+              afterSelectOrganizationUrl="/"
+              afterLeaveOrganizationUrl="/"
+            />
+            <ThemeToggle />
+            <UserButton />
+          </div>
         </div>
       </header>
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">

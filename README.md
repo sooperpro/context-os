@@ -24,7 +24,7 @@ The agreed delivery target is **Phase 1 first**. Later phases and production Cle
 
 | Capability                 | Implementation status                                                                                                                        |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Authentication             | Installed `@clerk/backend` in Hono; Organizations and invitations. Frontend Clerk integration remains outstanding.                           |
+| Authentication             | Clerk React sign-in, active organization selection, bearer-token API requests, and organization-to-workspace mapping in Hono                 |
 | Authorization              | Local memberships, Owner/Admin/Manager/Member/Guest roles, supported scoped assignments, source access and derived-content dependency checks |
 | Google Drive               | Installed official `googleapis` Node client; separate OAuth, file discovery and selected-file import                                         |
 | Document reading           | Google Docs text export; installed `pdfjs-dist` and `mammoth` with bounded parser workers                                                    |
@@ -82,12 +82,14 @@ App sign-in and Google Drive authorization are separate. Workspace roles do not 
 - **Node.js 24** (>= 22.22 works). With nvm: `nvm install 24 && nvm use` (`.nvmrc` is present). If your nvm default is older, run `nvm use` in each shell or `nvm alias default 24`; pnpm refuses unsupported Node versions (`engineStrict`).
 - **pnpm 12** via Corepack: `corepack enable` (version pinned in `package.json`).
 - A **Gemini API key**: https://aistudio.google.com/apikey
+- A **Clerk application** with Organizations enabled: https://dashboard.clerk.com
 
 ## Getting started
 
 ```bash
 pnpm install
-cp apps/api/.env.example apps/api/.env   # set GEMINI_API_KEY
+cp apps/api/.env.example apps/api/.env   # set Gemini + Clerk server credentials
+cp apps/web/.env.example apps/web/.env   # set the Clerk publishable key
 pnpm dev
 ```
 
@@ -163,6 +165,8 @@ Request and response shapes live once in `packages/shared/src/schemas` and are v
 | `DATABASE_URL`                                           | `./data/contextos.db`          | SQLite path, or `:memory:`                                                    |
 | `WORKER_ENABLED` / `WORKER_POLL_INTERVAL_MS`             | `true` / `1000`                | Run the job worker in-process (set `false` for API-only)                      |
 | `WORKSPACE_NAME`, `DEV_ACTOR_ID`, `DEV_ACTOR_NAME`       | defaults                       | Single workspace + development actor until identity is wired                  |
+| `AUTH_MODE`                                              | `development`                  | Set to `clerk` to require authenticated requests                              |
+| `CLERK_PUBLISHABLE_KEY` / `CLERK_SECRET_KEY`             | required in Clerk mode         | Clerk application credentials; keep the secret server-side                    |
 | `PORT` / `HOST`                                          | `3000` / `127.0.0.1`           | Set `HOST=0.0.0.0` explicitly only behind appropriate deployment controls.    |
 | `CORS_ORIGINS`                                           | `http://localhost:5173`        | Comma-separated                                                               |
 | `LOG_LEVEL`                                              | `info`                         | pino; pretty-printed in development                                           |
@@ -197,7 +201,8 @@ API tests build the full app on an in-memory SQLite database with migrations app
 ## Docker
 
 ```bash
-cp apps/api/.env.example apps/api/.env   # set GEMINI_API_KEY
+cp apps/api/.env.example apps/api/.env   # set Gemini + Clerk server credentials
+cp .env.example .env                     # set the Clerk publishable key for the web image
 docker compose up --build
 ```
 
