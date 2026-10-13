@@ -5,7 +5,6 @@ ARG NODE_VERSION=24
 FROM node:${NODE_VERSION}-bookworm-slim AS base
 ENV PNPM_HOME="/pnpm" \
     PATH="/pnpm:$PATH" \
-    HUSKY=0 \
     CI=true \
     COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN corepack enable

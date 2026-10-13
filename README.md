@@ -14,7 +14,7 @@ ContextOS reconstructs project context from a team's existing sources: **how the
 | Web     | React 19, Vite 8, TypeScript, Tailwind CSS v4, shadcn/ui (Base UI, nova style), TanStack Query v5, React Router 8, react-hook-form + Zod |
 | API     | Node.js 24, Hono 4, Drizzle ORM + better-sqlite3 (FTS5), `@google/genai` (Gemini for extraction, synthesis, answers, embeddings), pino   |
 | Shared  | `@contextos/shared`: Zod schemas and types that define the API contract for both sides                                                   |
-| Tooling | pnpm 12 workspaces + catalogs, Turborepo, TypeScript 6, ESLint 10 (type-aware), Prettier, Vitest 5, Husky + lint-staged, GitHub Actions  |
+| Tooling | pnpm 12 workspaces + catalogs, Turborepo, TypeScript 6, ESLint 10 (type-aware), Prettier, Vitest 5, GitHub Actions                       |
 
 ### Backend extensions for authenticated users and connected sources
 
@@ -110,8 +110,6 @@ Then: create a project → add two or three sources (paste a design doc, a decis
 | `pnpm db:generate`       | Generate a SQL migration from schema changes                               |
 | `pnpm db:migrate`        | Apply migrations to `DATABASE_URL`                                         |
 | `pnpm db:studio`         | Drizzle Studio                                                             |
-
-Pre-commit runs `lint-staged` (ESLint fix + Prettier on staged files) via Husky.
 
 ## Explore the codebase with Graphify
 

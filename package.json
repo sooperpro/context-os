@@ -30,20 +30,12 @@
     "db:migrate": "pnpm --filter @contextos/api db:migrate",
     "db:studio": "pnpm --filter @contextos/api db:studio",
     "ui:add": "pnpm --filter @contextos/web ui:add",
-    "clean": "turbo run clean && rm -rf node_modules",
-    "prepare": "husky"
+    "clean": "turbo run clean && rm -rf node_modules"
   },
   "devDependencies": {
-    "husky": "^9.1.7",
-    "lint-staged": "^17.6.0",
     "prettier": "catalog:",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "turbo": "^2.11.7",
     "typescript": "catalog:"
-  },
-  "lint-staged": {
-    "*.{ts,tsx,js,mjs,cjs,json,md,yml,yaml,css,html}": [
-      "prettier --write"
-    ]
   }
 }
