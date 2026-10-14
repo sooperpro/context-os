@@ -74,28 +74,46 @@ jobs:
             --project "$GCP_PROJECT_ID" \
             --zone "$GCP_ZONE" \
             --local-host-port="127.0.0.1:$IAP_LOCAL_PORT" \
+            --iap-tunnel-disable-connection-check \
             --quiet > "$RUNNER_TEMP/iap-tunnel.log" 2>&1 &
           echo "$!" > "$RUNNER_TEMP/iap-tunnel.pid"
 
-          for attempt in $(seq 1 30); do
-            if ssh-keyscan -T 5 -t rsa -p "$IAP_LOCAL_PORT" 127.0.0.1 \
-              > "$RUNNER_TEMP/known_hosts.tmp" 2>/dev/null; then
-              actual_fingerprint="$(ssh-keygen -lf "$RUNNER_TEMP/known_hosts.tmp" | awk 'NR == 1 {print $2}')"
-              if [[ "$actual_fingerprint" != "$DEV_VM_KNOWN_HOST_FINGERPRINT" ]]; then
-                echo "Unexpected VM SSH host key fingerprint: $actual_fingerprint"
-                exit 1
-              fi
-              install -m 600 "$RUNNER_TEMP/known_hosts.tmp" "$HOME/.ssh/known_hosts"
-              if ssh dev-vm true >/dev/null 2>&1; then
-                exit 0
-              fi
+          for attempt in $(seq 1 20); do
+            if timeout 2 bash -c ": >/dev/tcp/127.0.0.1/$IAP_LOCAL_PORT" 2>/dev/null; then
+              break
             fi
-            sleep 2
+            sleep 1
           done
 
-          cat "$RUNNER_TEMP/iap-tunnel.log"
-          echo "Could not verify the VM SSH host key or establish SSH through IAP."
-          exit 1
+          if ! timeout 2 bash -c ": >/dev/tcp/127.0.0.1/$IAP_LOCAL_PORT" 2>/dev/null; then
+            echo "The IAP tunnel did not open its local TCP listener."
+            cat "$RUNNER_TEMP/iap-tunnel.log"
+            ps -fp "$(cat "$RUNNER_TEMP/iap-tunnel.pid")" || true
+            ss -ltnp || true
+            exit 1
+          fi
+
+          if ! ssh-keyscan -T 5 -t rsa -p "$IAP_LOCAL_PORT" 127.0.0.1 \
+            > "$RUNNER_TEMP/known_hosts.tmp" 2> "$RUNNER_TEMP/ssh-keyscan.log"; then
+            echo "The IAP listener opened, but the VM did not return an SSH host key."
+            cat "$RUNNER_TEMP/ssh-keyscan.log"
+            cat "$RUNNER_TEMP/iap-tunnel.log"
+            ss -ltnp || true
+            exit 1
+          fi
+
+          actual_fingerprint="$(ssh-keygen -lf "$RUNNER_TEMP/known_hosts.tmp" | awk 'NR == 1 {print $2}')"
+          if [[ "$actual_fingerprint" != "$DEV_VM_KNOWN_HOST_FINGERPRINT" ]]; then
+            echo "Unexpected VM SSH host key fingerprint: $actual_fingerprint"
+            exit 1
+          fi
+          install -m 600 "$RUNNER_TEMP/known_hosts.tmp" "$HOME/.ssh/known_hosts"
+          if ! ssh -vv dev-vm true; then
+            echo "SSH connected to the IAP listener but public-key authentication failed."
+            cat "$RUNNER_TEMP/iap-tunnel.log"
+            exit 1
+          fi
+          exit 0
 
       - name: Package the checked-out revision
         run: git archive --format=tar.gz --output="$RUNNER_TEMP/contextos-dev.tar.gz" "$GITHUB_SHA"
