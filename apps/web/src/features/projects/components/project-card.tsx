@@ -1,8 +1,14 @@
 import type { ProjectWithStats } from "@contextos/shared";
-import { CheckIcon, CircleDashedIcon } from "lucide-react";
 import { Link } from "react-router";
 import { Card } from "@/components/ui/card";
-import { DescriptionIcon, FolderOpenFilledIcon, LayersIcon, ScheduleIcon } from "@/components/ui/icons";
+import {
+  CheckIcon,
+  DescriptionIcon,
+  FolderOpenFilledIcon,
+  LayersIcon,
+  PendingIcon,
+  ScheduleIcon,
+} from "@/components/ui/icons";
 import { Shape, type ShapeKind } from "@/components/ui/shape";
 import { Spinner } from "@/components/ui/spinner";
 import { StatusChip } from "@/components/ui/status-chip";
@@ -14,7 +20,7 @@ const SHAPES: ShapeKind[] = ["cookie9", "clover4", "sunny"];
 
 function projectStatus(stats: ProjectWithStats["stats"]) {
   if (stats.sources === 0)
-    return { tone: "neutral" as const, icon: <CircleDashedIcon />, label: "No sources yet" };
+    return { tone: "neutral" as const, icon: <PendingIcon />, label: "No sources yet" };
   if (stats.readySources < stats.sources)
     return { tone: "info" as const, icon: <Spinner className="size-3.5" />, label: "Processing" };
   return { tone: "success" as const, icon: <CheckIcon />, label: "Ready" };

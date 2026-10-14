@@ -1,12 +1,21 @@
 import type { Answer, AnswerConfidence } from "@contextos/shared";
-import { AlertTriangleIcon, ArrowUpRightIcon, CheckIcon, HelpCircleIcon, InfoIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useMatch } from "react-router";
 import { useAssistant } from "@/components/layout/assistant-context";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
-import { AiSparkleIcon, CloseIcon, HubFilledIcon, SendIcon } from "@/components/ui/icons";
+import {
+  AiSparkleIcon,
+  CheckIcon,
+  CloseIcon,
+  HelpIcon,
+  HubFilledIcon,
+  InfoIcon,
+  NorthEastIcon,
+  SendIcon,
+  WarningIcon,
+} from "@/components/ui/icons";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import { StatusChip } from "@/components/ui/status-chip";
@@ -24,8 +33,8 @@ const CONFIDENCE: Record<
 > = {
   high: { label: "Verified · sources agree", tone: "success", icon: <CheckIcon /> },
   medium: { label: "Partly verified", tone: "info", icon: <InfoIcon /> },
-  low: { label: "Low confidence", tone: "warning", icon: <AlertTriangleIcon /> },
-  insufficient: { label: "Not enough evidence", tone: "warning", icon: <HelpCircleIcon /> },
+  low: { label: "Low confidence", tone: "warning", icon: <WarningIcon /> },
+  insufficient: { label: "Not enough evidence", tone: "warning", icon: <HelpIcon /> },
 };
 
 /**
@@ -209,7 +218,7 @@ function AssistantAnswer({ answer }: { answer: Answer }) {
         to={`/projects/${answer.projectId}/ask`}
         className="inline-flex items-center gap-1 self-start text-xs font-medium text-primary hover:underline"
       >
-        Open in Ask with full evidence <ArrowUpRightIcon className="size-3.5" aria-hidden />
+        Open in Ask with full evidence <NorthEastIcon className="size-3.5" aria-hidden />
       </Link>
     </article>
   );

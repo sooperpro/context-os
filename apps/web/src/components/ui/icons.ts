@@ -77,12 +77,42 @@ import WarningIcon from "@material-symbols/svg-400/rounded/warning.svg?react";
 import ConfirmationNumberIcon from "@material-symbols/svg-400/rounded/confirmation_number.svg?react";
 import ForumIcon from "@material-symbols/svg-400/rounded/forum.svg?react";
 import MergeTypeIcon from "@material-symbols/svg-400/rounded/merge_type.svg?react";
+import CloudDownloadIcon from "@material-symbols/svg-400/rounded/cloud_download.svg?react";
+import UploadIcon from "@material-symbols/svg-400/rounded/upload.svg?react";
+import CheckIcon from "@material-symbols/svg-400/rounded/check.svg?react";
+import InfoIcon from "@material-symbols/svg-400/rounded/info.svg?react";
+import RefreshIcon from "@material-symbols/svg-400/rounded/refresh.svg?react";
+import SkipNextIcon from "@material-symbols/svg-400/rounded/skip_next.svg?react";
+import PersonAddIcon from "@material-symbols/svg-400/rounded/person_add.svg?react";
+import ChevronRightIcon from "@material-symbols/svg-400/rounded/chevron_right.svg?react";
+import DownloadIcon from "@material-symbols/svg-400/rounded/download.svg?react";
+import FolderIcon from "@material-symbols/svg-400/rounded/folder.svg?react";
+import PauseIcon from "@material-symbols/svg-400/rounded/pause.svg?react";
+import PersonRemoveIcon from "@material-symbols/svg-400/rounded/person_remove.svg?react";
+import DomainIcon from "@material-symbols/svg-400/rounded/domain.svg?react";
+import EditIcon from "@material-symbols/svg-400/rounded/edit.svg?react";
+import SearchOffIcon from "@material-symbols/svg-400/rounded/search_off.svg?react";
 import VisibilityIcon from "@material-symbols/svg-400/rounded/visibility.svg?react";
 
 export type MaterialIcon = ComponentType<SVGProps<SVGSVGElement>>;
 
 export {
   AddIcon,
+  SearchOffIcon,
+  EditIcon,
+  DomainIcon,
+  PersonRemoveIcon,
+  PauseIcon,
+  FolderIcon,
+  DownloadIcon,
+  ChevronRightIcon,
+  PersonAddIcon,
+  SkipNextIcon,
+  RefreshIcon,
+  InfoIcon,
+  CheckIcon,
+  UploadIcon,
+  CloudDownloadIcon,
   MergeTypeIcon,
   ForumIcon,
   ConfirmationNumberIcon,

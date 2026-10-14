@@ -1,8 +1,8 @@
 import type { FeedbackKind, FeedbackTarget } from "@contextos/shared";
-import { FlagIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { FlagIcon } from "@/components/ui/icons";
 import { useCreateFeedback } from "@/features/feedback/api/feedback.queries";
 
 interface FeedbackButtonsProps {

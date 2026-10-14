@@ -1,15 +1,5 @@
 import { SETUP_STEPS, type SetupStep, type SetupStepStatus, type WorkspaceSetup } from "@contextos/shared";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  AlertTriangleIcon,
-  CheckIcon,
-  CircleDashedIcon,
-  ExternalLinkIcon,
-  PlusIcon,
-  RefreshCwIcon,
-  SkipForwardIcon,
-  UserPlusIcon,
-} from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { PageHeader } from "@/components/layout/page-header";
@@ -29,6 +19,16 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusChip } from "@/components/ui/status-chip";
 import { Stepper, StepperItem } from "@/components/ui/stepper";
+import {
+  AddIcon,
+  CheckIcon,
+  OpenInNewIcon,
+  PendingIcon,
+  PersonAddIcon,
+  RefreshIcon,
+  SkipNextIcon,
+  WarningIcon,
+} from "@/components/ui/icons";
 import { connectorsQuery, useAuthorizeGoogleDrive } from "@/features/connectors/api/connectors.queries";
 import { InviteMemberDialog } from "@/features/members/components/invite-member-dialog";
 import { CreateProjectDialog } from "@/features/projects/components/create-project-dialog";
@@ -65,7 +65,7 @@ function StepStatusChip({ state }: { state: StepState }) {
     );
   if (state.status === "skipped")
     return (
-      <StatusChip tone="neutral" icon={<SkipForwardIcon />}>
+      <StatusChip tone="neutral" icon={<SkipNextIcon />}>
         Skipped
       </StatusChip>
     );
@@ -76,7 +76,7 @@ function StepStatusChip({ state }: { state: StepState }) {
       </StatusChip>
     );
   return (
-    <StatusChip tone="neutral" icon={<CircleDashedIcon />}>
+    <StatusChip tone="neutral" icon={<PendingIcon />}>
       Pending
     </StatusChip>
   );
@@ -109,7 +109,7 @@ export function SetupPage() {
         <PageHeader title="Workspace setup" />
         <Banner
           tone={forbidden ? "warning" : "error"}
-          icon={<AlertTriangleIcon />}
+          icon={<WarningIcon />}
           title={forbidden ? "Setup is for owners and admins" : "Could not load setup"}
           description={forbidden ? "Ask a workspace admin to run setup." : setup.error.message}
         />
@@ -143,7 +143,7 @@ export function SetupPage() {
               <li key={connection.id}>
                 <StatusChip
                   tone={connection.status === "connected" ? "success" : "warning"}
-                  icon={connection.status === "connected" ? <CheckIcon /> : <AlertTriangleIcon />}
+                  icon={connection.status === "connected" ? <CheckIcon /> : <WarningIcon />}
                 >
                   Google Drive · {connection.status === "connected" ? "connected" : connection.status}
                 </StatusChip>
@@ -154,7 +154,7 @@ export function SetupPage() {
         {authorize.isError ? (
           <Banner
             tone="error"
-            icon={<AlertTriangleIcon />}
+            icon={<WarningIcon />}
             title="Google Drive is not available"
             description={authorize.error.message}
           />
@@ -168,11 +168,11 @@ export function SetupPage() {
             }
             disabled={authorize.isPending}
           >
-            <ExternalLinkIcon aria-hidden />
+            <OpenInNewIcon aria-hidden />
             Connect Google Drive
           </Button>
           <Button variant="outline" onClick={() => void refresh()}>
-            <RefreshCwIcon aria-hidden />
+            <RefreshIcon aria-hidden />
             Check again
           </Button>
         </div>
@@ -195,13 +195,13 @@ export function SetupPage() {
     ),
     create_project: (
       <Button onClick={() => setCreateOpen(true)}>
-        <PlusIcon aria-hidden />
+        <AddIcon aria-hidden />
         New project
       </Button>
     ),
     invite_team: (
       <Button onClick={() => setInviteOpen(true)}>
-        <UserPlusIcon aria-hidden />
+        <PersonAddIcon aria-hidden />
         Invite a teammate
       </Button>
     ),
@@ -252,7 +252,7 @@ export function SetupPage() {
             {stepAction[current.step]}
             <p className="text-xs text-on-surface-variant">{copy.evidence}</p>
             {update.isError ? (
-              <Banner tone="error" icon={<AlertTriangleIcon />} title="Could not update this step" description={update.error.message} />
+              <Banner tone="error" icon={<WarningIcon />} title="Could not update this step" description={update.error.message} />
             ) : null}
           </CardContent>
           <CardFooter className="flex-wrap gap-2">

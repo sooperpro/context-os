@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangleIcon, UserPlusIcon } from "lucide-react";
 import { useState } from "react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Banner } from "@/components/ui/banner";
@@ -7,6 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  PersonAddIcon,
+  WarningIcon,
+} from "@/components/ui/icons";
 import { membersQuery } from "@/features/members/api/members.queries";
 import { InviteMemberDialog } from "@/features/members/components/invite-member-dialog";
 import { MemberList } from "@/features/members/components/member-list";
@@ -30,7 +33,7 @@ export function MembersPage() {
         actions={
           canManage ? (
             <Button onClick={() => setInviteOpen(true)}>
-              <UserPlusIcon aria-hidden />
+              <PersonAddIcon aria-hidden />
               Invite
             </Button>
           ) : null
@@ -54,7 +57,7 @@ export function MembersPage() {
             members.error instanceof ApiClientError && members.error.status === 403 ? (
               <Banner
                 tone="warning"
-                icon={<AlertTriangleIcon />}
+                icon={<WarningIcon />}
                 title="The directory is not available to guests"
                 description="Guests see only the projects they are added to. Ask an admin if you need a broader role."
               />

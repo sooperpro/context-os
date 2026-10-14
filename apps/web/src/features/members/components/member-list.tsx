@@ -1,5 +1,4 @@
 import type { MembershipStatus, SystemRole, WorkspaceMember } from "@contextos/shared";
-import { CheckIcon, MoreHorizontalIcon, PauseIcon, UserMinusIcon, UserRoundIcon } from "lucide-react";
 import { Avatar, AvatarFallback, avatarToneFor } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +20,13 @@ import {
   SegmentedList,
 } from "@/components/ui/segmented-list";
 import { StatusChip } from "@/components/ui/status-chip";
+import {
+  CheckIcon,
+  MoreHorizIcon,
+  PauseIcon,
+  PersonIcon,
+  PersonRemoveIcon,
+} from "@/components/ui/icons";
 import { useUpdateMember } from "@/features/members/api/members.queries";
 import { initialsOf } from "@/lib/format";
 import { ROLE_LABEL } from "@/lib/labels";
@@ -28,7 +34,7 @@ import { ROLE_LABEL } from "@/lib/labels";
 const STATUS: Record<MembershipStatus, { label: string; tone: "success" | "warning" | "neutral"; icon: React.ReactNode }> = {
   active: { label: "Active", tone: "success", icon: <CheckIcon /> },
   suspended: { label: "Suspended", tone: "warning", icon: <PauseIcon /> },
-  offboarded: { label: "Offboarded", tone: "neutral", icon: <UserMinusIcon /> },
+  offboarded: { label: "Offboarded", tone: "neutral", icon: <PersonRemoveIcon /> },
 };
 
 interface MemberListProps {
@@ -52,7 +58,7 @@ export function MemberList({ members, viewerRole }: MemberListProps) {
         return (
           <SegmentedItem key={member.id}>
             <Avatar tone={avatarToneFor(member.id)}>
-              <AvatarFallback>{initialsOf(member.name) || <UserRoundIcon className="size-5" />}</AvatarFallback>
+              <AvatarFallback>{initialsOf(member.name) || <PersonIcon className="size-5" />}</AvatarFallback>
             </Avatar>
             <SegmentedItemBody>
               <SegmentedItemTitle>{member.name}</SegmentedItemTitle>
@@ -69,7 +75,7 @@ export function MemberList({ members, viewerRole }: MemberListProps) {
                   <DropdownMenuTrigger
                     render={<Button variant="ghost" size="icon-sm" aria-label={`Manage ${member.name}`} disabled={locked || update.isPending} />}
                   >
-                    <MoreHorizontalIcon />
+                    <MoreHorizIcon />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuRadioGroup
@@ -95,7 +101,7 @@ export function MemberList({ members, viewerRole }: MemberListProps) {
                     )}
                     {member.status !== "offboarded" ? (
                       <DropdownMenuItem variant="destructive" onClick={() => update.mutate({ userId: member.id, status: "offboarded" })}>
-                        <UserMinusIcon /> Offboard
+                        <PersonRemoveIcon /> Offboard
                       </DropdownMenuItem>
                     ) : null}
                   </DropdownMenuContent>

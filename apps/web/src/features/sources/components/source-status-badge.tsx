@@ -1,21 +1,23 @@
 import type { SourceStatus } from "@contextos/shared";
-import { Badge } from "@/components/ui/badge";
+import { CheckCircleFilledIcon, ErrorFilledIcon, PendingIcon } from "@/components/ui/icons";
 import { Spinner } from "@/components/ui/spinner";
+import { StatusChip } from "@/components/ui/status-chip";
 import { SOURCE_STATUS_LABEL } from "@/lib/labels";
-import { cn } from "@/lib/utils";
 
-const STYLES: Record<SourceStatus, string> = {
-  pending: "text-muted-foreground",
-  processing: "text-info",
-  ready: "border-success/40 bg-success/10 text-success",
-  failed: "border-destructive/40 bg-destructive/10 text-destructive",
+type Tone = React.ComponentProps<typeof StatusChip>["tone"];
+
+const STYLE: Record<SourceStatus, { tone: Tone; icon: React.ReactNode }> = {
+  pending: { tone: "neutral", icon: <PendingIcon /> },
+  processing: { tone: "info", icon: <Spinner className="size-3.5" /> },
+  ready: { tone: "success", icon: <CheckCircleFilledIcon /> },
+  failed: { tone: "error", icon: <ErrorFilledIcon /> },
 };
 
 export function SourceStatusBadge({ status }: { status: SourceStatus }) {
+  const style = STYLE[status];
   return (
-    <Badge variant="outline" className={cn(STYLES[status])}>
-      {status === "processing" || status === "pending" ? <Spinner className="size-3" /> : null}
+    <StatusChip tone={style.tone} icon={style.icon}>
       {SOURCE_STATUS_LABEL[status]}
-    </Badge>
+    </StatusChip>
   );
 }

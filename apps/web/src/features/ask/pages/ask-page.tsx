@@ -1,6 +1,5 @@
 import type { AskThread } from "@contextos/shared";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangleIcon, MessageSquareIcon, SparklesIcon } from "lucide-react";
 import { useState } from "react";
 import { useParams, useSearchParams } from "react-router";
 import { PageHeader } from "@/components/layout/page-header";
@@ -17,6 +16,11 @@ import {
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  AiSparkleIcon,
+  ChatIcon,
+  WarningIcon,
+} from "@/components/ui/icons";
 import {
   threadQuery,
   threadsQuery,
@@ -81,6 +85,7 @@ export function AskPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        level={2}
         title="Ask ContextOS"
         description="Answers are built only from this project's sources and cite the passages they rest on. When the evidence is thin, it says so."
       />
@@ -94,7 +99,7 @@ export function AskPage() {
               <Skeleton className="h-14 rounded-b-xl" />
             </div>
           ) : threads.isError ? (
-            <Banner tone="error" icon={<AlertTriangleIcon />} title="Could not load conversations" description={threads.error.message} />
+            <Banner tone="error" icon={<WarningIcon />} title="Could not load conversations" description={threads.error.message} />
           ) : (
             <ThreadList threads={projectThreads} activeId={activeId} onSelect={selectThread} onDelete={setPendingDelete} />
           )}
@@ -105,7 +110,7 @@ export function AskPage() {
             <Empty className="border-dashed">
               <EmptyHeader>
                 <EmptyMedia variant="icon">
-                  <SparklesIcon />
+                  <AiSparkleIcon />
                 </EmptyMedia>
                 <EmptyTitle>Start a conversation</EmptyTitle>
                 <EmptyDescription>
@@ -119,7 +124,7 @@ export function AskPage() {
           ) : activeThread.isError ? (
             <Banner
               tone="error"
-              icon={<AlertTriangleIcon />}
+              icon={<WarningIcon />}
               title="Could not open this conversation"
               description={activeThread.error.message}
               actions={<Button variant="ghost" size="sm" onClick={() => selectThread(null)}>Start a new one</Button>}
@@ -128,7 +133,7 @@ export function AskPage() {
             <Empty className="border-dashed">
               <EmptyHeader>
                 <EmptyMedia variant="icon">
-                  <MessageSquareIcon />
+                  <ChatIcon />
                 </EmptyMedia>
                 <EmptyTitle>{activeThread.data.title}</EmptyTitle>
                 <EmptyDescription>No answers yet. Ask below.</EmptyDescription>
@@ -150,7 +155,7 @@ export function AskPage() {
           ) : null}
 
           {send.isError ? (
-            <Banner tone="error" icon={<AlertTriangleIcon />} title="Couldn't get an answer" description={send.error.message} />
+            <Banner tone="error" icon={<WarningIcon />} title="Couldn't get an answer" description={send.error.message} />
           ) : null}
 
           <AskForm isPending={busy} onSubmit={(question) => void ask(question)} />

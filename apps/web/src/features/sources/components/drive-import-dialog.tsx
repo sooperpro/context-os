@@ -1,15 +1,5 @@
 import { DRIVE_FOLDER_MIME, type ConnectorConnection, type DriveFile } from "@contextos/shared";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  AlertTriangleIcon,
-  CheckIcon,
-  ChevronRightIcon,
-  DownloadIcon,
-  ExternalLinkIcon,
-  FileTextIcon,
-  FolderIcon,
-  RefreshCwIcon,
-} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Banner } from "@/components/ui/banner";
@@ -42,6 +32,16 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { StatusChip } from "@/components/ui/status-chip";
+import {
+  CheckIcon,
+  ChevronRightIcon,
+  DescriptionIcon,
+  DownloadIcon,
+  FolderIcon,
+  OpenInNewIcon,
+  RefreshIcon,
+  WarningIcon,
+} from "@/components/ui/icons";
 import {
   connectorFilesQuery,
   connectorsQuery,
@@ -97,7 +97,7 @@ export function DriveImportDialog({ projectId, open, onOpenChange }: DriveImport
         ) : connectors.isError ? (
           <Banner
             tone="error"
-            icon={<AlertTriangleIcon />}
+            icon={<WarningIcon />}
             title="Could not load connections"
             description={connectors.error.message}
           />
@@ -118,12 +118,12 @@ function ConnectPrompt({ stale }: { stale: boolean }) {
     <div className="space-y-3">
       <Banner
         tone={stale ? "warning" : "info"}
-        icon={<AlertTriangleIcon />}
+        icon={<WarningIcon />}
         title={stale ? "Google Drive needs to be reconnected" : "Google Drive is not connected yet"}
         description="Consent opens in a new tab with read-only Drive scope. Come back and check again once Google returns you to ContextOS."
       />
       {authorize.isError ? (
-        <Banner tone="error" icon={<AlertTriangleIcon />} title="Google Drive is not available" description={authorize.error.message} />
+        <Banner tone="error" icon={<WarningIcon />} title="Google Drive is not available" description={authorize.error.message} />
       ) : null}
       <div className="flex flex-wrap gap-2">
         <Button
@@ -134,11 +134,11 @@ function ConnectPrompt({ stale }: { stale: boolean }) {
             })
           }
         >
-          <ExternalLinkIcon aria-hidden />
+          <OpenInNewIcon aria-hidden />
           Connect Google Drive
         </Button>
         <Button variant="outline" onClick={() => void queryClient.invalidateQueries({ queryKey: connectorsQuery().queryKey })}>
-          <RefreshCwIcon aria-hidden />
+          <RefreshIcon aria-hidden />
           Check again
         </Button>
       </div>
@@ -203,7 +203,7 @@ function DriveBrowser({ projectId, connection }: { projectId: string; connection
       </Breadcrumb>
 
       {importFile.isError ? (
-        <Banner tone="error" icon={<AlertTriangleIcon />} title="Could not import this file" description={importFile.error.message} />
+        <Banner tone="error" icon={<WarningIcon />} title="Could not import this file" description={importFile.error.message} />
       ) : null}
 
       <ScrollArea className="min-h-0 flex-1 -mx-1 px-1">
@@ -216,7 +216,7 @@ function DriveBrowser({ projectId, connection }: { projectId: string; connection
         ) : files.isError ? (
           <Banner
             tone="error"
-            icon={<AlertTriangleIcon />}
+            icon={<WarningIcon />}
             title="Could not list this folder"
             description={files.error.message}
             actions={<Button variant="ghost" size="sm" onClick={() => void files.refetch()}>Retry</Button>}
@@ -248,7 +248,7 @@ function DriveBrowser({ projectId, connection }: { projectId: string; connection
               return (
                 <SegmentedItem key={file.id}>
                   <SegmentedItemLead className="bg-surface-container-highest text-on-surface-variant">
-                    <FileTextIcon />
+                    <DescriptionIcon />
                   </SegmentedItemLead>
                   <SegmentedItemBody>
                     <SegmentedItemTitle>{file.name}</SegmentedItemTitle>
@@ -274,7 +274,7 @@ function DriveBrowser({ projectId, connection }: { projectId: string; connection
                         Import
                       </Button>
                     ) : (
-                      <StatusChip tone="neutral" icon={<AlertTriangleIcon />}>
+                      <StatusChip tone="neutral" icon={<WarningIcon />}>
                         Not supported yet
                       </StatusChip>
                     )}

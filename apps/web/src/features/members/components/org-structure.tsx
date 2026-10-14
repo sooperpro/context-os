@@ -1,6 +1,5 @@
 import type { Department, Team } from "@contextos/shared";
 import { useQuery } from "@tanstack/react-query";
-import { Building2Icon, MoreHorizontalIcon, PencilIcon, PlusIcon, Trash2Icon, UsersIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -15,6 +14,14 @@ import {
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusChip } from "@/components/ui/status-chip";
+import {
+  AddIcon,
+  DeleteIcon,
+  DomainIcon,
+  EditIcon,
+  GroupIcon,
+  MoreHorizIcon,
+} from "@/components/ui/icons";
 import {
   departmentsQuery,
   teamsQuery,
@@ -78,7 +85,7 @@ export function OrgStructure({ canManage }: { canManage: boolean }) {
       {canManage ? (
         <div className="flex justify-end">
           <Button onClick={() => setDialog({ kind: "create-department" })}>
-            <PlusIcon aria-hidden />
+            <AddIcon aria-hidden />
             New department
           </Button>
         </div>
@@ -88,7 +95,7 @@ export function OrgStructure({ canManage }: { canManage: boolean }) {
         <Empty className="border-dashed">
           <EmptyHeader>
             <EmptyMedia variant="icon">
-              <Building2Icon />
+              <DomainIcon />
             </EmptyMedia>
             <EmptyTitle>No departments yet</EmptyTitle>
             <EmptyDescription>
@@ -106,7 +113,7 @@ export function OrgStructure({ canManage }: { canManage: boolean }) {
                 <div className="flex items-start gap-3">
                   <div className="min-w-0 flex-1">
                     <CardTitle className="flex items-center gap-2">
-                      <Building2Icon className="size-5 text-on-surface-variant" aria-hidden />
+                      <DomainIcon className="size-5 text-on-surface-variant" aria-hidden />
                       {department.name}
                     </CardTitle>
                     <CardDescription>
@@ -116,16 +123,16 @@ export function OrgStructure({ canManage }: { canManage: boolean }) {
                   {canManage ? (
                     <div className="flex items-center gap-1">
                       <Button variant="outline" size="sm" onClick={() => setDialog({ kind: "create-team", department })}>
-                        <PlusIcon aria-hidden />
+                        <AddIcon aria-hidden />
                         Add team
                       </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label={`Manage ${department.name}`} />}>
-                          <MoreHorizontalIcon />
+                          <MoreHorizIcon />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => setDialog({ kind: "rename-department", department })}>
-                            <PencilIcon /> Rename
+                            <EditIcon /> Rename
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
@@ -133,7 +140,7 @@ export function OrgStructure({ canManage }: { canManage: boolean }) {
                             disabled={departmentTeams.length > 0}
                             onClick={() => void remove(department.name, () => deleteDepartment.mutateAsync(department.id))}
                           >
-                            <Trash2Icon /> Delete
+                            <DeleteIcon /> Delete
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -227,30 +234,30 @@ function TeamTree({ teams, parentId, canManage, depth = 0, onAddChild, onRename,
         return (
           <li key={team.id} className="space-y-1">
             <div className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-on-surface/4">
-              <UsersIcon className="size-4 shrink-0 text-on-surface-variant" aria-hidden />
+              <GroupIcon className="size-4 shrink-0 text-on-surface-variant" aria-hidden />
               <span className="min-w-0 flex-1 truncate text-sm">{team.name}</span>
               {depth > 0 ? (
-                <StatusChip tone="neutral" icon={<UsersIcon />}>
+                <StatusChip tone="neutral" icon={<GroupIcon />}>
                   Level {depth + 1}
                 </StatusChip>
               ) : null}
               {canManage ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" aria-label={`Manage ${team.name}`} />}>
-                    <MoreHorizontalIcon />
+                    <MoreHorizIcon />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={() => onRename(team)}>
-                      <PencilIcon /> Rename
+                      <EditIcon /> Rename
                     </DropdownMenuItem>
                     {depth < 2 ? (
                       <DropdownMenuItem onClick={() => onAddChild(team)}>
-                        <PlusIcon /> Add sub-team
+                        <AddIcon /> Add sub-team
                       </DropdownMenuItem>
                     ) : null}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem variant="destructive" disabled={hasChildren} onClick={() => onDelete(team)}>
-                      <Trash2Icon /> Delete
+                      <DeleteIcon /> Delete
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>

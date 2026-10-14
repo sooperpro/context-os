@@ -1,7 +1,11 @@
 import type { AskThread } from "@contextos/shared";
 import { cn } from "cn";
-import { MessageSquareIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  AddIcon,
+  ChatIcon,
+  DeleteIcon,
+} from "@/components/ui/icons";
 import {
   SegmentedItem,
   SegmentedItemBody,
@@ -24,7 +28,7 @@ export function ThreadList({ threads, activeId, onSelect, onDelete }: ThreadList
   return (
     <div className="space-y-3">
       <Button variant="secondary" className="w-full justify-start" onClick={() => onSelect(null)}>
-        <PlusIcon aria-hidden />
+        <AddIcon aria-hidden />
         New conversation
       </Button>
       {threads.length === 0 ? (
@@ -46,7 +50,7 @@ export function ThreadList({ threads, activeId, onSelect, onDelete }: ThreadList
                   onClick={() => onSelect(thread.id)}
                   className="flex min-w-0 flex-1 items-center gap-3 rounded-sm text-start outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                 >
-                  <MessageSquareIcon className="size-4 shrink-0 text-on-surface-variant" aria-hidden />
+                  <ChatIcon className="size-4 shrink-0 text-on-surface-variant" aria-hidden />
                   <SegmentedItemBody>
                     <SegmentedItemTitle className={cn(active && "text-on-secondary-container")}>{thread.title}</SegmentedItemTitle>
                     <SegmentedItemMeta>{formatDate(thread.createdAt)}</SegmentedItemMeta>
@@ -59,7 +63,7 @@ export function ThreadList({ threads, activeId, onSelect, onDelete }: ThreadList
                     aria-label={`Delete conversation ${thread.title}`}
                     onClick={() => onDelete(thread)}
                   >
-                    <Trash2Icon />
+                    <DeleteIcon />
                   </Button>
                 </SegmentedItemTrail>
               </SegmentedItem>
