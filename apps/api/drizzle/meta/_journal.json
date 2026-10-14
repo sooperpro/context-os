@@ -64,6 +64,13 @@
       "when": 1791991944844,
       "tag": "0008_connector_scope_visibility",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1791996305760,
+      "tag": "0009_connector_scope_schedule",
+      "breakpoints": true
     }
   ]
 }

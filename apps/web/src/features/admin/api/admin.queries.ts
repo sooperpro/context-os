@@ -17,6 +17,7 @@ import {
   fetchAiSettings,
   fetchAudit,
   fetchMembersOverview,
+  fetchOwnConnections,
   fetchPolicies,
   fetchRoleRequests,
   reconnectConnector,
@@ -106,8 +107,38 @@ export function useDecideRoleRequest() {
   });
 }
 
+const CONSENT_POLL_MS = 2_000;
+const CONSENT_TIMEOUT_MS = 3 * 60_000;
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Read-only consent for a connector; resolves with the account that granted it. When the provider
+ * needs its own consent page, that page opens in a new tab and this waits until the provider has
+ * redirected back and the connection is recorded.
+ */
 export function useAuthorizeConnector() {
-  return useMutation({ mutationFn: (id: string) => authorizeConnector(id) });
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string): Promise<string> => {
+      const consent = await authorizeConnector(id);
+      if (consent.account) return consent.account;
+      if (!consent.authorizationUrl)
+        throw new Error("The connector did not return a sign-in page.");
+      window.open(consent.authorizationUrl, "_blank", "noopener,noreferrer");
+      const provider = id.replaceAll("-", "_");
+      for (const deadline = Date.now() + CONSENT_TIMEOUT_MS; Date.now() < deadline;) {
+        await wait(CONSENT_POLL_MS);
+        const connections = await fetchOwnConnections();
+        if (connections.some((row) => row.provider === provider && row.status === "connected")) {
+          const granted = await authorizeConnector(id);
+          if (granted.account) return granted.account;
+        }
+      }
+      throw new Error("Access wasn't granted in time. Please try again.");
+    },
+    // The catalog now lists what the account can index.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: adminKeys.connectors() }),
+  });
 }
 
 export function useConnectConnector() {

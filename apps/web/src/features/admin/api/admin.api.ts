@@ -10,6 +10,7 @@ import {
   AuditEntryListSchema,
   ConnectInputSchema,
   ConnectorConsentSchema,
+  ConnectorListSchema,
   ConnectorRequestInputSchema,
   ConnectorRequestResultSchema,
   DirectorySyncResultSchema,
@@ -28,7 +29,8 @@ import { z } from "zod";
 import { apiRequest } from "@/lib/api-client";
 
 /**
- * The admin's workspace endpoints. The audit log is live; the rest are not served yet and the
+ * The admin's workspace endpoints. The audit log, the connector catalog and AI settings are live;
+ * members overview, directory sync, role requests and access policies are not served yet and the
  * development mock layer answers them (src/mocks/admin.ts). Contracts:
  * packages/shared/src/schemas/admin.ts.
  */
@@ -121,6 +123,10 @@ export const authorizeConnector = (id: string) =>
     body: {},
     schema: E.authorize.schema,
   });
+
+/** The signed-in person's own connections; consent is recorded here once the provider redirects back. */
+export const fetchOwnConnections = async (signal?: AbortSignal) =>
+  (await apiRequest("/v1/connectors", { schema: ConnectorListSchema, signal })).items;
 
 export const connectConnector = (id: string, input: ConnectInput) =>
   apiRequest(withId(E.connect.path, id), { method: "POST", body: input, schema: E.connect.schema });

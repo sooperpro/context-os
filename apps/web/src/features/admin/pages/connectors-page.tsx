@@ -36,6 +36,7 @@ import {
 } from "@/features/admin/components/connector-dialogs";
 import { CONNECTOR_CATEGORY, CONNECTOR_STATE } from "@/features/admin/admin-meta";
 import { comingSoon } from "@/lib/coming-soon";
+import { ApiClientError } from "@/lib/api-client";
 import { formatRelativeTime } from "@/lib/format";
 
 /** Connectors (prototype `#connectors`): what's connected and healthy, and the catalog to add more. */
@@ -255,8 +256,12 @@ function ConnectedCard({ connector }: { connector: AdminConnector }) {
             onClick={() =>
               reconnect.mutate(connector.id, {
                 onSuccess: () => toast(`Reconnecting ${connector.name}…`),
-                onError: () =>
-                  toast.error(`${connector.name} could not be reconnected. Please try again.`),
+                onError: (error) =>
+                  toast.error(
+                    error instanceof ApiClientError
+                      ? error.message
+                      : `${connector.name} could not be reconnected. Please try again.`,
+                  ),
               })
             }
           >

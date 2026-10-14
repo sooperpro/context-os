@@ -1,0 +1,1 @@
+ALTER TABLE `connector_scopes` ADD `sync_frequency` text DEFAULT 'hourly' NOT NULL;

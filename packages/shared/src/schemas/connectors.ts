@@ -25,6 +25,9 @@ export const ScopeStatusSchema = z.enum([
   "degraded",
   "needs_reauth",
 ]);
+/** How often a selected scope re-syncs on its own (manual "Sync now" is always available). */
+export const SyncFrequencySchema = z.enum(["15m", "hourly", "daily"]);
+export type SyncFrequency = z.infer<typeof SyncFrequencySchema>;
 /** Who can read what a scope imports: everyone in the workspace, or only people whose own account opens it in the tool. */
 export const ScopeVisibilitySchema = z.enum(["workspace", "restricted"]);
 export type ScopeVisibility = z.infer<typeof ScopeVisibilitySchema>;
@@ -37,6 +40,8 @@ export const ScopeSelectionSchema = z
     backfillFrom: IsoDateSchema.optional(),
     /** Defaults to permission mirroring (fail closed); the web app offers workspace sharing explicitly. */
     visibility: ScopeVisibilitySchema.default("restricted"),
+    /** Omitted: a new scope syncs hourly and an existing one keeps its schedule. */
+    frequency: SyncFrequencySchema.optional(),
   })
   .strict();
 /** Replace the selected scopes a connection feeds into a project (FR-INT-005). */

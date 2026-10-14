@@ -15,6 +15,7 @@ import { createAskRoutes, createQuestionRoutes } from "./modules/ask/ask.routes.
 import { createAssistantRoutes } from "./modules/ask/assistant.routes.js";
 import { createMessageRoutes } from "./modules/ask/messages.routes.js";
 import { createThreadRoutes } from "./modules/ask/threads.routes.js";
+import { createAdminConnectorRoutes } from "./modules/connectors/admin-connectors.routes.js";
 import { createConnectorRoutes } from "./modules/connectors/connectors.routes.js";
 import { createGoogleDriveService } from "./modules/connectors/google-drive.js";
 import { createWebhookRoutes } from "./modules/connectors/webhooks.routes.js";
@@ -34,6 +35,7 @@ import {
 import { createIdentityLinkRoutes } from "./modules/identity/identity-links.routes.js";
 import { createIdentityRoutes } from "./modules/identity/identity.routes.js";
 import { createJobRoutes } from "./modules/jobs/jobs.routes.js";
+import { createAdminOverviewRoutes } from "./modules/platform/admin-overview.routes.js";
 import { createAdminRoutes } from "./modules/platform/admin.routes.js";
 import { createAnalyticsRoutes } from "./modules/platform/analytics.routes.js";
 import { createBountyRoutes } from "./modules/platform/bounties.routes.js";
@@ -44,6 +46,7 @@ import { createKnowledgeRoutes } from "./modules/platform/knowledge.routes.js";
 import { createLearningRoutes } from "./modules/platform/learning.routes.js";
 import { createOnboardingRoutes } from "./modules/platform/onboarding.routes.js";
 import { createRewardRoutes } from "./modules/platform/rewards.routes.js";
+import { createSavedRoutes } from "./modules/platform/saved.routes.js";
 import { createProjectRoutes, createProjectsRoutes } from "./modules/projects/projects.routes.js";
 import { createSearchRoutes } from "./modules/search/search.routes.js";
 import { createSourceRoutes } from "./modules/sources/sources.routes.js";
@@ -166,6 +169,9 @@ export function createApp({ env, container, version = "0.1.0" }: AppDeps) {
     .route("/api/v1", createEvidenceRoutes(container))
     .route("/api/v1", createAnalyticsRoutes(container))
     .route("/api/v1", createAdminRoutes(container))
+    .route("/api/v1", createAdminOverviewRoutes(container))
+    .route("/api/v1", createAdminConnectorRoutes(container, drive))
+    .route("/api/v1", createSavedRoutes(container))
     .route("/api/v1/health", createHealthRoutes({ db: container.db, version }))
     .route("/api/v1/projects", createProjectsRoutes(services.projects))
     .route("/api/v1/projects/:projectId", projectRouter);

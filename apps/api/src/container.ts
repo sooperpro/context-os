@@ -131,7 +131,7 @@ export function createContainer({ env, db, gemini, logger }: ContainerDeps) {
     logger,
     connectors,
   });
-  const sweeps = createSweeps({ db, bounties, logger });
+  const sweeps = createSweeps({ db, bounties, logger, queue });
   const worker = createWorker({
     queue,
     handlers,

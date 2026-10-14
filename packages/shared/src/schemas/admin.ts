@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { IsoDateTimeSchema } from "./common.js";
+import { ScopeVisibilitySchema, SyncFrequencySchema } from "./connectors.js";
 import { AiSettingSchema } from "./home.js";
 import { SystemRoleSchema } from "./platform.js";
 import { PersonRefSchema } from "./refs.js";
@@ -76,9 +77,6 @@ export type ConnectorCategory = z.infer<typeof ConnectorCategorySchema>;
 export const ConnectorStateSchema = z.enum(["healthy", "syncing", "error", "available"]);
 export type ConnectorState = z.infer<typeof ConnectorStateSchema>;
 
-export const SyncFrequencySchema = z.enum(["15m", "hourly", "daily"]);
-export type SyncFrequency = z.infer<typeof SyncFrequencySchema>;
-
 /** One integration in the catalog, with its connection when there is one. */
 export const AdminConnectorSchema = z.object({
   /** The provider: "google-drive", "slack", "jira"… The web app picks the logo from it. */
@@ -107,8 +105,16 @@ export type AdminConnector = z.infer<typeof AdminConnectorSchema>;
 /** `GET /v1/admin/connectors`: the catalog and what is connected. */
 export const AdminConnectorListSchema = z.object({ items: z.array(AdminConnectorSchema) });
 
-/** `POST /v1/admin/connectors/:id/authorize`: the provider's consent (read-only scopes). */
-export const ConnectorConsentSchema = z.object({ account: z.string() });
+/**
+ * `POST /v1/admin/connectors/:id/authorize`: the provider's consent (read-only scopes). `account` is
+ * set once access is granted; until then `authorizationUrl` is the provider's consent page to open,
+ * and the caller asks again after the provider redirects back.
+ */
+export const ConnectorConsentSchema = z.object({
+  account: z.string().nullable(),
+  authorizationUrl: z.url().nullable().default(null),
+});
+export type ConnectorConsent = z.infer<typeof ConnectorConsentSchema>;
 
 /** `POST /v1/admin/connectors/:id/connect`: what to index and how often; starts the first sync. */
 export const ConnectInputSchema = z
@@ -116,6 +122,10 @@ export const ConnectInputSchema = z
     scopeIds: z.array(z.string()).min(1, "Choose at least one."),
     frequency: SyncFrequencySchema,
     skipOlderThan: z.enum(["never", "3y", "1y"]),
+    /** The project the content feeds; every source in ContextOS belongs to one. */
+    projectId: z.uuid().optional(),
+    /** Who can read the imported content; omitted mirrors the tool's permissions. */
+    visibility: ScopeVisibilitySchema.optional(),
   })
   .strict();
 export type ConnectInput = z.infer<typeof ConnectInputSchema>;

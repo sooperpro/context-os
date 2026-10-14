@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { IdSchema, IsoDateSchema } from "./common.js";
-import { ScopeStatusSchema, ScopeTypeSchema, ScopeVisibilitySchema } from "./connectors.js";
+import {
+  ScopeStatusSchema,
+  ScopeTypeSchema,
+  ScopeVisibilitySchema,
+  SyncFrequencySchema,
+} from "./connectors.js";
 
 export const SystemRoleSchema = z.enum(["owner", "admin", "manager", "member", "guest"]);
 export type SystemRole = z.infer<typeof SystemRoleSchema>;
@@ -182,6 +187,24 @@ export const WorkspaceDeletionSchema = z.object({
   requestedBy: z.string(),
   requestedAt: z.iso.datetime(),
 });
+/**
+ * How Context Bot answers (`/v1/admin/ai-settings`). `access_only` (always on) and `include_dms`
+ * (always off) are fixed by policy and not stored.
+ */
+export const AiPolicySettingsSchema = z.object({
+  rules: z
+    .object({
+      cite_sources: z.boolean().default(true),
+      route_unanswered: z.boolean().default(true),
+      pause_during_checks: z.boolean().default(true),
+    })
+    .prefault({}),
+  strictness: z.enum(["strict", "balanced", "lenient"]).default("balanced"),
+  staleAfterHours: z.union([z.literal(1), z.literal(2), z.literal(6), z.literal(24)]).default(2),
+  routeAfterAsks: z.union([z.literal(2), z.literal(3), z.literal(5)]).default(3),
+  weeklyDigest: z.boolean().default(true),
+});
+export type AiPolicySettings = z.infer<typeof AiPolicySettingsSchema>;
 /** Resolved workspace settings with every default applied. */
 export const WorkspaceSettingsStateSchema = z.object({
   timezone: TimezoneSchema.optional(),
@@ -192,6 +215,7 @@ export const WorkspaceSettingsStateSchema = z.object({
   epm: EpmSettingsSchema.prefault({}),
   authority: AuthorityRulesSchema.default(DEFAULT_AUTHORITY_RULES),
   deletion: WorkspaceDeletionSchema.nullable().default(null),
+  ai: AiPolicySettingsSchema.prefault({}),
 });
 export type WorkspaceSettingsState = z.infer<typeof WorkspaceSettingsStateSchema>;
 /** PATCH body: every section is a partial merge; `version` is the optimistic lock. */
@@ -404,6 +428,7 @@ export const ConnectorScopeSchema = z.object({
   excluded: z.boolean(),
   backfillFrom: z.string().nullable(),
   visibility: ScopeVisibilitySchema,
+  frequency: SyncFrequencySchema,
   status: ScopeStatusSchema,
   lastSyncRequestedAt: z.string().nullable(),
   lastSyncedAt: z.string().nullable(),

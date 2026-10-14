@@ -2,6 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { Route, Routes } from "react-router";
+import { toast } from "sonner";
 import { describe, expect, it, vi } from "vitest";
 import {
   AssistantContext,
@@ -41,50 +42,167 @@ function renderAt(route: string) {
   );
 }
 
+/* The live connector catalog: Google Drive is implemented, the rest are listed as available. */
+const catalogEntry = (id: string, name: string, category: string, state = "available") => ({
+  id,
+  name,
+  category,
+  description: `${name} content.`,
+  unit: id === "google-drive" ? "Folders" : "Teamspaces",
+  scopeOptions: [] as Array<{ id: string; name: string; restricted: boolean }>,
+  popular: false,
+  needsAdminOf: null,
+  state,
+  detail: null as string | null,
+  lastSyncAt: null as string | null,
+  progress: null as number | null,
+  error: null as string | null,
+});
+
+function liveConnectors() {
+  let drive = catalogEntry("google-drive", "Google Drive", "files");
+  let granted = false;
+  const connectBodies: unknown[] = [];
+  const catalog = () => [
+    drive,
+    catalogEntry("notion", "Notion", "wiki"),
+    catalogEntry("figma", "Figma", "design"),
+  ];
+  mockServer.use(
+    http.get(buildApiUrl("/v1/admin/connectors"), () => HttpResponse.json({ items: catalog() })),
+    http.post(buildApiUrl("/v1/admin/connectors/:id/authorize"), ({ params }) => {
+      if (params.id !== "google-drive")
+        return HttpResponse.json(
+          {
+            error: {
+              code: "NOT_CONFIGURED",
+              message:
+                "Notion isn't available yet. Use “Request a connector” to tell us you need it.",
+            },
+          },
+          { status: 503 },
+        );
+      granted = true;
+      drive = {
+        ...drive,
+        scopeOptions: [
+          { id: "root", name: "My Drive", restricted: false },
+          { id: "folder-1", name: "Specs", restricted: false },
+        ],
+      };
+      return HttpResponse.json({ account: "tom@tessellate.io", authorizationUrl: null });
+    }),
+    http.post(buildApiUrl("/v1/admin/connectors/:id/connect"), async ({ request }) => {
+      connectBodies.push(await request.json());
+      drive = { ...drive, state: "syncing", detail: "First sync · 0%", progress: null };
+      return HttpResponse.json(drive);
+    }),
+    http.post(buildApiUrl("/v1/admin/connectors/:id/reconnect"), () => {
+      drive = { ...drive, state: "syncing", detail: "Syncing · 40%", error: null };
+      return HttpResponse.json(drive);
+    }),
+    http.get(buildApiUrl("/v1/projects"), () =>
+      HttpResponse.json({
+        items: [
+          {
+            id: "11111111-1111-4111-8111-111111111111",
+            workspaceId: "22222222-2222-4222-8222-222222222222",
+            name: "Billing platform",
+            slug: "billing-platform",
+            description: null,
+            createdAt: "2026-10-01T00:00:00.000Z",
+            updatedAt: "2026-10-01T00:00:00.000Z",
+            stats: {
+              sources: 0,
+              readySources: 0,
+              contextItems: 0,
+              questions: 0,
+              lastProcessedAt: null,
+            },
+          },
+        ],
+      }),
+    ),
+  );
+  return {
+    connectBodies,
+    granted: () => granted,
+    fail: () => {
+      drive = {
+        ...drive,
+        state: "error",
+        detail: "0 of 1 folder syncing",
+        error: "403 Forbidden on Specs",
+      };
+    },
+  };
+}
+
 describe("Connectors", () => {
-  it("summarizes connections and connects a new source through the wizard", async () => {
+  it("connects Google Drive into a project through the wizard", async () => {
+    const api = liveConnectors();
     const user = userEvent.setup();
     renderAt("/connectors");
 
-    const connected = await screen.findByRole("list", { name: "Connected sources" });
-    expect(within(connected).getAllByRole("article")).toHaveLength(5);
-    expect(within(connected).getByRole("article", { name: "Jira" })).toHaveTextContent("Failing");
-    expect(screen.getByRole("group", { name: "Summary" })).toHaveTextContent("Connected5");
-
-    await user.click(screen.getByRole("button", { name: "Connect Notion" }));
-    const wizard = await screen.findByRole("dialog", { name: "Connect Notion" });
+    expect(await screen.findByRole("group", { name: "Summary" })).toHaveTextContent("Connected0");
+    await user.click(screen.getByRole("button", { name: "Connect Google Drive" }));
+    const wizard = await screen.findByRole("dialog", { name: "Connect Google Drive" });
     expect(within(wizard).getByText("Read sharing permissions")).toBeInTheDocument();
-    await user.click(within(wizard).getByRole("button", { name: "Continue with Notion" }));
+    await user.click(within(wizard).getByRole("button", { name: "Continue with Google Drive" }));
     expect(await within(wizard).findByText("Connected as tom@tessellate.io")).toBeInTheDocument();
-    await user.click(within(wizard).getByRole("checkbox", { name: /Design/ }));
+    expect(api.granted()).toBe(true);
+    // The folders arrive with consent; nothing is picked until the admin chooses.
+    expect(within(wizard).getByRole("button", { name: "Next" })).toBeDisabled();
+    await user.click(await within(wizard).findByRole("checkbox", { name: /Specs/ }));
     await user.click(within(wizard).getByRole("button", { name: "Next" }));
     await user.click(within(wizard).getByRole("button", { name: "Daily" }));
     expect(
-      within(wizard).getByText("2 teamspaces · syncs daily · permissions mirrored"),
+      await within(wizard).findByText("1 folders · syncs daily · shared with everyone"),
     ).toBeInTheDocument();
     await user.click(within(wizard).getByRole("button", { name: "Connect and start sync" }));
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    const notion = await within(screen.getByRole("list", { name: "Connected sources" })).findByRole(
+    expect(api.connectBodies).toEqual([
+      {
+        scopeIds: ["folder-1"],
+        frequency: "daily",
+        skipOlderThan: "3y",
+        projectId: "11111111-1111-4111-8111-111111111111",
+        visibility: "workspace",
+      },
+    ]);
+    const drive = await within(screen.getByRole("list", { name: "Connected sources" })).findByRole(
       "article",
-      { name: "Notion" },
+      { name: "Google Drive" },
     );
-    expect(notion).toHaveTextContent("Syncing");
+    expect(drive).toHaveTextContent("Syncing");
   });
 
-  it("reconnects a failing source and filters the catalog", async () => {
+  it("shows why a listed integration can't connect yet, fixes a failing source and filters", async () => {
+    const api = liveConnectors();
+    api.fail();
+    const error = vi.spyOn(toast, "error");
     const user = userEvent.setup();
     renderAt("/connectors");
 
-    const jira = await within(
+    const drive = await within(
       await screen.findByRole("list", { name: "Connected sources" }),
-    ).findByRole("article", { name: "Jira" });
-    await user.click(within(jira).getByRole("button", { name: "Fix" }));
+    ).findByRole("article", { name: "Google Drive" });
+    expect(drive).toHaveTextContent("403 Forbidden on Specs");
+    await user.click(within(drive).getByRole("button", { name: "Fix" }));
     expect(
       await within(screen.getByRole("list", { name: "Connected sources" })).findByText(
-        "Re-syncing 3 projects",
+        "Syncing · 40%",
       ),
     ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Connect Notion" }));
+    const wizard = await screen.findByRole("dialog", { name: "Connect Notion" });
+    await user.click(within(wizard).getByRole("button", { name: "Continue with Notion" }));
+    await waitFor(() =>
+      expect(error).toHaveBeenCalledWith(expect.stringMatching(/Notion isn't available yet/)),
+    );
+    await user.click(within(wizard).getByRole("button", { name: "Cancel" }));
 
     const catalog = screen.getByRole("list", { name: "Catalog" });
     await user.click(screen.getByRole("button", { name: "Design" }));
@@ -98,7 +216,6 @@ describe("Connectors", () => {
     expect(await screen.findByText("No connectors match “sharepoint”")).toBeInTheDocument();
   });
 });
-
 describe("Access policies", () => {
   it("resolves the conflict and the preview follows", async () => {
     const user = userEvent.setup();
@@ -149,6 +266,54 @@ describe("Access policies", () => {
 
 describe("AI settings", () => {
   it("changes answer rules and strictness", async () => {
+    const rules = [
+      ["cite_sources", "Cite sources in every answer", false],
+      ["access_only", "Answer only from sources the person can access", true],
+      ["route_unanswered", "Route unanswered questions to knowledge owners", false],
+      ["include_dms", "Include Slack direct messages", true],
+      ["pause_during_checks", "Pause during knowledge checks", false],
+    ] as const;
+    let state = {
+      stats: { helpfulRate: 0.75, withSources: 0.9, noAnswer: 0.1, ratings: 8, periodDays: 30 },
+      rules: rules.map(([id, label, locked]) => ({
+        id,
+        label,
+        detail: "",
+        enabled: id !== "include_dms",
+        locked,
+      })),
+      strictness: "balanced",
+      staleAfterHours: 2,
+      routeAfterAsks: 3,
+      weeklyDigest: true,
+      excluded: [],
+      unhelpfulReasons: [
+        { reason: "Out of date", share: 0.5 },
+        { reason: "Incorrect", share: 0.5 },
+      ],
+      unhelpfulNote: null,
+      unanswered: [],
+    };
+    const patches: unknown[] = [];
+    mockServer.use(
+      http.get(buildApiUrl("/v1/admin/ai-settings"), () => HttpResponse.json(state)),
+      http.patch(buildApiUrl("/v1/admin/ai-settings"), async ({ request }) => {
+        const input = (await request.json()) as {
+          rules?: Record<string, boolean>;
+          strictness?: string;
+        };
+        patches.push(input);
+        state = {
+          ...state,
+          rules: state.rules.map((rule) => ({
+            ...rule,
+            enabled: input.rules?.[rule.id] ?? rule.enabled,
+          })),
+          strictness: input.strictness ?? state.strictness,
+        };
+        return HttpResponse.json(state);
+      }),
+    );
     const user = userEvent.setup();
     renderAt("/ai");
 
@@ -168,9 +333,10 @@ describe("AI settings", () => {
     await user.click(screen.getByRole("button", { name: "Strict" }));
     expect(await screen.findByText(/two or more sources agree/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Strict" })).toHaveAttribute("aria-pressed", "true");
+    expect(patches).toEqual([{ rules: { cite_sources: false } }, { strictness: "strict" }]);
     expect(
       screen.getByRole("list", { name: "Reasons, share of unhelpful ratings" }),
-    ).toHaveTextContent("Out of date41%");
+    ).toHaveTextContent("Out of date50%");
   });
 });
 

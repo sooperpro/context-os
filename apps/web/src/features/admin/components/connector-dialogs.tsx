@@ -1,4 +1,5 @@
 import type { AdminConnector, ConnectInput, SyncFrequency } from "@contextos/shared";
+import { useQuery } from "@tanstack/react-query";
 import { useId, useState } from "react";
 import { toast } from "sonner";
 import { ConnectorLogo } from "@/components/connector-logo";
@@ -20,7 +21,6 @@ import {
   OpenInNewIcon,
   ShieldPersonIcon,
   SyncIcon,
-  VerifiedUserIcon,
 } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,13 +35,23 @@ import {
 } from "@/components/ui/select";
 import { StatusChip } from "@/components/ui/status-chip";
 import { Stepper, StepperItem } from "@/components/ui/stepper";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  adminConnectorsQuery,
   useAuthorizeConnector,
   useConnectConnector,
   useRequestConnector,
 } from "@/features/admin/api/admin.queries";
 import { SYNC_FREQUENCY } from "@/features/admin/admin-meta";
+import { projectsQuery } from "@/features/projects/api/projects.queries";
+import { ApiClientError } from "@/lib/api-client";
+
+/** The server's own words when it has them (they say what to do next), else a generic line. */
+const reason = (error: unknown, fallback: string) =>
+  error instanceof ApiClientError || (error instanceof Error && error.constructor === Error)
+    ? error.message
+    : fallback;
 
 const STEPS = ["Authorize", "Choose content", "Sync settings"] as const;
 const SKIP = { never: "Never skip", "3y": "3 years", "1y": "1 year" } as const;
@@ -63,20 +73,23 @@ export function ConnectWizard({
   );
 }
 
-function Wizard({ connector, close }: { connector: AdminConnector; close: () => void }) {
+function Wizard({ connector: opened, close }: { connector: AdminConnector; close: () => void }) {
   const authorize = useAuthorizeConnector();
   const connect = useConnectConnector();
-  const ids = { skip: useId() };
+  // What can be indexed is only known once access is granted, so read the refreshed catalog entry.
+  const catalog = useQuery(adminConnectorsQuery());
+  const connector = catalog.data?.items.find((item) => item.id === opened.id) ?? opened;
+  const projects = useQuery(projectsQuery());
+  const ids = { skip: useId(), project: useId(), share: useId() };
   const [step, setStep] = useState(0);
   const [account, setAccount] = useState<string | null>(null);
-  const [picked, setPicked] = useState(
-    () =>
-      new Set(
-        connector.scopeOptions.filter((option) => !option.restricted).map((option) => option.id),
-      ),
-  );
+  const [picked, setPicked] = useState(() => new Set<string>());
   const [frequency, setFrequency] = useState<SyncFrequency>("hourly");
   const [skip, setSkip] = useState<ConnectInput["skipOlderThan"]>("3y");
+  const [shared, setShared] = useState(true);
+  const [projectChoice, setProjectChoice] = useState<string | null>(null);
+  const projectItems = projects.data?.items ?? [];
+  const projectId = projectChoice ?? projectItems[0]?.id ?? null;
   const unit = connector.unit.toLowerCase();
 
   const toggle = (id: string) =>
@@ -207,19 +220,53 @@ function Wizard({ connector, close }: { connector: AdminConnector; close: () => 
               ))}
             </OptionList>
           </fieldset>
+          {connector.scopeOptions.length === 0 ? (
+            <p className="text-sm text-on-surface-variant">
+              Nothing to index was found for this account.
+            </p>
+          ) : null}
           <div className="flex items-center gap-3 rounded-md bg-pane px-3.5 py-3">
-            <VerifiedUserIcon className="size-5 shrink-0 text-success" aria-hidden />
-            <span className="flex flex-1 flex-col">
-              <b className="text-sm font-medium">Mirror {connector.name} permissions</b>
+            <label htmlFor={ids.share} className="flex flex-1 flex-col">
+              <b className="text-sm font-medium">Share with everyone in the workspace</b>
               <span className="text-xs text-on-surface-variant">
-                Always on. People only get answers from items they can open in {connector.name}.
+                {shared
+                  ? "Every member can get answers from what you index here."
+                  : `People only get answers from items they can open in ${connector.name}.`}
               </span>
-            </span>
-            <LockIcon className="size-5 shrink-0 text-on-surface-variant" aria-label="Always on" />
+            </label>
+            <Switch id={ids.share} checked={shared} onCheckedChange={setShared} />
           </div>
         </div>
       ) : (
         <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={ids.project}>Add to project</Label>
+            {projectItems.length ? (
+              <Select
+                value={projectId ?? ""}
+                onValueChange={(value) => setProjectChoice(String(value))}
+              >
+                <SelectTrigger id={ids.project} className="w-full">
+                  <SelectValue>
+                    {projectItems.find((project) => project.id === projectId)?.name}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {projectItems.map((project) => (
+                    <SelectItem key={project.id} value={project.id}>
+                      {project.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <span className="text-sm text-on-surface-variant">
+                {projects.isPending
+                  ? "Loading projects…"
+                  : "Create a project first: everything ContextOS indexes belongs to one."}
+              </span>
+            )}
+          </div>
           <fieldset className="flex flex-col gap-2">
             <legend className="mb-2 text-sm font-medium">Sync frequency</legend>
             <ConnectedButtonGroup aria-label="Sync frequency">
@@ -261,8 +308,8 @@ function Wizard({ connector, close }: { connector: AdminConnector; close: () => 
             <span className="flex flex-col">
               <b className="text-sm font-medium">{connector.name}</b>
               <span className="text-xs text-on-surface-variant">
-                {picked.size} {unit} · syncs {SYNC_FREQUENCY[frequency].toLowerCase()} · permissions
-                mirrored
+                {picked.size} {unit} · syncs {SYNC_FREQUENCY[frequency].toLowerCase()} ·{" "}
+                {shared ? "shared with everyone" : "permissions mirrored"}
               </span>
             </span>
           </div>
@@ -284,12 +331,14 @@ function Wizard({ connector, close }: { connector: AdminConnector; close: () => 
             disabled={authorize.isPending}
             onClick={() =>
               authorize.mutate(connector.id, {
-                onSuccess: (consent) => {
-                  setAccount(consent.account);
+                onSuccess: (granted) => {
+                  setAccount(granted);
                   setStep(1);
                 },
-                onError: () =>
-                  toast.error(`${connector.name} did not grant access. Please try again.`),
+                onError: (error) =>
+                  toast.error(
+                    reason(error, `${connector.name} did not grant access. Please try again.`),
+                  ),
               })
             }
           >
@@ -301,20 +350,28 @@ function Wizard({ connector, close }: { connector: AdminConnector; close: () => 
           </Button>
         ) : (
           <Button
-            disabled={connect.isPending}
+            disabled={connect.isPending || !projectId}
             onClick={() =>
               connect.mutate(
                 {
                   id: connector.id,
-                  input: { scopeIds: [...picked], frequency, skipOlderThan: skip },
+                  input: {
+                    scopeIds: [...picked],
+                    frequency,
+                    skipOlderThan: skip,
+                    projectId: projectId ?? undefined,
+                    visibility: shared ? "workspace" : "restricted",
+                  },
                 },
                 {
                   onSuccess: () => {
                     toast.success(`${connector.name} connected. First sync started.`);
                     close();
                   },
-                  onError: () =>
-                    toast.error(`${connector.name} could not be connected. Please try again.`),
+                  onError: (error) =>
+                    toast.error(
+                      reason(error, `${connector.name} could not be connected. Please try again.`),
+                    ),
                 },
               )
             }

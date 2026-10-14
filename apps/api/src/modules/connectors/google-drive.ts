@@ -133,6 +133,7 @@ export function createGoogleDriveService(container: Container) {
     excluded: row.isExcluded,
     backfillFrom: row.backfillFrom?.toISOString() ?? null,
     visibility: row.visibility,
+    frequency: row.syncFrequency,
     status: row.status,
     lastSyncRequestedAt: row.lastSyncRequestedAt?.toISOString() ?? null,
     lastSyncedAt: row.lastSyncedAt?.toISOString() ?? null,
@@ -423,6 +424,7 @@ export function createGoogleDriveService(container: Container) {
                 isExcluded: scope.excluded,
                 backfillFrom: scope.backfillFrom ? new Date(scope.backfillFrom) : null,
                 visibility: scope.visibility,
+                ...(scope.frequency ? { syncFrequency: scope.frequency } : {}),
               })
               .where(eq(connectorScopes.id, current.id))
               .run();
@@ -456,6 +458,7 @@ export function createGoogleDriveService(container: Container) {
                 isExcluded: scope.excluded,
                 backfillFrom: scope.backfillFrom ? new Date(scope.backfillFrom) : null,
                 visibility: scope.visibility,
+                syncFrequency: scope.frequency ?? "hourly",
               })
               .run();
         }
