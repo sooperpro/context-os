@@ -6,6 +6,7 @@ import { resetContributionMocks } from "@/mocks/contributions";
 import { mockEndpoints } from "@/mocks/endpoints";
 import { resetLearningMocks } from "@/mocks/learning";
 import { resetPeopleOpsMocks } from "@/mocks/people-ops";
+import { resetSavedMocks } from "@/mocks/saved";
 import { resetTeamMocks } from "@/mocks/team";
 
 /**
@@ -27,6 +28,7 @@ export function setupMockApi(): void {
     resetTeamMocks();
     resetPeopleOpsMocks();
     resetAdminMocks();
+    resetSavedMocks();
   });
   afterAll(() => mockServer.close());
 }

@@ -20,6 +20,7 @@ shape, then delete the mock.
 | Home · admin                                  | `GET /v1/connectors`, `/v1/users`, `/v1/audit`                                                                                                                                                                                                                                                                                                                                                                                                                  | Live. `/v1/audit` needs a sort, see 5                                                                                                  |
 | Home · admin                                  | `GET /v1/admin/security`, `/v1/admin/sync-runs`, `/v1/admin/ai`; `PATCH /v1/admin/ai-settings`                                                                                                                                                                                                                                                                                                                                                                  | Mocked. Security and AI answers share the admin store with the pages below, see 11                                                     |
 | Knowledge Hub                                 | `GET /v1/projects`, `/v1/projects/:id/context-items`, `/v1/users`, `/v1/org/teams`                                                                                                                                                                                                                                                                                                                                                                              | Live. Project category missing, see 1                                                                                                  |
+| Knowledge item page, Saved                    | Live: `GET /v1/projects/:id/hub`, `/v1/projects/:id/context-items`. Mocked: `GET /v1/me/saved`, `PUT /v1/me/saved/:targetId`                                                                                                                                                                                                                                                                                                                                    | Partly mocked, see 12                                                                                                                  |
 | Project hub, Ask, Sources                     | project, hub, context, ask and source routes                                                                                                                                                                                                                                                                                                                                                                                                                    | Live                                                                                                                                   |
 | Settings, Workspace setup                     | identity, workspace, notification and connector routes                                                                                                                                                                                                                                                                                                                                                                                                          | Live                                                                                                                                   |
 | My roadmap, module, lesson, knowledge check   | `GET /v1/me/roadmap`, `/v1/me/modules/:id`, `/v1/me/lessons/:id`, `/v1/me/checks/:id`; `POST /v1/me/lessons/:id/complete`, `/v1/me/checks/:id/attempts`, `/v1/me/learning-ratings`, `/v1/me/learning-requests`                                                                                                                                                                                                                                                  | Mocked. Contracts in `packages/shared/src/schemas/learning.ts`; views over the existing `/learning/*` data, see 7                      |
@@ -260,3 +261,21 @@ cards. Changes last for the session.
   hours, route-after asks, weekly digest); `GET /v1/admin/ai` reads the same rules. Rule ids changed to
   `cite_sources`, `access_only`, `route_unanswered`, `include_dms`, `pause_during_checks`.
 - HR is still not a system role (see 4); "What each role can do" lists it as product copy.
+
+## 12. Knowledge item pages and saved knowledge
+
+**Why.** The reference gives every knowledge item its own page (what it says, key facts, owners and
+experts, connected knowledge) and lets people save items and projects, listed under "Saved" in the
+Knowledge Hub.
+
+**Today.** The item page (`/projects/:projectId/items/:itemId`) reads the project's live
+context-items list and picks the item; connected knowledge (shared sources, conflicts, dependencies)
+and experts (people who own it, decision participants) are worked out on the client. Saves are
+mocked (`apps/web/src/mocks/saved.ts`) and last for the session.
+
+**Change.**
+
+- `GET /v1/projects/:projectId/context-items/:itemId`, so the page doesn't load the whole list.
+- Saved knowledge, per person: `GET /v1/me/saved` (newest first) and `PUT /v1/me/saved/:targetId`
+  with `{ targetType: "context_item" | "project", projectId, saved }`. Contracts in
+  `packages/shared/src/schemas/saved.ts`.

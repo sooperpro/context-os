@@ -15,5 +15,6 @@ export * from "./schemas/people.js";
 export * from "./schemas/people-ops.js";
 export * from "./schemas/project.js";
 export * from "./schemas/refs.js";
+export * from "./schemas/saved.js";
 export * from "./schemas/source.js";
 export * from "./schemas/platform.js";

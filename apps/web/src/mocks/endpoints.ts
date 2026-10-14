@@ -3,6 +3,7 @@ import { contributionMocks } from "@/mocks/contributions";
 import { learningMocks } from "@/mocks/learning";
 import { peopleMocks } from "@/mocks/people";
 import { peopleOpsPageMocks } from "@/mocks/people-ops";
+import { savedMocks } from "@/mocks/saved";
 import { teamMocks } from "@/mocks/team";
 import { adminMocks } from "@/mocks/home/admin";
 import { employeeMocks } from "@/mocks/home/employee";
@@ -25,4 +26,5 @@ export const mockEndpoints = [
   ...peopleOpsPageMocks,
   ...adminMocks,
   ...adminPageMocks,
+  ...savedMocks,
 ];

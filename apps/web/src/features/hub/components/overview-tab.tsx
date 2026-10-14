@@ -6,7 +6,14 @@ import { BotGlyph } from "@/components/ui/bot-glyph";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
-import { HelpIcon, NorthEastIcon, OpenInNewIcon, ShieldIcon, SyncProblemIcon } from "@/components/ui/icons";
+import {
+  HelpIcon,
+  NorthEastIcon,
+  OpenInNewIcon,
+  RocketLaunchIcon,
+  ShieldIcon,
+  SyncProblemIcon,
+} from "@/components/ui/icons";
 import {
   SegmentedItem,
   SegmentedItemBody,
@@ -23,6 +30,8 @@ import { OverviewCard } from "@/features/hub/components/overview-card";
 import { sourcesQuery } from "@/features/sources/api/sources.queries";
 import { formatCount, formatDate } from "@/lib/format";
 import { SOURCE_KIND_LABEL } from "@/lib/labels";
+import { itemPath } from "@/features/hub/hub-paths";
+import { RelationshipMap } from "@/features/hub/components/relationship-map";
 
 /*
  * The prototype's project overview: "How it connects" (what the sources establish, by kind),
@@ -30,7 +39,12 @@ import { SOURCE_KIND_LABEL } from "@/lib/labels";
  * Everything here is derived from context items and sources; nothing is invented.
  */
 
-const GROUPS: Array<{ label: string; kinds: ContextItemKind[]; tab: string; icon: ContextItemKind }> = [
+const GROUPS: Array<{
+  label: string;
+  kinds: ContextItemKind[];
+  tab: string;
+  icon: ContextItemKind;
+}> = [
   { label: "Systems", kinds: ["component", "dependency"], tab: "system", icon: "component" },
   { label: "Decisions", kinds: ["decision"], tab: "decisions", icon: "decision" },
   { label: "People", kinds: ["person"], tab: "people", icon: "person" },
@@ -56,7 +70,15 @@ function subtitle(item: ContextItem): string {
   }
 }
 
-export function OverviewTab({ projectId, hub, items }: { projectId: string; hub: Hub; items: ContextItem[] }) {
+export function OverviewTab({
+  projectId,
+  hub,
+  items,
+}: {
+  projectId: string;
+  hub: Hub;
+  items: ContextItem[];
+}) {
   const { openAssistant } = useAssistant();
   const sources = useQuery(sourcesQuery(projectId));
   const base = `/projects/${projectId}`;
@@ -67,7 +89,8 @@ export function OverviewTab({ projectId, hub, items }: { projectId: string; hub:
   })).filter((group) => group.items.length > 0);
   const risks = items.filter(
     (item): item is Extract<ContextItem, { kind: "status_claim" }> =>
-      item.kind === "status_claim" && ["risk", "blocked", "open_question"].includes(item.data.state),
+      item.kind === "status_claim" &&
+      ["risk", "blocked", "open_question"].includes(item.data.state),
   );
   const gaps = hub.overview?.keyUnknowns ?? [];
   const sourceItems = sources.data?.items ?? [];
@@ -79,44 +102,31 @@ export function OverviewTab({ projectId, hub, items }: { projectId: string; hub:
           <Card>
             <CardHeader>
               <CardTitle>How it connects</CardTitle>
-              <CardDescription>What the sources establish about this project. Select a group to see every item.</CardDescription>
+              <CardDescription>
+                What the sources establish about this project. Select any item to open it.
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-3 @md:grid-cols-2 @2xl:grid-cols-4">
-                {groups.map((group) => {
-                  const Icon = KIND_ICON[group.icon];
-                  const shown = group.items.slice(0, 4);
-                  return (
-                    <section key={group.label} className="min-w-0">
-                      <h3 className="mb-1.5 flex items-center gap-1 text-xs font-medium text-on-surface-variant [&_svg]:size-3.5">
-                        <Icon aria-hidden />
-                        {group.label}
-                        <span className="tabular-nums">· {group.items.length}</span>
-                      </h3>
-                      <ul className="space-y-1">
-                        {shown.map((item) => (
-                          <li key={item.id}>
-                            <Link
-                              to={`${base}?tab=${group.tab}`}
-                              className="flex flex-col rounded-lg bg-pane px-3 py-2 outline-none transition-colors hover:bg-on-surface/4 focus-visible:ring-3 focus-visible:ring-ring/50"
-                            >
-                              <span className="truncate text-sm font-medium">{item.title}</span>
-                              <span className="truncate text-xs text-on-surface-variant">{subtitle(item)}</span>
-                            </Link>
-                          </li>
-                        ))}
-                        {group.items.length > shown.length ? (
-                          <li>
-                            <Link to={`${base}?tab=${group.tab}`} className="px-3 text-xs font-medium text-primary hover:underline">
-                              +{group.items.length - shown.length} more
-                            </Link>
-                          </li>
-                        ) : null}
-                      </ul>
-                    </section>
-                  );
-                })}
-              </div>
+              <RelationshipMap
+                center={{
+                  title: hub.project.name,
+                  subtitle: formatCount(items.length, "item"),
+                  icon: RocketLaunchIcon,
+                }}
+                groups={groups.map((group) => ({
+                  label: `${group.label} · ${group.items.length}`,
+                  icon: KIND_ICON[group.icon],
+                  items: group.items
+                    .slice(0, 4)
+                    .map((item) => ({
+                      id: item.id,
+                      title: item.title,
+                      subtitle: subtitle(item),
+                      to: itemPath(item),
+                    })),
+                  more: { count: group.items.length - 4, to: `${base}?tab=${group.tab}` },
+                }))}
+              />
             </CardContent>
           </Card>
         ) : null}
@@ -127,7 +137,10 @@ export function OverviewTab({ projectId, hub, items }: { projectId: string; hub:
           <Card>
             <CardHeader>
               <CardTitle>Risks and open questions</CardTitle>
-              <CardDescription>Status claims the sources mark as blocked, at risk or open, and what the sources do not establish.</CardDescription>
+              <CardDescription>
+                Status claims the sources mark as blocked, at risk or open, and what the sources do
+                not establish.
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <SegmentedList>
@@ -186,7 +199,12 @@ export function OverviewTab({ projectId, hub, items }: { projectId: string; hub:
           </CardHeader>
           <CardContent className="flex flex-col gap-2">
             {PROMPTS(hub.project.name).map((prompt) => (
-              <Chip key={prompt} variant="prompt" className="w-full" onClick={() => openAssistant(prompt)}>
+              <Chip
+                key={prompt}
+                variant="prompt"
+                className="w-full"
+                onClick={() => openAssistant(prompt)}
+              >
                 <NorthEastIcon />
                 {prompt}
               </Chip>
@@ -199,9 +217,16 @@ export function OverviewTab({ projectId, hub, items }: { projectId: string; hub:
             <div className="flex items-center justify-between gap-2">
               <CardTitle>
                 Sources{" "}
-                <span className="text-sm font-normal text-on-surface-variant tabular-nums">{sourceItems.length}</span>
+                <span className="text-sm font-normal text-on-surface-variant tabular-nums">
+                  {sourceItems.length}
+                </span>
               </CardTitle>
-              <Button variant="ghost" size="xs" nativeButton={false} render={<Link to={`${base}/sources`} />}>
+              <Button
+                variant="ghost"
+                size="xs"
+                nativeButton={false}
+                render={<Link to={`${base}/sources`} />}
+              >
                 All
               </Button>
             </div>
@@ -209,7 +234,9 @@ export function OverviewTab({ projectId, hub, items }: { projectId: string; hub:
           <CardContent>
             {sourceItems.length === 0 ? (
               <p className="text-xs text-on-surface-variant">
-                {sources.isPending ? "Loading sources…" : "No sources yet. Add the documents a new joiner would be handed."}
+                {sources.isPending
+                  ? "Loading sources…"
+                  : "No sources yet. Add the documents a new joiner would be handed."}
               </p>
             ) : (
               <ul className="space-y-3">
@@ -217,16 +244,23 @@ export function OverviewTab({ projectId, hub, items }: { projectId: string; hub:
                   const Icon = SOURCE_KIND_ICON[source.kind];
                   return (
                     <li key={source.id} className="flex items-start gap-3">
-                      <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-md bg-surface-container-highest text-on-surface-variant [&_svg]:size-5">
+                      <span
+                        aria-hidden
+                        className="grid size-10 shrink-0 place-items-center rounded-md bg-surface-container-highest text-on-surface-variant [&_svg]:size-5"
+                      >
                         <Icon />
                       </span>
                       <div className="min-w-0 flex-1 text-xs text-on-surface-variant">
-                        <p className="truncate text-sm font-medium text-on-surface">{source.title}</p>
+                        <p className="truncate text-sm font-medium text-on-surface">
+                          {source.title}
+                        </p>
                         <p className="truncate">
                           {SOURCE_KIND_LABEL[source.kind]}
                           {source.author ? ` · ${source.author}` : ""}
                         </p>
-                        {source.sourceUpdatedAt ? <p>Updated {formatDate(source.sourceUpdatedAt)}</p> : null}
+                        {source.sourceUpdatedAt ? (
+                          <p>Updated {formatDate(source.sourceUpdatedAt)}</p>
+                        ) : null}
                         {source.status === "failed" ? (
                           <p className="flex items-center gap-1 text-error [&_svg]:size-3.5">
                             <SyncProblemIcon aria-hidden /> Processing failed
@@ -250,7 +284,9 @@ export function OverviewTab({ projectId, hub, items }: { projectId: string; hub:
               </ul>
             )}
             {sourceItems.length > 4 ? (
-              <p className="mt-2 text-xs text-on-surface-variant">{formatCount(sourceItems.length - 4, "more source")} on the Sources page.</p>
+              <p className="mt-2 text-xs text-on-surface-variant">
+                {formatCount(sourceItems.length - 4, "more source")} on the Sources page.
+              </p>
             ) : null}
           </CardContent>
         </Card>

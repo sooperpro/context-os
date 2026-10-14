@@ -22,6 +22,7 @@ import {
   GroupsIcon,
   HubFilledIcon,
   RocketLaunchFilledIcon,
+  type MaterialIcon,
   SearchOffIcon,
 } from "@/components/ui/icons";
 import { TypeChip } from "@/components/ui/meta-chip";
@@ -39,13 +40,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { contextItemsQuery } from "@/features/hub/api/hub.queries";
 import { membersQuery, teamsQuery } from "@/features/members/api/members.queries";
 import { KIND_ICON } from "@/features/hub/components/kind-icon";
-import {
-  CATEGORIES,
-  categoryById,
-  categoryForKind,
-  type KnowledgeCategory,
-} from "@/features/knowledge/categories";
+import { CATEGORIES, categoryById, type KnowledgeCategory } from "@/features/knowledge/categories";
 import { CollectionCard } from "@/features/knowledge/components/collection-card";
+import { itemPath } from "@/features/hub/hub-paths";
+import { savedQuery } from "@/features/knowledge/api/saved.queries";
 import { projectsQuery } from "@/features/projects/api/projects.queries";
 import { CreateProjectDialog } from "@/features/projects/components/create-project-dialog";
 import { ProjectCard } from "@/features/projects/components/project-card";
@@ -78,10 +76,6 @@ type Entry =
     };
 
 const projectPath = (project: ProjectWithStats) => `/projects/${project.id}`;
-const itemPath = (item: ContextItem) => {
-  const tab = categoryForKind(item.kind)?.tab;
-  return `/projects/${item.projectId}${tab ? `?tab=${tab}` : ""}`;
-};
 
 export function KnowledgeHubPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -322,6 +316,7 @@ export function KnowledgeHubPage() {
             </section>
           </div>
           <aside className="flex min-w-0 flex-col gap-4">
+            <SavedCard items={items} projects={projectList} />
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Recently updated</CardTitle>
@@ -460,6 +455,73 @@ function ResultsView({ entries, query, category, loading, onClear, onAsk }: Resu
             })}
           </SegmentedList>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** What the person saved (prototype "Saved"), resolved against the items and projects already loaded. */
+function SavedCard({ items, projects }: { items: ContextItem[]; projects: ProjectWithStats[] }) {
+  const saved = useQuery(savedQuery());
+  const entries = (saved.data?.items ?? []).flatMap(
+    (entry): Array<{ id: string; title: string; meta: string; to: string; Icon: MaterialIcon }> => {
+      if (entry.targetType === "project") {
+        const project = projects.find((candidate) => candidate.id === entry.targetId);
+        return project
+          ? [
+              {
+                id: project.id,
+                title: project.name,
+                meta: "Project",
+                to: projectPath(project),
+                Icon: RocketLaunchFilledIcon,
+              },
+            ]
+          : [];
+      }
+      const item = items.find((candidate) => candidate.id === entry.targetId);
+      return item
+        ? [
+            {
+              id: item.id,
+              title: item.title,
+              meta: `${KIND_LABEL[item.kind]} · Updated ${formatDate(item.updatedAt)}`,
+              to: itemPath(item),
+              Icon: KIND_ICON[item.kind],
+            },
+          ]
+        : [];
+    },
+  );
+  if (!entries.length) return null;
+  return (
+    <Card role="region" aria-labelledby="kb-saved">
+      <CardHeader>
+        <CardTitle id="kb-saved" className="text-base">
+          Saved{" "}
+          <span className="text-sm font-normal text-on-surface-variant tabular-nums">
+            {entries.length}
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <SegmentedList>
+          {entries.map((entry) => (
+            <SegmentedItem
+              key={entry.id}
+              render={<Link to={entry.to} />}
+              className="min-h-0 gap-3 py-2.5"
+            >
+              <SegmentedItemLead className="size-9 [&_svg]:size-4">
+                <entry.Icon />
+              </SegmentedItemLead>
+              <SegmentedItemBody>
+                <SegmentedItemTitle>{entry.title}</SegmentedItemTitle>
+                <SegmentedItemMeta>{entry.meta}</SegmentedItemMeta>
+              </SegmentedItemBody>
+            </SegmentedItem>
+          ))}
+        </SegmentedList>
       </CardContent>
     </Card>
   );

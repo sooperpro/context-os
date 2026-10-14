@@ -151,11 +151,11 @@ describe("KnowledgeHubPage", () => {
     expect(titles[0]).toBe("Ledger");
     expect(await screen.findByRole("link", { name: "Move billing to events" })).toHaveAttribute(
       "href",
-      `/projects/${P1}?tab=decisions`,
+      `/projects/${P1}/items/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1`,
     );
     expect(screen.getByRole("link", { name: "Ledger service" })).toHaveAttribute(
       "href",
-      `/projects/${P2}?tab=system`,
+      `/projects/${P2}/items/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3`,
     );
   });
 
@@ -194,7 +194,10 @@ describe("KnowledgeHubPage", () => {
       "href",
       "/people?view=teams",
     );
-    expect(screen.getByRole("link", { name: "Platform" })).toHaveAttribute("href", "/people?view=teams");
+    expect(screen.getByRole("link", { name: "Platform" })).toHaveAttribute(
+      "href",
+      "/people?view=teams",
+    );
 
     await user.click(screen.getByRole("button", { name: "Products" }));
     expect(await screen.findByRole("link", { name: /Tessellate Track/ })).toBeInTheDocument();

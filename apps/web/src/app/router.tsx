@@ -222,6 +222,14 @@ const appChildren = [
     },
   },
   {
+    // A knowledge item has its own page, outside the project's hub layout (prototype `#kb-<id>`).
+    path: "projects/:projectId/items/:itemId",
+    lazy: async () => {
+      const { ContextItemPage } = await import("@/features/hub/pages/context-item-page");
+      return { Component: ContextItemPage };
+    },
+  },
+  {
     path: "projects/:projectId",
     // Project pages are code-split: this chunk loads only when a project is opened.
     lazy: async () => {

@@ -13,7 +13,10 @@ export class MockNotFoundError extends Error {
 
 function notFound(error: unknown) {
   if (!(error instanceof MockNotFoundError)) throw error;
-  return HttpResponse.json({ error: { code: "NOT_FOUND", message: error.message } }, { status: 404 });
+  return HttpResponse.json(
+    { error: { code: "NOT_FOUND", message: error.message } },
+    { status: 404 },
+  );
 }
 
 export interface MockEndpoint {
@@ -55,9 +58,16 @@ export function mockGet<S extends z.ZodType>(endpoint: { path: string; schema: S
  * body is validated with the endpoint's input schema, as the API would; an invalid body answers 400
  * with the API's error envelope. The response is parsed with the response schema.
  */
-function mockWrite(method: "post" | "patch") {
-  return <S extends z.ZodType, I extends z.ZodType>(endpoint: { path: string; schema: S; input: I }) =>
-    (resolve: (input: z.output<I>, context: ResolverContext) => z.input<S>, status = 200): MockEndpoint => ({
+function mockWrite(method: "post" | "patch" | "put") {
+  return <S extends z.ZodType, I extends z.ZodType>(endpoint: {
+      path: string;
+      schema: S;
+      input: I;
+    }) =>
+    (
+      resolve: (input: z.output<I>, context: ResolverContext) => z.input<S>,
+      status = 200,
+    ): MockEndpoint => ({
       key: mockKey(method.toUpperCase(), endpoint.path),
       handler: http[method](buildApiUrl(endpoint.path), async ({ request, params }) => {
         await delay();
@@ -65,12 +75,20 @@ function mockWrite(method: "post" | "patch") {
         const parsed = endpoint.input.safeParse(text ? JSON.parse(text) : {});
         if (!parsed.success) {
           return HttpResponse.json(
-            { error: { code: "VALIDATION_ERROR", message: "The request is not valid.", details: parsed.error.issues } },
+            {
+              error: {
+                code: "VALIDATION_ERROR",
+                message: "The request is not valid.",
+                details: parsed.error.issues,
+              },
+            },
             { status: 400 },
           );
         }
         try {
-          const body = endpoint.schema.parse(resolve(parsed.data, { request, params })) as JsonBodyType;
+          const body = endpoint.schema.parse(
+            resolve(parsed.data, { request, params }),
+          ) as JsonBodyType;
           return HttpResponse.json(body, { status, headers: { "X-ContextOS-Mock": "1" } });
         } catch (error) {
           return notFound(error);
@@ -81,3 +99,4 @@ function mockWrite(method: "post" | "patch") {
 
 export const mockPost = mockWrite("post");
 export const mockPatch = mockWrite("patch");
+export const mockPut = mockWrite("put");
