@@ -3,6 +3,9 @@
 Changes the web app needs from the API, written so the backend can pick them up without reading the
 frontend. Each entry says what the UI does today without it, and what changes once it lands.
 
+The complete endpoint-by-endpoint handoff (every mocked endpoint, its rules, and how to switch each
+mock off) is in `docs/backend-handoff.md`.
+
 ## Screen status
 
 Every reference screen, the endpoints it reads, and whether they exist. **Live** means the API serves
