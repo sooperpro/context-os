@@ -141,12 +141,15 @@ A pass over every built surface against the prototype's CSS and JS found three g
       notification channels and quiet hours, theme, and sign-in through Clerk. Only settings the API
       stores are offered (no notification categories, language or reduce-motion toggle).
 
-- [x] Navigation follows the reference: no Projects item. The rail's "Knowledge Hub" (`/knowledge`) holds
-      projects as one collection next to Decisions, Systems, People and owners, and Glossary, which are the
-      context items of each project. It stays active on project pages, whose breadcrumb reads Knowledge Hub ›
-      Projects › name. `/` opens the Knowledge Hub until the Home dashboard exists. The prototype's Company,
-      Products and Processes collections are not shown because nothing stores them. The hub loads each
-      project's items, one request per project; a workspace-wide items endpoint should replace that at scale.
+- [x] Navigation follows the reference: no Projects item. The rail's "Knowledge Hub" (`/knowledge`) has
+      the reference's eight filters in its order: All, Company, Products, Projects, Systems, Processes,
+      Decisions, Glossary & FAQs. Company, Products, Projects and Processes are projects by category;
+      Systems, Decisions and Glossary are each project's context items. Browse ends with the reference's
+      "Teams & people" card, which links to People. The hub stays active on project pages, whose breadcrumb
+      reads Knowledge Hub › Projects › name. `/` opens the Knowledge Hub until the Home dashboard exists.
+      The API does not store a project category yet, so every project counts as "Projects" and the other
+      three show an empty state; the change is written up in `docs/api-change-requests.md`, with the
+      workspace-wide items endpoint that should replace one request per project.
 
 Not built because nothing backs them yet: rail badges (no unread counts per area), the prototype's
 "Save" on answers and knowledge items, notification categories.

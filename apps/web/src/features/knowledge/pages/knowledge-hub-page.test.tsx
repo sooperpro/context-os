@@ -11,8 +11,16 @@ import { jsonResponse, renderWithProviders } from "@/test/utils";
 
 const P1 = "11111111-1111-4111-8111-111111111111";
 const P2 = "22222222-2222-4222-8222-222222222222";
-const project = (id: string, name: string, sources: number, updated: string | null) => ({
+const P3 = "33333333-3333-4333-8333-333333333333";
+const project = (
+  id: string,
+  name: string,
+  sources: number,
+  updated: string | null,
+  category?: string,
+) => ({
   id,
+  ...(category ? { category } : {}),
   workspaceId: "99999999-9999-4999-8999-999999999999",
   name,
   description: `${name} description`,
@@ -59,6 +67,7 @@ function mockApi() {
           items: [
             project(P1, "Kestrel", 3, "2026-10-12T00:00:00.000Z"),
             project(P2, "Ledger", 1, "2026-10-13T00:00:00.000Z"),
+            project(P3, "Tessellate Track", 2, null, "product"),
           ],
         }),
       );
@@ -87,6 +96,20 @@ function mockApi() {
               componentType: "service",
             }),
           ],
+        }),
+      );
+    if (url.includes(`/v1/projects/${P3}/context-items`))
+      return Promise.resolve(jsonResponse({ items: [] }));
+    if (url.includes("/v1/users?"))
+      return Promise.resolve(
+        jsonResponse({
+          items: [{ id: "u1", name: "Maya Okafor", role: "member", status: "active" }],
+        }),
+      );
+    if (url.includes("/v1/org/teams"))
+      return Promise.resolve(
+        jsonResponse({
+          items: [{ id: "t1", departmentId: "d1", parentId: null, name: "Platform" }],
         }),
       );
     return Promise.resolve(
@@ -120,7 +143,7 @@ describe("KnowledgeHubPage", () => {
   it("shows counts, recently updated projects first, and browse collections from real items", async () => {
     mockApi();
     renderHub();
-    expect(await screen.findByText("3 items across 2 projects · 4 sources")).toBeInTheDocument();
+    expect(await screen.findByText("3 items across 3 projects · 6 sources")).toBeInTheDocument();
     const start = screen.getByRole("heading", { name: /Start here/ }).closest("section")!;
     const titles = within(start)
       .getAllByRole("link")
@@ -141,13 +164,42 @@ describe("KnowledgeHubPage", () => {
     const user = userEvent.setup();
     renderHub();
     await screen.findByRole("link", { name: "Move billing to events" });
-    await user.click(screen.getByRole("button", { name: "Glossary" }));
-    expect(await screen.findByText("Glossary · 1")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Glossary & FAQs" }));
+    expect(await screen.findByText("Glossary & FAQs · 1")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Dual-write/ })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "All" }));
     await user.type(screen.getByLabelText("Search the Knowledge Hub"), "ledger");
     expect(await screen.findByText(/2 results for "ledger"/)).toBeInTheDocument();
+  });
+
+  it("lists the reference's collections in order, sorts projects by category and links Teams & people", async () => {
+    mockApi();
+    const user = userEvent.setup();
+    renderHub();
+    const chips = within(screen.getByRole("group", { name: "Filter by type" })).getAllByRole(
+      "button",
+    );
+    expect(chips.map((chip) => chip.textContent?.trim())).toEqual([
+      "All",
+      "Company",
+      "Products",
+      "Projects",
+      "Systems",
+      "Processes",
+      "Decisions",
+      "Glossary & FAQs",
+    ]);
+    expect(await screen.findByRole("link", { name: /Teams & people/ })).toHaveAttribute(
+      "href",
+      "/members",
+    );
+    expect(screen.getByRole("link", { name: "Platform" })).toHaveAttribute("href", "/members");
+
+    await user.click(screen.getByRole("button", { name: "Products" }));
+    expect(await screen.findByRole("link", { name: /Tessellate Track/ })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Company" }));
+    expect(await screen.findByText("No company pages yet.")).toBeInTheDocument();
   });
 
   it("offers Context Bot when nothing matches", async () => {

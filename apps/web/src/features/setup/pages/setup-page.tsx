@@ -1,11 +1,23 @@
-import { SETUP_STEPS, type SetupStep, type SetupStepStatus, type WorkspaceSetup } from "@contextos/shared";
+import {
+  SETUP_STEPS,
+  type SetupStep,
+  type SetupStepStatus,
+  type WorkspaceSetup,
+} from "@contextos/shared";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { PageHeader } from "@/components/layout/page-header";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { MiniTile } from "@/components/ui/kpi-tile";
 import {
   SegmentedItem,
@@ -29,7 +41,10 @@ import {
   SkipNextIcon,
   WarningIcon,
 } from "@/components/ui/icons";
-import { connectorsQuery, useAuthorizeGoogleDrive } from "@/features/connectors/api/connectors.queries";
+import {
+  connectorsQuery,
+  useAuthorizeGoogleDrive,
+} from "@/features/connectors/api/connectors.queries";
 import { InviteMemberDialog } from "@/features/members/components/invite-member-dialog";
 import { CreateProjectDialog } from "@/features/projects/components/create-project-dialog";
 import { setupQuery, useUpdateSetupStep } from "@/features/setup/api/setup.queries";
@@ -145,7 +160,8 @@ export function SetupPage() {
                   tone={connection.status === "connected" ? "success" : "warning"}
                   icon={connection.status === "connected" ? <CheckIcon /> : <WarningIcon />}
                 >
-                  Google Drive · {connection.status === "connected" ? "connected" : connection.status}
+                  Google Drive ·{" "}
+                  {connection.status === "connected" ? "connected" : connection.status}
                 </StatusChip>
               </li>
             ))}
@@ -185,10 +201,14 @@ export function SetupPage() {
     select_scopes: (
       <div className="space-y-3">
         <p className="text-sm text-on-surface-variant">
-          Open a project, go to Sources and choose Import from Drive to pick the documents. Each import
-          is one explicitly selected file.
+          Open a project, go to Sources and choose Import from Drive to pick the documents. Each
+          import is one explicitly selected file.
         </p>
-        <Button variant="outline" nativeButton={false} render={<Link to="/knowledge?cat=projects" />}>
+        <Button
+          variant="outline"
+          nativeButton={false}
+          render={<Link to="/knowledge?cat=project" />}
+        >
           Open projects
         </Button>
       </div>
@@ -221,7 +241,12 @@ export function SetupPage() {
       />
 
       {setup.data.status === "completed" ? (
-        <Banner tone="success" icon={<CheckIcon />} title="Setup complete" description="Every step is completed or skipped. Resume a skipped step any time." />
+        <Banner
+          tone="success"
+          icon={<CheckIcon />}
+          title="Setup complete"
+          description="Every step is completed or skipped. Resume a skipped step any time."
+        />
       ) : null}
 
       <Stepper aria-label="Setup steps">
@@ -230,7 +255,11 @@ export function SetupPage() {
             key={state.step}
             index={index + 1}
             status={
-              state.step === current.step ? "current" : state.status === "completed" ? "done" : "upcoming"
+              state.step === current.step
+                ? "current"
+                : state.status === "completed"
+                  ? "done"
+                  : "upcoming"
             }
             connector={index < states.length - 1}
           >
@@ -252,7 +281,12 @@ export function SetupPage() {
             {stepAction[current.step]}
             <p className="text-xs text-on-surface-variant">{copy.evidence}</p>
             {update.isError ? (
-              <Banner tone="error" icon={<WarningIcon />} title="Could not update this step" description={update.error.message} />
+              <Banner
+                tone="error"
+                icon={<WarningIcon />}
+                title="Could not update this step"
+                description={update.error.message}
+              />
             ) : null}
           </CardContent>
           <CardFooter className="flex-wrap gap-2">
@@ -267,12 +301,20 @@ export function SetupPage() {
               </Button>
             )}
             {current.status === "pending" ? (
-              <Button variant="ghost" disabled={update.isPending} onClick={() => setStatus(current.step, "skipped")}>
+              <Button
+                variant="ghost"
+                disabled={update.isPending}
+                onClick={() => setStatus(current.step, "skipped")}
+              >
                 Skip for now
               </Button>
             ) : null}
             {current.status === "skipped" ? (
-              <Button variant="ghost" disabled={update.isPending} onClick={() => setStatus(current.step, "pending")}>
+              <Button
+                variant="ghost"
+                disabled={update.isPending}
+                onClick={() => setStatus(current.step, "pending")}
+              >
                 Resume
               </Button>
             ) : null}
@@ -283,14 +325,27 @@ export function SetupPage() {
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2">
             <MiniTile label="Sources" value={sync.sources} />
             <MiniTile label="Ready" value={sync.ready} />
-            <MiniTile label="Processing" value={sync.pending} tone={sync.pending > 0 ? "info" : "neutral"} />
-            <MiniTile label="Failed" value={sync.failed} tone={sync.failed > 0 ? "error" : "neutral"} />
+            <MiniTile
+              label="Processing"
+              value={sync.pending}
+              tone={sync.pending > 0 ? "info" : "neutral"}
+            />
+            <MiniTile
+              label="Failed"
+              value={sync.failed}
+              tone={sync.failed > 0 ? "error" : "neutral"}
+            />
           </div>
           <SegmentedList aria-label="All steps">
             {states.map((state, index) => (
               <SegmentedItem
                 key={state.step}
-                render={<button type="button" aria-current={state.step === current.step ? "step" : undefined} />}
+                render={
+                  <button
+                    type="button"
+                    aria-current={state.step === current.step ? "step" : undefined}
+                  />
+                }
                 onClick={() => setSelected(state.step)}
               >
                 <SegmentedItemLead className="text-sm font-semibold">{index + 1}</SegmentedItemLead>

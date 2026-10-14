@@ -92,7 +92,9 @@ export function ProjectLayout() {
             </BreadcrumbItem>
             <BreadcrumbSeparator />
             <BreadcrumbItem>
-              <BreadcrumbLink render={<Link to="/knowledge?cat=projects" />}>Projects</BreadcrumbLink>
+              <BreadcrumbLink render={<Link to="/knowledge?cat=project" />}>
+                Projects
+              </BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator />
             <BreadcrumbItem>

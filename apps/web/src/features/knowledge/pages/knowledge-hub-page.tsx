@@ -19,6 +19,7 @@ import {
   AppsIcon,
   CloseIcon,
   FolderOpenIcon,
+  GroupsIcon,
   HubFilledIcon,
   RocketLaunchFilledIcon,
   SearchIcon,
@@ -36,6 +37,7 @@ import {
 import { Shape } from "@/components/ui/shape";
 import { Skeleton } from "@/components/ui/skeleton";
 import { contextItemsQuery } from "@/features/hub/api/hub.queries";
+import { membersQuery, teamsQuery } from "@/features/members/api/members.queries";
 import { KIND_ICON } from "@/features/hub/components/kind-icon";
 import {
   CATEGORIES,
@@ -77,12 +79,7 @@ type Entry =
 
 const projectPath = (project: ProjectWithStats) => `/projects/${project.id}`;
 const itemPath = (item: ContextItem) => {
-  const tab =
-    item.kind === "event"
-      ? "timeline"
-      : item.kind === "status_claim"
-        ? "current"
-        : categoryForKind(item.kind)?.tab;
+  const tab = categoryForKind(item.kind)?.tab;
   return `/projects/${item.projectId}${tab ? `?tab=${tab}` : ""}`;
 };
 
@@ -102,16 +99,21 @@ export function KnowledgeHubPage() {
   const projectById = new Map(projectList.map((project) => [project.id, project]));
   const items = itemQueries.flatMap((q) => q.data?.items ?? []);
 
+  const members = useQuery(membersQuery());
+  const teams = useQuery(teamsQuery());
+
   const entriesFor = (cat: KnowledgeCategory): Entry[] =>
-    cat.id === "projects"
-      ? projectList.map((project) => ({
-          type: "project",
-          id: project.id,
-          title: project.name,
-          summary: project.description ?? "",
-          project,
-          to: projectPath(project),
-        }))
+    cat.source === "projects"
+      ? projectList
+          .filter((project) => (project.category ?? "project") === cat.projectCategory)
+          .map((project) => ({
+            type: "project",
+            id: project.id,
+            title: project.name,
+            summary: project.description ?? "",
+            project,
+            to: projectPath(project),
+          }))
       : items
           .filter((item) => cat.kinds.includes(item.kind))
           .flatMap((item) => {
@@ -258,7 +260,7 @@ export function KnowledgeHubPage() {
           entries={results}
           query={query.trim()}
           category={category}
-          loading={itemsLoading && category?.id !== "projects"}
+          loading={itemsLoading && category?.source !== "projects"}
           onClear={() => {
             setQuery("");
             setCategory(null);
@@ -294,15 +296,37 @@ export function KnowledgeHubPage() {
                   return (
                     <CollectionCard
                       key={cat.id}
-                      category={cat}
+                      name={cat.name}
+                      description={cat.description}
+                      icon={cat.icon}
+                      shape={cat.shape}
                       count={entries.length}
                       entries={entries
                         .slice(0, 3)
                         .map((entry) => ({ id: entry.id, label: entry.title, to: entry.to }))}
                       to={`/knowledge?cat=${cat.id}`}
+                      emptyNote={cat.emptyNote}
                     />
                   );
                 })}
+                {/* The prototype's last Browse card opens People rather than filtering the hub. */}
+                {members.data ? (
+                  <CollectionCard
+                    name="Teams & people"
+                    description="Who owns what, and who to ask"
+                    icon={GroupsIcon}
+                    shape="cookie12"
+                    count={members.data.length}
+                    entries={(teams.data && teams.data.length > 0
+                      ? teams.data.map((team) => ({ id: team.id, label: team.name }))
+                      : members.data.map((member) => ({ id: member.id, label: member.name }))
+                    )
+                      .slice(0, 3)
+                      .map((entry) => ({ ...entry, to: "/members" }))}
+                    to="/members"
+                    emptyNote="No teams yet."
+                  />
+                ) : null}
               </div>
             </section>
           </div>
@@ -372,7 +396,7 @@ function ResultsView({ entries, query, category, loading, onClear, onAsk }: Resu
           <p className="font-medium">
             {query
               ? `Nothing in the Knowledge Hub matches "${query}"`
-              : `No ${category?.name.toLowerCase() ?? "items"} yet`}
+              : (category?.emptyNote ?? "Nothing here yet.")}
           </p>
           <p className="text-sm text-on-surface-variant">
             Context Bot can search a project's documents and conversations too.

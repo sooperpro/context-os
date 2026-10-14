@@ -117,12 +117,20 @@ import SettingsFilledIcon from "@material-symbols/svg-400/rounded/settings-fill.
 import AppsIcon from "@material-symbols/svg-400/rounded/apps.svg?react";
 import ArrowRightIcon from "@material-symbols/svg-400/rounded/arrow_right.svg?react";
 import RocketLaunchIcon from "@material-symbols/svg-400/rounded/rocket_launch.svg?react";
+import ApartmentIcon from "@material-symbols/svg-400/rounded/apartment.svg?react";
+import LocalShippingIcon from "@material-symbols/svg-400/rounded/local_shipping.svg?react";
+import ConversionPathIcon from "@material-symbols/svg-400/rounded/conversion_path.svg?react";
+import MenuBookIcon from "@material-symbols/svg-400/rounded/menu_book.svg?react";
 import VisibilityIcon from "@material-symbols/svg-400/rounded/visibility.svg?react";
 
 export type MaterialIcon = ComponentType<SVGProps<SVGSVGElement>>;
 
 export {
   AddIcon,
+  MenuBookIcon,
+  ConversionPathIcon,
+  LocalShippingIcon,
+  ApartmentIcon,
   RocketLaunchIcon,
   ArrowRightIcon,
   AppsIcon,
