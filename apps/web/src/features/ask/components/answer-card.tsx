@@ -37,12 +37,11 @@ const CONFIDENCE: Record<
 };
 
 interface AnswerCardProps {
-  projectId: string;
   answer: Answer;
 }
 
 /** An answer on the Ask page: the question as the card title, then the shared answer body. */
-export function AnswerCard({ projectId, answer }: AnswerCardProps) {
+export function AnswerCard({ answer }: AnswerCardProps) {
   return (
     <Card>
       <CardHeader>
@@ -51,7 +50,7 @@ export function AnswerCard({ projectId, answer }: AnswerCardProps) {
         {answer.rationale ? <CardDescription>{answer.rationale}</CardDescription> : null}
       </CardHeader>
       <CardContent>
-        <AnswerBody projectId={projectId} answer={answer} />
+        <AnswerBody answer={answer} />
       </CardContent>
     </Card>
   );
@@ -61,7 +60,7 @@ export function AnswerCard({ projectId, answer }: AnswerCardProps) {
  * The prototype's answer anatomy, shared by the Ask page and Context Bot: confidence, the answer with
  * citation chips, current state, uncertainties, numbered sources, related items and answer tools.
  */
-export function AnswerBody({ projectId, answer }: AnswerCardProps) {
+export function AnswerBody({ answer }: AnswerCardProps) {
   const drawer = useSourceDrawer();
   const citationByRef = new Map(answer.citations.map((c) => [c.ref, c]));
   const openCitation = (citation: Citation) =>
@@ -187,7 +186,7 @@ export function AnswerBody({ projectId, answer }: AnswerCardProps) {
         </div>
       ) : null}
 
-      <AnswerFeedback projectId={projectId} answer={answer} />
+      <AnswerFeedback answer={answer} />
     </div>
   );
 }

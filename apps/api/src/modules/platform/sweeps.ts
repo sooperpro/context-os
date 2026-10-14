@@ -1,7 +1,15 @@
 import { and, eq, lt, sql } from "drizzle-orm";
 import type { Db } from "../../db/index.js";
-import { assignments, memberships, users, workspaces } from "../../db/schema.js";
+import {
+  assignments,
+  connectorConnections,
+  connectorScopes,
+  memberships,
+  users,
+  workspaces,
+} from "../../db/schema.js";
 import type { Logger } from "../../lib/logger.js";
+import type { JobQueue } from "../jobs/jobs.queue.js";
 import type { BountyService } from "./bounties.js";
 import { addBusinessDays, businessDaysBetween } from "./health.js";
 import { createNotifier } from "./notify.js";
@@ -12,6 +20,8 @@ export interface SweepDeps {
   db: Db;
   bounties: BountyService;
   logger: Logger;
+  /** Optional so callers that only need the maintenance effects can omit it. */
+  queue?: JobQueue;
 }
 
 export interface SweepReport {
@@ -25,7 +35,11 @@ export interface SweepReport {
   continuityBounties: number;
   flagsEscalated: number;
   workspacesPurged: number;
+  connectorSyncsQueued: number;
 }
+
+/** How long after the last requested sync a scope is due again (FR-INT-007 polling fallback). */
+const SYNC_INTERVAL_MS = { "15m": 15 * 60_000, hourly: 3_600_000, daily: 86_400_000 } as const;
 
 const OWNERSHIP_BOUNTY_RP = 30;
 const OWNERSHIP_GRACE_DAYS = 7;
@@ -35,7 +49,7 @@ const FLAG_ESCALATION_BUSINESS_DAYS = 10;
  * Background maintenance per PRD §8.1.3, §8.8.3, §8.11, §13 and FR-ADM-008. Runs between
  * job polls; every effect is idempotent (marker fields on the affected record).
  */
-export function createSweeps({ db, bounties, logger }: SweepDeps) {
+export function createSweeps({ db, bounties, logger, queue }: SweepDeps) {
   const store = createPlatformStore(db);
   const notifier = createNotifier(db);
   const today = () => new Date().toISOString().slice(0, 10);
@@ -53,7 +67,43 @@ export function createSweeps({ db, bounties, logger }: SweepDeps) {
         continuityBounties: 0,
         flagsEscalated: 0,
         workspacesPurged: 0,
+        connectorSyncsQueued: 0,
       };
+      // Selected connector scopes re-sync on their schedule while their account is connected.
+      if (queue)
+        for (const { scope, connection } of db
+          .select({ scope: connectorScopes, connection: connectorConnections })
+          .from(connectorScopes)
+          .innerJoin(
+            connectorConnections,
+            eq(connectorConnections.id, connectorScopes.connectionId),
+          )
+          .where(
+            and(
+              eq(connectorScopes.isExcluded, false),
+              eq(connectorConnections.status, "connected"),
+            ),
+          )
+          .all()) {
+          if (scope.status === "needs_reauth") continue;
+          const last = scope.lastSyncRequestedAt?.getTime() ?? 0;
+          if (now.getTime() - last < SYNC_INTERVAL_MS[scope.syncFrequency]) continue;
+          db.update(connectorScopes)
+            .set({
+              lastSyncRequestedAt: now,
+              status: scope.lastSyncedAt ? scope.status : "backfilling",
+            })
+            .where(eq(connectorScopes.id, scope.id))
+            .run();
+          queue.enqueue({
+            projectId: scope.projectId,
+            type: "sync_connector",
+            payload: { connectionId: connection.id, scopeId: scope.id },
+            subject: scope.name,
+            dedupe: true,
+          });
+          report.connectorSyncsQueued += 1;
+        }
       for (const workspace of db.select().from(workspaces).all()) {
         const settings = resolveSettings(workspace.settings);
         // FR-ADM-008: owner-scheduled deletion with a 7-day grace period.

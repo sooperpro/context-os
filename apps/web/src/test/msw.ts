@@ -3,12 +3,10 @@ import { afterAll, afterEach, beforeAll } from "vitest";
 import { registerPreviewEndpoints } from "@/lib/preview-data";
 import { resetAccountMocks } from "@/mocks/account";
 import { resetAdminMocks } from "@/mocks/admin";
-import { resetAssistantMocks } from "@/mocks/assistant";
 import { resetContributionMocks } from "@/mocks/contributions";
 import { mockEndpoints } from "@/mocks/endpoints";
 import { resetLearningMocks } from "@/mocks/learning";
 import { resetPeopleOpsMocks } from "@/mocks/people-ops";
-import { resetSavedMocks } from "@/mocks/saved";
 import { resetWelcomeMocks } from "@/mocks/welcome";
 import { resetTeamMocks } from "@/mocks/team";
 
@@ -31,8 +29,6 @@ export function setupMockApi(): void {
     resetTeamMocks();
     resetPeopleOpsMocks();
     resetAdminMocks();
-    resetSavedMocks();
-    resetAssistantMocks();
     resetWelcomeMocks();
     resetAccountMocks();
   });

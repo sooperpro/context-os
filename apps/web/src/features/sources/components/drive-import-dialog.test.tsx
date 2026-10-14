@@ -42,13 +42,20 @@ function mockApi() {
     const body: unknown = typeof init?.body === "string" ? JSON.parse(init.body) : undefined;
     calls.push({ url, method, body });
     if (url.endsWith("/v1/connectors"))
-      return Promise.resolve(jsonResponse({ items: [{ id: "c1", provider: "google-drive", status: "connected" }] }));
+      return Promise.resolve(
+        jsonResponse({ items: [{ id: "c1", provider: "google-drive", status: "connected" }] }),
+      );
     if (url.includes("/v1/connectors/c1/files")) {
       const inFolder = url.includes("folderId=f1");
-      return Promise.resolve(jsonResponse({ items: inFolder ? [inner] : [folder, doc, sheet], nextPageToken: null }));
+      return Promise.resolve(
+        jsonResponse({ items: inFolder ? [inner] : [folder, doc, sheet], nextPageToken: null }),
+      );
     }
-    if (url.endsWith("/v1/connectors/c1/import")) return Promise.resolve(jsonResponse(importedSource, { status: 201 }));
-    return Promise.resolve(jsonResponse({ error: { code: "NOT_FOUND", message: url } }, { status: 404 }));
+    if (url.endsWith("/v1/connectors/c1/import"))
+      return Promise.resolve(jsonResponse(importedSource, { status: 201 }));
+    return Promise.resolve(
+      jsonResponse({ error: { code: "NOT_FOUND", message: url } }, { status: 404 }),
+    );
   });
   return calls;
 }
@@ -59,14 +66,20 @@ describe("DriveImportDialog", () => {
   it("lists the root, marks unsupported types and imports a selected document", async () => {
     const calls = mockApi();
     const user = userEvent.setup();
-    renderWithProviders(<DriveImportDialog projectId={PROJECT} open onOpenChange={() => undefined} />);
+    renderWithProviders(
+      <DriveImportDialog projectId={PROJECT} open onOpenChange={() => undefined} />,
+    );
 
     expect(await screen.findByText("Billing migration plan")).toBeInTheDocument();
     expect(screen.getByText("Not supported yet")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Import Billing migration plan" }));
     await waitFor(() =>
-      expect(calls.find((call) => call.method === "POST")?.body).toEqual({ projectId: PROJECT, fileId: "d1" }),
+      expect(calls.find((call) => call.method === "POST")?.body).toEqual({
+        projectId: PROJECT,
+        fileId: "d1",
+        visibility: "workspace",
+      }),
     );
     expect(await screen.findByText("Imported")).toBeInTheDocument();
   });
@@ -74,7 +87,9 @@ describe("DriveImportDialog", () => {
   it("navigates into folders and back through the breadcrumb", async () => {
     const calls = mockApi();
     const user = userEvent.setup();
-    renderWithProviders(<DriveImportDialog projectId={PROJECT} open onOpenChange={() => undefined} />);
+    renderWithProviders(
+      <DriveImportDialog projectId={PROJECT} open onOpenChange={() => undefined} />,
+    );
 
     await user.click(await screen.findByRole("button", { name: /Design docs/ }));
     expect(await screen.findByText("ADR 7")).toBeInTheDocument();
@@ -86,7 +101,9 @@ describe("DriveImportDialog", () => {
 
   it("offers to connect when no Drive connection exists", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse({ items: [] }));
-    renderWithProviders(<DriveImportDialog projectId={PROJECT} open onOpenChange={() => undefined} />);
+    renderWithProviders(
+      <DriveImportDialog projectId={PROJECT} open onOpenChange={() => undefined} />,
+    );
     expect(await screen.findByRole("button", { name: "Connect Google Drive" })).toBeInTheDocument();
   });
 });

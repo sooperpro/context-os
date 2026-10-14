@@ -6,7 +6,9 @@ import {
   connectorScopes,
   identityLinks,
   jobs,
+  memberships,
   sourceObjects,
+  users,
 } from "../../db/schema.js";
 import { createProject, createTestApp, jsonRequest, type TestApp } from "../../test/helpers.js";
 import { createGoogleDriveService } from "./google-drive.js";
@@ -123,7 +125,12 @@ describe("Google Drive scopes, sync jobs and disconnect modes (mocked provider)"
     const scopes = await json<{
       items: Array<{ scopeType: string; externalId: string; selections: unknown[] }>;
     }>(await t.app.request(`/api/v1/connectors/${connection.id}/scopes`));
-    expect(scopes.items).toEqual([
+    expect(scopes.items[0]).toMatchObject({
+      scopeType: "folder",
+      externalId: "root",
+      name: "My Drive",
+    });
+    expect(scopes.items.slice(1)).toEqual([
       expect.objectContaining({ scopeType: "shared_drive", externalId: "drive-1", selections: [] }),
       expect.objectContaining({ scopeType: "folder", externalId: "folder-1", selections: [] }),
     ]);
@@ -132,7 +139,9 @@ describe("Google Drive scopes, sync jobs and disconnect modes (mocked provider)"
       jsonRequest(
         {
           projectId: project.id,
-          scopes: [{ scopeType: "folder", externalId: "folder-1", name: "Specs" }],
+          scopes: [
+            { scopeType: "folder", externalId: "folder-1", name: "Specs", visibility: "workspace" },
+          ],
         },
         "PUT",
       ),
@@ -166,8 +175,37 @@ describe("Google Drive scopes, sync jobs and disconnect modes (mocked provider)"
       .from(sourceObjects)
       .where(eq(sourceObjects.externalId, "file-1"))
       .get();
-    expect(imported).toMatchObject({ connector: "google_drive", connectionId: connection.id });
+    expect(imported).toMatchObject({
+      connector: "google_drive",
+      connectionId: connection.id,
+      visibility: "workspace",
+    });
     expect(imported?.metadata).toMatchObject({ scopeId: scope?.id });
+    // Workspace visibility: a member with no Drive connection of their own can read the import.
+    t.container.db.insert(users).values({ id: "emp", name: "Employee" }).run();
+    t.container.db
+      .insert(memberships)
+      .values({ workspaceId: t.container.workspace.id, userId: "emp", role: "member" })
+      .run();
+    const employee = {
+      ...t.container.devActor,
+      id: "emp",
+      name: "Employee",
+      role: "member" as const,
+    };
+    expect(t.container.identity.visibleSourceIds(employee, project.id)).toContain(imported!.id);
+    // Switching the scope back to permission mirroring hides it again, without a re-sync.
+    await t.app.request(
+      `/api/v1/connectors/${connection.id}/scopes`,
+      jsonRequest(
+        {
+          projectId: project.id,
+          scopes: [{ scopeType: "folder", externalId: "folder-1", name: "Specs" }],
+        },
+        "PUT",
+      ),
+    );
+    expect(t.container.identity.visibleSourceIds(employee, project.id)).not.toContain(imported!.id);
     const listed = await json<{
       items: Array<{
         selectedScopes: unknown[];
@@ -182,6 +220,127 @@ describe("Google Drive scopes, sync jobs and disconnect modes (mocked provider)"
     expect(
       (await t.app.request("/api/v1/connectors/google-drive/authorize", { method: "POST" })).status,
     ).toBe(200);
+  });
+
+  it("serves the admin connector catalog from the live Drive connection and syncs on schedule", async () => {
+    interface Connector {
+      id: string;
+      state: string;
+      detail: string | null;
+      progress: number | null;
+      error: string | null;
+      scopeOptions: Array<{ id: string; name: string }>;
+    }
+    const catalog = async () =>
+      (await json<{ items: Connector[] }>(await t.app.request("/api/v1/admin/connectors"))).items;
+    const drive = async () => (await catalog()).find((item) => item.id === "google-drive")!;
+
+    // Not connected yet: consent hands back Google's page instead of an account.
+    expect(await drive()).toMatchObject({ state: "available", scopeOptions: [] });
+    const pending = await json<{ account: string | null; authorizationUrl: string | null }>(
+      await t.app.request("/api/v1/admin/connectors/google-drive/authorize", jsonRequest({})),
+    );
+    expect(pending.account).toBeNull();
+    expect(pending.authorizationUrl).toContain("accounts.google.com");
+    // Integrations that are only listed answer 503 with a way forward.
+    const slack = await t.app.request("/api/v1/admin/connectors/slack/authorize", jsonRequest({}));
+    expect(slack.status).toBe(503);
+
+    await connect();
+    expect(
+      await json(
+        await t.app.request("/api/v1/admin/connectors/google-drive/authorize", jsonRequest({})),
+      ),
+    ).toEqual({ account: "dev@example.com", authorizationUrl: null });
+    expect(await drive()).toMatchObject({
+      state: "healthy",
+      detail: "Connected · no folders chosen yet",
+      scopeOptions: [
+        { id: "root", name: "My Drive" },
+        { id: "drive-1", name: "Engineering" },
+        { id: "folder-1", name: "Specs" },
+      ],
+    });
+
+    const project = await createProject(t.app);
+    const body = (scopeIds: string[], projectId?: string) =>
+      jsonRequest({
+        scopeIds,
+        frequency: "15m",
+        skipOlderThan: "1y",
+        visibility: "workspace",
+        ...(projectId ? { projectId } : {}),
+      });
+    expect(
+      (await t.app.request("/api/v1/admin/connectors/google-drive/connect", body(["folder-1"])))
+        .status,
+    ).toBe(400);
+    expect(
+      (
+        await t.app.request(
+          "/api/v1/admin/connectors/google-drive/connect",
+          body(["missing"], project.id),
+        )
+      ).status,
+    ).toBe(400);
+    const started = await json<Connector>(
+      await t.app.request(
+        "/api/v1/admin/connectors/google-drive/connect",
+        body(["folder-1"], project.id),
+      ),
+    );
+    expect(started).toMatchObject({ state: "syncing", detail: "First sync · 0%" });
+    expect(started.progress).toBeGreaterThan(0);
+    const scope = t.container.db.select().from(connectorScopes).get();
+    expect(scope).toMatchObject({
+      externalId: "folder-1",
+      visibility: "workspace",
+      syncFrequency: "15m",
+      status: "backfilling",
+    });
+    expect(scope?.backfillFrom).toBeTruthy();
+
+    await t.drain();
+    expect(await drive()).toMatchObject({ state: "healthy", detail: "1 file indexed" });
+    const runs = await json<{ items: Array<{ connector: string; ok: boolean; detail: string }> }>(
+      await t.app.request("/api/v1/admin/sync-runs"),
+    );
+    expect(runs.items).toEqual([
+      expect.objectContaining({
+        connector: "Google Drive · Specs",
+        ok: true,
+        detail: "1 file checked, 1 imported",
+      }),
+    ]);
+
+    // The sweep re-queues the scope once its 15-minute schedule is due, and not before.
+    expect(t.container.sweeps.run().connectorSyncsQueued).toBe(0);
+    expect(t.container.sweeps.run(new Date(Date.now() + 16 * 60_000)).connectorSyncsQueued).toBe(1);
+    expect(
+      t.container.db
+        .select()
+        .from(jobs)
+        .where(eq(jobs.type, "sync_connector"))
+        .all()
+        .filter((job) => job.status === "queued"),
+    ).toHaveLength(1);
+
+    // A failing folder shows as an error, and Fix re-syncs it.
+    t.container.db
+      .update(connectorScopes)
+      .set({ status: "degraded", lastError: "403 Forbidden on Specs" })
+      .run();
+    expect(await drive()).toMatchObject({ state: "error", error: "403 Forbidden on Specs" });
+    const fixed = await t.app.request(
+      "/api/v1/admin/connectors/google-drive/reconnect",
+      jsonRequest({}),
+    );
+    expect(fixed.status).toBe(200);
+    expect((await json<Connector>(fixed)).state).toBe("syncing");
+    expect(
+      (await t.app.request("/api/v1/admin/connectors/google-drive/reconnect", jsonRequest({})))
+        .status,
+    ).toBe(409);
   });
 
   it("keeps derived content on keep_derived disconnect and purges it by default", async () => {

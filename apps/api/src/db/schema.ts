@@ -588,6 +588,16 @@ export const connectorScopes = sqliteTable(
     name: text("name").notNull(),
     isExcluded: integer("is_excluded", { mode: "boolean" }).notNull().default(false),
     backfillFrom: ts("backfill_from"),
+    /** Applied to every source the scope imports; `restricted` mirrors the tool's permissions. */
+    visibility: text("visibility")
+      .$type<"workspace" | "restricted">()
+      .notNull()
+      .default("restricted"),
+    /** Scheduled re-sync (FR-INT-007 polling fallback); the maintenance sweep queues it when due. */
+    syncFrequency: text("sync_frequency")
+      .$type<"15m" | "hourly" | "daily">()
+      .notNull()
+      .default("hourly"),
     cursor: text("cursor", { mode: "json" }).$type<Record<string, unknown>>(),
     status: text("status").notNull().default("selected"),
     lastSyncRequestedAt: ts("last_sync_requested_at"),

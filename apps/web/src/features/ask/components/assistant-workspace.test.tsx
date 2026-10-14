@@ -1,3 +1,4 @@
+import type { AssistantAnswer, AssistantSource } from "@contextos/shared";
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
@@ -28,6 +29,94 @@ const assistant: AssistantContextValue = {
   subscribeToRequests: () => () => undefined,
 };
 
+/* The live `POST /v1/assistant/ask` contract, answered per question the way the API does. */
+let answered = 0;
+const source = (
+  title: string,
+  system: string,
+  detail: string,
+  stale: string | null = null,
+): AssistantSource => ({ title, system, provider: null, detail, url: null, to: null, stale });
+const person = (id: string, name: string, title: string, why: string) => ({
+  person: { id, name, title },
+  why,
+});
+function workspaceAnswer(question: string): AssistantAnswer {
+  answered += 1;
+  const base = {
+    id: `wa-${answered}`,
+    question,
+    createdAt: "2026-10-14T09:00:00.000Z",
+    confidence: null,
+    note: null,
+    people: [],
+    sources: [],
+    searched: [],
+    followups: [],
+    related: [],
+  };
+  if (/salary|compensation/i.test(question))
+    return {
+      ...base,
+      outcome: "restricted",
+      blocks: [
+        {
+          type: "paragraph",
+          text: "Compensation and performance records aren’t available in ContextOS, and I can’t answer from them.",
+        },
+      ],
+      people: [person("p-elena", "Elena Brooks", "People partner", "People partner")],
+    };
+  if (/kafka/i.test(question))
+    return {
+      ...base,
+      outcome: "answered",
+      confidence: { level: "verified", label: "Verified · decision record" },
+      blocks: [
+        {
+          type: "paragraph",
+          text: "In March 2026 the team decided to move billing events to Kafka for **Project Kestrel** [1], once the ledger cut-over was agreed [2] and tracked in Jira [3].",
+        },
+      ],
+      sources: [
+        source("ADR-042: Billing events on Kafka", "Knowledge Hub", "Sana Iqbal · updated Mar 12"),
+        source("Ledger cut-over plan", "Google Drive", "Daniel Reyes · updated Mar 20"),
+        source(
+          "KES-118: Kafka rollout",
+          "Jira",
+          "updated Sep 22",
+          "Jira sync is failing: may be out of date",
+        ),
+      ],
+      followups: ["What does dual-write mean here?"],
+    };
+  if (/dual-write/i.test(question))
+    return {
+      ...base,
+      outcome: "answered",
+      confidence: { level: "verified", label: "Verified · glossary" },
+      blocks: [
+        {
+          type: "paragraph",
+          text: "Dual-write sends each billable action two ways: to the old billing tables and to Kafka [1].",
+        },
+      ],
+      sources: [source("Glossary: dual-write", "Knowledge Hub", "updated Mar 12")],
+    };
+  return {
+    ...base,
+    outcome: "no_answer",
+    blocks: [
+      {
+        type: "paragraph",
+        text: "I couldn’t find anything that answers this in sources you can access, so I won’t guess.",
+      },
+    ],
+    people: [person("p-sana", "Sana Iqbal", "Staff Engineer", "Owns related systems")],
+    searched: ["Knowledge Hub", "Google Drive"],
+  };
+}
+
 /** A page that tells the bot a knowledge check is open. */
 function CheckInProgress() {
   useBotContext(
@@ -56,6 +145,16 @@ function render(route: string, role = "member", value = assistant) {
     ),
     http.get(buildApiUrl("/v1/workspaces/current"), () =>
       HttpResponse.json({ id: "w", name: "Tessellate", role, authentication: "development" }),
+    ),
+    http.post(buildApiUrl("/v1/assistant/ask"), async ({ request }) => {
+      const { question } = (await request.json()) as { question: string };
+      return HttpResponse.json(workspaceAnswer(question));
+    }),
+    http.post(buildApiUrl("/v1/assistant/answers/:id/feedback"), () =>
+      HttpResponse.json({ ok: true }),
+    ),
+    http.post(buildApiUrl("/v1/assistant/gaps"), () =>
+      HttpResponse.json({ id: "gap-1", notified: "Platform knowledge owners" }, { status: 201 }),
     ),
   );
   renderWithProviders(

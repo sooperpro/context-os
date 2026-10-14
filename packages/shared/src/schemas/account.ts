@@ -2,10 +2,10 @@ import { z } from "zod";
 import { IsoDateTimeSchema } from "./common.js";
 
 /*
- * Personal settings the API doesn't serve yet (prototype Settings): Context Bot preferences, apps
- * connected to the person's account, and a copy of their data. Sign-in methods and sessions come
- * from the identity provider. The web app's development mock layer answers these until they are
- * served; docs/api-change-requests.md tracks them.
+ * Personal settings view contracts (prototype Settings). Context Bot preferences and personal data
+ * export are preview-backed; connected apps are adapted from the live connector contract. Sign-in
+ * methods and sessions come from the identity provider. docs/api-change-requests.md tracks the
+ * remaining work.
  */
 
 /** `GET/PATCH /v1/me/assistant-preferences`. */
@@ -30,7 +30,7 @@ export const ConnectedAppSchema = z.object({
 });
 export type ConnectedApp = z.infer<typeof ConnectedAppSchema>;
 
-/** `GET /v1/me/connected-apps`; `POST /v1/me/connected-apps/:id/disconnect`. */
+/** Settings view model adapted from `GET /v1/connectors`. */
 export const ConnectedAppListSchema = z.object({ items: z.array(ConnectedAppSchema) });
 
 /** `POST /v1/me/data-export`: profile, contributions, check-in notes shared with them, Context Bot history. */

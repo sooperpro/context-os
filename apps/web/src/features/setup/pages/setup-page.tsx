@@ -6,7 +6,6 @@ import {
 } from "@contextos/shared";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
-import { Link } from "react-router";
 import { PageHeader } from "@/components/layout/page-header";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
@@ -28,6 +27,14 @@ import {
   SegmentedItemTrail,
   SegmentedList,
 } from "@/components/ui/segmented-list";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusChip } from "@/components/ui/status-chip";
 import { Stepper, StepperItem } from "@/components/ui/stepper";
@@ -46,7 +53,9 @@ import {
   useAuthorizeGoogleDrive,
 } from "@/features/connectors/api/connectors.queries";
 import { InviteMemberDialog } from "@/features/members/components/invite-member-dialog";
+import { projectsQuery } from "@/features/projects/api/projects.queries";
 import { CreateProjectDialog } from "@/features/projects/components/create-project-dialog";
+import { DriveScopePicker } from "@/features/sources/components/drive-sync-dialog";
 import { setupQuery, useUpdateSetupStep } from "@/features/setup/api/setup.queries";
 import { STEP_COPY } from "@/features/setup/components/setup-steps";
 import { ApiClientError } from "@/lib/api-client";
@@ -198,21 +207,7 @@ export function SetupPage() {
         </p>
       </div>
     ),
-    select_scopes: (
-      <div className="space-y-3">
-        <p className="text-sm text-on-surface-variant">
-          Open a project, go to Sources and choose Import from Drive to pick the documents. Each
-          import is one explicitly selected file.
-        </p>
-        <Button
-          variant="outline"
-          nativeButton={false}
-          render={<Link to="/knowledge?cat=project" />}
-        >
-          Open projects
-        </Button>
-      </div>
-    ),
+    select_scopes: <SetupScopesStep />,
     create_project: (
       <Button onClick={() => setCreateOpen(true)}>
         <AddIcon aria-hidden />
@@ -364,6 +359,56 @@ export function SetupPage() {
 
       <CreateProjectDialog open={createOpen} onOpenChange={setCreateOpen} />
       <InviteMemberDialog open={inviteOpen} onOpenChange={setInviteOpen} />
+    </div>
+  );
+}
+
+/** FR-WS-009 "select scopes": which Drive folders feed a project; the first project is preselected. */
+function SetupScopesStep() {
+  const projects = useQuery(projectsQuery());
+  const [projectId, setProjectId] = useState<string | null>(null);
+  const items = projects.data?.items ?? [];
+  const selected = projectId ?? items[0]?.id ?? "";
+
+  if (projects.isPending) return <Skeleton className="h-24" aria-busy="true" />;
+  if (projects.isError)
+    return (
+      <Banner
+        tone="error"
+        icon={<WarningIcon />}
+        title="Could not load projects"
+        description={projects.error.message}
+      />
+    );
+  if (items.length === 0)
+    return (
+      <p className="text-sm text-on-surface-variant">
+        Create a project first (the next step), then come back here to choose which Drive folders
+        feed it.
+      </p>
+    );
+  return (
+    <div className="space-y-3">
+      <div className="space-y-1.5">
+        <Label htmlFor="setup-scopes-project">Project</Label>
+        <Select value={selected} onValueChange={(value) => setProjectId(String(value))}>
+          <SelectTrigger id="setup-scopes-project" className="w-full sm:w-80">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {items.map((project) => (
+              <SelectItem key={project.id} value={project.id}>
+                {project.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <DriveScopePicker projectId={selected} />
+      <p className="text-xs text-on-surface-variant">
+        Need a single document instead? Open the project, go to Sources and choose Import from
+        Drive.
+      </p>
     </div>
   );
 }

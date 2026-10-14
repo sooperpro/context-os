@@ -3,6 +3,7 @@ import {
   ConnectorScopesInputSchema,
   ConnectorSyncInputSchema,
   DisconnectModeSchema,
+  ScopeVisibilitySchema,
 } from "@contextos/shared";
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
@@ -98,7 +99,11 @@ export function createConnectorRoutes(drive: ReturnType<typeof createGoogleDrive
       zValidator(
         "json",
         z
-          .object({ projectId: z.uuid(), fileId: z.string().regex(/^[a-zA-Z0-9_-]{1,200}$/) })
+          .object({
+            projectId: z.uuid(),
+            fileId: z.string().regex(/^[a-zA-Z0-9_-]{1,200}$/),
+            visibility: ScopeVisibilitySchema.optional(),
+          })
           .strict(),
         validationHook,
       ),
@@ -110,6 +115,8 @@ export function createConnectorRoutes(drive: ReturnType<typeof createGoogleDrive
             c.req.param("id"),
             c.req.valid("json").projectId,
             c.req.valid("json").fileId,
+            undefined,
+            c.req.valid("json").visibility,
           ),
           201,
         );

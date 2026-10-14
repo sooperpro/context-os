@@ -31,7 +31,7 @@ describe("AnswerCard", () => {
     const user = userEvent.setup();
     renderWithProviders(
       <SourceDrawerContext value={{ open }}>
-        <AnswerCard projectId={answer.projectId} answer={answer} />
+        <AnswerCard answer={answer} />
       </SourceDrawerContext>,
     );
     expect(screen.getByText("Verified · 2 sources agree")).toBeInTheDocument();

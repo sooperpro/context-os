@@ -44,6 +44,32 @@ function live({ role = "member", connectors = [] as object[], audit = [] as obje
       }),
     ),
     http.get(api("/v1/audit"), () => HttpResponse.json({ items: audit })),
+    // The admin overview cards are live too.
+    http.get(api("/v1/admin/security"), () =>
+      HttpResponse.json({
+        items: [
+          { id: "sso", value: "Clerk sign-in · required", state: "ok" },
+          { id: "scim", value: "Not configured", state: "off" },
+        ],
+      }),
+    ),
+    http.get(api("/v1/admin/sync-runs"), () =>
+      HttpResponse.json({
+        items: [
+          {
+            id: "j1",
+            connector: "Google Drive · Specs",
+            startedAt: "2026-10-14T09:00:00.000Z",
+            ok: true,
+            detail: "12 files checked, 3 imported",
+            durationMs: 8_000,
+          },
+        ],
+      }),
+    ),
+    http.get(api("/v1/admin/ai"), () =>
+      HttpResponse.json({ helpfulRate: 0.5, ratings: 4, periodDays: 30, settings: [] }),
+    ),
   );
 }
 
@@ -170,8 +196,13 @@ describe("HomePage", () => {
 
     const members = screen.getByRole("region", { name: "Members & roles" });
     expect(await within(members).findByText("of 3 members active")).toBeInTheDocument();
+    const sync = screen.getByRole("region", { name: "Sync activity" });
+    expect(await within(sync).findByText("Google Drive · Specs")).toBeInTheDocument();
+    expect(within(sync).queryByText("Preview data")).not.toBeInTheDocument();
     expect(
-      within(screen.getByRole("region", { name: "Sync activity" })).getByText("Preview data"),
+      await within(screen.getByRole("region", { name: "Access & security" })).findByText(
+        "Clerk sign-in · required",
+      ),
     ).toBeInTheDocument();
   });
 

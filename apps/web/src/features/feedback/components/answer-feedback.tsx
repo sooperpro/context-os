@@ -6,13 +6,17 @@ import { Chip } from "@/components/ui/chip";
 import {
   CheckIcon,
   ContentCopyIcon,
+  LibraryAddIcon,
   ThumbDownFilledIcon,
   ThumbDownIcon,
   ThumbUpFilledIcon,
   ThumbUpIcon,
 } from "@/components/ui/icons";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { useCreateFeedback } from "@/features/feedback/api/feedback.queries";
+import {
+  useCreateAnswerFeedback,
+  usePromoteAnswer,
+} from "@/features/feedback/api/feedback.queries";
 
 /** The prototype's "What was wrong?" reasons, mapped to the feedback kinds the API records. */
 const REASONS: Array<{ kind: FeedbackKind; label: string }> = [
@@ -28,16 +32,16 @@ function plainText(answer: Answer): string {
 }
 
 /**
- * Answer tools from the prototype: helpful, not helpful (then a reason), copy. Feedback goes to the
- * project's knowledge owners through the feedback API.
+ * Answer tools from the prototype: helpful, not helpful (then a reason), copy and propose for Hub
+ * review. Ratings remain private to the asker and use the Ask message feedback API.
  */
-export function AnswerFeedback({ projectId, answer }: { projectId: string; answer: Answer }) {
-  const feedback = useCreateFeedback(projectId);
+export function AnswerFeedback({ answer }: { answer: Answer }) {
+  const feedback = useCreateAnswerFeedback(answer.id);
+  const promotion = usePromoteAnswer(answer.id);
   const [vote, setVote] = useState<"up" | "down" | null>(null);
   const [reason, setReason] = useState<FeedbackKind | null>(null);
 
-  const send = (kind: FeedbackKind) =>
-    feedback.mutate({ targetType: "answer", targetId: answer.id, kind });
+  const send = (kind: FeedbackKind) => feedback.mutate(kind);
 
   const copy = () => {
     void navigator.clipboard
@@ -90,16 +94,56 @@ export function AnswerFeedback({ projectId, answer }: { projectId: string; answe
         </Tooltip>
         <Tooltip>
           <TooltipTrigger
-            render={<Button variant="ghost" size="icon-sm" className="text-on-surface-variant" aria-label="Copy answer" onClick={copy} />}
+            render={
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="text-on-surface-variant"
+                aria-label="Copy answer"
+                onClick={copy}
+              />
+            }
           >
             <ContentCopyIcon />
           </TooltipTrigger>
           <TooltipContent>Copy</TooltipContent>
         </Tooltip>
-        {vote === "up" ? <span className="ml-1 text-xs text-on-surface-variant">Thanks for the feedback.</span> : null}
+        {answer.confidence !== "insufficient" && answer.citations.length > 0 ? (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-on-surface-variant"
+                  aria-label="Propose for Knowledge Hub"
+                  disabled={promotion.isPending || promotion.isSuccess}
+                  onClick={() =>
+                    promotion.mutate(undefined, {
+                      onSuccess: () => toast.success("Sent to the Knowledge Hub review queue"),
+                      onError: (error) => toast.error(error.message),
+                    })
+                  }
+                />
+              }
+            >
+              <LibraryAddIcon />
+            </TooltipTrigger>
+            <TooltipContent>
+              {promotion.isSuccess ? "Proposed for review" : "Propose for Knowledge Hub"}
+            </TooltipContent>
+          </Tooltip>
+        ) : null}
+        {vote === "up" ? (
+          <span className="ml-1 text-xs text-on-surface-variant">Thanks for the feedback.</span>
+        ) : null}
       </div>
       {vote === "down" ? (
-        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="What was wrong?">
+        <div
+          className="flex flex-wrap items-center gap-2"
+          role="group"
+          aria-label="What was wrong?"
+        >
           <span className="text-xs text-on-surface-variant">What was wrong?</span>
           {REASONS.map((option) => (
             <Chip
@@ -116,7 +160,9 @@ export function AnswerFeedback({ projectId, answer }: { projectId: string; answe
               {option.label}
             </Chip>
           ))}
-          {reason ? <span className="text-xs text-on-surface-variant">Thanks. The project's knowledge owners will review this answer.</span> : null}
+          {reason ? (
+            <span className="text-xs text-on-surface-variant">Thanks for the feedback.</span>
+          ) : null}
         </div>
       ) : null}
     </div>

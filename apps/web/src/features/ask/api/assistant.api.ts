@@ -11,9 +11,9 @@ import {
 import { apiRequest } from "@/lib/api-client";
 
 /**
- * Context Bot outside a project. Not served yet; in development the mock layer answers
- * (src/mocks/assistant.ts). Inside a project the bot uses the Ask threads API. Contract:
- * packages/shared/src/schemas/assistant.ts.
+ * Context Bot outside a project: the API answers from the readable project whose sources match
+ * the question (apps/api/src/modules/ask/assistant.routes.ts). Inside a project the bot uses the
+ * Ask threads API. Contract: packages/shared/src/schemas/assistant.ts.
  */
 export const ASSISTANT_ENDPOINTS = {
   ask: { path: "/v1/assistant/ask", schema: AssistantAnswerSchema, input: AssistantAskInputSchema },

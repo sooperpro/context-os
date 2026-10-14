@@ -6,10 +6,21 @@ import { Badge } from "@/components/ui/badge";
 import { LocationOnIcon } from "@/components/ui/icons";
 import { MetaChip } from "@/components/ui/meta-chip";
 import { Shape } from "@/components/ui/shape";
-import { TEAM_AREA_ICON, peoplePath, personBadges, roleAndTeam } from "@/features/people/people-meta";
-import { formatTimeZone } from "@/lib/format";
+import {
+  TEAM_AREA_ICON,
+  peoplePath,
+  personBadges,
+  roleAndTeam,
+} from "@/features/people/people-meta";
+import { formatCount, formatTimeZone } from "@/lib/format";
 
-export function PersonBadges({ person, className }: { person: DirectoryPerson; className?: string }) {
+export function PersonBadges({
+  person,
+  className,
+}: {
+  person: DirectoryPerson;
+  className?: string;
+}) {
   const badges = personBadges(person);
   if (badges.length === 0) return null;
   return (
@@ -85,7 +96,13 @@ export function OrgNode({
   return emphasis && !badges ? (
     <div className={className}>{body}</div>
   ) : (
-    <Link to={peoplePath(person.id)} className={cn(className, "transition-colors hover:bg-[color-mix(in_srgb,var(--color-pane),var(--color-on-surface)_5%)]")}>
+    <Link
+      to={peoplePath(person.id)}
+      className={cn(
+        className,
+        "transition-colors hover:bg-[color-mix(in_srgb,var(--color-pane),var(--color-on-surface)_5%)]",
+      )}
+    >
       {body}
     </Link>
   );
@@ -97,18 +114,26 @@ export function TeamCard({ team }: { team: DirectoryTeam }) {
   return (
     <article className="flex flex-col gap-2.5 rounded-card bg-card p-4" aria-label={team.name}>
       <div className="flex items-center gap-3">
-        <span aria-hidden className="relative grid size-11 shrink-0 place-items-center text-on-primary-container">
+        <span
+          aria-hidden
+          className="relative grid size-11 shrink-0 place-items-center text-on-primary-container"
+        >
           <Shape kind="cookie6" className="absolute inset-0 size-full text-primary-container" />
           <Icon className="relative z-10 size-5" />
         </span>
         <div className="flex min-w-0 flex-col">
           <b className="text-base font-medium">{team.name}</b>
-          <span className="text-xs text-on-surface-variant">{team.size} people</span>
+          <span className="text-xs text-on-surface-variant">
+            {formatCount(team.size, "person", "people")}
+          </span>
         </div>
       </div>
       <p className="text-xs">{team.focus}</p>
       <div className="mt-auto flex items-center justify-between gap-2">
-        <Link to={peoplePath(team.lead.id)} className="flex items-center gap-2 text-on-surface no-underline">
+        <Link
+          to={peoplePath(team.lead.id)}
+          className="flex items-center gap-2 text-on-surface no-underline"
+        >
           <PersonAvatar person={team.lead} size="sm" />
           <span className="text-xs">
             <b className="font-medium">{team.lead.name}</b>
@@ -117,7 +142,10 @@ export function TeamCard({ team }: { team: DirectoryTeam }) {
           </span>
         </Link>
         {team.members.length ? (
-          <AvatarGroup aria-label={`${team.members.length} more members`} className="*:data-[slot=avatar]:ring-card">
+          <AvatarGroup
+            aria-label={`${team.members.length} more members`}
+            className="*:data-[slot=avatar]:ring-card"
+          >
             {team.members.map((member) => (
               <PersonAvatar key={member.id} person={member} size="xs" />
             ))}

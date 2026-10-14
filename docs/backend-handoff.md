@@ -17,9 +17,9 @@ switch each mock off once the real endpoint ships.
 
 | What                                                    |  Count | Where                 |
 | ------------------------------------------------------- | -----: | --------------------- |
-| Endpoints the web app fakes with mock data (to build)   | **93** | Section 7, Appendix A |
-| Live API routes the web app already uses                |     52 | Appendix B            |
-| Live API routes the web app doesn't use yet             |     56 | Appendix C            |
+| Endpoints the web app fakes with mock data (to build)   | **72** | Section 7, Appendix A |
+| Live API routes the web app already uses                |     76 | Appendix B            |
+| Live API routes the web app doesn't use yet             |     55 | Appendix C            |
 | Changes needed on live endpoints                        |     10 | Section 5             |
 | Decisions needed before building                        |     11 | Section 6             |
 | Features with no contract yet ("coming soon" in the UI) |     18 | Section 8             |
@@ -29,25 +29,25 @@ mocked except the live `GET /v1/audit`: the web app calls **no endpoint that is 
 mocked**.
 
 **Important for production.** The mock layer exists only in development. A production build doesn't
-contain it, so **the 93 endpoints simply 404 in production today** and the screens built on them show
+contain it, so **the 72 endpoints simply 404 in production today** and the screens built on them show
 their error states. Shipping these endpoints is what makes those screens real.
 
-The 93 endpoints by area:
+The 72 endpoints by area:
 
-| Section | Area                                                               | Endpoints | Mock file(s)                          |
-| ------- | ------------------------------------------------------------------ | --------: | ------------------------------------- |
-| 7.1     | Learner: roadmap, modules, lessons, checks, Home summaries         |        12 | `learning.ts`                         |
-| 7.2     | Employee Home cards                                                |         5 | `home/employee.ts`                    |
-| 7.3     | First-day welcome                                                  |         2 | `welcome.ts`                          |
-| 7.4     | Saved knowledge                                                    |         2 | `saved.ts`                            |
-| 7.5     | Personal settings: Context Bot, connected apps, data export        |         5 | `account.ts`                          |
-| 7.6     | Manager: team, member pages, check-ins, assigning, Home cards      |        13 | `team.ts`, `home/manager.ts`          |
-| 7.7     | People directory                                                   |         4 | `people.ts`                           |
-| 7.8     | Contributions and the review queue                                 |         9 | `contributions.ts`                    |
-| 7.9     | HR (People Ops): onboarding, probation, templates                  |        19 | `people-ops.ts`, `home/people-ops.ts` |
-| 7.10    | Admin: security, members, connectors, access policies, AI settings |        19 | `admin.ts`, `home/admin.ts`           |
-| 7.11    | Context Bot outside projects                                       |         3 | `assistant.ts`                        |
-|         | **Total**                                                          |    **93** |                                       |
+| Section | Area                                                          | Endpoints | Mock file(s)                          |
+| ------- | ------------------------------------------------------------- | --------: | ------------------------------------- |
+| 7.1     | Learner: roadmap, modules, lessons, checks, Home summaries    |        12 | `learning.ts`                         |
+| 7.2     | Employee Home cards                                           |         5 | `home/employee.ts`                    |
+| 7.3     | First-day welcome                                             |         2 | `welcome.ts`                          |
+| 7.4     | Saved knowledge                                               |         0 | — (live, `platform/saved.routes.ts`)  |
+| 7.5     | Personal settings: Context Bot preferences and data export    |         3 | `account.ts`                          |
+| 7.6     | Manager: team, member pages, check-ins, assigning, Home cards |        13 | `team.ts`, `home/manager.ts`          |
+| 7.7     | People directory                                              |         0 | —                                     |
+| 7.8     | Contributions and the review queue                            |         9 | `contributions.ts`                    |
+| 7.9     | HR (People Ops): onboarding, probation, templates             |        19 | `people-ops.ts`, `home/people-ops.ts` |
+| 7.10    | Admin: members, role requests, access policies                |         9 | `admin.ts`                            |
+| 7.11    | Context Bot outside projects                                  |         0 | — (live, `ask/assistant.routes.ts`)   |
+|         | **Total**                                                     |    **72** |                                       |
 
 ## 1. How the web app talks to the API
 
@@ -84,14 +84,14 @@ requestId? } }` (`ApiErrorResponseSchema`). The UI shows `message` to people, so
 | ----------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Switch      | `apps/web/.env` → `VITE_MOCK_API=true`                          | Turns the mock layer on in development. Ignored by production builds.                                                                                                                                                                             |
 | Start-up    | `apps/web/src/main.tsx` → `mocks/browser.ts`                    | Starts an MSW service worker before the app renders. Unmocked requests pass through to the API (`onUnhandledRequest: "bypass"`).                                                                                                                  |
-| Registry    | `apps/web/src/mocks/endpoints.ts`                               | The list of all 93 mocked endpoints. Only endpoints the API doesn't serve belong here.                                                                                                                                                            |
+| Registry    | `apps/web/src/mocks/endpoints.ts`                               | The list of all 84 mocked endpoints. Only endpoints the API doesn't serve belong here.                                                                                                                                                            |
 | Helpers     | `apps/web/src/mocks/define.ts`                                  | `mockGet/mockPost/mockPatch/mockPut(descriptor)(resolver)`. Bodies are validated with the input schema (400 on failure); responses are parsed with the response schema, so a mock can't drift from its contract. `MockNotFoundError` answers 404. |
 | Mock data   | `apps/web/src/mocks/*.ts`, `mocks/home/*.ts`, `mocks/fixtures/` | Fixtures and in-memory state (writes last for the browser session). Dates are relative to today.                                                                                                                                                  |
 | Contracts   | `packages/shared/src/schemas/*.ts`                              | The request and response schemas you implement.                                                                                                                                                                                                   |
 | Descriptors | `apps/web/src/features/*/api/*.api.ts`                          | Each endpoint's `path`, `schema` and `input`, used by both the screens and the mocks.                                                                                                                                                             |
 | Marker      | `components/preview-data-chip.tsx`, `lib/preview-data.ts`       | Cards built on a mocked endpoint show a **"Preview data"** chip. It disappears by itself once the endpoint isn't mocked.                                                                                                                          |
 | Header      | every mock response                                             | `X-ContextOS-Mock: 1`.                                                                                                                                                                                                                            |
-| Console     | browser dev tools                                               | `[mocks] 93 endpoints answered with preview data: [...]` lists exactly what never reached the API.                                                                                                                                                |
+| Console     | browser dev tools                                               | `[mocks] 72 endpoints answered with preview data: [...]` lists exactly what never reached the API.                                                                                                                                                |
 | Tests       | `apps/web/src/test/msw.ts`, `mocks/endpoints.test.ts`           | Tests use the same mocks under Node (`setupMockApi()`), with `onUnhandledRequest: "error"`. `endpoints.test.ts` checks every mock against its schema.                                                                                             |
 
 Mocks that share state (so they must be retired together, see 3.3):
@@ -109,7 +109,7 @@ Mocks that share state (so they must be retired together, see 3.3):
 ### 3.1 All at once
 
 Set `VITE_MOCK_API=false` (or remove it) in `apps/web/.env` and restart the web dev server. Every
-request then goes to the API, so the screens on the 93 endpoints show error states until those
+request then goes to the API, so the screens on the 72 endpoints show error states until those
 endpoints exist. That's the same as production today. Use it to check which screens are fully real.
 
 ### 3.2 One endpoint at a time (the normal way)
@@ -452,7 +452,8 @@ reminders}`, `knownOptions[]`, `expectations[]`, `support[]`, `completedAt`.
 
 ### 7.4 Saved knowledge
 
-Mock file: `apps/web/src/mocks/saved.ts`. Contract: `saved.ts`. Backlog: item 12.
+Live: `apps/api/src/modules/platform/saved.routes.ts` serves both endpoints (personal records, filtered by
+what the caller can still open; a project slug is accepted). Contract: `saved.ts`. Backlog: item 12.
 
 #### `GET /v1/me/saved`
 
@@ -471,8 +472,12 @@ Mock file: `apps/web/src/mocks/saved.ts`. Contract: `saved.ts`. Backlog: item 12
 
 ### 7.5 Personal settings: Context Bot, connected apps, your data
 
-Mock file: `apps/web/src/mocks/account.ts` (5 endpoints). Contract: `account.ts`. Backlog: item 15.
+Mock file: `apps/web/src/mocks/account.ts` (3 endpoints). Contract: `account.ts`. Backlog: item 15.
 Caller only. UI: Settings → Preferences (Context Bot card) and Security (Connected apps, Your data).
+
+Connected apps are live through `GET /v1/connectors` and
+`DELETE /v1/connectors/:id?mode=keep_derived`. The adapter presents connector connections in the
+personal settings card without inventing a second token-revocation API.
 
 #### `GET /v1/me/assistant-preferences` and `PATCH /v1/me/assistant-preferences`
 
@@ -481,15 +486,6 @@ Caller only. UI: Settings → Preferences (Context Bot card) and Security (Conne
 - **Effects:** `showSuggestions` false hides suggested questions in the panel; `openBesideLessons`
   opens Context Bot beside lessons on large screens.
 - **Reuse:** `users.preferences` JSON (beside the existing `companion` preferences).
-
-#### `GET /v1/me/connected-apps`
-
-- **Returns** `ConnectedAppListSchema items[] {id, name, provider, description, connectedAt}` (for
-  example "ContextOS for Slack"). These are apps the person authorised, not workspace data sources.
-
-#### `POST /v1/me/connected-apps/:id/disconnect`
-
-- **Body** `{}`. **Returns** the remaining list. Revoke the app's tokens. 404 for an unknown id.
 
 #### `POST /v1/me/data-export`
 
@@ -652,7 +648,9 @@ submittedAt}}`.
 
 ### 7.7 People directory
 
-Mock file: `apps/web/src/mocks/people.ts` (4, read-only). Contract: `people.ts`. Backlog: item 8.
+The screen now adapts the live `GET /v1/users`, `GET /v1/users/me`, `GET /v1/org/teams` and
+`GET /v1/people/:id` responses. Contract: `people.ts`. Backlog: item 8 is now limited to richer
+profile fields and avoiding per-person profile requests for expertise.
 **Who:** members and managers (and admins); **guests get 403**. The mock treats everyone as Maya.
 Relations (`you`, `manager`, `buddy`, `report`) are relative to the caller.
 
@@ -1049,7 +1047,21 @@ published`, `publishedVersion`, prepends history `{version, today, note or "Upda
 
 ### 7.10 Admin: security, members, connectors, access policies, AI settings
 
-Mock files: `apps/web/src/mocks/home/admin.ts` (1), `apps/web/src/mocks/admin.ts` (18).
+Live: security, sync runs, AI overview and AI settings (`platform/admin-overview.routes.ts`), and the
+connector catalog with authorize, connect, reconnect and connector requests
+(`connectors/admin-connectors.routes.ts`). Still mocked in `apps/web/src/mocks/admin.ts` (9): members
+overview, directory sync, role requests and access policies.
+
+**As served.** The catalog lists every integration but only Google Drive connects; the others answer 503
+with a pointer to “Request a connector”. Authorize returns `{account, authorizationUrl}`: when the
+admin has no Drive connection yet, `authorizationUrl` is Google's consent page and the wizard waits for
+the callback. Connect also takes `projectId` (required for Drive) and `visibility`, and stores the
+frequency as a per-scope schedule that the maintenance sweep honours. Security reports what exists today
+(sign-in mode, no SCIM, sources shared with everyone, no role requests, retention). AI stats come from
+Ask answers and their ratings over 30 days; unanswered questions appear once at least the k-anonymity
+threshold of different people asked them, or as soon as someone reports a gap. `excluded` is empty until
+access policies ship. The AI settings are stored and audited; only `access_only` and citations are
+enforced by the Ask pipeline today.
 Contracts: `packages/shared/src/schemas/admin.ts`, `home.ts`, `platform.ts`. Backlog: item 11.
 
 **Who:** owners and admins only, everywhere in this section. The rail hides these pages from other
@@ -1247,7 +1259,7 @@ so the two disagree until this section ships.
 
 ### 7.11 Context Bot outside projects
 
-Mock file: `apps/web/src/mocks/assistant.ts` (3 endpoints). Contract: `packages/shared/src/schemas/assistant.ts`.
+Live since the Context Bot integration: `apps/api/src/modules/ask/assistant.routes.ts` serves all three. Contract: `packages/shared/src/schemas/assistant.ts`.
 Backlog: item 13. Inside a project the panel already uses the live Ask threads; these endpoints are
 for every other page.
 
@@ -1347,11 +1359,12 @@ nothing). Each needs a contract first; the frontend will write it in `packages/s
 - [ ] `pnpm check` passes.
 - [ ] `docs/api-change-requests.md` status table and Appendix A updated.
 
-## Appendix A. Every mocked endpoint (93)
+## Appendix A. Every mocked endpoint (72)
 
 Generated from `apps/web/src/mocks/endpoints.ts` and the endpoint descriptors in
 `apps/web/src/features/*/api/*.api.ts`. Schemas are exported from `@contextos/shared`
-(`packages/shared/src/schemas/`). Mock files are under `apps/web/src/mocks/`.
+(`packages/shared/src/schemas/`). Mock files are under `apps/web/src/mocks/`. Row numbers preserve
+the original catalog, so gaps identify endpoints retired from the mock layer.
 
 |   # | Section | Method | Path                                            | Request body                      | Response                       | Mock file            |
 | --: | ------- | ------ | ----------------------------------------------- | --------------------------------- | ------------------------------ | -------------------- |
@@ -1374,12 +1387,8 @@ Generated from `apps/web/src/mocks/endpoints.ts` and the endpoint descriptors in
 |  17 | 7.2     | GET    | `/v1/me/team-activity`                          | —                                 | `TeamActivityFeedSchema`       | `home/employee.ts`   |
 |  18 | 7.3     | GET    | `/v1/me/welcome`                                | —                                 | `WelcomeSchema`                | `welcome.ts`         |
 |  19 | 7.3     | POST   | `/v1/me/welcome`                                | `WelcomeInputSchema`              | `WelcomeSchema`                | `welcome.ts`         |
-|  20 | 7.4     | GET    | `/v1/me/saved`                                  | —                                 | `SavedListSchema`              | `saved.ts`           |
-|  21 | 7.4     | PUT    | `/v1/me/saved/:id`                              | `SaveInputSchema`                 | `SavedItemSchema` or `null`    | `saved.ts`           |
 |  22 | 7.5     | GET    | `/v1/me/assistant-preferences`                  | —                                 | `AssistantPreferencesSchema`   | `account.ts`         |
 |  23 | 7.5     | PATCH  | `/v1/me/assistant-preferences`                  | `AssistantPreferencesInputSchema` | `AssistantPreferencesSchema`   | `account.ts`         |
-|  24 | 7.5     | GET    | `/v1/me/connected-apps`                         | —                                 | `ConnectedAppListSchema`       | `account.ts`         |
-|  25 | 7.5     | POST   | `/v1/me/connected-apps/:id/disconnect`          | `{}`                              | `ConnectedAppListSchema`       | `account.ts`         |
 |  26 | 7.5     | POST   | `/v1/me/data-export`                            | `{}`                              | `DataExportResultSchema`       | `account.ts`         |
 |  27 | 7.6     | GET    | `/v1/team/attention`                            | —                                 | `AttentionListSchema`          | `home/manager.ts`    |
 |  28 | 7.6     | GET    | `/v1/team/check-matrix`                         | —                                 | `CheckMatrixSchema`            | `team.ts`            |
@@ -1394,10 +1403,6 @@ Generated from `apps/web/src/mocks/endpoints.ts` and the endpoint descriptors in
 |  37 | 7.6     | PATCH  | `/v1/team/members/:id/roadmap`                  | `RoadmapEditInputSchema`          | `TeamMemberDetailSchema`       | `team.ts`            |
 |  38 | 7.6     | POST   | `/v1/team/members/:id/roadmap`                  | `RoadmapAssignmentInputSchema`    | `CreatedSchema`                | `team.ts`            |
 |  39 | 7.6     | GET    | `/v1/team/onboarding`                           | —                                 | `TeamOnboardingSchema`         | `team.ts`            |
-|  40 | 7.7     | GET    | `/v1/people`                                    | —                                 | `PeopleDirectorySchema`        | `people.ts`          |
-|  41 | 7.7     | GET    | `/v1/people/:id`                                | —                                 | `PersonProfileSchema`          | `people.ts`          |
-|  42 | 7.7     | GET    | `/v1/people/experts`                            | —                                 | `ExpertListSchema`             | `people.ts`          |
-|  43 | 7.7     | GET    | `/v1/people/teams`                              | —                                 | `TeamDirectorySchema`          | `people.ts`          |
 |  44 | 7.8     | POST   | `/v1/contributions`                             | `ContributionInputSchema`         | `ContributionSchema`           | `contributions.ts`   |
 |  45 | 7.8     | POST   | `/v1/contributions/:id/resubmit`                | `ContributionResubmitInputSchema` | `ContributionSchema`           | `contributions.ts`   |
 |  46 | 7.8     | POST   | `/v1/contributions/draft`                       | `ContributionDraftInputSchema`    | `ContributionDraftSchema`      | `contributions.ts`   |
@@ -1431,84 +1436,95 @@ Generated from `apps/web/src/mocks/endpoints.ts` and the endpoint descriptors in
 |  74 | 7.10    | POST   | `/v1/admin/access-policies`                     | `AccessPolicyInputSchema`         | `AccessPolicySchema`           | `admin.ts`           |
 |  75 | 7.10    | PATCH  | `/v1/admin/access-policies/:id`                 | `AccessPolicyInputSchema`         | `AccessPolicySchema`           | `admin.ts`           |
 |  76 | 7.10    | GET    | `/v1/admin/access-preview`                      | —                                 | `AccessPreviewSchema`          | `admin.ts`           |
-|  77 | 7.10    | GET    | `/v1/admin/ai`                                  | —                                 | `AiOverviewSchema`             | `admin.ts`           |
-|  78 | 7.10    | GET    | `/v1/admin/ai-settings`                         | —                                 | `AiSettingsSchema`             | `admin.ts`           |
-|  79 | 7.10    | PATCH  | `/v1/admin/ai-settings`                         | `AiSettingsInputSchema`           | `AiSettingsSchema`             | `admin.ts`           |
-|  80 | 7.10    | POST   | `/v1/admin/connector-requests`                  | `ConnectorRequestInputSchema`     | `ConnectorRequestResultSchema` | `admin.ts`           |
-|  81 | 7.10    | GET    | `/v1/admin/connectors`                          | —                                 | `AdminConnectorListSchema`     | `admin.ts`           |
-|  82 | 7.10    | POST   | `/v1/admin/connectors/:id/authorize`            | `{}`                              | `ConnectorConsentSchema`       | `admin.ts`           |
-|  83 | 7.10    | POST   | `/v1/admin/connectors/:id/connect`              | `ConnectInputSchema`              | `AdminConnectorSchema`         | `admin.ts`           |
-|  84 | 7.10    | POST   | `/v1/admin/connectors/:id/reconnect`            | `ReconnectInputSchema`            | `AdminConnectorSchema`         | `admin.ts`           |
 |  85 | 7.10    | POST   | `/v1/admin/directory-sync`                      | `{}`                              | `DirectorySyncResultSchema`    | `admin.ts`           |
 |  86 | 7.10    | GET    | `/v1/admin/members/overview`                    | —                                 | `MembersOverviewSchema`        | `admin.ts`           |
 |  87 | 7.10    | GET    | `/v1/admin/role-requests`                       | —                                 | `RoleRequestListSchema`        | `admin.ts`           |
 |  88 | 7.10    | POST   | `/v1/admin/role-requests/:id/decision`          | `RoleRequestDecisionInputSchema`  | `RoleRequestDecisionSchema`    | `admin.ts`           |
-|  89 | 7.10    | GET    | `/v1/admin/security`                            | —                                 | `SecurityOverviewSchema`       | `admin.ts`           |
-|  90 | 7.10    | GET    | `/v1/admin/sync-runs`                           | —                                 | `SyncRunListSchema`            | `home/admin.ts`      |
-|  91 | 7.11    | POST   | `/v1/assistant/answers/:id/feedback`            | `AssistantFeedbackInputSchema`    | `AcknowledgedSchema`           | `assistant.ts`       |
-|  92 | 7.11    | POST   | `/v1/assistant/ask`                             | `AssistantAskInputSchema`         | `AssistantAnswerSchema`        | `assistant.ts`       |
-|  93 | 7.11    | POST   | `/v1/assistant/gaps`                            | `KnowledgeGapInputSchema`         | `KnowledgeGapResultSchema`     | `assistant.ts`       |
 
-## Appendix B. Live API routes the web app calls (52)
+## Appendix B. Live API routes the web app calls (76)
 
 These already work. `GET /v1/audit` needs the change in section 5.
 
-| Method | Path                                                         | API module                        |
-| ------ | ------------------------------------------------------------ | --------------------------------- |
-| GET    | `/v1/ask/threads`                                            | `ask/threads.routes.ts`           |
-| POST   | `/v1/ask/threads`                                            | `ask/threads.routes.ts`           |
-| DELETE | `/v1/ask/threads/:id`                                        | `ask/threads.routes.ts`           |
-| GET    | `/v1/ask/threads/:id`                                        | `ask/threads.routes.ts`           |
-| POST   | `/v1/ask/threads/:id/messages`                               | `ask/threads.routes.ts`           |
-| GET    | `/v1/audit`                                                  | `identity/identity.routes.ts`     |
-| GET    | `/v1/companion/preferences`                                  | `platform/companion.routes.ts`    |
-| PATCH  | `/v1/companion/preferences`                                  | `platform/companion.routes.ts`    |
-| GET    | `/v1/connectors`                                             | `connectors/connectors.routes.ts` |
-| GET    | `/v1/connectors/:id/files`                                   | `connectors/connectors.routes.ts` |
-| POST   | `/v1/connectors/:id/import`                                  | `connectors/connectors.routes.ts` |
-| POST   | `/v1/connectors/google-drive/authorize`                      | `connectors/connectors.routes.ts` |
-| POST   | `/v1/flags`                                                  | `platform/knowledge.routes.ts`    |
-| GET    | `/v1/notifications`                                          | `platform/companion.routes.ts`    |
-| PATCH  | `/v1/notifications/:id/read`                                 | `platform/companion.routes.ts`    |
-| GET    | `/v1/notifications/preferences`                              | `platform/companion.routes.ts`    |
-| PATCH  | `/v1/notifications/preferences`                              | `platform/companion.routes.ts`    |
-| GET    | `/v1/org/departments`                                        | `workspace/workspace.routes.ts`   |
-| POST   | `/v1/org/departments`                                        | `workspace/workspace.routes.ts`   |
-| DELETE | `/v1/org/departments/:id`                                    | `workspace/workspace.routes.ts`   |
-| PATCH  | `/v1/org/departments/:id`                                    | `workspace/workspace.routes.ts`   |
-| GET    | `/v1/org/teams`                                              | `workspace/workspace.routes.ts`   |
-| POST   | `/v1/org/teams`                                              | `workspace/workspace.routes.ts`   |
-| DELETE | `/v1/org/teams/:id`                                          | `workspace/workspace.routes.ts`   |
-| PATCH  | `/v1/org/teams/:id`                                          | `workspace/workspace.routes.ts`   |
-| GET    | `/v1/projects`                                               | `projects/projects.routes.ts`     |
-| POST   | `/v1/projects`                                               | `projects/projects.routes.ts`     |
-| DELETE | `/v1/projects/:projectId`                                    | `projects/projects.routes.ts`     |
-| GET    | `/v1/projects/:projectId`                                    | `projects/projects.routes.ts`     |
-| PATCH  | `/v1/projects/:projectId`                                    | `projects/projects.routes.ts`     |
-| POST   | `/v1/projects/:projectId/ask`                                | `ask/ask.routes.ts`               |
-| GET    | `/v1/projects/:projectId/context-items`                      | `context/context.routes.ts`       |
-| PATCH  | `/v1/projects/:projectId/context-items/:itemId/verification` | `context/context.routes.ts`       |
-| POST   | `/v1/projects/:projectId/feedback`                           | `feedback/feedback.routes.ts`     |
-| GET    | `/v1/projects/:projectId/hub`                                | `hub/hub.routes.ts`               |
-| POST   | `/v1/projects/:projectId/hub/refresh`                        | `hub/hub.routes.ts`               |
-| GET    | `/v1/projects/:projectId/jobs`                               | `jobs/jobs.routes.ts`             |
-| POST   | `/v1/projects/:projectId/jobs/:jobId/retry`                  | `jobs/jobs.routes.ts`             |
-| GET    | `/v1/projects/:projectId/questions`                          | `ask/ask.routes.ts`               |
-| GET    | `/v1/projects/:projectId/sources`                            | `sources/sources.routes.ts`       |
-| POST   | `/v1/projects/:projectId/sources`                            | `sources/sources.routes.ts`       |
-| DELETE | `/v1/projects/:projectId/sources/:sourceId`                  | `sources/sources.routes.ts`       |
-| GET    | `/v1/projects/:projectId/sources/:sourceId`                  | `sources/sources.routes.ts`       |
-| POST   | `/v1/projects/:projectId/sources/:sourceId/reprocess`        | `sources/sources.routes.ts`       |
-| GET    | `/v1/users`                                                  | `identity/identity.routes.ts`     |
-| PATCH  | `/v1/users/:id`                                              | `identity/identity.routes.ts`     |
-| POST   | `/v1/users/invite`                                           | `identity/identity.routes.ts`     |
-| GET    | `/v1/users/me`                                               | `identity/identity.routes.ts`     |
-| PATCH  | `/v1/users/me`                                               | `identity/identity.routes.ts`     |
-| GET    | `/v1/workspaces/current`                                     | `identity/identity.routes.ts`     |
-| GET    | `/v1/workspaces/current/setup`                               | `workspace/workspace.routes.ts`   |
-| PATCH  | `/v1/workspaces/current/setup`                               | `workspace/workspace.routes.ts`   |
+| Method | Path                                                         | API module                              |
+| ------ | ------------------------------------------------------------ | --------------------------------------- |
+| GET    | `/v1/ask/threads`                                            | `ask/threads.routes.ts`                 |
+| POST   | `/v1/ask/threads`                                            | `ask/threads.routes.ts`                 |
+| DELETE | `/v1/ask/threads/:id`                                        | `ask/threads.routes.ts`                 |
+| GET    | `/v1/ask/threads/:id`                                        | `ask/threads.routes.ts`                 |
+| POST   | `/v1/ask/threads/:id/messages`                               | `ask/threads.routes.ts`                 |
+| POST   | `/v1/ask/messages/:id/feedback`                              | `ask/messages.routes.ts`                |
+| POST   | `/v1/ask/messages/:id/promote`                               | `ask/messages.routes.ts`                |
+| POST   | `/v1/assistant/ask`                                          | `ask/assistant.routes.ts`               |
+| POST   | `/v1/assistant/answers/:id/feedback`                         | `ask/assistant.routes.ts`               |
+| POST   | `/v1/assistant/gaps`                                         | `ask/assistant.routes.ts`               |
+| GET    | `/v1/me/saved`                                               | `platform/saved.routes.ts`              |
+| PUT    | `/v1/me/saved/:targetId`                                     | `platform/saved.routes.ts`              |
+| GET    | `/v1/admin/security`                                         | `platform/admin-overview.routes.ts`     |
+| GET    | `/v1/admin/sync-runs`                                        | `platform/admin-overview.routes.ts`     |
+| GET    | `/v1/admin/ai`                                               | `platform/admin-overview.routes.ts`     |
+| GET    | `/v1/admin/ai-settings`                                      | `platform/admin-overview.routes.ts`     |
+| PATCH  | `/v1/admin/ai-settings`                                      | `platform/admin-overview.routes.ts`     |
+| GET    | `/v1/admin/connectors`                                       | `connectors/admin-connectors.routes.ts` |
+| POST   | `/v1/admin/connectors/:id/authorize`                         | `connectors/admin-connectors.routes.ts` |
+| POST   | `/v1/admin/connectors/:id/connect`                           | `connectors/admin-connectors.routes.ts` |
+| POST   | `/v1/admin/connectors/:id/reconnect`                         | `connectors/admin-connectors.routes.ts` |
+| POST   | `/v1/admin/connector-requests`                               | `connectors/admin-connectors.routes.ts` |
+| GET    | `/v1/audit`                                                  | `identity/identity.routes.ts`           |
+| GET    | `/v1/companion/preferences`                                  | `platform/companion.routes.ts`          |
+| PATCH  | `/v1/companion/preferences`                                  | `platform/companion.routes.ts`          |
+| GET    | `/v1/connectors`                                             | `connectors/connectors.routes.ts`       |
+| DELETE | `/v1/connectors/:id`                                         | `connectors/connectors.routes.ts`       |
+| GET    | `/v1/connectors/:id/files`                                   | `connectors/connectors.routes.ts`       |
+| GET    | `/v1/connectors/:id/scopes`                                  | `connectors/connectors.routes.ts`       |
+| PUT    | `/v1/connectors/:id/scopes`                                  | `connectors/connectors.routes.ts`       |
+| POST   | `/v1/connectors/:id/sync`                                    | `connectors/connectors.routes.ts`       |
+| POST   | `/v1/connectors/:id/import`                                  | `connectors/connectors.routes.ts`       |
+| POST   | `/v1/connectors/google-drive/authorize`                      | `connectors/connectors.routes.ts`       |
+| POST   | `/v1/flags`                                                  | `platform/knowledge.routes.ts`          |
+| GET    | `/v1/evidence/:id`                                           | `context/evidence.routes.ts`            |
+| GET    | `/v1/notifications`                                          | `platform/companion.routes.ts`          |
+| POST   | `/v1/notifications/read-all`                                 | `platform/companion.routes.ts`          |
+| PATCH  | `/v1/notifications/:id/read`                                 | `platform/companion.routes.ts`          |
+| GET    | `/v1/notifications/preferences`                              | `platform/companion.routes.ts`          |
+| PATCH  | `/v1/notifications/preferences`                              | `platform/companion.routes.ts`          |
+| GET    | `/v1/org/departments`                                        | `workspace/workspace.routes.ts`         |
+| POST   | `/v1/org/departments`                                        | `workspace/workspace.routes.ts`         |
+| DELETE | `/v1/org/departments/:id`                                    | `workspace/workspace.routes.ts`         |
+| PATCH  | `/v1/org/departments/:id`                                    | `workspace/workspace.routes.ts`         |
+| GET    | `/v1/org/teams`                                              | `workspace/workspace.routes.ts`         |
+| POST   | `/v1/org/teams`                                              | `workspace/workspace.routes.ts`         |
+| DELETE | `/v1/org/teams/:id`                                          | `workspace/workspace.routes.ts`         |
+| PATCH  | `/v1/org/teams/:id`                                          | `workspace/workspace.routes.ts`         |
+| GET    | `/v1/projects`                                               | `projects/projects.routes.ts`           |
+| POST   | `/v1/projects`                                               | `projects/projects.routes.ts`           |
+| DELETE | `/v1/projects/:projectId`                                    | `projects/projects.routes.ts`           |
+| GET    | `/v1/projects/:projectId`                                    | `projects/projects.routes.ts`           |
+| PATCH  | `/v1/projects/:projectId`                                    | `projects/projects.routes.ts`           |
+| POST   | `/v1/projects/:projectId/ask`                                | `ask/ask.routes.ts`                     |
+| GET    | `/v1/projects/:projectId/context-items`                      | `context/context.routes.ts`             |
+| PATCH  | `/v1/projects/:projectId/context-items/:itemId/verification` | `context/context.routes.ts`             |
+| POST   | `/v1/projects/:projectId/feedback`                           | `feedback/feedback.routes.ts`           |
+| GET    | `/v1/projects/:projectId/hub`                                | `hub/hub.routes.ts`                     |
+| POST   | `/v1/projects/:projectId/hub/refresh`                        | `hub/hub.routes.ts`                     |
+| GET    | `/v1/projects/:projectId/jobs`                               | `jobs/jobs.routes.ts`                   |
+| POST   | `/v1/projects/:projectId/jobs/:jobId/retry`                  | `jobs/jobs.routes.ts`                   |
+| GET    | `/v1/projects/:projectId/questions`                          | `ask/ask.routes.ts`                     |
+| GET    | `/v1/projects/:projectId/sources`                            | `sources/sources.routes.ts`             |
+| POST   | `/v1/projects/:projectId/sources`                            | `sources/sources.routes.ts`             |
+| DELETE | `/v1/projects/:projectId/sources/:sourceId`                  | `sources/sources.routes.ts`             |
+| GET    | `/v1/projects/:projectId/sources/:sourceId`                  | `sources/sources.routes.ts`             |
+| POST   | `/v1/projects/:projectId/sources/:sourceId/reprocess`        | `sources/sources.routes.ts`             |
+| GET    | `/v1/people/:id`                                             | `platform/knowledge.routes.ts`          |
+| GET    | `/v1/users`                                                  | `identity/identity.routes.ts`           |
+| PATCH  | `/v1/users/:id`                                              | `identity/identity.routes.ts`           |
+| POST   | `/v1/users/invite`                                           | `identity/identity.routes.ts`           |
+| GET    | `/v1/users/me`                                               | `identity/identity.routes.ts`           |
+| PATCH  | `/v1/users/me`                                               | `identity/identity.routes.ts`           |
+| GET    | `/v1/workspaces/current`                                     | `identity/identity.routes.ts`           |
+| GET    | `/v1/workspaces/current/setup`                               | `workspace/workspace.routes.ts`         |
+| PATCH  | `/v1/workspaces/current/setup`                               | `workspace/workspace.routes.ts`         |
 
-## Appendix C. Live API routes the web app does not call yet (56)
+## Appendix C. Live API routes the web app does not call yet (55)
 
 Many hold data the mocked endpoints will be built from (the "Reuse" lines in section 7).
 
@@ -1520,7 +1536,6 @@ Many hold data the mocked endpoints will be built from (the "Reuse" lines in sec
 | GET    | `/v1/companion/context`                                                | `platform/companion.routes.ts`    |
 | POST   | `/v1/companion/interactions`                                           | `platform/companion.routes.ts`    |
 | POST   | `/v1/companion/stuck-help`                                             | `platform/companion.routes.ts`    |
-| DELETE | `/v1/connectors/:id`                                                   | `connectors/connectors.routes.ts` |
 | GET    | `/v1/connectors/google-drive/callback`                                 | `connectors/connectors.routes.ts` |
 | POST   | `/v1/corrections/:id/verify`                                           | `platform/knowledge.routes.ts`    |
 | PATCH  | `/v1/flags/:id`                                                        | `platform/knowledge.routes.ts`    |

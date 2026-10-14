@@ -11,14 +11,60 @@ import {
   authorizeGoogleDrive,
   importConnectorFile,
   listConnectorFiles,
+  listConnectorScopes,
   listConnectors,
+  requestConnectorSync,
+  setConnectorScopes,
+  type ScopeSelectionInput,
 } from "./connectors.api";
 
 export const connectorKeys = {
   all: () => [...workspaceKeys.all, "connectors"] as const,
   files: (connectionId: string, folderId: string | undefined) =>
     [...connectorKeys.all(), connectionId, "files", folderId ?? "root"] as const,
+  scopes: (connectionId: string) => [...connectorKeys.all(), connectionId, "scopes"] as const,
 };
+
+/** Selectable Drive scopes with their selections; polls while a scope is still backfilling. */
+export function connectorScopesQuery(connectionId: string) {
+  return queryOptions({
+    queryKey: connectorKeys.scopes(connectionId),
+    queryFn: ({ signal }) => listConnectorScopes(connectionId, signal),
+    refetchInterval: (query) =>
+      query.state.data?.items.some((option) =>
+        option.selections.some((scope) => scope.status === "backfilling"),
+      )
+        ? 5_000
+        : false,
+  });
+}
+
+/** Replace the scopes feeding a project; the connection's health and the project refresh. */
+export function useSetConnectorScopes(connectionId: string, projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (scopes: ScopeSelectionInput[]) =>
+      setConnectorScopes(connectionId, projectId, scopes),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: connectorKeys.all() }),
+        queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) }),
+      ]),
+  });
+}
+
+/** Queue a sync; new sources show up in the project as the worker imports them. */
+export function useRequestConnectorSync(connectionId: string, projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (scopeId?: string) => requestConnectorSync(connectionId, scopeId),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: connectorKeys.all() }),
+        queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) }),
+      ]),
+  });
+}
 
 /** One Drive folder (or the root), paged by Google's page tokens. */
 export function connectorFilesQuery(connectionId: string, folderId: string | undefined) {
@@ -36,8 +82,15 @@ export function connectorFilesQuery(connectionId: string, folderId: string | und
 export function useImportDriveFile(projectId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ connectionId, fileId }: { connectionId: string; fileId: string }) =>
-      importConnectorFile(connectionId, { projectId, fileId } satisfies DriveImportInput),
+    mutationFn: ({
+      connectionId,
+      fileId,
+      visibility,
+    }: {
+      connectionId: string;
+      fileId: string;
+      visibility: DriveImportInput["visibility"];
+    }) => importConnectorFile(connectionId, { projectId, fileId, visibility }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) }),
   });
 }

@@ -7,7 +7,7 @@ import {
 import { apiRequest } from "@/lib/api-client";
 
 /**
- * Saved knowledge. Not served yet; in development the mock layer answers (src/mocks/saved.ts).
+ * Saved knowledge: the person's own bookmarks, served by the API (platform/saved.routes.ts).
  * Contract: packages/shared/src/schemas/saved.ts.
  */
 export const SAVED_ENDPOINTS = {

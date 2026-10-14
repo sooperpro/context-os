@@ -65,9 +65,9 @@ import { useViewer } from "@/features/workspace/hooks/use-viewer";
 /*
  * Personal settings (prototype `#settings`): profile name and time zone, notification channels and
  * quiet hours, theme and reduced motion (this device), Context Bot preferences, sign-in and
- * sessions from the identity provider, connected apps and a copy of your data. The last three and
- * the Context Bot preferences are mocked until the API serves them. Settings only affect the person
- * changing them.
+ * sessions from the identity provider, connected apps and a copy of your data. Connected apps use
+ * the live connector API; Context Bot preferences and personal data export remain preview-backed.
+ * Settings only affect the person changing them.
  */
 
 const TABS = [

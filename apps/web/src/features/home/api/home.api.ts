@@ -50,6 +50,7 @@ export const HOME_ENDPOINTS = {
     schema: OverdueMilestoneListSchema,
   },
   templates: { path: "/v1/people-ops/templates", schema: OnboardingTemplateListSchema },
+  /** Live (platform/admin-overview.routes.ts), as are `syncRuns` and `ai`. */
   security: { path: "/v1/admin/security", schema: SecurityOverviewSchema },
   syncRuns: { path: "/v1/admin/sync-runs", schema: SyncRunListSchema },
   ai: { path: "/v1/admin/ai", schema: AiOverviewSchema },
