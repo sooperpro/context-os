@@ -73,7 +73,7 @@ minutes (for example 120 attempts at 1 s).
 **Why.** The reference has a People Ops role with its own Home (onboarding across teams, probation
 reviews, starters, templates). The API's roles are owner, admin, manager, member and guest.
 
-**Today.** The People Ops Home is built and reachable only through the development "Preview Home as"
+**Today.** The People Ops Home is built and reachable only through the development "Preview as"
 menu (`/?view=people_ops`). No real account sees it.
 
 **Change.** Either add a `people_ops` system role, or a permission (an `assignment` type such as

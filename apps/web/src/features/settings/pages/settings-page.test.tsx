@@ -5,7 +5,9 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { SettingsPage } from "@/features/settings/pages/settings-page";
 import { jsonResponse, renderWithProviders } from "@/test/utils";
 
-vi.mock("@clerk/react", () => ({ useClerk: () => ({ openUserProfile: vi.fn(), signOut: vi.fn() }) }));
+vi.mock("@clerk/react", () => ({
+  useClerk: () => ({ openUserProfile: vi.fn(), signOut: vi.fn() }),
+}));
 
 function mockApi(role = "member") {
   const calls: Array<{ url: string; method: string; body: unknown }> = [];
@@ -15,15 +17,33 @@ function mockApi(role = "member") {
     const method = init?.method ?? "GET";
     const body: unknown = typeof init?.body === "string" ? JSON.parse(init.body) : undefined;
     calls.push({ url, method, body });
+    if (url.endsWith("/v1/workspaces/current"))
+      return Promise.resolve(
+        jsonResponse({ id: "w1", name: "Tessellate", role, authentication: "development" }),
+      );
     if (url.endsWith("/v1/users/me") && method === "GET")
-      return Promise.resolve(jsonResponse({ id: "u1", name: "Maya Okafor", email: "maya@example.test", role, workspaceId: "w", preferences: { timezone: "Europe/London" } }));
-    if (url.endsWith("/v1/users/me")) return Promise.resolve(jsonResponse({ id: "u1", name: "Maya O.", email: null, preferences: {} }));
+      return Promise.resolve(
+        jsonResponse({
+          id: "u1",
+          name: "Maya Okafor",
+          email: "maya@example.test",
+          role,
+          workspaceId: "w",
+          preferences: { timezone: "Europe/London" },
+        }),
+      );
+    if (url.endsWith("/v1/users/me"))
+      return Promise.resolve(
+        jsonResponse({ id: "u1", name: "Maya O.", email: null, preferences: {} }),
+      );
     if (url.endsWith("/v1/notifications/preferences") && method === "PATCH") {
       prefs = body as typeof prefs;
       return Promise.resolve(jsonResponse(prefs));
     }
     if (url.endsWith("/v1/notifications/preferences")) return Promise.resolve(jsonResponse(prefs));
-    return Promise.resolve(jsonResponse({ error: { code: "NOT_FOUND", message: url } }, { status: 404 }));
+    return Promise.resolve(
+      jsonResponse({ error: { code: "NOT_FOUND", message: url } }, { status: 404 }),
+    );
   });
   return calls;
 }
@@ -49,7 +69,9 @@ describe("SettingsPage", () => {
     await user.type(name, "Maya O.");
     await user.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() =>
-      expect(calls.find((call) => call.method === "PATCH" && call.url.endsWith("/v1/users/me"))?.body).toEqual({
+      expect(
+        calls.find((call) => call.method === "PATCH" && call.url.endsWith("/v1/users/me"))?.body,
+      ).toEqual({
         name: "Maya O.",
         timezone: "Europe/London",
       }),

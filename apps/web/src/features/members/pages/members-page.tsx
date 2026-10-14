@@ -6,23 +6,20 @@ import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  PersonAddIcon,
-  WarningIcon,
-} from "@/components/ui/icons";
+import { PersonAddIcon, WarningIcon } from "@/components/ui/icons";
 import { membersQuery } from "@/features/members/api/members.queries";
 import { InviteMemberDialog } from "@/features/members/components/invite-member-dialog";
 import { MemberList } from "@/features/members/components/member-list";
 import { OrgStructure } from "@/features/members/components/org-structure";
-import { currentWorkspaceQuery } from "@/features/workspace/api/workspace.queries";
+import { useViewer } from "@/features/workspace/hooks/use-viewer";
 import { ApiClientError } from "@/lib/api-client";
 
 /** The People directory and the org structure. Guests cannot read the directory (API 403). */
 export function MembersPage() {
-  const workspace = useQuery(currentWorkspaceQuery());
+  const viewer = useViewer();
   const members = useQuery(membersQuery());
   const [inviteOpen, setInviteOpen] = useState(false);
-  const viewerRole = workspace.data?.role;
+  const viewerRole = viewer.role;
   const canManage = viewerRole === "owner" || viewerRole === "admin";
 
   return (
@@ -50,7 +47,10 @@ export function MembersPage() {
           {members.isPending ? (
             <div className="space-y-1" aria-busy="true">
               {Array.from({ length: 4 }, (_, i) => (
-                <Skeleton key={i} className="h-18 rounded-xs first:rounded-t-xl last:rounded-b-xl" />
+                <Skeleton
+                  key={i}
+                  className="h-18 rounded-xs first:rounded-t-xl last:rounded-b-xl"
+                />
               ))}
             </div>
           ) : members.isError ? (

@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Outlet } from "react-router";
 import {
@@ -11,7 +10,7 @@ import { BottomNav } from "@/components/layout/bottom-nav";
 import { navItemsFor } from "@/components/layout/navigation";
 import { Rail } from "@/components/layout/rail";
 import { GLOBAL_SEARCH_ID, TopBar } from "@/components/layout/top-bar";
-import { currentWorkspaceQuery } from "@/features/workspace/api/workspace.queries";
+import { useViewer } from "@/features/workspace/hooks/use-viewer";
 import { useMediaQuery, WINDOW } from "@/hooks/use-media-query";
 
 const RAIL_STORAGE_KEY = "contextos-rail";
@@ -33,11 +32,11 @@ function isTypingTarget(target: EventTarget | null): boolean {
 /**
  * The app shell: rail (or bottom bar), top bar, content pane and the Context Bot pane.
  * Layout follows the M3 window size classes; see assistant-pane.tsx and rail.tsx.
- * Navigation items come from navigation.ts, gated by the backend role of the current workspace.
+ * Navigation items come from navigation.ts, gated by the viewer's role (see useViewer).
  */
 export function AppShell({ assistant }: { assistant: ReactNode }) {
-  const workspace = useQuery(currentWorkspaceQuery());
-  const items = navItemsFor(workspace.data?.role);
+  const viewer = useViewer();
+  const items = navItemsFor(viewer.role);
 
   const expanded = useMediaQuery(WINDOW.expanded);
   const large = useMediaQuery(WINDOW.large);
@@ -120,7 +119,12 @@ export function AppShell({ assistant }: { assistant: ReactNode }) {
         Skip to content
       </a>
       <div className="flex min-h-svh bg-shell text-foreground">
-        <Rail items={items} collapsed={collapsed} canToggle={!forcedCollapsed} onToggle={toggleRail} />
+        <Rail
+          items={items}
+          collapsed={collapsed}
+          canToggle={!forcedCollapsed}
+          onToggle={toggleRail}
+        />
         <div className="flex min-w-0 flex-1 flex-col">
           <TopBar />
           <div className="flex flex-1 items-start gap-3 pr-4 pb-4 pl-3 medium:pl-1">

@@ -1,32 +1,38 @@
-import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { useSearchParams } from "react-router";
 import { Loader } from "@/components/ui/loader";
 import { AdminHome } from "@/features/home/components/admin-home";
 import { EmployeeHome } from "@/features/home/components/employee-home";
 import { ManagerHome } from "@/features/home/components/manager-home";
 import { PeopleOpsHome } from "@/features/home/components/people-ops-home";
-import { isHomeView, viewForRole } from "@/features/home/views";
-import { currentWorkspaceQuery } from "@/features/workspace/api/workspace.queries";
+import { useViewer } from "@/features/workspace/hooks/use-viewer";
+import { isPersona, setPreviewPersona } from "@/features/workspace/viewer";
 
 /**
- * Home: the dashboard for the caller's role. In development, `?view=` previews another role's Home
- * (the prototype's "View as"); production always follows the real role.
+ * Home: the dashboard for the viewer's persona (employee, manager, People Ops or admin). In
+ * development, `/?view=employee` starts the "Preview as" for that persona (the prototype's "View as");
+ * production always follows the real role.
  */
 export function HomePage() {
-  const workspace = useQuery(currentWorkspaceQuery());
+  const viewer = useViewer();
   const [params] = useSearchParams();
   const requested = params.get("view");
-  const preview = import.meta.env.DEV && isHomeView(requested) ? requested : null;
-  const view = preview ?? (workspace.data ? viewForRole(workspace.data.role) : null);
+  const linked = import.meta.env.DEV && isPersona(requested) ? requested : null;
 
-  if (!view) {
+  // A `?view=` link previews the whole app, not just this page, so the rail follows too.
+  useEffect(() => {
+    if (linked) setPreviewPersona(linked);
+  }, [linked]);
+
+  const persona = linked ?? viewer.persona;
+  if (!persona) {
     return (
       <div className="grid min-h-80 place-items-center">
         <Loader label="Loading your Home" />
       </div>
     );
   }
-  switch (view) {
+  switch (persona) {
     case "admin":
       return <AdminHome />;
     case "manager":

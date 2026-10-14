@@ -157,7 +157,10 @@ A pass over every built surface against the prototype's CSS and JS found three g
       People Ops (KPIs, probation reviews, team bars, starters, overdue milestones, templates) and the admin
       overview (live connectors with a reconnect banner, members and audit log; security, sync runs and AI
       answers as preview data). `/` opens Home; the rail shows "Home", or "Overview" for admins. In
-      development the View-as menu previews any role's Home with `?view=`. Controls whose screen does not
+      development the View-as menu's "Preview as" renders the whole app (rail, Home, role-gated
+      controls) as Employee, Manager, People Ops or Admin, from one account; `/?view=employee` starts
+      it too. Every role check reads `useViewer()`, never the workspace role directly. The API still
+      enforces the real role, so a preview checks layout and navigation, not permissions. Controls whose screen does not
       exist yet call `comingSoon()` instead of linking to a missing page.
 
 Not built because nothing backs them yet: rail badges (no unread counts per area), the prototype's

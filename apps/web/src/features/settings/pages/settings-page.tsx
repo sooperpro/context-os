@@ -43,6 +43,7 @@ import {
 import { useTheme } from "@/hooks/use-theme";
 import { initialsOf } from "@/lib/format";
 import { ROLE_LABEL } from "@/lib/labels";
+import { useViewer } from "@/features/workspace/hooks/use-viewer";
 
 /*
  * Personal settings (prototype `#settings`). Only what the API stores is offered, so every control
@@ -68,6 +69,7 @@ export function SettingsPage() {
   const requested = searchParams.get("tab");
   const tab: TabId = TABS.some((t) => t.id === requested) ? (requested as TabId) : "profile";
   const me = useQuery(meQuery());
+  const viewer = useViewer();
 
   return (
     <div>
@@ -96,7 +98,7 @@ export function SettingsPage() {
           {tab === "security" ? <SecurityTab /> : null}
         </div>
         <aside className="space-y-4">
-          {me.data?.role === "owner" || me.data?.role === "admin" ? (
+          {viewer.role === "owner" || viewer.role === "admin" ? (
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Workspace settings</CardTitle>

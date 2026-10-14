@@ -1,13 +1,14 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { Route, Routes } from "react-router";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AssistantContext,
   type AssistantContextValue,
 } from "@/components/layout/assistant-context";
 import { HomePage } from "@/features/home/pages/home-page";
+import { getPreviewPersona, setPreviewPersona } from "@/features/workspace/viewer";
 import { buildApiUrl } from "@/lib/api-client";
 import { mockServer, setupMockApi } from "@/test/msw";
 import { renderWithProviders } from "@/test/utils";
@@ -66,6 +67,7 @@ function renderHome(route = "/") {
 }
 
 describe("HomePage", () => {
+  afterEach(() => setPreviewPersona(null));
   it("shows a member the employee Home, with preview data marked", async () => {
     live({ role: "member" });
     const assistant = renderHome();
@@ -170,9 +172,23 @@ describe("HomePage", () => {
     ).toBeInTheDocument();
   });
 
-  it("previews another role's Home with ?view= in development", async () => {
+  it("shows an owner the employee Home while previewing as Employee", async () => {
+    live({ role: "owner" });
+    setPreviewPersona("employee");
+    renderHome();
+
+    expect(
+      await screen.findByRole("heading", { name: "How Tessellate makes money" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { level: 1, name: "Workspace overview" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("starts a preview from a ?view= link in development", async () => {
     live({ role: "member" });
     renderHome("/?view=people_ops");
+    await waitFor(() => expect(getPreviewPersona()).toBe("people_ops"));
 
     expect(
       await screen.findByRole("region", { name: "Probation reviews · next 30 days" }),
