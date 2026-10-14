@@ -77,7 +77,7 @@ jobs:
           echo "$!" > "$RUNNER_TEMP/iap-tunnel.pid"
 
           for attempt in $(seq 1 30); do
-            if ssh -vvv -o ConnectTimeout=3 dev-vm true >"$RUNNER_TEMP/ssh-probe.log" 2>&1; then
+            ssh-keyscan -T 5 -p "$IAP_LOCAL_PORT" localhost > "$RUNNER_TEMP/known_hosts.tmp" 2>/dev/null || true; actual_fingerprint="$(ssh-keygen -lf "$RUNNER_TEMP/known_hosts.tmp" 2>/dev/null | awk 'NR==1 {print $2}')"; if [[ -n "$actual_fingerprint" && "$actual_fingerprint" != '${{ vars.DEV_VM_KNOWN_HOSTS }}' ]]; then echo "Unexpected VM SSH host key fingerprint: $actual_fingerprint"; exit 1; fi; if [[ "$actual_fingerprint" == '${{ vars.DEV_VM_KNOWN_HOSTS }}' ]]; then install -m 600 "$RUNNER_TEMP/known_hosts.tmp" "$HOME/.ssh/known_hosts"; if ssh dev-vm true >/dev/null 2>&1; then exit 0; fi; fi
               exit 0
             fi
             sleep 2
