@@ -49,18 +49,10 @@ import { meQuery } from "@/features/account/api/account.queries";
 import { HOME_ENDPOINTS as E } from "@/features/home/api/home.api";
 import { homeQuery } from "@/features/home/api/home.queries";
 import { comingSoon } from "@/lib/coming-soon";
-import {
-  daysFromToday,
-  formatCount,
-  formatDayDate,
-  formatLongDate,
-  formatPercent,
-  formatShortDate,
-  greetingFor,
-} from "@/lib/format";
+import { daysFromToday, firstName, formatCount, formatDayDate, formatLongDate, formatPercent, formatShortDate, greetingFor } from "@/lib/format";
 import { DotList } from "@/components/ui/dot-list";
 import { DashboardGrid } from "./dashboard";
-import { firstName, span } from "./dashboard-meta";
+import { span } from "./dashboard-meta";
 
 /** People Operations' Home (prototype `hrHome`): onboarding across teams, probation reviews, starters. */
 export function PeopleOpsHome() {

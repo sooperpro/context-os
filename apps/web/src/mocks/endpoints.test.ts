@@ -10,6 +10,7 @@ const EXAMPLE: Record<string, string> = {
   "/v1/me/modules/:id": "/v1/me/modules/m4",
   "/v1/me/lessons/:id": "/v1/me/lessons/m4-l3",
   "/v1/me/checks/:id": "/v1/me/checks/m4-check",
+  "/v1/people/:id": "/v1/people/p-sana",
 };
 
 describe("mock layer", () => {

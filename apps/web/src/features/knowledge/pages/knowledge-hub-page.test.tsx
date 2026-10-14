@@ -192,9 +192,9 @@ describe("KnowledgeHubPage", () => {
     ]);
     expect(await screen.findByRole("link", { name: /Teams & people/ })).toHaveAttribute(
       "href",
-      "/members",
+      "/people?view=teams",
     );
-    expect(screen.getByRole("link", { name: "Platform" })).toHaveAttribute("href", "/members");
+    expect(screen.getByRole("link", { name: "Platform" })).toHaveAttribute("href", "/people?view=teams");
 
     await user.click(screen.getByRole("button", { name: "Products" }));
     expect(await screen.findByRole("link", { name: /Tessellate Track/ })).toBeInTheDocument();

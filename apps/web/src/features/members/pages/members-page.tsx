@@ -25,7 +25,7 @@ export function MembersPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="People"
+        title="Members & roles"
         description="Who is in this workspace, what they can do, and how teams are organized."
         actions={
           canManage ? (

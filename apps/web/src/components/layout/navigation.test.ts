@@ -26,7 +26,7 @@ describe("navigation config", () => {
     ) => navItemsFor(role, persona).map((item) => item.id);
     expect(rail("member", "employee")).toEqual(["home", "roadmap", "knowledge", "people", "contributions"]);
     expect(rail("manager", "manager")).toEqual(["home", "knowledge", "people"]);
-    expect(rail("owner", "admin")).toEqual(["overview", "knowledge", "people", "setup"]);
+    expect(rail("owner", "admin")).toEqual(["overview", "members", "knowledge", "setup"]);
   });
 
   it("never configures more bottom-bar destinations than M3 allows for everyone", () => {

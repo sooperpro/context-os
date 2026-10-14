@@ -136,7 +136,8 @@ function PersonAvatar({
   person: { id?: string; name: string };
 }) {
   return (
-    <Avatar tone={avatarToneFor(person.id ?? person.name)} {...props}>
+    // Decorative: the person's name is always shown next to it.
+    <Avatar tone={avatarToneFor(person.id ?? person.name)} aria-hidden {...props}>
       <AvatarFallback>
         {initialsOf(person.name) || <PersonIcon className="size-1/2" />}
       </AvatarFallback>

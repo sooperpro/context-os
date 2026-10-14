@@ -132,3 +132,31 @@ export function greetingFor(now = new Date()): string {
   const hour = now.getHours();
   return hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 }
+
+/** "GMT+1" for an IANA zone such as "Europe/London", at the current date. */
+export function formatTimeZone(timeZone: string, now = new Date()): string {
+  try {
+    const part = new Intl.DateTimeFormat("en-GB", { timeZone, timeZoneName: "shortOffset" })
+      .formatToParts(now)
+      .find((entry) => entry.type === "timeZoneName");
+    return part?.value ?? timeZone;
+  } catch {
+    return timeZone;
+  }
+}
+
+/** "Starts Oct 19", "Joined Oct 5, 2026" (recent) or "Joined Feb 2022". */
+export function formatJoined(joinedOn: string, now = new Date()): string {
+  const days = daysFromToday(joinedOn, now);
+  if (days > 0) return `Starts ${formatShortDate(joinedOn)}`;
+  const date = parseDateOnly(joinedOn);
+  return -days <= 120
+    ? `Joined ${date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`
+    : `Joined ${date.toLocaleDateString(undefined, { month: "short", year: "numeric" })}`;
+}
+
+/** First name, for greetings and "What does Sana work on?". */
+export function firstName(name: string | undefined): string {
+  return name?.trim().split(/\s+/)[0] ?? "";
+}
+

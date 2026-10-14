@@ -16,6 +16,8 @@ const metaChipVariants = cva(
         translucent: "bg-surface-container-lowest/55",
         /** On panes and cards, e.g. Context Bot's context row (`.ctx-chip`). */
         filled: "bg-surface-container-high pl-2 text-on-surface-variant",
+        /** Skills and tags (`.skill`): outlined on the pane. */
+        outline: "h-6 bg-pane text-on-surface-variant shadow-[inset_0_0_0_1px_var(--color-outline-variant)]",
       },
     },
     defaultVariants: { tone: "translucent" },

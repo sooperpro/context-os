@@ -31,3 +31,15 @@ export const KnowledgeOriginSchema = z.enum([
   "loom",
 ]);
 export type KnowledgeOrigin = z.infer<typeof KnowledgeOriginSchema>;
+
+/** The Knowledge Hub collection a page belongs to (the hub's filters, minus "All"). */
+export const KnowledgeSectionSchema = z.enum([
+  "company",
+  "product",
+  "project",
+  "system",
+  "process",
+  "decision",
+  "glossary",
+]);
+export type KnowledgeSection = z.infer<typeof KnowledgeSectionSchema>;

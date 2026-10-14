@@ -24,10 +24,6 @@ export const ONBOARDING_PROGRESS_TONE: Record<OnboardingStatus, "primary" | "war
   needs_setup: "primary",
 };
 
-/** First name for greetings. */
-export function firstName(name: string | undefined): string {
-  return name?.trim().split(/\s+/)[0] ?? "";
-}
 
 /** "Oct 12–16", or "Oct 30 – Nov 3" across months. */
 export function formatDateRange(from: Date, to: Date): string {

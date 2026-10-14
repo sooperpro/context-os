@@ -9,6 +9,7 @@ export * from "./schemas/home.js";
 export * from "./schemas/hub.js";
 export * from "./schemas/job.js";
 export * from "./schemas/learning.js";
+export * from "./schemas/people.js";
 export * from "./schemas/project.js";
 export * from "./schemas/refs.js";
 export * from "./schemas/source.js";

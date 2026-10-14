@@ -322,8 +322,8 @@ export function KnowledgeHubPage() {
                       : members.data.map((member) => ({ id: member.id, label: member.name }))
                     )
                       .slice(0, 3)
-                      .map((entry) => ({ ...entry, to: "/members" }))}
-                    to="/members"
+                      .map((entry) => ({ ...entry, to: "/people?view=teams" }))}
+                    to="/people?view=teams"
                     emptyNote="No teams yet."
                   />
                 ) : null}

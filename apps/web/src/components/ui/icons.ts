@@ -122,6 +122,14 @@ import LocalShippingIcon from "@material-symbols/svg-400/rounded/local_shipping.
 import ConversionPathIcon from "@material-symbols/svg-400/rounded/conversion_path.svg?react";
 import MenuBookIcon from "@material-symbols/svg-400/rounded/menu_book.svg?react";
 import VisibilityIcon from "@material-symbols/svg-400/rounded/visibility.svg?react";
+import ManageAccountsFilledIcon from "@material-symbols/svg-400/rounded/manage_accounts-fill.svg?react";
+import PersonSearchIcon from "@material-symbols/svg-400/rounded/person_search.svg?react";
+import CalendarMonthIcon from "@material-symbols/svg-400/rounded/calendar_month.svg?react";
+import LocationOnIcon from "@material-symbols/svg-400/rounded/location_on.svg?react";
+import StarIcon from "@material-symbols/svg-400/rounded/star.svg?react";
+import Diversity3Icon from "@material-symbols/svg-400/rounded/diversity_3.svg?react";
+import MonitoringIcon from "@material-symbols/svg-400/rounded/monitoring.svg?react";
+import DnsIcon from "@material-symbols/svg-400/rounded/dns.svg?react";
 import SchoolIcon from "@material-symbols/svg-400/rounded/school.svg?react";
 import PlayArrowIcon from "@material-symbols/svg-400/rounded/play_arrow.svg?react";
 import RouteFilledIcon from "@material-symbols/svg-400/rounded/route-fill.svg?react";
@@ -190,6 +198,14 @@ export type MaterialIcon = ComponentType<SVGProps<SVGSVGElement>>;
 
 export {
   AddIcon,
+  ManageAccountsFilledIcon,
+  PersonSearchIcon,
+  CalendarMonthIcon,
+  LocationOnIcon,
+  StarIcon,
+  Diversity3Icon,
+  MonitoringIcon,
+  DnsIcon,
   SchoolIcon,
   PlayArrowIcon,
   RouteFilledIcon,

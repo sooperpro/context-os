@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { IsoDateTimeSchema } from "./common.js";
-import { KnowledgeOriginSchema, PersonRefSchema } from "./refs.js";
+import { KnowledgeOriginSchema, KnowledgeSectionSchema, PersonRefSchema } from "./refs.js";
 
 /*
  * Contracts for contributions: knowledge people write or fix, reviewed by an owner, then published
@@ -30,18 +30,6 @@ export const ContributionStatusSchema = z.enum([
   "rejected",
 ]);
 export type ContributionStatus = z.infer<typeof ContributionStatusSchema>;
-
-/** The Knowledge Hub collection a page belongs to (the hub's filters, minus "All"). */
-export const KnowledgeSectionSchema = z.enum([
-  "company",
-  "product",
-  "project",
-  "system",
-  "process",
-  "decision",
-  "glossary",
-]);
-export type KnowledgeSection = z.infer<typeof KnowledgeSectionSchema>;
 
 export const ContributionVisibilitySchema = z.enum(["workspace", "team"]);
 export type ContributionVisibility = z.infer<typeof ContributionVisibilitySchema>;

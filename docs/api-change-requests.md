@@ -9,7 +9,7 @@ Every reference screen, the endpoints it reads, and whether they exist. **Live**
 it. **Mocked** means the screen is built and the web app answers the endpoint with schema-checked
 preview data in development (`apps/web/src/mocks`), marked "Preview data" on screen. **Not built**
 means the screen does not exist yet. Contracts for mocked endpoints are in
-`packages/shared/src/schemas/` (`home.ts`, `contributions.ts`, `learning.ts`); implement exactly that
+`packages/shared/src/schemas/` (`home.ts`, `contributions.ts`, `learning.ts`, `people.ts`); implement exactly that
 shape, then delete the mock.
 
 | Screen                                                      | Endpoints                                                                                                                                                                                                      | Status                                                                                                            |
@@ -21,9 +21,9 @@ shape, then delete the mock.
 | Home · admin                                                | `GET /v1/admin/security`, `/v1/admin/sync-runs`, `/v1/admin/ai`                                                                                                                                                | Mocked                                                                                                            |
 | Knowledge Hub                                               | `GET /v1/projects`, `/v1/projects/:id/context-items`, `/v1/users`, `/v1/org/teams`                                                                                                                             | Live. Project category missing, see 1                                                                             |
 | Project hub, Ask, Sources                                   | project, hub, context, ask and source routes                                                                                                                                                                   | Live                                                                                                              |
-| People, Settings, Workspace setup                           | identity, workspace, notification and connector routes                                                                                                                                                         | Live                                                                                                              |
+| Members & roles (admin), Settings, Workspace setup          | identity, workspace, notification and connector routes                                                                                                                                                         | Live                                                                                                              |
 | My roadmap, module, lesson, knowledge check                 | `GET /v1/me/roadmap`, `/v1/me/modules/:id`, `/v1/me/lessons/:id`, `/v1/me/checks/:id`; `POST /v1/me/lessons/:id/complete`, `/v1/me/checks/:id/attempts`, `/v1/me/learning-ratings`, `/v1/me/learning-requests` | Mocked. Contracts in `packages/shared/src/schemas/learning.ts`; views over the existing `/learning/*` data, see 7 |
-| Person profile, directory                                   | `/v1/users`, `/v1/users/:id/organization`                                                                                                                                                                      | Not built                                                                                                         |
+| People directory, person profile                            | `GET /v1/people?q=&filter=`, `/v1/people/experts`, `/v1/people/teams`, `/v1/people/:id`                                                                                                                        | Mocked. Contracts in `packages/shared/src/schemas/people.ts`; `GET /v1/users` has names and roles only, see 8     |
 | Contributions, New contribution                             | `GET /v1/me/contributions`, `/v1/me/knowledge-gaps`, `/v1/sources/search`, `/v1/contributions/reviewer`; `POST /v1/contributions`, `/v1/contributions/draft`, `/v1/contributions/:id/resubmit`                 | Mocked. Contracts in `packages/shared/src/schemas/contributions.ts`; only `POST /v1/flags` exists today           |
 | Team onboarding, member, check-in, review queue             | `/v1/probation/*`, `/v1/flags/queue`                                                                                                                                                                           | Not built                                                                                                         |
 | Onboarding, probation reviews, templates (HR)               | `/v1/probation/plans`, `/v1/learning/paths`                                                                                                                                                                    | Not built                                                                                                         |
@@ -137,3 +137,23 @@ and its path:
   roadmap change to the manager).
 - `GET /v1/me/next-up` and `GET /v1/me/onboarding` (Home) are summaries of the same data.
 - `GET /v1/me/tasks` items carry a `target` (lesson, check or module) so Home's buttons open them.
+
+## 8. People directory
+
+**Why.** The reference's People page is a directory for everyone: title, team, location and time
+zone, skills, who is new or an expert, badges relative to the viewer (your manager, your buddy), what
+each person owns in the Knowledge Hub, and the reporting line. `GET /v1/users` returns name, role and
+status, and is admin territory ("Members & roles").
+
+**Today.** People and profiles are built on mocks. Admins keep the live "Members & roles" page.
+
+**Change.** Serve the contracts in `packages/shared/src/schemas/people.ts`:
+
+- `GET /v1/people?q=&filter=all|team|experts|new`: search across name, title, team and skills, with
+  `relations` to the caller and workspace totals. Readable by members and managers; guests get 403.
+- `GET /v1/people/experts`: topics with the person to ask, from Knowledge Hub ownership.
+- `GET /v1/people/teams`: the caller's team as an org chart, then every team with its lead and size.
+- `GET /v1/people/:id`: profile with bio, manager, reports and owned Knowledge Hub items. Include
+  `onboarding` only when the caller is their manager or HR.
+- Profile fields (title, location, time zone, skills, bio) need a place to live: the user record, or a
+  profile table synced from the identity provider.

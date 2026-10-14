@@ -6,6 +6,8 @@ import {
   EditNoteIcon,
   HubFilledIcon,
   HubIcon,
+  ManageAccountsFilledIcon,
+  ManageAccountsIcon,
   RouteFilledIcon,
   RouteIcon,
   GroupFilledIcon,
@@ -75,6 +77,16 @@ export const NAV_ITEMS: readonly NavItem[] = [
     to: "/roadmap",
     personas: ["employee"],
   },
+  {
+    id: "members",
+    label: "Members & roles",
+    short: "Members",
+    icon: ManageAccountsIcon,
+    activeIcon: ManageAccountsFilledIcon,
+    to: "/members",
+    roles: ["owner", "admin"],
+    personas: ["admin"],
+  },
   // The prototype has no Projects item: projects are a collection inside the Knowledge Hub.
   {
     id: "knowledge",
@@ -90,8 +102,10 @@ export const NAV_ITEMS: readonly NavItem[] = [
     label: "People",
     icon: GroupIcon,
     activeIcon: GroupFilledIcon,
-    to: "/members",
+    to: "/people",
+    // The directory; guests cannot read it (API 403). Admins manage people from "Members & roles".
     roles: ["owner", "admin", "manager", "member"],
+    personas: ["employee", "manager", "people_ops"],
   },
   {
     id: "contributions",

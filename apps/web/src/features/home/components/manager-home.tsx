@@ -46,19 +46,10 @@ import { meQuery } from "@/features/account/api/account.queries";
 import { HOME_ENDPOINTS as E } from "@/features/home/api/home.api";
 import { homeQuery } from "@/features/home/api/home.queries";
 import { comingSoon } from "@/lib/coming-soon";
-import {
-  daysFromToday,
-  formatCount,
-  formatLongDate,
-  formatPercent,
-  formatShortDate,
-  formatTime,
-  formatWeekday,
-  greetingFor,
-} from "@/lib/format";
+import { daysFromToday, firstName, formatCount, formatLongDate, formatPercent, formatShortDate, formatTime, formatWeekday, greetingFor } from "@/lib/format";
 import { DotList } from "@/components/ui/dot-list";
 import { DashboardGrid } from "./dashboard";
-import { ONBOARDING_PROGRESS_TONE, firstName, span } from "./dashboard-meta";
+import { ONBOARDING_PROGRESS_TONE, span } from "./dashboard-meta";
 
 /** The manager's Home (prototype `managerHome`): who needs attention, upcoming check-ins, the team's plan. */
 export function ManagerHome() {

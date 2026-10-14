@@ -78,6 +78,20 @@ const appChildren = [
     },
   },
   {
+    path: "people",
+    lazy: async () => {
+      const { PeoplePage } = await import("@/features/people/pages/people-page");
+      return { Component: PeoplePage };
+    },
+  },
+  {
+    path: "people/:personId",
+    lazy: async () => {
+      const { PersonPage } = await import("@/features/people/pages/person-page");
+      return { Component: PersonPage };
+    },
+  },
+  {
     path: "members",
     lazy: async () => {
       const { MembersPage } = await import("@/features/members/pages/members-page");

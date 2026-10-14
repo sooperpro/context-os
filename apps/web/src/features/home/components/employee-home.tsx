@@ -82,21 +82,9 @@ import { ROADMAP_PATH, learningPath } from "@/features/learning/learning-meta";
 import { homeQuery } from "@/features/home/api/home.queries";
 import { comingSoon } from "@/lib/coming-soon";
 import { CONTRIBUTION_KIND_LABEL, KNOWLEDGE_ORIGIN_LABEL } from "@/lib/labels";
-import {
-  daysFromToday,
-  formatCount,
-  formatDayDate,
-  formatDayDistance,
-  formatLongDate,
-  formatPercent,
-  formatRelativeTime,
-  formatShortDate,
-  formatWeekday,
-  greetingFor,
-  parseDateOnly,
-} from "@/lib/format";
+import { daysFromToday, firstName, formatCount, formatDayDate, formatDayDistance, formatLongDate, formatPercent, formatRelativeTime, formatShortDate, formatWeekday, greetingFor, parseDateOnly } from "@/lib/format";
 import { DotList } from "@/components/ui/dot-list";
-import { firstName, formatDateRange } from "./dashboard-meta";
+import { formatDateRange } from "./dashboard-meta";
 
 /** The employee's Home (prototype `employeeHome`): what to do next, how onboarding is going, who to ask. */
 export function EmployeeHome() {
@@ -759,7 +747,7 @@ function TeamActivityCard() {
       title={team ? `${team.name} team` : "Your team"}
       endpoint={E.teamActivity.path}
       status={query}
-      action={<ArrowLink to="/members" label="Open People" />}
+      action={<ArrowLink to="/people?view=teams" label="Open People" />}
     >
       {query.data?.items.length ? (
         <SegmentedList>
@@ -816,7 +804,7 @@ function MyPeopleCard() {
       title="Your people"
       endpoint={E.myPeople.path}
       status={query}
-      action={<ArrowLink to="/members" label="Open People" />}
+      action={<ArrowLink to="/people" label="Open People" />}
     >
       {query.data?.items.length ? (
         <SegmentedList>

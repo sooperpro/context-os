@@ -175,6 +175,11 @@ A pass over every built surface against the prototype's CSS and JS found three g
       milestones, practice questions) with "select text to ask Context Bot"; the graded check with its
       review and what passing changed. Request clarification and Request a roadmap change send to the
       owner and manager. Home's "View roadmap", "Resume module", milestones and task buttons open them.
+- [x] People directory and profiles, from the reference: search by name, role, team or skill; Everyone,
+      My team, Experts and New joiners filters; badges relative to you; a Teams view with your team's
+      org chart and every team; Ask an expert; profiles with what they own and their reporting line.
+      Employee, Manager and HR open People; Admin's rail has "Members & roles" (the live member
+      management page) instead, as in the reference. This completes the Employee view.
 - [x] The rail is gated by persona as well as role, so each "Prototype · view as" persona (Employee,
       Manager, HR, Admin) gets the reference's items as their screens ship.
 
