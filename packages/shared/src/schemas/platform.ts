@@ -311,6 +311,238 @@ export const PathInputSchema = z
   })
   .strict();
 export const VersionSchema = z.object({ version: z.number().int().positive() });
+
+/** `GET /workspaces/current`: the active workspace, the caller's role in it, and the auth mode. */
+export const CurrentWorkspaceSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  role: SystemRoleSchema,
+  authentication: z.enum(["development", "clerk"]),
+});
+export type CurrentWorkspace = z.infer<typeof CurrentWorkspaceSchema>;
+
+/* ---- Workspace setup wizard (`GET/PATCH /workspaces/current/setup`) ---------------------- */
+
+export const SetupStepSchema = z.enum([
+  "connect_source",
+  "select_scopes",
+  "create_project",
+  "invite_team",
+  "assign_new_hire",
+]);
+export type SetupStep = z.infer<typeof SetupStepSchema>;
+export const SETUP_STEPS = SetupStepSchema.options;
+
+export const SetupStepStatusSchema = z.enum(["pending", "completed", "skipped"]);
+export type SetupStepStatus = z.infer<typeof SetupStepStatusSchema>;
+
+export const SetupUpdateSchema = z
+  .object({
+    version: z.number().int().positive(),
+    step: SetupStepSchema,
+    status: SetupStepStatusSchema,
+  })
+  .strict();
+export type SetupUpdate = z.infer<typeof SetupUpdateSchema>;
+
+/** The persisted wizard record. `data.steps` holds only steps that were explicitly set. */
+export const SetupRecordSchema = z.object({
+  id: z.string(),
+  version: z.number().int().positive(),
+  status: z.enum(["in_progress", "completed"]),
+  data: z.object({
+    steps: z.partialRecord(SetupStepSchema, SetupStepStatusSchema).default({}),
+  }),
+});
+export type SetupRecord = z.infer<typeof SetupRecordSchema>;
+
+/** GET also reports what the backend can prove, so steps complete on evidence rather than on a click. */
+export const WorkspaceSetupSchema = SetupRecordSchema.extend({
+  evidence: z.object({
+    completed: z.record(SetupStepSchema, z.boolean()),
+    sync: z.object({
+      sources: z.number().int().nonnegative(),
+      ready: z.number().int().nonnegative(),
+      pending: z.number().int().nonnegative(),
+      failed: z.number().int().nonnegative(),
+    }),
+  }),
+});
+export type WorkspaceSetup = z.infer<typeof WorkspaceSetupSchema>;
+
+/* ---- Invitations (`POST /users/invite`) --------------------------------------------------- */
+
+export const InviteRoleSchema = z.enum(["admin", "manager", "member", "guest"]);
+/** `InviteInputSchema` (above) is the API's body: one invitation or a bulk list. */
+export type InviteInput = z.infer<typeof InviteInputSchema>;
+/** The web app's single-invite form: an email and a role, a valid `InvitationSchema` body. */
+export const InviteFormSchema = z
+  .object({
+    email: z.email("Enter a work email address."),
+    role: InviteRoleSchema.default("member"),
+  })
+  .strict();
+export type InviteForm = z.infer<typeof InviteFormSchema>;
+/** A single invite's result. `status` is "pending", or "already_member" (then `id` is null). */
+export const InviteResultSchema = z.object({
+  id: z.string().nullable(),
+  status: z.string(),
+  requestedRole: InviteRoleSchema.optional(),
+});
+export type InviteResult = z.infer<typeof InviteResultSchema>;
+
+/* ---- Connectors (`GET /connectors`, `POST /connectors/google-drive/authorize`) ------------ */
+
+export const ConnectorConnectionSchema = z.object({
+  id: z.string(),
+  provider: z.string(),
+  status: z.enum(["connected", "needs_reauth", "revoked"]).or(z.string()),
+  accountId: z.string().nullable().optional(),
+  scopes: z.array(z.string()).optional(),
+  createdAt: z.string().optional(),
+});
+export type ConnectorConnection = z.infer<typeof ConnectorConnectionSchema>;
+export const ConnectorListSchema = z.object({ items: z.array(ConnectorConnectionSchema) });
+export const ConnectorAuthorizationSchema = z.object({ authorizationUrl: z.url() });
+
+/* ---- Google Drive file browser (`GET /connectors/:id/files`, `POST /connectors/:id/import`) */
+
+export const DRIVE_FOLDER_MIME = "application/vnd.google-apps.folder";
+
+export const DriveFileSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  mimeType: z.string(),
+  modifiedTime: z.string().nullable().optional(),
+  createdTime: z.string().nullable().optional(),
+  webViewLink: z.string().nullable().optional(),
+  trashed: z.boolean().nullable().optional(),
+  capabilities: z.object({ canDownload: z.boolean().nullable().optional() }).nullable().optional(),
+  owners: z
+    .array(
+      z.object({
+        displayName: z.string().nullable().optional(),
+        emailAddress: z.string().nullable().optional(),
+      }),
+    )
+    .nullable()
+    .optional(),
+  driveId: z.string().nullable().optional(),
+});
+export type DriveFile = z.infer<typeof DriveFileSchema>;
+
+export const DriveFileListSchema = z.object({
+  items: z.array(DriveFileSchema),
+  nextPageToken: z.string().nullable(),
+});
+export type DriveFileList = z.infer<typeof DriveFileListSchema>;
+
+export const DriveImportInputSchema = z
+  .object({
+    projectId: z.uuid(),
+    fileId: z.string().regex(/^[a-zA-Z0-9_-]{1,200}$/),
+  })
+  .strict();
+export type DriveImportInput = z.infer<typeof DriveImportInputSchema>;
+
+/* ---- Members and org structure --------------------------------------------------------- */
+
+export const MembershipStatusSchema = z.enum(["active", "suspended", "offboarded"]);
+export type MembershipStatus = z.infer<typeof MembershipStatusSchema>;
+
+/** `GET /users`: the workspace directory (guests may not read it). */
+export const WorkspaceMemberSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  role: SystemRoleSchema,
+  status: MembershipStatusSchema,
+  /*
+   * Requested for Members & roles (docs/api-change-requests.md, item 11); optional until served.
+   * `invitedAt` is set while the person has not signed in yet.
+   */
+  email: z.string().nullable().optional(),
+  team: z.string().nullable().optional(),
+  lastActiveAt: z.string().nullable().optional(),
+  invitedAt: z.string().nullable().optional(),
+});
+export type WorkspaceMember = z.infer<typeof WorkspaceMemberSchema>;
+export const WorkspaceMemberListSchema = z.object({ items: z.array(WorkspaceMemberSchema) });
+
+/** `PATCH /users/:id` returns the updated membership row. */
+export const MembershipUpdateResultSchema = z.object({
+  userId: z.string(),
+  role: SystemRoleSchema,
+  status: MembershipStatusSchema,
+});
+export type UserUpdate = z.infer<typeof UserUpdateSchema>;
+
+export const DepartmentSchema = z.object({ id: z.string(), name: z.string() });
+export type Department = z.infer<typeof DepartmentSchema>;
+export const DepartmentListSchema = z.object({ items: z.array(DepartmentSchema) });
+
+export const TeamSchema = z.object({
+  id: z.string(),
+  departmentId: z.string(),
+  parentId: z.string().nullable(),
+  name: z.string(),
+});
+export type Team = z.infer<typeof TeamSchema>;
+export const TeamListSchema = z.object({ items: z.array(TeamSchema) });
+
+export const OrgNameInputSchema = z
+  .object({ name: z.string().trim().min(1, "Enter a name.").max(200) })
+  .strict();
+export type OrgNameInput = z.infer<typeof OrgNameInputSchema>;
+export const TeamInputSchema = OrgNameInputSchema.extend({
+  departmentId: z.uuid(),
+  parentId: z.uuid().nullable().default(null),
+});
+export type TeamInput = z.infer<typeof TeamInputSchema>;
+export const TeamUpdateInputSchema = OrgNameInputSchema.partial()
+  .extend({ parentId: z.uuid().nullable().optional() })
+  .strict();
+export type TeamUpdateInput = z.infer<typeof TeamUpdateInputSchema>;
+
+/* ---- Notifications (`GET /notifications`, `PATCH /notifications/:id/read`) --------------- */
+
+/** Platform records of kind "notification"; `data` is what the producing feature stored. */
+export const NotificationSchema = z.object({
+  id: z.string(),
+  status: z.string(),
+  version: z.number().int(),
+  createdAt: z.string(),
+  data: z
+    .object({
+      title: z.string().optional(),
+      body: z.string().optional(),
+      link: z.string().optional(),
+      kind: z.string().optional(),
+    })
+    .default({}),
+});
+export type Notification = z.infer<typeof NotificationSchema>;
+export const NotificationListSchema = z.object({ items: z.array(NotificationSchema) });
+
+/* ---- Current user (`GET/PATCH /users/me`) and personal preferences ------------------------ */
+
+export const MeSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string().nullable(),
+  role: SystemRoleSchema,
+  workspaceId: z.string(),
+  preferences: z
+    .object({
+      timezone: z.string().optional(),
+      leaderboardOptOut: z.boolean().optional(),
+    })
+    .passthrough()
+    .default({}),
+});
+export type Me = z.infer<typeof MeSchema>;
+export type ProfileUpdate = z.infer<typeof ProfileUpdateSchema>;
+
+/** `GET/PATCH /notifications/preferences`. */
 export const NotificationCategorySchema = z.enum([
   "onboarding",
   "maintenance",
@@ -341,3 +573,26 @@ export const NotificationPreferencesSchema = z.object({
     })
     .prefault({}),
 });
+export type NotificationPreferences = z.infer<typeof NotificationPreferencesSchema>;
+
+export type CompanionPreferences = z.infer<typeof CompanionPreferencesSchema>;
+export type FlagInput = z.input<typeof FlagInputSchema>;
+/** `POST /flags` returns the stored flag record. */
+export const FlagRecordSchema = z.object({ id: z.string(), status: z.string() }).passthrough();
+
+/* ---- Audit log (`GET /audit?limit=&offset=`, admins only) -------------------------------- */
+
+export const AuditEntrySchema = z.object({
+  id: z.string(),
+  projectId: z.string().nullable(),
+  actorId: z.string(),
+  actorName: z.string(),
+  /** Dotted verb, e.g. "connector.connect", "user.role_change". */
+  action: z.string(),
+  targetType: z.string(),
+  targetId: z.string(),
+  metadata: z.record(z.string(), z.unknown()).nullable(),
+  createdAt: z.string(),
+});
+export type AuditEntry = z.infer<typeof AuditEntrySchema>;
+export const AuditEntryListSchema = z.object({ items: z.array(AuditEntrySchema) });

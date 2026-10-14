@@ -1,9 +1,10 @@
 import type { CitedText, ContextItem, Hub } from "@contextos/shared";
-import { ChevronDownIcon, HelpCircleIcon, RefreshCwIcon, SparklesIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ArrowDropDownIcon, HelpIcon, HistoryIcon, HubFilledIcon, UpdateIcon } from "@/components/ui/icons";
+import { TypeChip } from "@/components/ui/meta-chip";
+import { StatusChip } from "@/components/ui/status-chip";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Empty,
@@ -48,7 +49,7 @@ export function OverviewCard({ projectId, hub, items }: OverviewCardProps) {
     return (
       <Empty className="border-dashed">
         <EmptyHeader>
-          <EmptyMedia variant="icon">{processing ? <Spinner /> : <SparklesIcon />}</EmptyMedia>
+          <EmptyMedia variant="icon">{processing ? <Spinner /> : <HubFilledIcon />}</EmptyMedia>
           <EmptyTitle>
             {processing ? "Reconstructing context…" : "Not enough source evidence yet"}
           </EmptyTitle>
@@ -74,12 +75,9 @@ export function OverviewCard({ projectId, hub, items }: OverviewCardProps) {
             <CardTitle className="flex items-center gap-2 text-base">
               Overview
               {overview.stale ? (
-                <Badge
-                  variant="outline"
-                  className="border-amber-500/40 text-amber-700 dark:text-amber-400"
-                >
+                <StatusChip tone="warning" icon={<HistoryIcon />}>
                   Sources changed since generated
-                </Badge>
+                </StatusChip>
               ) : null}
             </CardTitle>
             <CardDescription>
@@ -97,7 +95,7 @@ export function OverviewCard({ projectId, hub, items }: OverviewCardProps) {
               })
             }
           >
-            {refresh.isPending ? <Spinner /> : <RefreshCwIcon aria-hidden />}
+            {refresh.isPending ? <Spinner /> : <UpdateIcon aria-hidden />}
             Regenerate
           </Button>
         </div>
@@ -114,7 +112,7 @@ export function OverviewCard({ projectId, hub, items }: OverviewCardProps) {
         {overview.keyUnknowns.length > 0 ? (
           <section className="space-y-1.5">
             <h3 className="flex items-center gap-1.5 text-sm font-medium">
-              <HelpCircleIcon className="size-4 text-muted-foreground" aria-hidden />
+              <HelpIcon className="size-4 text-muted-foreground" aria-hidden />
               Not established by the sources
             </h3>
             <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
@@ -161,7 +159,7 @@ function CitedParagraph({
             aria-expanded={open}
             onClick={() => setOpen((value) => !value)}
           >
-            <ChevronDownIcon
+            <ArrowDropDownIcon
               className={open ? "rotate-180 transition-transform" : "transition-transform"}
               aria-hidden
             />
@@ -172,9 +170,9 @@ function CitedParagraph({
               {supporting.map((item) => {
                 const evidence = item.evidence[0];
                 return (
-                  <li key={item.id} className="rounded-md border bg-muted/40 px-3 py-2 text-xs">
+                  <li key={item.id} className="rounded-md bg-pane px-3 py-2 text-xs">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <Badge variant="secondary">{KIND_LABEL[item.kind]}</Badge>
+                      <TypeChip>{KIND_LABEL[item.kind]}</TypeChip>
                       <span className="font-medium">{item.title}</span>
                     </div>
                     {evidence ? (

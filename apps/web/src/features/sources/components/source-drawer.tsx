@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { ExternalLinkIcon } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { FormatQuoteIcon, OpenInNewIcon } from "@/components/ui/icons";
+import { TypeChip } from "@/components/ui/meta-chip";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -70,7 +70,7 @@ function SourceSheet({ projectId, target, onClose }: SourceSheetProps) {
           <>
             <SheetHeader className="border-b">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="secondary">{SOURCE_KIND_LABEL[source.data.kind]}</Badge>
+                <TypeChip>{SOURCE_KIND_LABEL[source.data.kind]}</TypeChip>
                 <SourceStatusBadge status={source.data.status} />
               </div>
               <SheetTitle className="leading-snug">{source.data.title}</SheetTitle>
@@ -94,7 +94,7 @@ function SourceSheet({ projectId, target, onClose }: SourceSheetProps) {
                   render={<a href={source.data.url} target="_blank" rel="noreferrer" />}
                 >
                   Open original
-                  <ExternalLinkIcon aria-hidden />
+                  <OpenInNewIcon aria-hidden />
                 </Button>
               ) : null}
             </SheetHeader>
@@ -105,8 +105,9 @@ function SourceSheet({ projectId, target, onClose }: SourceSheetProps) {
                     <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
                       Evidence
                     </h3>
-                    <blockquote className="rounded-md border-l-2 border-primary/40 bg-muted/50 px-3 py-2 text-sm">
-                      “{target.quote}”
+                    <blockquote className="flex gap-2 rounded-md bg-ai-container/40 px-3 py-2 text-sm">
+                      <FormatQuoteIcon className="mt-0.5 size-4 shrink-0 text-ai" aria-hidden />
+                      <span>{target.quote}</span>
                     </blockquote>
                     <Separator />
                   </section>

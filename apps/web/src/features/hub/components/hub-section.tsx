@@ -1,5 +1,4 @@
 import type { ContextItem } from "@contextos/shared";
-import { SearchXIcon } from "lucide-react";
 import {
   Empty,
   EmptyDescription,
@@ -8,6 +7,9 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { ContextItemCard } from "@/features/hub/components/context-item-card";
+import {
+  SearchOffIcon,
+} from "@/components/ui/icons";
 
 interface HubSectionProps {
   projectId: string;
@@ -29,7 +31,7 @@ export function HubSection({
       <Empty className="border-dashed">
         <EmptyHeader>
           <EmptyMedia variant="icon">
-            <SearchXIcon />
+            <SearchOffIcon />
           </EmptyMedia>
           <EmptyTitle>{emptyTitle}</EmptyTitle>
           <EmptyDescription>{emptyDescription}</EmptyDescription>

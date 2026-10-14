@@ -6,3 +6,4 @@ coverage
 graphify-out
 pnpm-lock.yaml
 apps/api/drizzle/meta
+apps/web/dev-server/mockServiceWorker.js

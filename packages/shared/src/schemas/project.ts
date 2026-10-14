@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { IdSchema, IsoDateTimeSchema, SlugSchema, listOf } from "./common.js";
 
+/** What kind of knowledge a project holds; drives the Knowledge Hub's collections. */
+export const ProjectCategorySchema = z.enum(["company", "product", "project", "process"]);
+export type ProjectCategory = z.infer<typeof ProjectCategorySchema>;
+
 export const ProjectSchema = z.object({
   id: IdSchema,
   workspaceId: IdSchema,
@@ -8,6 +12,11 @@ export const ProjectSchema = z.object({
   /** URL slug, unique within the workspace. Null only for legacy rows not yet backfilled. */
   slug: z.string().nullable(),
   description: z.string().nullable(),
+  /**
+   * Not stored by the API yet (see docs/api-change-requests.md); absent means "project". Make it
+   * required once the API returns it.
+   */
+  category: ProjectCategorySchema.optional(),
   createdAt: IsoDateTimeSchema,
   updatedAt: IsoDateTimeSchema,
 });

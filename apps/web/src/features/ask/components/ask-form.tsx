@@ -1,8 +1,10 @@
-import { SendIcon } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  SendIcon,
+} from "@/components/ui/icons";
 
 interface AskFormProps {
   isPending: boolean;

@@ -1,11 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { SOURCE_CONTENT_MAX_LENGTH, SourceKindSchema } from "@contextos/shared";
-import { UploadIcon } from "lucide-react";
 import { useId, useRef } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
+import { UploadIcon } from "@/components/ui/icons";
 import {
   Dialog,
   DialogContent,

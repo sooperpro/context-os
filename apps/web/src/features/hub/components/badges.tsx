@@ -1,51 +1,70 @@
 import type { Confidence, StatusState, Verification } from "@contextos/shared";
-import { Badge } from "@/components/ui/badge";
+import {
+  CancelIcon,
+  CheckCircleFilledIcon,
+  DifferenceIcon,
+  EventIcon,
+  HelpIcon,
+  HistoryIcon,
+  PendingIcon,
+  ShieldIcon,
+  SyncAltIcon,
+  VerifiedFilledIcon,
+  WarningIcon,
+} from "@/components/ui/icons";
+import { StatusChip } from "@/components/ui/status-chip";
 import { CONFIDENCE_LABEL, STATE_LABEL, VERIFICATION_LABEL } from "@/lib/labels";
-import { cn } from "@/lib/utils";
 
-const VERIFICATION_STYLE: Record<Verification, string> = {
-  inferred: "text-muted-foreground",
-  confirmed: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
-  stale: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
-  disputed: "border-destructive/40 bg-destructive/10 text-destructive",
-  superseded: "border-slate-500/40 bg-slate-500/10 text-slate-700 line-through dark:text-slate-300",
+type Tone = React.ComponentProps<typeof StatusChip>["tone"];
+
+/* State is never color alone: every badge pairs a tone with an icon and a label. */
+
+const VERIFICATION: Record<Verification, { tone: Tone; icon: React.ReactNode; className?: string }> = {
+  inferred: { tone: "neutral", icon: <PendingIcon /> },
+  confirmed: { tone: "success", icon: <VerifiedFilledIcon /> },
+  stale: { tone: "warning", icon: <HistoryIcon /> },
+  disputed: { tone: "error", icon: <DifferenceIcon /> },
+  superseded: { tone: "neutral", icon: <CancelIcon />, className: "line-through" },
 };
 
 export function VerificationBadge({ verification }: { verification: Verification }) {
+  const style = VERIFICATION[verification];
   return (
-    <Badge variant="outline" className={cn(VERIFICATION_STYLE[verification])}>
+    <StatusChip tone={style.tone} icon={style.icon} className={style.className}>
       {VERIFICATION_LABEL[verification]}
-    </Badge>
+    </StatusChip>
   );
 }
 
-const CONFIDENCE_STYLE: Record<Confidence, string> = {
-  high: "text-muted-foreground",
-  medium: "text-muted-foreground",
-  low: "border-amber-500/40 text-amber-700 dark:text-amber-400",
+const CONFIDENCE: Record<Confidence, { tone: Tone; icon: React.ReactNode }> = {
+  high: { tone: "success", icon: <CheckCircleFilledIcon /> },
+  medium: { tone: "info", icon: <PendingIcon /> },
+  low: { tone: "warning", icon: <WarningIcon /> },
 };
 
 export function ConfidenceBadge({ confidence }: { confidence: Confidence }) {
+  const style = CONFIDENCE[confidence];
   return (
-    <Badge variant="outline" className={cn(CONFIDENCE_STYLE[confidence])}>
+    <StatusChip tone={style.tone} icon={style.icon}>
       {CONFIDENCE_LABEL[confidence]}
-    </Badge>
+    </StatusChip>
   );
 }
 
-const STATE_STYLE: Record<StatusState, string> = {
-  active: "border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-400",
-  blocked: "border-destructive/40 bg-destructive/10 text-destructive",
-  done: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
-  planned: "text-muted-foreground",
-  risk: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
-  open_question: "border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-400",
+const STATE: Record<StatusState, { tone: Tone; icon: React.ReactNode }> = {
+  active: { tone: "info", icon: <SyncAltIcon /> },
+  blocked: { tone: "error", icon: <CancelIcon /> },
+  done: { tone: "success", icon: <CheckCircleFilledIcon /> },
+  planned: { tone: "neutral", icon: <EventIcon /> },
+  risk: { tone: "warning", icon: <ShieldIcon /> },
+  open_question: { tone: "neutral", icon: <HelpIcon /> },
 };
 
 export function StateBadge({ state }: { state: StatusState }) {
+  const style = STATE[state];
   return (
-    <Badge variant="outline" className={cn(STATE_STYLE[state])}>
+    <StatusChip tone={style.tone} icon={style.icon}>
       {STATE_LABEL[state]}
-    </Badge>
+    </StatusChip>
   );
 }

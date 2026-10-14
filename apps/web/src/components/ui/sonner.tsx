@@ -1,13 +1,13 @@
-import {
-  CircleCheckIcon,
-  InfoIcon,
-  Loader2Icon,
-  OctagonXIcon,
-  TriangleAlertIcon,
-} from "lucide-react";
 import type * as React from "react";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 import { useTheme } from "@/hooks/use-theme";
+import {
+  CheckCircleFilledIcon,
+  ErrorFilledIcon,
+  InfoIcon,
+  ProgressActivityIcon,
+  WarningFilledIcon,
+} from "@/components/ui/icons";
 
 const Toaster = ({ ...props }: ToasterProps) => {
   const { resolvedTheme } = useTheme();
@@ -17,23 +17,28 @@ const Toaster = ({ ...props }: ToasterProps) => {
       theme={resolvedTheme}
       className="toaster group"
       icons={{
-        success: <CircleCheckIcon className="size-4" />,
+        success: <CheckCircleFilledIcon className="size-4" />,
         info: <InfoIcon className="size-4" />,
-        warning: <TriangleAlertIcon className="size-4" />,
-        error: <OctagonXIcon className="size-4" />,
-        loading: <Loader2Icon className="size-4 animate-spin" />,
+        warning: <WarningFilledIcon className="size-4" />,
+        error: <ErrorFilledIcon className="size-4" />,
+        loading: <ProgressActivityIcon className="size-4 animate-spin" />,
       }}
       style={
         {
-          "--normal-bg": "var(--popover)",
-          "--normal-text": "var(--popover-foreground)",
-          "--normal-border": "var(--border)",
-          "--border-radius": "var(--radius)",
+          // Prototype snackbar: inverse surface, 12px corners, actions in inverse primary.
+          "--normal-bg": "var(--color-inverse-surface)",
+          "--normal-text": "var(--color-inverse-on-surface)",
+          "--normal-border": "transparent",
+          "--border-radius": "var(--radius-md)",
+          "--width": "min(35rem, calc(100vw - 2rem))",
         } as React.CSSProperties
       }
       toastOptions={{
         classNames: {
-          toast: "rounded-2xl",
+          toast: "min-h-12 shadow-elevation-3 text-sm",
+          actionButton: "!bg-transparent !font-medium !text-inverse-primary",
+          cancelButton: "!bg-transparent !text-inverse-on-surface",
+          icon: "[&_svg]:!text-inverse-primary",
         },
       }}
       {...props}

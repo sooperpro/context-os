@@ -15,6 +15,12 @@ const badgeVariants = cva(
         outline: "border-border text-foreground [a]:hover:bg-muted [a]:hover:text-muted-foreground",
         ghost: "hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50",
         link: "text-primary underline-offset-4 hover:underline",
+        /* Person badges (prototype `.pbadge`): 22px pills, relation and state. */
+        info: "h-5.5 bg-primary-container text-[11px] tracking-[0.4px] text-on-primary-container",
+        ai: "h-5.5 bg-ai-container text-[11px] tracking-[0.4px] text-on-ai-container",
+        success: "h-5.5 bg-success-container text-[11px] tracking-[0.4px] text-on-success-container",
+        warning: "h-5.5 bg-warning-container text-[11px] tracking-[0.4px] text-on-warning-container",
+        neutral: "h-5.5 bg-surface-container-highest text-[11px] tracking-[0.4px] text-on-surface-variant",
       },
     },
     defaultVariants: {

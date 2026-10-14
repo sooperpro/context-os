@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { FileTextIcon, PlusIcon } from "lucide-react";
 import { useState } from "react";
 import { useParams } from "react-router";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { AddIcon, ArticleIcon, CloudDownloadIcon } from "@/components/ui/icons";
 import {
   Empty,
   EmptyDescription,
@@ -14,30 +15,45 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { sourcesQuery } from "@/features/sources/api/sources.queries";
 import { AddSourceDialog } from "@/features/sources/components/add-source-dialog";
+import { DriveImportDialog } from "@/features/sources/components/drive-import-dialog";
 import { SourceList } from "@/features/sources/components/source-list";
+import { formatCount } from "@/lib/format";
 
 export function SourcesPage() {
   const { projectId = "" } = useParams();
   const [addOpen, setAddOpen] = useState(false);
+  const [driveOpen, setDriveOpen] = useState(false);
   const sources = useQuery(sourcesQuery(projectId));
 
   return (
     <div>
       <PageHeader
+        level={2}
+        kicker={
+          sources.data
+            ? `${formatCount(sources.data.items.length, "source")} · ${sources.data.items.filter((s) => s.status === "ready").length} ready`
+            : undefined
+        }
         title="Sources"
         description="Everything the hub knows comes from here. Each source keeps its author, dates and link as provenance."
         actions={
-          <Button onClick={() => setAddOpen(true)}>
-            <PlusIcon aria-hidden />
-            Add source
-          </Button>
+          <>
+            <Button variant="outline" onClick={() => setDriveOpen(true)}>
+              <CloudDownloadIcon aria-hidden />
+              Import from Drive
+            </Button>
+            <Button onClick={() => setAddOpen(true)}>
+              <AddIcon aria-hidden />
+              Add source
+            </Button>
+          </>
         }
       />
 
       {sources.isPending ? (
         <div className="space-y-3" aria-busy="true">
           {Array.from({ length: 3 }, (_, i) => (
-            <Skeleton key={i} className="h-20 rounded-xl" />
+            <Skeleton key={i} className="h-20 rounded-xs first:rounded-t-xl last:rounded-b-xl" />
           ))}
         </div>
       ) : sources.isError ? (
@@ -54,7 +70,7 @@ export function SourcesPage() {
         <Empty>
           <EmptyHeader>
             <EmptyMedia variant="icon">
-              <FileTextIcon />
+              <ArticleIcon />
             </EmptyMedia>
             <EmptyTitle>No sources yet</EmptyTitle>
             <EmptyDescription>
@@ -63,15 +79,20 @@ export function SourcesPage() {
             </EmptyDescription>
           </EmptyHeader>
           <Button onClick={() => setAddOpen(true)}>
-            <PlusIcon aria-hidden />
+            <AddIcon aria-hidden />
             Add the first source
           </Button>
         </Empty>
       ) : (
-        <SourceList projectId={projectId} sources={sources.data.items} />
+        <Card>
+          <CardContent>
+            <SourceList projectId={projectId} sources={sources.data.items} />
+          </CardContent>
+        </Card>
       )}
 
       <AddSourceDialog projectId={projectId} open={addOpen} onOpenChange={setAddOpen} />
+      <DriveImportDialog projectId={projectId} open={driveOpen} onOpenChange={setDriveOpen} />
     </div>
   );
 }

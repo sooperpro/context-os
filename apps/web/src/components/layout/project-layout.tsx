@@ -1,20 +1,40 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeftIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
-import { Link, NavLink, Outlet, useParams } from "react-router";
+import { Link, Outlet, useLocation, useParams, useSearchParams } from "react-router";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
+import { ArrowBackIcon } from "@/components/ui/icons";
+import { PillTab, PillTabs } from "@/components/ui/pill-tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { hubQuery } from "@/features/hub/api/hub.queries";
 import { FailedJobsPanel } from "@/features/hub/components/failed-jobs-panel";
-import { SyncStatus } from "@/features/hub/components/sync-status";
+import { ProjectHero } from "@/features/hub/components/project-hero";
 import { projectKeys } from "@/features/projects/api/keys";
 import { SourceDrawerProvider } from "@/features/sources/components/source-drawer";
 import { ApiClientError } from "@/lib/api-client";
-import { formatCount } from "@/lib/format";
-import { cn } from "@/lib/utils";
+
+/** The hub's sections (query parameter) and the project routes, as one row of pills. */
+const PROJECT_SECTIONS = [
+  { id: "overview", label: "Overview", tab: null },
+  { id: "decisions", label: "Decisions", tab: "decisions" },
+  { id: "current", label: "Current state", tab: "current" },
+  { id: "people", label: "People", tab: "people" },
+  { id: "system", label: "Systems", tab: "system" },
+  { id: "terms", label: "Terms", tab: "terms" },
+  { id: "timeline", label: "Timeline", tab: "timeline" },
+] as const;
 
 export function ProjectLayout() {
   const { projectId = "" } = useParams();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const hub = useQuery(hubQuery(projectId));
 
@@ -31,9 +51,9 @@ export function ProjectLayout() {
   if (hub.isPending) {
     return (
       <div className="space-y-4" aria-busy="true">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-4 w-96" />
-        <Skeleton className="h-9 w-72" />
+        <Skeleton className="h-5 w-48" />
+        <Skeleton className="h-56 rounded-3xl" />
+        <Skeleton className="h-10 w-3/4 rounded-full" />
       </div>
     );
   }
@@ -42,70 +62,68 @@ export function ProjectLayout() {
     const notFound = hub.error instanceof ApiClientError && hub.error.status === 404;
     return (
       <div className="flex flex-col items-start gap-3">
-        <h1 className="text-2xl font-semibold">
+        <h1 className="font-heading text-2xl font-semibold">
           {notFound ? "Project not found" : "Could not load project"}
         </h1>
-        {!notFound ? <p className="text-sm text-muted-foreground">{hub.error.message}</p> : null}
-        <Button variant="outline" nativeButton={false} render={<Link to="/" />}>
-          <ArrowLeftIcon aria-hidden />
-          Back to projects
+        {!notFound ? <p className="text-sm text-on-surface-variant">{hub.error.message}</p> : null}
+        <Button variant="outline" nativeButton={false} render={<Link to="/knowledge" />}>
+          <ArrowBackIcon aria-hidden />
+          Back to the Knowledge Hub
         </Button>
       </div>
     );
   }
 
+  const base = `/projects/${projectId}`;
+  const route = location.pathname.endsWith("/sources")
+    ? "sources"
+    : location.pathname.endsWith("/ask")
+      ? "ask"
+      : (searchParams.get("tab") ?? "overview");
   const { project, sync } = hub.data;
-  const navItems = [
-    { to: `/projects/${projectId}`, label: "Hub", end: true },
-    { to: `/projects/${projectId}/ask`, label: "Ask", end: false },
-    { to: `/projects/${projectId}/sources`, label: "Sources", end: false },
-  ];
 
   return (
     <SourceDrawerProvider projectId={projectId}>
-      <div className="space-y-6">
-        <div className="space-y-3">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeftIcon className="size-3" aria-hidden />
-            Projects
-          </Link>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="space-y-1">
-              <h1 className="text-2xl font-semibold tracking-tight">{project.name}</h1>
-              {project.description ? (
-                <p className="max-w-prose text-sm text-muted-foreground">{project.description}</p>
-              ) : null}
-              <p className="text-xs text-muted-foreground">
-                {formatCount(project.stats.sources, "source")}
-                {project.stats.sources > 0 ? ` (${project.stats.readySources} ready)` : ""} ·{" "}
-                {formatCount(project.stats.contextItems, "context item")} ·{" "}
-                {formatCount(project.stats.questions, "question")}
-              </p>
-            </div>
-            <SyncStatus sync={sync} />
-          </div>
-          {sync.state === "attention" ? <FailedJobsPanel projectId={projectId} /> : null}
-          <nav className="flex gap-1 border-b" aria-label="Project sections">
-            {navItems.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                className={({ isActive }) =>
-                  cn(
-                    "-mb-px border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground",
-                    isActive && "border-primary font-medium text-foreground",
-                  )
-                }
-              >
-                {item.label}
-              </NavLink>
-            ))}
-          </nav>
-        </div>
+      <div className="space-y-5">
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink render={<Link to="/knowledge" />}>Knowledge Hub</BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbLink render={<Link to="/knowledge?cat=project" />}>
+                Projects
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbPage>{project.name}</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+
+        <ProjectHero hub={hub.data} />
+        {sync.state === "attention" ? <FailedJobsPanel projectId={projectId} /> : null}
+
+        <PillTabs aria-label="Project sections">
+          {PROJECT_SECTIONS.map((section) => (
+            <PillTab
+              key={section.id}
+              active={route === section.id}
+              render={<Link to={section.tab ? `${base}?tab=${section.tab}` : base} />}
+            >
+              {section.label}
+            </PillTab>
+          ))}
+          <PillTab active={route === "sources"} render={<Link to={`${base}/sources`} />}>
+            Sources
+          </PillTab>
+          <PillTab active={route === "ask"} render={<Link to={`${base}/ask`} />}>
+            Ask
+          </PillTab>
+        </PillTabs>
+
         <Outlet />
       </div>
     </SourceDrawerProvider>

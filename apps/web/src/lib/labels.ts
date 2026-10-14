@@ -1,9 +1,14 @@
 import type {
+  SystemRole,
   AnswerConfidence,
   Confidence,
   ContextItemKind,
+  ContributionKind,
+  ContributionVisibility,
   DecisionData,
   JobStatus,
+  KnowledgeOrigin,
+  KnowledgeSection,
   SourceKind,
   SourceStatus,
   StatusState,
@@ -84,4 +89,94 @@ export const JOB_STATUS_LABEL: Record<JobStatus, string> = {
   running: "Running",
   done: "Done",
   failed: "Failed",
+};
+
+export const ROLE_LABEL: Record<SystemRole, string> = {
+  owner: "Owner",
+  admin: "Admin",
+  manager: "Manager",
+  member: "Member",
+  guest: "Guest",
+};
+
+/**
+ * Audit log actions as sentences (the API records dotted verbs). Unknown actions fall back to the
+ * raw verb, so a new backend action still shows up.
+ */
+export const AUDIT_ACTION_LABEL: Record<string, string> = {
+  "assignment.create": "Assigned a role",
+  "assignment.delete": "Removed a role assignment",
+  "checkpoint.signoff": "Signed off a learning checkpoint",
+  "connector.connect": "Connected a knowledge source",
+  "connector.disconnect": "Disconnected a knowledge source",
+  "connector.import": "Imported files from a connector",
+  "context_item.verify": "Verified a knowledge item",
+  "correction.verify": "Verified a correction",
+  "department.create": "Created a department",
+  "department.delete": "Deleted a department",
+  "department.update": "Renamed a department",
+  "feedback.create": "Rated an answer",
+  "flag.create": "Flagged knowledge as outdated",
+  "flag.update": "Updated a flag",
+  "hub.refresh": "Refreshed a project hub",
+  "job.retry": "Retried a processing job",
+  "milestone.verify": "Verified a milestone",
+  "onboarding.create": "Started an onboarding plan",
+  "onboarding.outcome": "Recorded a probation outcome",
+  "path.assign": "Assigned a learning path",
+  "path.create": "Created a learning path",
+  "path.publish": "Published a learning path",
+  "project.create": "Created a project",
+  "project.delete": "Deleted a project",
+  "project.update": "Updated a project",
+  "question.ask": "Asked Context Bot",
+  "source.access.grant": "Granted access to a source",
+  "source.access.revoke": "Revoked access to a source",
+  "source.create": "Added a source",
+  "source.delete": "Deleted a source",
+  "source.reprocess": "Reprocessed a source",
+  "team.create": "Created a team",
+  "team.delete": "Deleted a team",
+  "team.update": "Updated a team",
+  "thread.delete": "Deleted a conversation",
+  "user.invite": "Invited someone",
+  "user.organization.update": "Changed someone's team",
+  "user.update": "Changed someone's role or status",
+  "workspace.create": "Created the workspace",
+  "workspace.setup": "Updated workspace setup",
+  "workspace.update": "Updated the workspace",
+};
+
+export const CONTRIBUTION_KIND_LABEL: Record<ContributionKind, string> = {
+  article: "New article",
+  edit: "Suggested edit",
+  glossary_term: "Glossary term",
+  flag: "Flagged as outdated",
+};
+
+/** Knowledge Hub sections, as the editor's "Section" field names them. */
+export const SECTION_LABEL: Record<KnowledgeSection, string> = {
+  company: "Company",
+  product: "Products",
+  project: "Projects",
+  system: "Systems",
+  process: "Processes",
+  decision: "Decisions",
+  glossary: "Glossary",
+};
+
+export const VISIBILITY_LABEL: Record<ContributionVisibility, string> = {
+  workspace: "Everyone",
+  team: "Your team only",
+};
+
+/** Where a piece of knowledge came from (connectors and the hub itself). */
+export const KNOWLEDGE_ORIGIN_LABEL: Record<KnowledgeOrigin, string> = {
+  google_drive: "Google Drive",
+  github: "GitHub",
+  slack: "Slack",
+  jira: "Jira",
+  confluence: "Confluence",
+  knowledge_hub: "Knowledge Hub",
+  loom: "Loom",
 };

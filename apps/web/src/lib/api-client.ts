@@ -30,6 +30,23 @@ export function setApiAccessTokenProvider(provider?: AccessTokenProvider): void 
   accessTokenProvider = provider;
 }
 
+/** The Authorization header for the active session, when there is one. */
+export async function apiAuthHeaders(): Promise<Record<string, string>> {
+  const accessToken = await accessTokenProvider?.();
+  return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+}
+
+/** Throw the server's error envelope (or a generic error) for a non-2xx response. */
+export async function throwApiError(response: Response): Promise<never> {
+  const json: unknown = await response.json().catch(() => null);
+  const parsed = ApiErrorResponseSchema.safeParse(json);
+  if (parsed.success) {
+    const { code, message, details, requestId } = parsed.data.error;
+    throw new ApiClientError(response.status, code, message, details, requestId);
+  }
+  throw new ApiClientError(response.status, "HTTP_ERROR", `Request failed with status ${response.status}`);
+}
+
 export interface ApiRequestOptions<TResponse> {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
@@ -39,7 +56,8 @@ export interface ApiRequestOptions<TResponse> {
   signal?: AbortSignal;
 }
 
-function buildUrl(path: string, query?: Record<string, QueryValue>): string {
+/** Absolute API URL for a path under the configured base, with optional query string. */
+export function buildApiUrl(path: string, query?: Record<string, QueryValue>): string {
   const base = env.VITE_API_BASE_URL.replace(/\/+$/, "");
   const url = `${base}/${path.replace(/^\/+/, "")}`;
   if (!query) return url;
@@ -59,12 +77,11 @@ export async function apiRequest<TResponse>(
   path: string,
   { method = "GET", body, query, schema, signal }: ApiRequestOptions<TResponse>,
 ): Promise<TResponse> {
-  const accessToken = await accessTokenProvider?.();
-  const response = await fetch(buildUrl(path, query), {
+  const response = await fetch(buildApiUrl(path, query), {
     method,
     headers: {
       Accept: "application/json",
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      ...(await apiAuthHeaders()),
       ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -75,20 +92,8 @@ export async function apiRequest<TResponse>(
     return schema.parse(undefined);
   }
 
+  if (!response.ok) await throwApiError(response);
+
   const json: unknown = await response.json().catch(() => null);
-
-  if (!response.ok) {
-    const parsed = ApiErrorResponseSchema.safeParse(json);
-    if (parsed.success) {
-      const { code, message, details, requestId } = parsed.data.error;
-      throw new ApiClientError(response.status, code, message, details, requestId);
-    }
-    throw new ApiClientError(
-      response.status,
-      "HTTP_ERROR",
-      `Request failed with status ${response.status}`,
-    );
-  }
-
   return schema.parse(json);
 }

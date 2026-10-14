@@ -1,9 +1,27 @@
 import type { SourceObject } from "@contextos/shared";
-import { ExternalLinkIcon, EyeIcon, RefreshCwIcon, Trash2Icon } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { DeleteIcon, OpenInNewIcon, SyncAltIcon, VisibilityIcon } from "@/components/ui/icons";
+import {
+  SegmentedItem,
+  SegmentedItemBody,
+  SegmentedItemLead,
+  SegmentedItemMeta,
+  SegmentedItemTitle,
+  SegmentedItemTrail,
+  SegmentedList,
+} from "@/components/ui/segmented-list";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { SOURCE_KIND_ICON } from "@/features/hub/components/kind-icon";
 import { useDeleteSource, useReprocessSource } from "@/features/sources/api/sources.queries";
 import { SourceStatusBadge } from "@/features/sources/components/source-status-badge";
 import { useSourceDrawer } from "@/features/sources/hooks/use-source-drawer";
@@ -15,123 +33,149 @@ interface SourceListProps {
   sources: SourceObject[];
 }
 
+/** The prototype's sources list: kind tile, title, provenance lines, status and actions per row. */
 export function SourceList({ projectId, sources }: SourceListProps) {
   const drawer = useSourceDrawer();
   const reprocess = useReprocessSource(projectId);
   const remove = useDeleteSource(projectId);
+  const [pendingDelete, setPendingDelete] = useState<SourceObject | null>(null);
+
+  const confirmDelete = () => {
+    if (!pendingDelete) return;
+    remove.mutate(pendingDelete.id, {
+      onSuccess: () => toast.success("Source deleted"),
+      onSettled: () => setPendingDelete(null),
+    });
+  };
 
   return (
-    <ul className="divide-y rounded-xl border">
-      {sources.map((source) => (
-        <li key={source.id} className="flex flex-wrap items-start justify-between gap-3 p-4">
-          <div className="min-w-0 flex-1 space-y-1.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary">{SOURCE_KIND_LABEL[source.kind]}</Badge>
-              <SourceStatusBadge status={source.status} />
-            </div>
-            <button
-              type="button"
-              className="block max-w-full truncate text-left text-sm font-medium hover:underline"
-              onClick={() => drawer.open({ sourceId: source.id })}
-            >
-              {source.title}
-            </button>
-            <p className="text-xs text-muted-foreground">
-              {[
-                source.author ? `by ${source.author}` : null,
-                source.sourceCreatedAt ? `dated ${formatDate(source.sourceCreatedAt)}` : "undated",
-                `ingested ${formatDateTime(source.ingestedAt)}`,
-                `${source.contentLength.toLocaleString()} chars`,
-                source.chunkCount > 0 ? formatCount(source.chunkCount, "chunk") : null,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
-            {source.status === "failed" && source.error ? (
-              <p className="text-xs text-destructive">{source.error}</p>
-            ) : null}
-          </div>
-          <div className="flex shrink-0 items-center gap-1">
-            {source.url ? (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label="Open original"
-                      nativeButton={false}
-                      render={<a href={source.url} target="_blank" rel="noreferrer" />}
-                    />
-                  }
-                >
-                  <ExternalLinkIcon />
-                </TooltipTrigger>
-                <TooltipContent>Open original</TooltipContent>
-              </Tooltip>
-            ) : null}
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="View content"
+    <>
+      <SegmentedList aria-label="Sources">
+        {sources.map((source) => {
+          const Icon = SOURCE_KIND_ICON[source.kind];
+          return (
+            <SegmentedItem key={source.id} className="items-start">
+              <SegmentedItemLead className="mt-0.5 bg-surface-container-highest text-on-surface-variant">
+                <Icon />
+              </SegmentedItemLead>
+              <SegmentedItemBody>
+                <SegmentedItemTitle>
+                  <button
+                    type="button"
+                    className="max-w-full truncate rounded-xs text-start outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
                     onClick={() => drawer.open({ sourceId: source.id })}
-                  />
-                }
-              >
-                <EyeIcon />
-              </TooltipTrigger>
-              <TooltipContent>View content</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Reprocess"
-                    disabled={reprocess.isPending || source.status === "processing"}
-                    onClick={() =>
-                      reprocess.mutate(source.id, {
-                        onSuccess: () => toast.success("Reprocessing queued"),
-                      })
-                    }
-                  />
-                }
-              >
-                <RefreshCwIcon />
-              </TooltipTrigger>
-              <TooltipContent>Reprocess</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Delete source"
-                    disabled={remove.isPending}
-                    onClick={() => {
-                      if (
-                        window.confirm(`Delete "${source.title}" and everything derived from it?`)
-                      ) {
-                        remove.mutate(source.id, {
-                          onSuccess: () => toast.success("Source deleted"),
-                        });
+                  >
+                    {source.title}
+                  </button>
+                </SegmentedItemTitle>
+                <SegmentedItemMeta>
+                  <span>{SOURCE_KIND_LABEL[source.kind]}</span>
+                  {source.author ? <span>{source.author}</span> : null}
+                  <span>{source.sourceCreatedAt ? `Dated ${formatDate(source.sourceCreatedAt)}` : "Undated"}</span>
+                </SegmentedItemMeta>
+                <SegmentedItemMeta>
+                  <span>Ingested {formatDateTime(source.ingestedAt)}</span>
+                  <span>{source.contentLength.toLocaleString()} characters</span>
+                  {source.chunkCount > 0 ? <span>{formatCount(source.chunkCount, "chunk")}</span> : null}
+                </SegmentedItemMeta>
+                {source.status === "failed" && source.error ? (
+                  <p className="text-xs text-error">{source.error}</p>
+                ) : null}
+              </SegmentedItemBody>
+              <SegmentedItemTrail className="flex-wrap justify-end gap-1">
+                <SourceStatusBadge status={source.status} />
+                {source.url ? (
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`Open ${source.title} in its source`}
+                          nativeButton={false}
+                          render={<a href={source.url} target="_blank" rel="noreferrer" />}
+                        />
                       }
-                    }}
-                  />
-                }
-              >
-                <Trash2Icon />
-              </TooltipTrigger>
-              <TooltipContent>Delete</TooltipContent>
-            </Tooltip>
-          </div>
-        </li>
-      ))}
-    </ul>
+                    >
+                      <OpenInNewIcon />
+                    </TooltipTrigger>
+                    <TooltipContent>Open original</TooltipContent>
+                  </Tooltip>
+                ) : null}
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`View ${source.title}`}
+                        onClick={() => drawer.open({ sourceId: source.id })}
+                      />
+                    }
+                  >
+                    <VisibilityIcon />
+                  </TooltipTrigger>
+                  <TooltipContent>View content</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Reprocess ${source.title}`}
+                        disabled={reprocess.isPending || source.status === "processing"}
+                        onClick={() =>
+                          reprocess.mutate(source.id, { onSuccess: () => toast.success("Reprocessing queued") })
+                        }
+                      />
+                    }
+                  >
+                    <SyncAltIcon />
+                  </TooltipTrigger>
+                  <TooltipContent>Reprocess</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Delete ${source.title}`}
+                        disabled={remove.isPending}
+                        onClick={() => setPendingDelete(source)}
+                      />
+                    }
+                  >
+                    <DeleteIcon />
+                  </TooltipTrigger>
+                  <TooltipContent>Delete</TooltipContent>
+                </Tooltip>
+              </SegmentedItemTrail>
+            </SegmentedItem>
+          );
+        })}
+      </SegmentedList>
+
+      <Dialog open={pendingDelete !== null} onOpenChange={(open) => !open && setPendingDelete(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete this source?</DialogTitle>
+            <DialogDescription>
+              "{pendingDelete?.title}" and everything derived from it are removed: its chunks,
+              extracted context items and their evidence. Answers that cited it lose that citation.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setPendingDelete(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" disabled={remove.isPending} onClick={confirmDelete}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

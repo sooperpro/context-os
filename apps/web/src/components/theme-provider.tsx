@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import {
+  MOTION_STORAGE_KEY,
   THEME_STORAGE_KEY,
   ThemeContext,
   type ResolvedTheme,
@@ -26,6 +27,14 @@ function readStoredTheme(fallback: Theme): Theme {
     return isTheme(stored) ? stored : fallback;
   } catch {
     return fallback;
+  }
+}
+
+function readStoredMotion(): boolean {
+  try {
+    return window.localStorage.getItem(MOTION_STORAGE_KEY) === "reduced";
+  } catch {
+    return false;
   }
 }
 
@@ -49,8 +58,8 @@ interface ThemeProviderProps {
 
 /**
  * Light/dark/system theming for a client-rendered app: persists the preference,
- * follows the OS when set to "system", and toggles the `dark` class on <html>
- * (which Tailwind's `dark:` variant and the shadcn theme variables key off).
+ * follows the OS when set to "system", and sets `data-theme` on <html>, which the
+ * design tokens, Tailwind's `dark:` variant and `color-scheme` all key off.
  */
 export function ThemeProvider({ children, defaultTheme = "system" }: ThemeProviderProps) {
   const [theme, setThemeState] = useState<Theme>(() => readStoredTheme(defaultTheme));
@@ -60,11 +69,28 @@ export function ThemeProvider({ children, defaultTheme = "system" }: ThemeProvid
     () => "light",
   );
   const resolvedTheme: ResolvedTheme = theme === "system" ? systemTheme : theme;
+  const [reducedMotion, setReducedMotionState] = useState(readStoredMotion);
+
+  // `data-motion="reduced"` stops animation and transitions (index.css), like the OS setting does.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (reducedMotion) root.dataset.motion = "reduced";
+    else delete root.dataset.motion;
+  }, [reducedMotion]);
+
+  const setReducedMotion = useCallback((reduced: boolean) => {
+    setReducedMotionState(reduced);
+    try {
+      if (reduced) window.localStorage.setItem(MOTION_STORAGE_KEY, "reduced");
+      else window.localStorage.removeItem(MOTION_STORAGE_KEY);
+    } catch {
+      // Storage unavailable: the preference lasts until reload.
+    }
+  }, []);
 
   useEffect(() => {
     const root = document.documentElement;
-    root.classList.toggle("dark", resolvedTheme === "dark");
-    root.style.colorScheme = resolvedTheme;
+    root.dataset.theme = resolvedTheme;
   }, [resolvedTheme]);
 
   const setTheme = useCallback((next: Theme) => {
@@ -77,8 +103,8 @@ export function ThemeProvider({ children, defaultTheme = "system" }: ThemeProvid
   }, []);
 
   const value = useMemo<ThemeContextValue>(
-    () => ({ theme, resolvedTheme, setTheme }),
-    [theme, resolvedTheme, setTheme],
+    () => ({ theme, resolvedTheme, setTheme, reducedMotion, setReducedMotion }),
+    [theme, resolvedTheme, setTheme, reducedMotion, setReducedMotion],
   );
 
   return <ThemeContext value={value}>{children}</ThemeContext>;
