@@ -1,3 +1,4 @@
+
 name: Deploy dev
 
 on:
@@ -74,7 +75,7 @@ jobs:
             --project "$GCP_PROJECT_ID" \
             --zone "$GCP_ZONE" \
             --local-host-port="127.0.0.1:$IAP_LOCAL_PORT" \
-            --quiet > "$RUNNER_TEMP/iap-tunnel.log" 2>&1 &
+            --iap-tunnel-disable-connection-check --quiet > "$RUNNER_TEMP/iap-tunnel.log" 2>&1 &
           echo "$!" > "$RUNNER_TEMP/iap-tunnel.pid"
 
           for attempt in $(seq 1 30); do
