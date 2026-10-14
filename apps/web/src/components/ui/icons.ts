@@ -114,12 +114,18 @@ import PaletteIcon from "@material-symbols/svg-400/rounded/palette.svg?react";
 import TuneIcon from "@material-symbols/svg-400/rounded/tune.svg?react";
 import LoginIcon from "@material-symbols/svg-400/rounded/login.svg?react";
 import SettingsFilledIcon from "@material-symbols/svg-400/rounded/settings-fill.svg?react";
+import AppsIcon from "@material-symbols/svg-400/rounded/apps.svg?react";
+import ArrowRightIcon from "@material-symbols/svg-400/rounded/arrow_right.svg?react";
+import RocketLaunchIcon from "@material-symbols/svg-400/rounded/rocket_launch.svg?react";
 import VisibilityIcon from "@material-symbols/svg-400/rounded/visibility.svg?react";
 
 export type MaterialIcon = ComponentType<SVGProps<SVGSVGElement>>;
 
 export {
   AddIcon,
+  RocketLaunchIcon,
+  ArrowRightIcon,
+  AppsIcon,
   SettingsFilledIcon,
   LoginIcon,
   TuneIcon,

@@ -1,7 +1,6 @@
-import { createBrowserRouter } from "react-router";
+import { createBrowserRouter, Navigate } from "react-router";
 import { RootLayout } from "@/app/root-layout";
 import { RouteErrorBoundary } from "@/components/route-error-boundary";
-import { ProjectsPage } from "@/features/projects/pages/projects-page";
 import { NotFoundPage } from "@/pages/not-found-page";
 
 /** Development-only routes: the component gallery lives outside the app shell and auth gate. */
@@ -20,7 +19,15 @@ const devRoutes = import.meta.env.DEV
 
 /** The application's routes under the shell, shared by "/" and the development shell preview. */
 const appChildren = [
-      { index: true, Component: ProjectsPage },
+      // No Home dashboard yet: the Knowledge Hub is the landing page (relative, so it works under /dev/shell).
+      { index: true, element: <Navigate to="knowledge" replace /> },
+      {
+        path: "knowledge",
+        lazy: async () => {
+          const { KnowledgeHubPage } = await import("@/features/knowledge/pages/knowledge-hub-page");
+          return { Component: KnowledgeHubPage };
+        },
+      },
       {
         path: "members",
         lazy: async () => {

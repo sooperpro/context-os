@@ -1,8 +1,8 @@
 import { cn } from "cn";
-import { NavLink } from "react-router";
+import { NavLink, useLocation } from "react-router";
 import { useAssistant } from "@/components/layout/assistant-context";
 import { Brand } from "@/components/layout/brand";
-import { SETTINGS_ITEM, type NavItem } from "@/components/layout/navigation";
+import { isInActivePaths, SETTINGS_ITEM, type NavItem } from "@/components/layout/navigation";
 import { Button } from "@/components/ui/button";
 import { Fab } from "@/components/ui/fab";
 import { HubFilledIcon, MenuIcon, MenuOpenIcon } from "@/components/ui/icons";
@@ -80,12 +80,16 @@ export function Rail({ items, collapsed, canToggle, onToggle }: RailProps) {
 
 /** One rail destination: a 56px row when expanded, an icon pill over a short label when collapsed. */
 function RailLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
+  const { pathname } = useLocation();
+  const inSection = isInActivePaths(item, pathname);
   return (
     <NavLink
       to={item.to}
       end={item.end}
-      className={({ isActive }) =>
-        cn(
+      aria-current={inSection ? "page" : undefined}
+      className={({ isActive: exact }) => {
+        const isActive = exact || inSection;
+        return cn(
           "group/nav flex items-center gap-3 rounded-full text-sm transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
           // One state layer only: the whole row when expanded, the icon pill when collapsed.
           collapsed
@@ -93,27 +97,30 @@ function RailLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
             : "h-14 px-4 text-sm font-medium hover:bg-on-surface/8",
           isActive ? "text-on-surface" : "text-on-surface-variant",
           isActive && !collapsed && "bg-secondary-container text-on-secondary-container",
-        )
-      }
+        );
+      }}
     >
-      {({ isActive }) => (
-        <>
-          <span
-            aria-hidden
-            className={cn(
-              "grid place-items-center rounded-full [&_svg]:size-6",
-              collapsed &&
-                "h-8 w-14 transition-colors group-hover/nav:bg-on-surface/8 group-focus-visible/nav:bg-on-surface/10",
-              collapsed && isActive && "bg-secondary-container text-on-secondary-container",
-            )}
-          >
-            {isActive ? <item.activeIcon /> : <item.icon />}
-          </span>
-          <span className={cn("truncate", collapsed && "max-w-21 text-center font-medium")}>
-            {collapsed ? (item.short ?? item.label) : item.label}
-          </span>
-        </>
-      )}
+      {({ isActive: exact }) => {
+        const isActive = exact || inSection;
+        return (
+          <>
+            <span
+              aria-hidden
+              className={cn(
+                "grid place-items-center rounded-full [&_svg]:size-6",
+                collapsed &&
+                  "h-8 w-14 transition-colors group-hover/nav:bg-on-surface/8 group-focus-visible/nav:bg-on-surface/10",
+                collapsed && isActive && "bg-secondary-container text-on-secondary-container",
+              )}
+            >
+              {isActive ? <item.activeIcon /> : <item.icon />}
+            </span>
+            <span className={cn("truncate", collapsed && "max-w-21 text-center font-medium")}>
+              {collapsed ? (item.short ?? item.label) : item.label}
+            </span>
+          </>
+        );
+      }}
     </NavLink>
   );
 }

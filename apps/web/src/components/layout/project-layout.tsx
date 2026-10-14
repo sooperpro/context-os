@@ -66,9 +66,9 @@ export function ProjectLayout() {
           {notFound ? "Project not found" : "Could not load project"}
         </h1>
         {!notFound ? <p className="text-sm text-on-surface-variant">{hub.error.message}</p> : null}
-        <Button variant="outline" nativeButton={false} render={<Link to="/" />}>
+        <Button variant="outline" nativeButton={false} render={<Link to="/knowledge" />}>
           <ArrowBackIcon aria-hidden />
-          Back to projects
+          Back to the Knowledge Hub
         </Button>
       </div>
     );
@@ -88,7 +88,11 @@ export function ProjectLayout() {
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem>
-              <BreadcrumbLink render={<Link to="/" />}>Projects</BreadcrumbLink>
+              <BreadcrumbLink render={<Link to="/knowledge" />}>Knowledge Hub</BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbLink render={<Link to="/knowledge?cat=projects" />}>Projects</BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator />
             <BreadcrumbItem>

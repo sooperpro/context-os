@@ -141,6 +141,13 @@ A pass over every built surface against the prototype's CSS and JS found three g
       notification channels and quiet hours, theme, and sign-in through Clerk. Only settings the API
       stores are offered (no notification categories, language or reduce-motion toggle).
 
+- [x] Navigation follows the reference: no Projects item. The rail's "Knowledge Hub" (`/knowledge`) holds
+      projects as one collection next to Decisions, Systems, People and owners, and Glossary, which are the
+      context items of each project. It stays active on project pages, whose breadcrumb reads Knowledge Hub ›
+      Projects › name. `/` opens the Knowledge Hub until the Home dashboard exists. The prototype's Company,
+      Products and Processes collections are not shown because nothing stores them. The hub loads each
+      project's items, one request per project; a workspace-wide items endpoint should replace that at scale.
+
 Not built because nothing backs them yet: rail badges (no unread counts per area), the prototype's
 "Save" on answers and knowledge items, notification categories.
 

@@ -36,7 +36,7 @@ describe("AppShell", () => {
     expect(screen.getByRole("main")).toBeInTheDocument();
     // Rail and bottom bar are both in the DOM; CSS decides which one shows.
     expect(screen.getAllByRole("navigation", { name: "Main" })).toHaveLength(2);
-    await waitFor(() => expect(screen.getAllByRole("link", { name: "Projects" }).length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByRole("link", { name: /Knowledge/ }).length).toBeGreaterThan(0));
   });
 
   it("opens Context Bot from the FAB", async () => {

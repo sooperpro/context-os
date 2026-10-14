@@ -2,8 +2,8 @@ import type { SystemRole } from "@contextos/shared";
 import {
   ChecklistFilledIcon,
   ChecklistIcon,
-  FolderOpenFilledIcon,
-  FolderOpenIcon,
+  HubFilledIcon,
+  HubIcon,
   GroupFilledIcon,
   GroupIcon,
   SettingsFilledIcon,
@@ -29,12 +29,23 @@ export interface NavItem {
   to: string;
   /** Match only the exact path (for the home item). */
   end?: boolean;
+  /** Other path sections that belong to this destination, e.g. project pages under the Knowledge Hub. */
+  activePaths?: readonly string[];
   /** Roles that see this item. Omit for everyone. */
   roles?: readonly SystemRole[];
 }
 
 export const NAV_ITEMS: readonly NavItem[] = [
-  { id: "projects", label: "Projects", icon: FolderOpenIcon, activeIcon: FolderOpenFilledIcon, to: "/", end: true },
+  // The prototype has no Projects item: projects are a collection inside the Knowledge Hub.
+  {
+    id: "knowledge",
+    label: "Knowledge Hub",
+    short: "Knowledge",
+    icon: HubIcon,
+    activeIcon: HubFilledIcon,
+    to: "/knowledge",
+    activePaths: ["projects"],
+  },
   { id: "people", label: "People", icon: GroupIcon, activeIcon: GroupFilledIcon, to: "/members", roles: ["owner", "admin", "manager", "member"] },
   { id: "setup", label: "Workspace setup", short: "Setup", icon: ChecklistIcon, activeIcon: ChecklistFilledIcon, to: "/setup", roles: ["owner", "admin"] },
 ];
@@ -47,6 +58,11 @@ export const SETTINGS_ITEM: NavItem = {
   activeIcon: SettingsFilledIcon,
   to: "/settings",
 };
+
+/** True when the path is inside one of the item's extra sections (works under any route prefix). */
+export function isInActivePaths(item: NavItem, pathname: string): boolean {
+  return (item.activePaths ?? []).some((section) => new RegExp(`(^|/)${section}(/|$)`).test(pathname));
+}
 
 export function navItemsFor(role: SystemRole | undefined): NavItem[] {
   return NAV_ITEMS.filter((item) => !item.roles || (role !== undefined && item.roles.includes(role)));

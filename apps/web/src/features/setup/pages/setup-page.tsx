@@ -188,7 +188,7 @@ export function SetupPage() {
           Open a project, go to Sources and choose Import from Drive to pick the documents. Each import
           is one explicitly selected file.
         </p>
-        <Button variant="outline" nativeButton={false} render={<Link to="/" />}>
+        <Button variant="outline" nativeButton={false} render={<Link to="/knowledge?cat=projects" />}>
           Open projects
         </Button>
       </div>
