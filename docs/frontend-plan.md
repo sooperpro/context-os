@@ -154,7 +154,7 @@ A pass over every built surface against the prototype's CSS and JS found three g
 - [x] Home for each role, from the reference: employee (up next, onboarding ring and stages, this week's
       tasks, milestones, ask band, knowledge updates, team news, your people, contributions), manager
       (attention, check-ins with an AI prep box, roster against plan, knowledge gaps, team knowledge),
-      People Ops (KPIs, probation reviews, team bars, starters, overdue milestones, templates) and the admin
+      HR (KPIs, probation reviews, team bars, starters, overdue milestones, templates) and the admin
       overview (live connectors with a reconnect banner, members and audit log; security, sync runs and AI
       answers as preview data). `/` opens Home; the rail shows "Home", or "Overview" for admins. In
       development the View-as menu's "Preview as" renders the whole app (rail, Home, role-gated
@@ -162,6 +162,15 @@ A pass over every built surface against the prototype's CSS and JS found three g
       it too. Every role check reads `useViewer()`, never the workspace role directly. The API still
       enforces the real role, so a preview checks layout and navigation, not permissions. Controls whose screen does not
       exist yet call `comingSoon()` instead of linking to a missing page.
+
+- [x] Contributions and New contribution, from the reference: counters, knowledge gaps to fill, your
+      contributions with the Draft → Submitted → In review → Published track, reviewer comments and
+      resubmit; the editor with type, section, visibility, "Draft from sources", a source picker, the
+      suggested reviewer, the readiness checklist, Save draft and Submit for review. "Contributions" is
+      in the Employee rail. Home's contribution card, its "Contribute knowledge" button and the
+      manager's "Create article" gap action open these screens.
+- [x] The rail is gated by persona as well as role, so each "Prototype · view as" persona (Employee,
+      Manager, HR, Admin) gets the reference's items as their screens ship.
 
 Not built because nothing backs them yet: rail badges (no unread counts per area), the prototype's
 "Save" on answers and knowledge items, notification categories.

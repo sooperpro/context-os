@@ -36,7 +36,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
  */
 export function AppShell({ assistant }: { assistant: ReactNode }) {
   const viewer = useViewer();
-  const items = navItemsFor(viewer.role);
+  const items = navItemsFor(viewer.role, viewer.persona);
 
   const expanded = useMediaQuery(WINDOW.expanded);
   const large = useMediaQuery(WINDOW.large);

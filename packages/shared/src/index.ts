@@ -2,6 +2,7 @@ export * from "./schemas/api.js";
 export * from "./schemas/ask.js";
 export * from "./schemas/common.js";
 export * from "./schemas/context.js";
+export * from "./schemas/contributions.js";
 export * from "./schemas/feedback.js";
 export * from "./schemas/health.js";
 export * from "./schemas/home.js";

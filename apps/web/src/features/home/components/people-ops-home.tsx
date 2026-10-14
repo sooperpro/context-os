@@ -58,7 +58,8 @@ import {
   formatShortDate,
   greetingFor,
 } from "@/lib/format";
-import { DashboardGrid, DotList } from "./dashboard";
+import { DotList } from "@/components/ui/dot-list";
+import { DashboardGrid } from "./dashboard";
 import { firstName, span } from "./dashboard-meta";
 
 /** People Operations' Home (prototype `hrHome`): onboarding across teams, probation reviews, starters. */

@@ -2,6 +2,8 @@ import type { SystemRole } from "@contextos/shared";
 import {
   ChecklistFilledIcon,
   ChecklistIcon,
+  EditNoteFilledIcon,
+  EditNoteIcon,
   HubFilledIcon,
   HubIcon,
   GroupFilledIcon,
@@ -14,6 +16,7 @@ import {
   SpaceDashboardIcon,
   type MaterialIcon,
 } from "@/components/ui/icons";
+import type { Persona } from "@/features/workspace/viewer";
 
 /**
  * The one place navigation is defined. The rail, the bottom bar and any future command palette
@@ -37,6 +40,8 @@ export interface NavItem {
   activePaths?: readonly string[];
   /** Roles that see this item. Omit for everyone. */
   roles?: readonly SystemRole[];
+  /** Personas whose rail has this item, as in the prototype's "View as". Omit for every persona. */
+  personas?: readonly Persona[];
 }
 
 export const NAV_ITEMS: readonly NavItem[] = [
@@ -47,7 +52,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     activeIcon: HomeFilledIcon,
     to: "/",
     end: true,
-    roles: ["manager", "member", "guest"],
+    personas: ["employee", "manager", "people_ops"],
   },
   // The prototype labels the admin's Home "Overview".
   {
@@ -57,7 +62,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     activeIcon: SpaceDashboardFilledIcon,
     to: "/",
     end: true,
-    roles: ["owner", "admin"],
+    personas: ["admin"],
   },
   // The prototype has no Projects item: projects are a collection inside the Knowledge Hub.
   {
@@ -76,6 +81,16 @@ export const NAV_ITEMS: readonly NavItem[] = [
     activeIcon: GroupFilledIcon,
     to: "/members",
     roles: ["owner", "admin", "manager", "member"],
+  },
+  {
+    id: "contributions",
+    label: "Contributions",
+    short: "Contribute",
+    icon: EditNoteIcon,
+    activeIcon: EditNoteFilledIcon,
+    to: "/contributions",
+    personas: ["employee"],
+    roles: ["member"],
   },
   {
     id: "setup",
@@ -104,9 +119,12 @@ export function isInActivePaths(item: NavItem, pathname: string): boolean {
   );
 }
 
-export function navItemsFor(role: SystemRole | undefined): NavItem[] {
+/** The rail for a role and persona (see useViewer). An unknown role or persona hides gated items. */
+export function navItemsFor(role: SystemRole | undefined, persona?: Persona): NavItem[] {
   return NAV_ITEMS.filter(
-    (item) => !item.roles || (role !== undefined && item.roles.includes(role)),
+    (item) =>
+      (!item.roles || (role !== undefined && item.roles.includes(role))) &&
+      (!item.personas || (persona !== undefined && item.personas.includes(persona))),
   );
 }
 

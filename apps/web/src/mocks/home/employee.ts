@@ -287,32 +287,4 @@ export const employeeMocks = [
       { person: people.elena, relation: "people_partner", note: null },
     ],
   })),
-  mockGet(E.contributions)(() => ({
-    items: [
-      {
-        id: "c1",
-        kind: "glossary_term",
-        title: "Shipment event",
-        status: "in_review",
-        detail: "Sana Iqbal is reviewing",
-        updatedAt: hoursAgo(20),
-      },
-      {
-        id: "c2",
-        kind: "edit",
-        title: "Local dev setup: Apple silicon notes",
-        status: "published",
-        detail: "Viewed by 6 people",
-        updatedAt: atFromToday(-3, 12),
-      },
-      {
-        id: "c3",
-        kind: "flag",
-        title: "Staging access request",
-        status: "resolved",
-        detail: "Fixed by Tom Becker",
-        updatedAt: atFromToday(-6, 9),
-      },
-    ],
-  })),
 ];

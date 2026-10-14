@@ -13,13 +13,39 @@ describe("mock layer", () => {
 
   // Each handler parses its fixture with the shared schema, so a fixture that drifts from the
   // contract turns into a 500 here instead of a screen that renders impossible data.
-  it.each(mockEndpoints.map((endpoint) => endpoint.key))(
-    "%s answers with data its schema accepts",
-    async (key) => {
-      const path = key.replace(/^GET /, "");
-      const response = await fetch(new URL(buildApiUrl(path), window.location.origin));
-      expect(response.status).toBe(200);
-      expect(response.headers.get("X-ContextOS-Mock")).toBe("1");
-    },
-  );
+  const reads = mockEndpoints
+    .map((endpoint) => endpoint.key)
+    .filter((key) => key.startsWith("GET "));
+  it.each(reads)("%s answers with data its schema accepts", async (key) => {
+    const path = key.replace(/^GET /, "");
+    const response = await fetch(new URL(buildApiUrl(path), window.location.origin));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("X-ContextOS-Mock")).toBe("1");
+  });
+
+  it("validates write bodies like the API: 400 with the error envelope, 201 when valid", async () => {
+    const post = (body: unknown) =>
+      fetch(new URL(buildApiUrl("/v1/contributions"), window.location.origin), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    const draft = {
+      kind: "article",
+      title: "Roll back a deploy",
+      section: "process",
+      visibility: "workspace",
+      body: "",
+      sourceIds: [],
+      gapId: null,
+    };
+
+    const invalid = await post({ ...draft, submit: true });
+    expect(invalid.status).toBe(400);
+    expect(await invalid.json()).toMatchObject({ error: { code: "VALIDATION_ERROR" } });
+
+    const saved = await post({ ...draft, submit: false });
+    expect(saved.status).toBe(201);
+    expect(await saved.json()).toMatchObject({ status: "draft", title: "Roll back a deploy" });
+  });
 });

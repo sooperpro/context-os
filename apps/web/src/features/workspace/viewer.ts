@@ -10,7 +10,7 @@ export type Persona = (typeof PERSONAS)[number];
 export const PERSONA_LABEL: Record<Persona, string> = {
   employee: "Employee",
   manager: "Manager",
-  people_ops: "People Ops",
+  people_ops: "HR",
   admin: "Admin",
 };
 

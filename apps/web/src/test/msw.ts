@@ -1,6 +1,7 @@
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll } from "vitest";
 import { registerPreviewEndpoints } from "@/lib/preview-data";
+import { resetContributionMocks } from "@/mocks/contributions";
 import { mockEndpoints } from "@/mocks/endpoints";
 
 /**
@@ -15,6 +16,9 @@ export function setupMockApi(): void {
     mockServer.listen({ onUnhandledRequest: "error" });
     registerPreviewEndpoints(mockEndpoints.map((endpoint) => endpoint.key));
   });
-  afterEach(() => mockServer.resetHandlers());
+  afterEach(() => {
+    mockServer.resetHandlers();
+    resetContributionMocks();
+  });
   afterAll(() => mockServer.close());
 }

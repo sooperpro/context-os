@@ -40,6 +40,7 @@ import { OptionList, OptionTile } from "@/components/ui/option-tile";
 import { PillTab, PillTabs } from "@/components/ui/pill-tabs";
 import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress";
 import { ProgressRing } from "@/components/ui/progress-ring";
+import { ProgressSteps } from "@/components/ui/progress-steps";
 import {
   SegmentedItem,
   SegmentedItemBody,
@@ -53,6 +54,7 @@ import { SHAPE_KINDS, Shape } from "@/components/ui/shape";
 import { StatusChip } from "@/components/ui/status-chip";
 import { Stepper, StepperItem } from "@/components/ui/stepper";
 import { Timeline, TimelineItem } from "@/components/ui/timeline";
+import { DotList } from "@/components/ui/dot-list";
 import { Switch } from "@/components/ui/switch";
 import {
   Table,
@@ -542,6 +544,24 @@ export function UiGalleryPage() {
             <ProgressRing value={0.4} size={64} tone="warning" aria-hidden />
             <ProgressRing value={1} size={40} aria-hidden />
           </Row>
+        </Section>
+
+        <Section title="Status track and meta">
+          <div className="max-w-md space-y-4 rounded-card bg-card p-6">
+            <ProgressSteps
+              steps={["Draft", "Submitted", "In review", "Published"]}
+              current={2}
+              aria-label="Review status"
+            />
+            <ProgressSteps
+              steps={["Draft", "Submitted", "In review", "Published"]}
+              current={3}
+              aria-label="Published"
+            />
+            <p className="flex flex-wrap items-center gap-x-2 text-xs text-on-surface-variant">
+              <DotList parts={["Glossary term", "Glossary", "Submitted Oct 12"]} />
+            </p>
+          </div>
         </Section>
 
         <Section title="Timeline">

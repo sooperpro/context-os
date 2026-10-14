@@ -13,13 +13,44 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ArrowDropDownIcon, GroupIcon, ScienceIcon, VisibilityIcon } from "@/components/ui/icons";
+import {
+  AdminPanelSettingsIcon,
+  ArrowDropDownIcon,
+  BadgeIcon,
+  GroupIcon,
+  PersonIcon,
+  ScienceIcon,
+  SupervisorAccountIcon,
+  VisibilityIcon,
+} from "@/components/ui/icons";
 import { currentWorkspaceQuery } from "@/features/workspace/api/workspace.queries";
 import { useViewer } from "@/features/workspace/hooks/use-viewer";
-import { isPersona, PERSONA_LABEL, PERSONAS, setPreviewPersona } from "@/features/workspace/viewer";
+import {
+  isPersona,
+  PERSONA_LABEL,
+  PERSONAS,
+  setPreviewPersona,
+  type Persona,
+} from "@/features/workspace/viewer";
 import { ROLE_LABEL } from "@/lib/labels";
 
 const ACTUAL = "actual";
+
+/** The prototype's icons for its four roles. */
+const PERSONA_ICON = {
+  employee: PersonIcon,
+  manager: SupervisorAccountIcon,
+  people_ops: BadgeIcon,
+  admin: AdminPanelSettingsIcon,
+} as const;
+
+/** The backend role each persona previews with (HR has none yet). */
+const PERSONA_NOTE: Record<Persona, string> = {
+  employee: "Member",
+  manager: "Manager",
+  people_ops: "No role yet",
+  admin: "Admin",
+};
 
 /**
  * The prototype's "View as" pill. It shows the real role from the workspace membership and explains
@@ -51,7 +82,7 @@ export function ViewAsPill() {
         }
       >
         {preview ? <ScienceIcon /> : <VisibilityIcon />}
-        <span className="hidden expanded:inline">Viewing as</span>
+        <span className="hidden expanded:inline">View as</span>
         <b className={cn("font-medium", !preview && "text-on-surface")}>
           {preview ? PERSONA_LABEL[preview] : actual ? ROLE_LABEL[actual] : "…"}
         </b>
@@ -81,7 +112,7 @@ export function ViewAsPill() {
           <>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuLabel>Preview as (development)</DropdownMenuLabel>
+              <DropdownMenuLabel>Prototype · view as</DropdownMenuLabel>
               <DropdownMenuRadioGroup
                 value={preview ?? ACTUAL}
                 onValueChange={(value: unknown) => {
@@ -92,11 +123,17 @@ export function ViewAsPill() {
                 <DropdownMenuRadioItem value={ACTUAL}>
                   <VisibilityIcon /> You{actual ? ` (${ROLE_LABEL[actual]})` : ""}
                 </DropdownMenuRadioItem>
-                {PERSONAS.map((persona) => (
-                  <DropdownMenuRadioItem key={persona} value={persona}>
-                    <ScienceIcon /> {PERSONA_LABEL[persona]}
-                  </DropdownMenuRadioItem>
-                ))}
+                {PERSONAS.map((persona) => {
+                  const Icon = PERSONA_ICON[persona];
+                  return (
+                    <DropdownMenuRadioItem key={persona} value={persona}>
+                      <Icon /> {PERSONA_LABEL[persona]}
+                      <span className="ms-auto text-xs font-normal text-on-surface-variant">
+                        {PERSONA_NOTE[persona]}
+                      </span>
+                    </DropdownMenuRadioItem>
+                  );
+                })}
               </DropdownMenuRadioGroup>
             </DropdownMenuGroup>
           </>

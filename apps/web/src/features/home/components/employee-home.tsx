@@ -1,6 +1,4 @@
 import type {
-  Contribution,
-  KnowledgeOrigin,
   Milestone,
   MyOnboarding,
   MyPerson,
@@ -16,6 +14,7 @@ import { Link } from "react-router";
 import { AskBand } from "@/components/ask-band";
 import { useAssistant } from "@/components/layout/assistant-context";
 import { PageHeader } from "@/components/layout/page-header";
+import { OriginIcon } from "@/components/origin-icon";
 import { PreviewDataChip } from "@/components/preview-data-chip";
 import { SectionCard } from "@/components/section-card";
 import { PersonAvatar } from "@/components/ui/avatar";
@@ -26,19 +25,12 @@ import {
   AddIcon,
   ArrowForwardIcon,
   ArticleIcon,
-  CancelIcon,
   CelebrationFilledIcon,
   ChatIcon,
   CheckCircleFilledIcon,
-  CheckCircleIcon,
   CheckIcon,
-  CodeIcon,
-  ConfirmationNumberIcon,
   CoPresentIcon,
   ConstructionIcon,
-  DescriptionIcon,
-  DoneAllIcon,
-  EditDocumentIcon,
   EventAvailableIcon,
   EventIcon,
   EventRepeatIcon,
@@ -47,9 +39,7 @@ import {
   ForumIcon,
   HubIcon,
   LockIcon,
-  MenuBookIcon,
   MyLocationIcon,
-  PendingIcon,
   PlayArrowFilledIcon,
   PlayCircleFilledIcon,
   QuizIcon,
@@ -57,7 +47,6 @@ import {
   RouteIcon,
   ScheduleIcon,
   SchoolFilledIcon,
-  TagIcon,
   UpdateIcon,
   VerifiedIcon,
   WavingHandIcon,
@@ -79,9 +68,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusChip } from "@/components/ui/status-chip";
 import { Timeline, TimelineItem } from "@/components/ui/timeline";
 import { meQuery } from "@/features/account/api/account.queries";
+import { CONTRIBUTION_ENDPOINTS } from "@/features/contributions/api/contributions.api";
+import { myContributionsQuery } from "@/features/contributions/api/contributions.queries";
+import {
+  CONTRIBUTION_KIND_ICON,
+  CONTRIBUTION_STATUS,
+  contributionDetail,
+  isInReview,
+} from "@/features/contributions/contribution-meta";
 import { HOME_ENDPOINTS as E } from "@/features/home/api/home.api";
 import { homeQuery } from "@/features/home/api/home.queries";
 import { comingSoon } from "@/lib/coming-soon";
+import { CONTRIBUTION_KIND_LABEL, KNOWLEDGE_ORIGIN_LABEL } from "@/lib/labels";
 import {
   daysFromToday,
   formatCount,
@@ -95,7 +93,7 @@ import {
   greetingFor,
   parseDateOnly,
 } from "@/lib/format";
-import { DotList } from "./dashboard";
+import { DotList } from "@/components/ui/dot-list";
 import { ONBOARDING_STATUS, firstName, formatDateRange } from "./dashboard-meta";
 
 /** The employee's Home (prototype `employeeHome`): what to do next, how onboarding is going, who to ask. */
@@ -670,15 +668,6 @@ function MilestonesCard() {
 
 /* ---- Knowledge updates for you ------------------------------------------------------------ */
 
-const ORIGIN: Record<KnowledgeOrigin, { label: string; icon: ReactNode }> = {
-  google_drive: { label: "Google Drive", icon: <DescriptionIcon /> },
-  github: { label: "GitHub", icon: <CodeIcon /> },
-  slack: { label: "Slack", icon: <TagIcon /> },
-  jira: { label: "Jira", icon: <ConfirmationNumberIcon /> },
-  confluence: { label: "Confluence", icon: <ArticleIcon /> },
-  knowledge_hub: { label: "Knowledge Hub", icon: <HubIcon /> },
-};
-
 function ArrowLink({ to, label }: { to: string; label: string }) {
   return (
     <Button
@@ -705,10 +694,11 @@ function KnowledgeUpdatesCard() {
       {query.data?.items.length ? (
         <SegmentedList>
           {query.data.items.map((update) => {
-            const origin = ORIGIN[update.origin];
             const body = (
               <>
-                <SegmentedItemLead tone="neutral">{origin.icon}</SegmentedItemLead>
+                <SegmentedItemLead tone="neutral">
+                  <OriginIcon origin={update.origin} />
+                </SegmentedItemLead>
                 <SegmentedItemBody>
                   <SegmentedItemTitle className="whitespace-normal">
                     {update.title}
@@ -716,7 +706,7 @@ function KnowledgeUpdatesCard() {
                   <SegmentedItemMeta>
                     <DotList
                       parts={[
-                        origin.label,
+                        KNOWLEDGE_ORIGIN_LABEL[update.origin],
                         update.author,
                         formatRelativeTime(update.updatedAt),
                         update.restrictedTo ? (
@@ -868,55 +858,40 @@ function MyPeopleCard() {
 
 /* ---- Your contributions ---------------------------------------------------------------------- */
 
-const CONTRIBUTION_KIND: Record<Contribution["kind"], { label: string; icon: ReactNode }> = {
-  glossary_term: { label: "New glossary term", icon: <MenuBookIcon /> },
-  edit: { label: "Suggested edit", icon: <EditDocumentIcon /> },
-  flag: { label: "Flagged as outdated", icon: <FlagIcon /> },
-  article: { label: "New article", icon: <ArticleIcon /> },
-};
-
-const CONTRIBUTION_STATUS: Record<
-  Contribution["status"],
-  { label: string; tone: "info" | "success" | "neutral" | "error"; icon: ReactNode }
-> = {
-  in_review: { label: "In review", tone: "info", icon: <PendingIcon /> },
-  published: { label: "Published", tone: "success", icon: <CheckCircleIcon /> },
-  resolved: { label: "Resolved", tone: "neutral", icon: <DoneAllIcon /> },
-  rejected: { label: "Not accepted", tone: "error", icon: <CancelIcon /> },
-};
-
 function ContributionsCard() {
-  const query = useQuery(homeQuery("contributions"));
-  const items = query.data?.items ?? [];
-  const inReview = items.filter((item) => item.status === "in_review").length;
+  const query = useQuery(myContributionsQuery());
+  const items = query.data ?? [];
+  const inReview = items.filter((item) => isInReview(item.status)).length;
   return (
     <SectionCard
       title="Your contributions"
       count={query.data ? `${items.length} · ${inReview} in review` : undefined}
-      endpoint={E.contributions.path}
+      endpoint={CONTRIBUTION_ENDPOINTS.mine.path}
       status={query}
+      action={<ArrowLink to="/contributions" label="Open Contributions" />}
       footer={
-        <Button variant="secondary" onClick={() => comingSoon("Contributing knowledge")}>
+        <Button variant="secondary" nativeButton={false} render={<Link to="/contributions/new" />}>
           <AddIcon aria-hidden /> Contribute knowledge
         </Button>
       }
     >
       {items.length ? (
         <SegmentedList>
-          {items.map((item) => {
-            const kind = CONTRIBUTION_KIND[item.kind];
+          {items.slice(0, 3).map((item) => {
             const status = CONTRIBUTION_STATUS[item.status];
             return (
               <SegmentedItem key={item.id} className="min-h-0 items-start gap-3 px-3 py-2.5">
                 <SegmentedItemLead tone="neutral" size="sm">
-                  {kind.icon}
+                  {CONTRIBUTION_KIND_ICON[item.kind]}
                 </SegmentedItemLead>
                 <SegmentedItemBody>
                   <SegmentedItemTitle className="whitespace-normal">
                     {item.title}
                   </SegmentedItemTitle>
                   <SegmentedItemMeta>
-                    <DotList parts={[kind.label, item.detail]} />
+                    <DotList
+                      parts={[CONTRIBUTION_KIND_LABEL[item.kind], contributionDetail(item)]}
+                    />
                   </SegmentedItemMeta>
                   <span className="mt-1.5">
                     <StatusChip tone={status.tone} icon={status.icon}>

@@ -13,7 +13,14 @@ interface KpiTileProps extends React.ComponentProps<"div"> {
   deltaTone?: "neutral" | "good" | "bad";
 }
 
-function KpiTile({ className, label, value, delta, deltaTone = "neutral", ...props }: KpiTileProps) {
+function KpiTile({
+  className,
+  label,
+  value,
+  delta,
+  deltaTone = "neutral",
+  ...props
+}: KpiTileProps) {
   return (
     <div
       data-slot="kpi-tile"
@@ -64,7 +71,9 @@ function MiniTile({ className, label, value, tone = "neutral", ...props }: MiniT
       >
         {label}
       </span>
-      <span className="font-heading text-2xl font-medium tabular-nums">{value}</span>
+      <span className="font-heading text-[28px] leading-8 font-semibold tracking-tight tabular-nums">
+        {value}
+      </span>
     </div>
   );
 }

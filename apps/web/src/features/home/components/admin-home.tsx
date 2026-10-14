@@ -67,7 +67,8 @@ import {
   formatTime,
 } from "@/lib/format";
 import { AUDIT_ACTION_LABEL, ROLE_LABEL } from "@/lib/labels";
-import { DashboardGrid, DotList } from "./dashboard";
+import { DotList } from "@/components/ui/dot-list";
+import { DashboardGrid } from "./dashboard";
 import { span } from "./dashboard-meta";
 
 /**

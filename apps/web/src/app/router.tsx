@@ -34,6 +34,22 @@ const appChildren = [
     },
   },
   {
+    path: "contributions",
+    lazy: async () => {
+      const { ContributionsPage } =
+        await import("@/features/contributions/pages/contributions-page");
+      return { Component: ContributionsPage };
+    },
+  },
+  {
+    path: "contributions/new",
+    lazy: async () => {
+      const { ContributionEditorPage } =
+        await import("@/features/contributions/pages/contribution-editor-page");
+      return { Component: ContributionEditorPage };
+    },
+  },
+  {
     path: "members",
     lazy: async () => {
       const { MembersPage } = await import("@/features/members/pages/members-page");

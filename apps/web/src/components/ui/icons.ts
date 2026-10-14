@@ -122,6 +122,12 @@ import LocalShippingIcon from "@material-symbols/svg-400/rounded/local_shipping.
 import ConversionPathIcon from "@material-symbols/svg-400/rounded/conversion_path.svg?react";
 import MenuBookIcon from "@material-symbols/svg-400/rounded/menu_book.svg?react";
 import VisibilityIcon from "@material-symbols/svg-400/rounded/visibility.svg?react";
+import EditNoteFilledIcon from "@material-symbols/svg-400/rounded/edit_note-fill.svg?react";
+import AdminPanelSettingsIcon from "@material-symbols/svg-400/rounded/admin_panel_settings.svg?react";
+import BadgeIcon from "@material-symbols/svg-400/rounded/badge.svg?react";
+import SaveIcon from "@material-symbols/svg-400/rounded/save.svg?react";
+import AddLinkIcon from "@material-symbols/svg-400/rounded/add_link.svg?react";
+import CallSplitIcon from "@material-symbols/svg-400/rounded/call_split.svg?react";
 import CelebrationIcon from "@material-symbols/svg-400/rounded/celebration.svg?react";
 import TrendingUpIcon from "@material-symbols/svg-400/rounded/trending_up.svg?react";
 import ArrowForwardIcon from "@material-symbols/svg-400/rounded/arrow_forward.svg?react";
@@ -171,6 +177,12 @@ export type MaterialIcon = ComponentType<SVGProps<SVGSVGElement>>;
 
 export {
   AddIcon,
+  EditNoteFilledIcon,
+  AdminPanelSettingsIcon,
+  BadgeIcon,
+  SaveIcon,
+  AddLinkIcon,
+  CallSplitIcon,
   CelebrationIcon,
   TrendingUpIcon,
   ArrowForwardIcon,

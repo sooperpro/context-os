@@ -3,17 +3,32 @@ import { BOTTOM_NAV_LIMIT, NAV_ITEMS, navItemsFor } from "@/components/layout/na
 
 describe("navigation config", () => {
   it("shows ungated items to every role, including guests and while the role is unknown", () => {
-    const everyone = NAV_ITEMS.filter((item) => !item.roles).map((item) => item.id);
+    const everyone = NAV_ITEMS.filter((item) => !item.roles && !item.personas).map(
+      (item) => item.id,
+    );
     expect(navItemsFor("guest").map((item) => item.id)).toEqual(expect.arrayContaining(everyone));
     expect(navItemsFor(undefined).map((item) => item.id)).toEqual(everyone);
   });
 
   it("hides role-gated items from roles not listed", () => {
-    const gated = NAV_ITEMS.filter((item) => item.roles);
+    const gated = NAV_ITEMS.filter((item) => item.roles && !item.personas);
     for (const item of gated) {
       expect(navItemsFor("guest").some((candidate) => candidate.id === item.id)).toBe(
         item.roles?.includes("guest") ?? true,
       );
+    }
+  });
+
+  it("gives each prototype persona its rail", () => {
+    const rail = (
+      role: Parameters<typeof navItemsFor>[0],
+      persona: Parameters<typeof navItemsFor>[1],
+    ) => navItemsFor(role, persona).map((item) => item.id);
+    expect(rail("member", "employee")).toEqual(["home", "knowledge", "people", "contributions"]);
+    expect(rail("manager", "manager")).toEqual(["home", "knowledge", "people"]);
+    expect(rail("owner", "admin")).toEqual(["overview", "knowledge", "people", "setup"]);
+    for (const persona of ["employee", "manager", "people_ops", "admin"] as const) {
+      expect(navItemsFor("member", persona).length).toBeLessThanOrEqual(BOTTOM_NAV_LIMIT);
     }
   });
 

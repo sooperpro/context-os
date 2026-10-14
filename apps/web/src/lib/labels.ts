@@ -3,8 +3,12 @@ import type {
   AnswerConfidence,
   Confidence,
   ContextItemKind,
+  ContributionKind,
+  ContributionVisibility,
   DecisionData,
   JobStatus,
+  KnowledgeOrigin,
+  KnowledgeSection,
   SourceKind,
   SourceStatus,
   StatusState,
@@ -141,4 +145,37 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   "workspace.create": "Created the workspace",
   "workspace.setup": "Updated workspace setup",
   "workspace.update": "Updated the workspace",
+};
+
+export const CONTRIBUTION_KIND_LABEL: Record<ContributionKind, string> = {
+  article: "New article",
+  edit: "Suggested edit",
+  glossary_term: "Glossary term",
+  flag: "Flagged as outdated",
+};
+
+/** Knowledge Hub sections, as the editor's "Section" field names them. */
+export const SECTION_LABEL: Record<KnowledgeSection, string> = {
+  company: "Company",
+  product: "Products",
+  project: "Projects",
+  system: "Systems",
+  process: "Processes",
+  decision: "Decisions",
+  glossary: "Glossary",
+};
+
+export const VISIBILITY_LABEL: Record<ContributionVisibility, string> = {
+  workspace: "Everyone",
+  team: "Your team only",
+};
+
+/** Where a piece of knowledge came from (connectors and the hub itself). */
+export const KNOWLEDGE_ORIGIN_LABEL: Record<KnowledgeOrigin, string> = {
+  google_drive: "Google Drive",
+  github: "GitHub",
+  slack: "Slack",
+  jira: "Jira",
+  confluence: "Confluence",
+  knowledge_hub: "Knowledge Hub",
 };

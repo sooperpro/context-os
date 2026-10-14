@@ -1,6 +1,7 @@
 import type { AttentionItem, KnowledgeGap, TeamKnowledge, TeamOnboarding } from "@contextos/shared";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import type { ReactNode } from "react";
+import { Link } from "react-router";
 import { useAssistant } from "@/components/layout/assistant-context";
 import { PageHeader } from "@/components/layout/page-header";
 import { SectionCard } from "@/components/section-card";
@@ -54,7 +55,8 @@ import {
   formatWeekday,
   greetingFor,
 } from "@/lib/format";
-import { DashboardGrid, DotList } from "./dashboard";
+import { DotList } from "@/components/ui/dot-list";
+import { DashboardGrid } from "./dashboard";
 import { ONBOARDING_PROGRESS_TONE, ONBOARDING_STATUS, firstName, span } from "./dashboard-meta";
 
 /** The manager's Home (prototype `managerHome`): who needs attention, upcoming check-ins, the team's plan. */
@@ -372,11 +374,11 @@ function RosterCard({ query }: { query: UseQueryResult<TeamOnboarding> }) {
 
 const GAP_REASON: Record<
   KnowledgeGap["reason"],
-  { tone: "error" | "warning"; icon: ReactNode; action: string; primary: boolean }
+  { tone: "error" | "warning"; icon: ReactNode; action: string }
 > = {
-  no_answer: { tone: "error", icon: <HelpIcon />, action: "Create article", primary: true },
-  conflict: { tone: "warning", icon: <ErrorIcon />, action: "Review sources", primary: false },
-  stale: { tone: "warning", icon: <ScheduleIcon />, action: "Request update", primary: false },
+  no_answer: { tone: "error", icon: <HelpIcon />, action: "Create article" },
+  conflict: { tone: "warning", icon: <ErrorIcon />, action: "Review sources" },
+  stale: { tone: "warning", icon: <ScheduleIcon />, action: "Request update" },
 };
 
 function KnowledgeGapsCard() {
@@ -415,13 +417,25 @@ function KnowledgeGapsCard() {
                   </SegmentedItemMeta>
                 </SegmentedItemBody>
                 <SegmentedItemTrail className="ps-14 @min-[640px]:ps-0">
-                  <Button
-                    size="xs"
-                    variant={reason.primary ? "secondary" : "outline"}
-                    onClick={() => comingSoon(reason.action)}
-                  >
-                    {reason.action}
-                  </Button>
+                  {gap.reason === "no_answer" ? (
+                    // Writing the missing page opens the editor with the question, as in the prototype.
+                    <Button
+                      size="xs"
+                      variant="secondary"
+                      nativeButton={false}
+                      render={
+                        <Link
+                          to={`/contributions/new?question=${encodeURIComponent(gap.question)}`}
+                        />
+                      }
+                    >
+                      {reason.action}
+                    </Button>
+                  ) : (
+                    <Button size="xs" variant="outline" onClick={() => comingSoon(reason.action)}>
+                      {reason.action}
+                    </Button>
+                  )}
                 </SegmentedItemTrail>
               </SegmentedItem>
             );

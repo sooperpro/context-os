@@ -186,20 +186,6 @@ export type MyPerson = z.infer<typeof MyPersonSchema>;
 /** `GET /v1/me/people`: the people the caller should know first. */
 export const MyPeopleSchema = z.object({ items: z.array(MyPersonSchema) });
 
-export const ContributionSchema = z.object({
-  id: z.string(),
-  kind: z.enum(["glossary_term", "edit", "flag", "article"]),
-  title: z.string(),
-  status: z.enum(["in_review", "published", "resolved", "rejected"]),
-  /** "Sana Iqbal is reviewing", "Viewed by 6 people". */
-  detail: z.string().nullable(),
-  updatedAt: IsoDateTimeSchema,
-});
-export type Contribution = z.infer<typeof ContributionSchema>;
-
-/** `GET /v1/me/contributions`: what the caller has suggested or flagged, newest first. */
-export const ContributionListSchema = z.object({ items: z.array(ContributionSchema) });
-
 /* ---- Manager ------------------------------------------------------------------------------ */
 
 export const TeamMemberProgressSchema = z.object({
@@ -259,19 +245,6 @@ export type Checkin = z.infer<typeof CheckinSchema>;
 
 /** `GET /v1/team/checkins?upcoming=true`: the manager's next check-ins, soonest first. */
 export const CheckinListSchema = z.object({ items: z.array(CheckinSchema) });
-
-export const KnowledgeGapSchema = z.object({
-  id: z.string(),
-  question: z.string(),
-  askedCount: Count,
-  reason: z.enum(["no_answer", "conflict", "stale"]),
-  /** "No answer found", "Sources disagree", "Source is 14 months old". */
-  detail: z.string(),
-});
-export type KnowledgeGap = z.infer<typeof KnowledgeGapSchema>;
-
-/** `GET /v1/team/knowledge-gaps`: questions the team asked that Context Bot answered badly this month. */
-export const KnowledgeGapListSchema = z.object({ items: z.array(KnowledgeGapSchema) });
 
 /** `GET /v1/team/knowledge`: the team's articles and the contributions waiting for the manager. */
 export const TeamKnowledgeSchema = z.object({
