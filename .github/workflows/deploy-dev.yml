@@ -44,13 +44,12 @@ jobs:
       - name: Configure the restricted SSH identity
         env:
           DEV_VM_DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEV_VM_DEPLOY_SSH_PRIVATE_KEY }}
-          DEV_VM_KNOWN_HOSTS: ${{ vars.DEV_VM_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
           install -d -m 700 "$HOME/.ssh"
           printf '%s\n' "$DEV_VM_DEPLOY_SSH_PRIVATE_KEY" > "$HOME/.ssh/dev-vm-deploy"
           chmod 600 "$HOME/.ssh/dev-vm-deploy"
-          printf '%s\n' "$DEV_VM_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          : > "$HOME/.ssh/known_hosts"
           chmod 600 "$HOME/.ssh/known_hosts"
           cat > "$HOME/.ssh/config" <<EOF
           Host dev-vm
@@ -67,6 +66,8 @@ jobs:
           chmod 600 "$HOME/.ssh/config"
 
       - name: Start the IAP tunnel
+        env:
+          DEV_VM_KNOWN_HOST_FINGERPRINT: ${{ vars.DEV_VM_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
           gcloud compute start-iap-tunnel "$VM_INSTANCE" 22 \
@@ -77,14 +78,23 @@ jobs:
           echo "$!" > "$RUNNER_TEMP/iap-tunnel.pid"
 
           for attempt in $(seq 1 30); do
-            if ssh dev-vm true >/dev/null 2>&1; then
-              exit 0
+            if ssh-keyscan -T 5 -p "$IAP_LOCAL_PORT" localhost \
+              > "$RUNNER_TEMP/known_hosts.tmp" 2>/dev/null; then
+              actual_fingerprint="$(ssh-keygen -lf "$RUNNER_TEMP/known_hosts.tmp" | awk 'NR == 1 {print $2}')"
+              if [[ "$actual_fingerprint" != "$DEV_VM_KNOWN_HOST_FINGERPRINT" ]]; then
+                echo "Unexpected VM SSH host key fingerprint: $actual_fingerprint"
+                exit 1
+              fi
+              install -m 600 "$RUNNER_TEMP/known_hosts.tmp" "$HOME/.ssh/known_hosts"
+              if ssh dev-vm true >/dev/null 2>&1; then
+                exit 0
+              fi
             fi
             sleep 2
           done
 
           cat "$RUNNER_TEMP/iap-tunnel.log"
-          echo "Could not establish the IAP SSH tunnel."
+          echo "Could not verify the VM SSH host key or establish SSH through IAP."
           exit 1
 
       - name: Package the checked-out revision

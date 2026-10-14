@@ -1,27 +1,30 @@
 # Dev VM deployment
 
 The dev deployment uses the existing Google Compute Engine VM and the GoDaddy DNS zone for
-`sooper.pro`. Caddy terminates HTTPS for `dev.contextos.sooper.pro`; the web container proxies
-`/api/` to the API over Docker's private network. The API and web container ports bind to loopback
-only.
+`sooper.pro`. The VM's current external IPv4 `35.234.218.230` is reserved as the regional static
+address `dev-contextos-sooper-pro-ip`. Caddy terminates HTTPS for `dev.contextos.sooper.pro`; the
+web container proxies `/api/` to the API over Docker's private network. The API and web container
+ports bind to loopback only.
 
 ## One-time setup
 
-1. Reserve a static external IPv4 address in the VM's `asia-south1` region and attach it to the VM.
-   The current VM address is ephemeral and may change if the instance is stopped.
-2. In GoDaddy DNS for `sooper.pro`, add an A record named `dev.contextos` pointing to that address.
+1. The VM's current external IPv4 has been promoted to a static address in `asia-south1`; the
+   address resource is `dev-contextos-sooper-pro-ip` and its value is `35.234.218.230`.
+2. In GoDaddy DNS for `sooper.pro`, keep the A record named `dev.contextos` pointing to
+   `35.234.218.230`.
    Leave the apex and `www` records in place; they currently point to Vercel.
 3. In Clerk, allow `https://dev.contextos.sooper.pro` as an authorized frontend origin and verify
    the dev instance's sign-in URLs. Use the matching dev publishable and secret keys.
 4. In the Google Cloud Console, open the OAuth 2.0 **Web application** client used by this
-   deployment and add this exact Authorized redirect URI:
+   deployment and keep this exact Authorized redirect URI:
 
    ```text
    https://dev.contextos.sooper.pro/api/v1/connectors/google-drive/callback
    ```
 
    Do not add a trailing slash. It must be the same value as `GOOGLE_REDIRECT_URI`; Google rejects
-   an otherwise-valid authorization request when the two differ.
+   an otherwise-valid authorization request when the two differ. It has been added to the
+   `ContextOS Drive local` OAuth client alongside the localhost callback.
 5. Install Docker Engine and the Docker Compose plugin on the Ubuntu VM.
 
 ## Deploy manually
@@ -69,11 +72,13 @@ this VM. It does not use a service account key JSON or expose SSH to the public 
 1. Create a dedicated Ed25519 key pair on a trusted workstation. Add the public key to
    `/home/sooperapp_pro/.ssh/authorized_keys` on the VM with the `restrict` option. Store the
    private key as the GitHub repository secret `DEV_VM_DEPLOY_SSH_PRIVATE_KEY`.
-2. Pin the VM's SSH host public key as the GitHub repository variable `DEV_VM_KNOWN_HOSTS`, in
-   this format (use the actual host public key from `/etc/ssh/ssh_host_ed25519_key.pub`):
+2. Pin the VM's SSH host key fingerprint in the GitHub repository variable `DEV_VM_KNOWN_HOSTS`,
+   using the value from `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` (the SHA256 field,
+   including the `SHA256:` prefix). The workflow fetches the public key through IAP and checks it
+   against this fingerprint before installing it into `known_hosts`.
 
    ```text
-   [localhost]:2222 ssh-ed25519 <VM SSH host public key>
+   SHA256:<VM SSH host key fingerprint>
    ```
 
 3. Allow IAP TCP forwarding to port 22 from `35.235.240.0/20`, targeted to this VM. For example,
