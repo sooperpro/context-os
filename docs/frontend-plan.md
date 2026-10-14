@@ -111,6 +111,14 @@ first 90 days) is part of learning paths and onboarding.
 
 Each screen composes library pieces only. A missing primitive goes into the library first.
 
+### Phase 5: bring the older screens onto the library
+
+- [x] Projects: prototype page head (kicker, headline, actions with Ask Context Bot), search, tonal
+      "start here" cards with a shape tile, status chip and stats. Card gained `tone` and `interactive`
+      variants; PageHeader gained a kicker.
+- [ ] Project hub (the prototype's project page: hero, overview with citations, tabs)
+- [ ] Sources page and answer cards
+
 ## Guardrails
 
 - **Lint enforces tokens.** `src/components/**` and `src/features/**` may not contain hex, `rgb()`,

@@ -17,6 +17,7 @@ import ChecklistIcon from "@material-symbols/svg-400/rounded/checklist.svg?react
 import CloseIcon from "@material-symbols/svg-400/rounded/close.svg?react";
 import DarkModeIcon from "@material-symbols/svg-400/rounded/dark_mode.svg?react";
 import DeleteIcon from "@material-symbols/svg-400/rounded/delete.svg?react";
+import DescriptionIcon from "@material-symbols/svg-400/rounded/description.svg?react";
 import DesktopWindowsIcon from "@material-symbols/svg-400/rounded/desktop_windows.svg?react";
 import FolderOpenFilledIcon from "@material-symbols/svg-400/rounded/folder_open-fill.svg?react";
 import FolderOpenIcon from "@material-symbols/svg-400/rounded/folder_open.svg?react";
@@ -24,11 +25,13 @@ import GroupFilledIcon from "@material-symbols/svg-400/rounded/group-fill.svg?re
 import GroupIcon from "@material-symbols/svg-400/rounded/group.svg?react";
 import HubFilledIcon from "@material-symbols/svg-400/rounded/hub-fill.svg?react";
 import HubIcon from "@material-symbols/svg-400/rounded/hub.svg?react";
+import LayersIcon from "@material-symbols/svg-400/rounded/layers.svg?react";
 import LightModeIcon from "@material-symbols/svg-400/rounded/light_mode.svg?react";
 import MenuIcon from "@material-symbols/svg-400/rounded/menu.svg?react";
 import MenuOpenIcon from "@material-symbols/svg-400/rounded/menu_open.svg?react";
 import MoreHorizIcon from "@material-symbols/svg-400/rounded/more_horiz.svg?react";
 import RouteIcon from "@material-symbols/svg-400/rounded/route.svg?react";
+import ScheduleIcon from "@material-symbols/svg-400/rounded/schedule.svg?react";
 import SearchIcon from "@material-symbols/svg-400/rounded/search.svg?react";
 import SendIcon from "@material-symbols/svg-400/rounded/send.svg?react";
 import SettingsIcon from "@material-symbols/svg-400/rounded/settings.svg?react";
@@ -44,6 +47,7 @@ export {
   CloseIcon,
   DarkModeIcon,
   DeleteIcon,
+  DescriptionIcon,
   DesktopWindowsIcon,
   FolderOpenFilledIcon,
   FolderOpenIcon,
@@ -51,11 +55,13 @@ export {
   GroupIcon,
   HubFilledIcon,
   HubIcon,
+  LayersIcon,
   LightModeIcon,
   MenuIcon,
   MenuOpenIcon,
   MoreHorizIcon,
   RouteIcon,
+  ScheduleIcon,
   SearchIcon,
   SendIcon,
   SettingsIcon,
