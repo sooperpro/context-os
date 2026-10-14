@@ -16,6 +16,7 @@ const cardVariants = cva(
         secondary: "bg-secondary-container text-on-secondary-container",
         ai: "bg-ai-container/60 text-on-ai-container",
         outlined: "bg-transparent text-card-foreground ring-1 ring-outline-variant",
+        pane: "bg-pane text-card-foreground",
       },
       interactive: {
         true: "transition-[border-radius] duration-[350ms] ease-spring-fast-spatial before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:bg-current before:opacity-0 before:transition-opacity before:duration-[140ms] before:content-[''] hover:rounded-3xl hover:before:opacity-5 focus-within:before:opacity-8",

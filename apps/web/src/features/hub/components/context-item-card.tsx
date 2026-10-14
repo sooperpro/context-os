@@ -1,12 +1,13 @@
 import type { ContextItem, Verification } from "@contextos/shared";
-import { AlertOctagonIcon, CalendarIcon } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { DifferenceIcon, EventIcon } from "@/components/ui/icons";
+import { TypeChip } from "@/components/ui/meta-chip";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FeedbackButtons } from "@/features/feedback/components/feedback-buttons";
 import { useSetVerification } from "@/features/hub/api/hub.queries";
 import { ConfidenceBadge, StateBadge, VerificationBadge } from "@/features/hub/components/badges";
 import { EvidenceList } from "@/features/hub/components/evidence-list";
+import { KIND_ICON } from "@/features/hub/components/kind-icon";
 import { formatDate } from "@/lib/format";
 import { DECISION_STATUS_LABEL, KIND_LABEL } from "@/lib/labels";
 
@@ -22,18 +23,21 @@ export function ContextItemCard({ projectId, item, itemsById }: ContextItemCardP
   const setVerification = (verification: Verification) =>
     verify.mutate({ itemId: item.id, verification });
   const date = item.eventAt ?? item.asOf;
+  const KindIcon = KIND_ICON[item.kind];
 
   return (
     <Card size="sm" data-testid="context-item">
       <CardHeader>
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary">{KIND_LABEL[item.kind]}</Badge>
+          <TypeChip>
+            <KindIcon /> {KIND_LABEL[item.kind]}
+          </TypeChip>
           <KindBadge item={item} />
           <VerificationBadge verification={item.verification} />
           <ConfidenceBadge confidence={item.confidence} />
           {date ? (
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-              <CalendarIcon className="size-3" aria-hidden />
+            <span className="flex items-center gap-1 text-xs text-muted-foreground [&_svg]:size-3.5">
+              <EventIcon aria-hidden />
               {item.kind === "status_claim" ? "as of " : ""}
               {formatDate(date)}
             </span>
@@ -45,8 +49,8 @@ export function ContextItemCard({ projectId, item, itemsById }: ContextItemCardP
         <p className="text-sm">{item.summary}</p>
         <ItemDetails item={item} />
         {item.conflictsWith.length > 0 ? (
-          <div className="flex gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-            <AlertOctagonIcon className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+          <div className="flex gap-2 rounded-md bg-error-container px-3 py-2 text-xs text-on-error-container">
+            <DifferenceIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
             <p>
               Conflicting sources: another claim about the same subject says something different
               {itemsById
@@ -115,23 +119,15 @@ function VerifyButton({
 function KindBadge({ item }: { item: ContextItem }) {
   switch (item.kind) {
     case "decision":
-      return <Badge variant="outline">{DECISION_STATUS_LABEL[item.data.decisionStatus]}</Badge>;
+      return <TypeChip>{DECISION_STATUS_LABEL[item.data.decisionStatus]}</TypeChip>;
     case "event":
-      return (
-        <Badge variant="outline" className="capitalize">
-          {item.data.category}
-        </Badge>
-      );
+      return <TypeChip className="capitalize">{item.data.category}</TypeChip>;
     case "status_claim":
       return <StateBadge state={item.data.state} />;
     case "component":
-      return (
-        <Badge variant="outline" className="capitalize">
-          {item.data.componentType}
-        </Badge>
-      );
+      return <TypeChip className="capitalize">{item.data.componentType}</TypeChip>;
     case "dependency":
-      return <Badge variant="outline">{item.data.relation.replace("_", " ")}</Badge>;
+      return <TypeChip>{item.data.relation.replace("_", " ")}</TypeChip>;
     default:
       return null;
   }
@@ -178,9 +174,7 @@ function ItemDetails({ item }: { item: ContextItem }) {
         <div className="flex flex-wrap items-center gap-1.5 text-sm">
           <span className="text-muted-foreground">Owns</span>
           {item.data.owns.map((area) => (
-            <Badge key={area} variant="secondary">
-              {area}
-            </Badge>
+            <TypeChip key={area}>{area}</TypeChip>
           ))}
         </div>
       ) : null;

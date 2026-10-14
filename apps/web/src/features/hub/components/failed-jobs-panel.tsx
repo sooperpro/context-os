@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { RotateCcwIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { SyncAltIcon } from "@/components/ui/icons";
 import { jobsQuery, useRetryJob } from "@/features/jobs/api/jobs.queries";
 import { formatDateTime } from "@/lib/format";
 
@@ -40,7 +40,7 @@ export function FailedJobsPanel({ projectId }: { projectId: string }) {
                   retry.mutate(job.id, { onSuccess: () => toast.success("Job re-queued") })
                 }
               >
-                <RotateCcwIcon aria-hidden />
+                <SyncAltIcon aria-hidden />
                 Retry
               </Button>
             </li>

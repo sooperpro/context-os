@@ -45,7 +45,9 @@ import {
 import { Fab } from "@/components/ui/fab";
 import { KpiTile, MiniTile } from "@/components/ui/kpi-tile";
 import { LogoStack, LogoTile } from "@/components/ui/logo-tile";
+import { MetaChip, TypeChip } from "@/components/ui/meta-chip";
 import { OptionList, OptionTile } from "@/components/ui/option-tile";
+import { PillTab, PillTabs } from "@/components/ui/pill-tabs";
 import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress";
 import {
   SegmentedItem,
@@ -346,6 +348,32 @@ export function UiGalleryPage() {
               <ConnectedButton pressed>Week</ConnectedButton>
               <ConnectedButton>Month</ConnectedButton>
             </ConnectedButtonGroup>
+          </Row>
+        </Section>
+
+        <Section title="Pill navigation and static chips">
+          <PillTabs aria-label="Example sections">
+            {["Overview", "Decisions", "Systems", "People", "Timeline", "Sources"].map((label, index) => (
+              <PillTab key={label} active={index === 0} render={<a href="#pills" />}>
+                {label}
+              </PillTab>
+            ))}
+          </PillTabs>
+          <Row label="Meta chips">
+            <MetaChip>
+              <PlusIcon /> Lead: Priya Nair
+            </MetaChip>
+            <MetaChip>
+              <ClockIcon /> Updated today
+            </MetaChip>
+            <MetaChip>6 sources</MetaChip>
+          </Row>
+          <Row label="Type chips">
+            <TypeChip>
+              <FileTextIcon /> Decision
+            </TypeChip>
+            <TypeChip>Project</TypeChip>
+            <TypeChip>System</TypeChip>
           </Row>
         </Section>
 

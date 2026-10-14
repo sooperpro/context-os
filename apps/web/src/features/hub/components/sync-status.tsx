@@ -1,35 +1,32 @@
 import type { SyncStatus as SyncStatusValue } from "@contextos/shared";
-import { AlertTriangleIcon, CheckCircle2Icon } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { CheckCircleFilledIcon, WarningIcon } from "@/components/ui/icons";
 import { Spinner } from "@/components/ui/spinner";
+import { StatusChip } from "@/components/ui/status-chip";
 import { formatDateTime } from "@/lib/format";
 
 export function SyncStatus({ sync }: { sync: SyncStatusValue }) {
   if (sync.state === "processing") {
     const pending = sync.queued + sync.running;
     return (
-      <Badge variant="outline" className="text-info">
-        <Spinner className="size-3" />
+      <StatusChip tone="info" icon={<Spinner className="size-3.5" />}>
         Processing {pending} {pending === 1 ? "job" : "jobs"}
-      </Badge>
+      </StatusChip>
     );
   }
   if (sync.state === "attention") {
     return (
-      <Badge variant="outline" className="border-destructive/40 bg-destructive/10 text-destructive">
-        <AlertTriangleIcon aria-hidden />
+      <StatusChip tone="error" icon={<WarningIcon />}>
         {sync.failed} failed {sync.failed === 1 ? "job" : "jobs"}
-      </Badge>
+      </StatusChip>
     );
   }
   return (
-    <Badge
-      variant="outline"
-      className="text-muted-foreground"
+    <StatusChip
+      tone="success"
+      icon={<CheckCircleFilledIcon />}
       title={sync.lastCompletedAt ? `Last sync ${formatDateTime(sync.lastCompletedAt)}` : undefined}
     >
-      <CheckCircle2Icon aria-hidden />
       {sync.lastCompletedAt ? `Synced ${formatDateTime(sync.lastCompletedAt)}` : "Up to date"}
-    </Badge>
+    </StatusChip>
   );
 }

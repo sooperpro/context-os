@@ -43,12 +43,80 @@ import SearchIcon from "@material-symbols/svg-400/rounded/search.svg?react";
 import SendIcon from "@material-symbols/svg-400/rounded/send.svg?react";
 import SettingsIcon from "@material-symbols/svg-400/rounded/settings.svg?react";
 
+import AccountTreeIcon from "@material-symbols/svg-400/rounded/account_tree.svg?react";
+import ArticleIcon from "@material-symbols/svg-400/rounded/article.svg?react";
+import Book2Icon from "@material-symbols/svg-400/rounded/book_2.svg?react";
+import BookmarkIcon from "@material-symbols/svg-400/rounded/bookmark.svg?react";
+import CancelIcon from "@material-symbols/svg-400/rounded/cancel.svg?react";
+import ChatIcon from "@material-symbols/svg-400/rounded/chat.svg?react";
+import CheckCircleFilledIcon from "@material-symbols/svg-400/rounded/check_circle-fill.svg?react";
+import DifferenceIcon from "@material-symbols/svg-400/rounded/difference.svg?react";
+import EngineeringIcon from "@material-symbols/svg-400/rounded/engineering.svg?react";
+import ErrorFilledIcon from "@material-symbols/svg-400/rounded/error-fill.svg?react";
+import EventIcon from "@material-symbols/svg-400/rounded/event.svg?react";
+import FlagIcon from "@material-symbols/svg-400/rounded/flag.svg?react";
+import FormatQuoteIcon from "@material-symbols/svg-400/rounded/format_quote.svg?react";
+import GavelIcon from "@material-symbols/svg-400/rounded/gavel.svg?react";
+import GroupsIcon from "@material-symbols/svg-400/rounded/groups.svg?react";
+import HelpIcon from "@material-symbols/svg-400/rounded/help.svg?react";
+import HistoryIcon from "@material-symbols/svg-400/rounded/history.svg?react";
+import LabelIcon from "@material-symbols/svg-400/rounded/label.svg?react";
+import LinkIcon from "@material-symbols/svg-400/rounded/link.svg?react";
+import LockIcon from "@material-symbols/svg-400/rounded/lock.svg?react";
+import NorthEastIcon from "@material-symbols/svg-400/rounded/north_east.svg?react";
+import OpenInNewIcon from "@material-symbols/svg-400/rounded/open_in_new.svg?react";
+import PendingIcon from "@material-symbols/svg-400/rounded/pending.svg?react";
+import PersonIcon from "@material-symbols/svg-400/rounded/person.svg?react";
+import RocketLaunchFilledIcon from "@material-symbols/svg-400/rounded/rocket_launch-fill.svg?react";
+import ShieldIcon from "@material-symbols/svg-400/rounded/shield.svg?react";
+import SyncAltIcon from "@material-symbols/svg-400/rounded/sync_alt.svg?react";
+import SyncProblemIcon from "@material-symbols/svg-400/rounded/sync_problem.svg?react";
+import UpdateIcon from "@material-symbols/svg-400/rounded/update.svg?react";
+import VerifiedFilledIcon from "@material-symbols/svg-400/rounded/verified-fill.svg?react";
+import WarningIcon from "@material-symbols/svg-400/rounded/warning.svg?react";
+import ConfirmationNumberIcon from "@material-symbols/svg-400/rounded/confirmation_number.svg?react";
+import ForumIcon from "@material-symbols/svg-400/rounded/forum.svg?react";
+import MergeTypeIcon from "@material-symbols/svg-400/rounded/merge_type.svg?react";
 import VisibilityIcon from "@material-symbols/svg-400/rounded/visibility.svg?react";
 
 export type MaterialIcon = ComponentType<SVGProps<SVGSVGElement>>;
 
 export {
   AddIcon,
+  MergeTypeIcon,
+  ForumIcon,
+  ConfirmationNumberIcon,
+  AccountTreeIcon,
+  ArticleIcon,
+  Book2Icon,
+  BookmarkIcon,
+  CancelIcon,
+  ChatIcon,
+  CheckCircleFilledIcon,
+  DifferenceIcon,
+  EngineeringIcon,
+  ErrorFilledIcon,
+  EventIcon,
+  FlagIcon,
+  FormatQuoteIcon,
+  GavelIcon,
+  GroupsIcon,
+  HelpIcon,
+  HistoryIcon,
+  LabelIcon,
+  LinkIcon,
+  LockIcon,
+  NorthEastIcon,
+  OpenInNewIcon,
+  PendingIcon,
+  PersonIcon,
+  RocketLaunchFilledIcon,
+  ShieldIcon,
+  SyncAltIcon,
+  SyncProblemIcon,
+  UpdateIcon,
+  VerifiedFilledIcon,
+  WarningIcon,
   ArrowDropDownIcon,
   ContrastIcon,
   DoneAllIcon,

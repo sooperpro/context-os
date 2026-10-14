@@ -116,7 +116,11 @@ Each screen composes library pieces only. A missing primitive goes into the libr
 - [x] Projects: prototype page head (kicker, headline, actions with Ask Context Bot), search, tonal
       "start here" cards with a shape tile, status chip and stats. Card gained `tone` and `interactive`
       variants; PageHeader gained a kicker.
-- [ ] Project hub (the prototype's project page: hero, overview with citations, tabs)
+- [x] Project page from the prototype's Project Kestrel: AI-tinted hero with the spinning mark, type and
+      sync chips, facts and actions; one row of pill navigation over the hub sections, Sources and Ask;
+      overview with "How it connects" (by kind), the cited overview, risks and open questions, and an aside
+      with Ask prompts and sources. Timeline on the prototype's rail. Badges became icon status chips.
+      New primitives: PillTabs, MetaChip, TypeChip, Card tone "pane".
 - [ ] Sources page and answer cards
 
 ## Guardrails
