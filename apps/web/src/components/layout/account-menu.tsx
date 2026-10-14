@@ -74,8 +74,8 @@ export function AccountMenu() {
           <ManageAccountsIcon /> Profile and security
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuLabel>Theme</DropdownMenuLabel>
         <DropdownMenuRadioGroup value={theme} onValueChange={(value) => setTheme(value as Theme)}>
+          <DropdownMenuLabel>Theme</DropdownMenuLabel>
           {THEMES.map((option) => (
             <DropdownMenuRadioItem key={option.value} value={option.value}>
               {option.icon} {option.label}
@@ -85,11 +85,11 @@ export function AccountMenu() {
         {memberships.length > 1 ? (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuLabel>Workspace</DropdownMenuLabel>
             <DropdownMenuRadioGroup
               value={activeOrganizationId}
               onValueChange={(organizationId: string) => void organizations.setActive?.({ organization: organizationId })}
             >
+              <DropdownMenuLabel>Workspace</DropdownMenuLabel>
               {memberships.map((membership) => (
                 <DropdownMenuRadioItem key={membership.organization.id} value={membership.organization.id}>
                   {membership.organization.name}

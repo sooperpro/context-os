@@ -72,11 +72,11 @@ export function MemberList({ members, viewerRole }: MemberListProps) {
                     <MoreHorizontalIcon />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Role</DropdownMenuLabel>
                     <DropdownMenuRadioGroup
                       value={member.role}
                       onValueChange={(role) => update.mutate({ userId: member.id, role: role as SystemRole })}
                     >
+                      <DropdownMenuLabel>Role</DropdownMenuLabel>
                       {assignableRoles.map((role) => (
                         <DropdownMenuRadioItem key={role} value={role}>
                           {ROLE_LABEL[role]}

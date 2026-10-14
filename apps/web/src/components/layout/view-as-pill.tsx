@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -39,7 +40,9 @@ export function ViewAsPill() {
         <ArrowDropDownIcon />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72">
-        <DropdownMenuLabel>{workspace.data?.name ?? "Workspace"}</DropdownMenuLabel>
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>{workspace.data?.name ?? "Workspace"}</DropdownMenuLabel>
+        </DropdownMenuGroup>
         <p className="px-2 pb-2 text-xs text-on-surface-variant">
           {role
             ? `You are a${role === "owner" || role === "admin" ? "n" : ""} ${ROLE_LABEL[role].toLowerCase()} here. Roles are set by workspace admins and decide what you can see and change.`

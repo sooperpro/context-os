@@ -33,7 +33,7 @@ export function TopBar() {
       <form
         role="search"
         onSubmit={submit}
-        className="hidden h-12 max-w-180 flex-1 items-center gap-2 rounded-full bg-field pr-2 pl-4 text-on-surface-variant focus-within:ring-3 focus-within:ring-ring/50 medium:flex"
+        className="hidden h-12 shrink grow-0 basis-180 items-center gap-2 rounded-full bg-field pr-2 pl-4 text-on-surface-variant focus-within:ring-3 focus-within:ring-ring/50 medium:flex"
       >
         <SearchIcon className="size-5 shrink-0" aria-hidden />
         <label htmlFor={GLOBAL_SEARCH_ID} className="sr-only">
@@ -56,7 +56,8 @@ export function TopBar() {
         </kbd>
       </form>
 
-      <span className="flex-1 medium:hidden" />
+      {/* Prototype topbar-spacer: the actions always sit at the far right. */}
+      <span className="flex-1" />
 
       <div className="flex items-center gap-1">
         <Button

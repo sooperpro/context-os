@@ -36,6 +36,7 @@ import { ConnectedButton, ConnectedButtonGroup } from "@/components/ui/connected
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -578,13 +579,15 @@ export function UiGalleryPage() {
                             <MoreHorizontalIcon />
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Google Drive</DropdownMenuLabel>
-                            <DropdownMenuItem>
-                              <RefreshCwIcon /> Sync now
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <CableIcon /> Change scope
-                            </DropdownMenuItem>
+                            <DropdownMenuGroup>
+                              <DropdownMenuLabel>Google Drive</DropdownMenuLabel>
+                              <DropdownMenuItem>
+                                <RefreshCwIcon /> Sync now
+                              </DropdownMenuItem>
+                              <DropdownMenuItem>
+                                <CableIcon /> Change scope
+                              </DropdownMenuItem>
+                            </DropdownMenuGroup>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem variant="destructive">Disconnect</DropdownMenuItem>
                           </DropdownMenuContent>

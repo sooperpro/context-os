@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
@@ -41,6 +42,7 @@ export function NotificationsMenu() {
         ) : null}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80">
+        <DropdownMenuGroup>
         <DropdownMenuLabel className="flex items-center justify-between">
           Notifications
           {unread.length > 0 ? (
@@ -53,6 +55,7 @@ export function NotificationsMenu() {
             </Button>
           ) : null}
         </DropdownMenuLabel>
+        </DropdownMenuGroup>
         {notifications.isError ? (
           <p className="px-2 py-3 text-xs text-on-surface-variant">Could not load notifications.</p>
         ) : items.length === 0 ? (
