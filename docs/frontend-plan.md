@@ -89,7 +89,9 @@ appearance API is a Phase 4 polish item.
        dialog, a new invite-member dialog (`features/members`) and Google Drive authorization
        (`features/connectors`). Steps 2 and 5 are honest placeholders until their screens ship.
 2. Members, invites, roles, departments and teams
-3. Google Drive connector flow (authorize, file browser, import)
+3. [x] Google Drive connector flow: authorize from the wizard or the Sources page, browse folders with
+       Google page tokens, import one selected file at a time (`features/sources` Drive import dialog on
+       top of `features/connectors` queries). Sheets and Slides are listed as not supported, matching the API.
 4. Ask threads with streaming (`POST /ask/threads/:id/messages`, SSE)
 5. Learning paths and onboarding
 
@@ -102,7 +104,10 @@ Each screen composes library pieces only. A missing primitive goes into the libr
 - **Review enforces reuse.** Pull request checklist: typecheck, lint, tests, gallery reviewed in both
   themes and at phone width, and "did this add a component that already existed?"
 - **The gallery makes duplication visible.** Check `/dev/ui` before building anything.
-- **Features do not import from other features.** Shared things move down a layer.
+- **Feature components do not import from other features.** A feature's `api/` and queries may be reused
+  by another feature (the Sources page uses the connectors queries); its components and pages may not,
+  except for orchestrating features such as the setup wizard, which compose other features' dialogs.
+  Anything two features both render moves down into `components/`.
 - **Teal is for AI only.** A convention, not a lint rule; it lives in the component docs and review.
 
 ## Risks

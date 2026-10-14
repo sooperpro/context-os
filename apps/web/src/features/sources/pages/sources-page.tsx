@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { FileTextIcon, PlusIcon } from "lucide-react";
+import { CloudDownloadIcon, FileTextIcon, PlusIcon } from "lucide-react";
 import { useState } from "react";
 import { useParams } from "react-router";
 import { PageHeader } from "@/components/layout/page-header";
@@ -14,11 +14,13 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { sourcesQuery } from "@/features/sources/api/sources.queries";
 import { AddSourceDialog } from "@/features/sources/components/add-source-dialog";
+import { DriveImportDialog } from "@/features/sources/components/drive-import-dialog";
 import { SourceList } from "@/features/sources/components/source-list";
 
 export function SourcesPage() {
   const { projectId = "" } = useParams();
   const [addOpen, setAddOpen] = useState(false);
+  const [driveOpen, setDriveOpen] = useState(false);
   const sources = useQuery(sourcesQuery(projectId));
 
   return (
@@ -27,10 +29,16 @@ export function SourcesPage() {
         title="Sources"
         description="Everything the hub knows comes from here. Each source keeps its author, dates and link as provenance."
         actions={
-          <Button onClick={() => setAddOpen(true)}>
-            <PlusIcon aria-hidden />
-            Add source
-          </Button>
+          <>
+            <Button variant="outline" onClick={() => setDriveOpen(true)}>
+              <CloudDownloadIcon aria-hidden />
+              Import from Drive
+            </Button>
+            <Button onClick={() => setAddOpen(true)}>
+              <PlusIcon aria-hidden />
+              Add source
+            </Button>
+          </>
         }
       />
 
@@ -72,6 +80,7 @@ export function SourcesPage() {
       )}
 
       <AddSourceDialog projectId={projectId} open={addOpen} onOpenChange={setAddOpen} />
+      <DriveImportDialog projectId={projectId} open={driveOpen} onOpenChange={setDriveOpen} />
     </div>
   );
 }

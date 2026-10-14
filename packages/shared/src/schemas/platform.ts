@@ -245,3 +245,38 @@ export const ConnectorConnectionSchema = z.object({
 export type ConnectorConnection = z.infer<typeof ConnectorConnectionSchema>;
 export const ConnectorListSchema = z.object({ items: z.array(ConnectorConnectionSchema) });
 export const ConnectorAuthorizationSchema = z.object({ authorizationUrl: z.url() });
+
+/* ---- Google Drive file browser (`GET /connectors/:id/files`, `POST /connectors/:id/import`) */
+
+export const DRIVE_FOLDER_MIME = "application/vnd.google-apps.folder";
+
+export const DriveFileSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  mimeType: z.string(),
+  modifiedTime: z.string().nullable().optional(),
+  createdTime: z.string().nullable().optional(),
+  webViewLink: z.string().nullable().optional(),
+  trashed: z.boolean().nullable().optional(),
+  capabilities: z.object({ canDownload: z.boolean().nullable().optional() }).nullable().optional(),
+  owners: z
+    .array(z.object({ displayName: z.string().nullable().optional(), emailAddress: z.string().nullable().optional() }))
+    .nullable()
+    .optional(),
+  driveId: z.string().nullable().optional(),
+});
+export type DriveFile = z.infer<typeof DriveFileSchema>;
+
+export const DriveFileListSchema = z.object({
+  items: z.array(DriveFileSchema),
+  nextPageToken: z.string().nullable(),
+});
+export type DriveFileList = z.infer<typeof DriveFileListSchema>;
+
+export const DriveImportInputSchema = z
+  .object({
+    projectId: z.uuid(),
+    fileId: z.string().regex(/^[a-zA-Z0-9_-]{1,200}$/),
+  })
+  .strict();
+export type DriveImportInput = z.infer<typeof DriveImportInputSchema>;

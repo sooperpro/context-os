@@ -185,8 +185,8 @@ export function SetupPage() {
     select_scopes: (
       <div className="space-y-3">
         <p className="text-sm text-on-surface-variant">
-          Importing selected Drive files happens from a project's Sources page. The Drive file browser
-          is the next screen to ship; until then this step can be skipped and resumed later.
+          Open a project, go to Sources and choose Import from Drive to pick the documents. Each import
+          is one explicitly selected file.
         </p>
         <Button variant="outline" nativeButton={false} render={<Link to="/" />}>
           Open projects
