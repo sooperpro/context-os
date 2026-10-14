@@ -57,11 +57,20 @@ export function useSendThreadMessage(projectId: string) {
   return useMutation({
     mutationFn: ({ threadId, question, ...options }: { threadId: string; question: string } & SendMessageOptions) =>
       sendThreadMessage(threadId, question, options),
-    onSuccess: (answer, { threadId }) => {
-      queryClient.setQueryData<AskThreadDetail>(threadKeys.detail(threadId), (current) =>
-        current ? { ...current, messages: [...current.messages, answer] } : current,
+    onSuccess: async (answer, { threadId }) => {
+      const key = threadKeys.detail(threadId);
+      // A fetch started before the answer was saved would land later and drop it: cancel it first,
+      // show the answer immediately, then confirm against the server (which has saved it by now).
+      await queryClient.cancelQueries({ queryKey: key });
+      queryClient.setQueryData<AskThreadDetail>(key, (current) =>
+        current && !current.messages.some((message) => message.id === answer.id)
+          ? { ...current, messages: [...current.messages, answer] }
+          : current,
       );
-      return queryClient.invalidateQueries({ queryKey: projectKeys.hub(projectId) });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: key }),
+        queryClient.invalidateQueries({ queryKey: projectKeys.hub(projectId) }),
+      ]);
     },
   });
 }

@@ -1,159 +1,360 @@
-import type { Answer, AnswerConfidence } from "@contextos/shared";
+import type { Answer } from "@contextos/shared";
+import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { Link, useMatch } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { useAssistant } from "@/components/layout/assistant-context";
-import { Banner } from "@/components/ui/banner";
+import { NAV_ITEMS } from "@/components/layout/navigation";
+import { BotGlyph } from "@/components/ui/bot-glyph";
 import { Button } from "@/components/ui/button";
-import { Chip } from "@/components/ui/chip";
 import {
-  AiSparkleIcon,
-  CheckIcon,
+  AddTaskIcon,
+  ArrowUpwardIcon,
+  CheckCircleFilledIcon,
   CloseIcon,
-  HelpIcon,
-  HubFilledIcon,
-  InfoIcon,
+  CloudOffIcon,
+  EditSquareIcon,
+  FilterAltIcon,
+  FolderOpenFilledIcon,
+  LockIcon,
+  ManageSearchIcon,
   NorthEastIcon,
-  SendIcon,
-  WarningIcon,
+  OpenInFullIcon,
+  RefreshIcon,
+  SearchOffIcon,
 } from "@/components/ui/icons";
+import { Loader } from "@/components/ui/loader";
+import { MetaChip } from "@/components/ui/meta-chip";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Spinner } from "@/components/ui/spinner";
+import { SegmentedItem, SegmentedList } from "@/components/ui/segmented-list";
 import { StatusChip } from "@/components/ui/status-chip";
-import { useAskQuestion } from "@/features/ask/api/ask.queries";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { meQuery } from "@/features/account/api/account.queries";
+import { threadQuery, useCreateThread, useSendThreadMessage } from "@/features/ask/api/threads.queries";
+import { AnswerBody } from "@/features/ask/components/answer-card";
+import { useCreateFlag } from "@/features/feedback/api/feedback.queries";
+import { hubQuery } from "@/features/hub/api/hub.queries";
+import { projectsQuery } from "@/features/projects/api/projects.queries";
+import { ApiClientError } from "@/lib/api-client";
+import { formatCount } from "@/lib/format";
 
-const SUGGESTIONS = [
+/*
+ * Context Bot, the assistant on every page (prototype bot.js). Inside a project it asks through the
+ * Ask threads API, so every conversation here is also listed on the project's Ask page; "Expand"
+ * opens it there. Answers come only from sources the person can open, and say so when the
+ * evidence is thin. Outside a project it offers the projects to ask about instead of guessing.
+ */
+
+const PROJECT_PATH = /\/projects\/([^/?#]+)/;
+
+const PROMPTS = (project: string) => [
   "What was decided most recently, and why?",
-  "What is blocked right now?",
-  "Who owns this, and what is still an open question?",
+  "What is blocked or at risk right now?",
+  `Who owns what in ${project}?`,
 ];
 
-const CONFIDENCE: Record<
-  AnswerConfidence,
-  { label: string; tone: "success" | "info" | "warning"; icon: React.ReactNode }
-> = {
-  high: { label: "Verified · sources agree", tone: "success", icon: <CheckIcon /> },
-  medium: { label: "Partly verified", tone: "info", icon: <InfoIcon /> },
-  low: { label: "Low confidence", tone: "warning", icon: <WarningIcon /> },
-  insufficient: { label: "Not enough evidence", tone: "warning", icon: <HelpIcon /> },
-};
+interface Failure {
+  question: string;
+  message: string;
+}
 
-/**
- * Context Bot, the assistant on every page. Answers only from the current project's sources,
- * through the same Ask API as the Ask page, and keeps every citation. Outside a project it says so
- * instead of guessing.
- */
 export function AssistantPanel() {
   const { open, closeAssistant, subscribeToQueries } = useAssistant();
-  const match = useMatch("/projects/:projectId/*");
-  const projectId = match?.params.projectId ?? "";
-  const ask = useAskQuestion(projectId);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const projectId = PROJECT_PATH.exec(location.pathname)?.[1] ?? "";
+
+  const me = useQuery(meQuery());
+  const hub = useQuery({ ...hubQuery(projectId), enabled: projectId !== "" });
+  const projects = useQuery({ ...projectsQuery(), enabled: projectId === "" });
+
+  // One live conversation per project; "New conversation" forgets it (it stays on the Ask page).
+  const [threadByProject, setThreadByProject] = useState<Record<string, string>>({});
+  const threadId = threadByProject[projectId];
+  const thread = useQuery({ ...threadQuery(threadId ?? ""), enabled: threadId !== undefined });
+  const createThread = useCreateThread();
+  const send = useSendThreadMessage(projectId);
+  const createFlag = useCreateFlag();
 
   const [draft, setDraft] = useState("");
-  const [thread, setThread] = useState<Answer[]>([]);
+  const [pending, setPending] = useState<string | null>(null);
+  const [failure, setFailure] = useState<Failure | null>(null);
+  const [reported, setReported] = useState<Set<string>>(() => new Set());
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
 
-  const { mutate, isPending } = ask;
-  const submit = useCallback(
-    (question: string) => {
+  const projectName = hub.data?.project.name ?? "this project";
+  const readySources = hub.data?.project.stats.readySources ?? 0;
+  const messages = threadId ? (thread.data?.messages ?? []) : [];
+  const busy = pending !== null;
+
+  const ask = useCallback(
+    async (question: string) => {
       const text = question.trim();
-      if (text.length < 3 || !projectId || isPending) return;
-      mutate(
-        { question: text },
-        { onSuccess: (answer) => setThread((current) => [answer, ...current]) },
-      );
+      if (text.length < 3 || !projectId || busy) return;
       setDraft("");
+      setFailure(null);
+      setPending(text);
+      try {
+        let id = threadByProject[projectId];
+        if (!id) {
+          const created = await createThread.mutateAsync({ projectId, title: text.slice(0, 80) });
+          id = created.id;
+          setThreadByProject((current) => ({ ...current, [projectId]: created.id }));
+        }
+        await send.mutateAsync({ threadId: id, question: text });
+      } catch (error) {
+        // Server messages are written for people; anything else (network, an unreadable response) is not.
+        setFailure({
+          question: text,
+          message: error instanceof ApiClientError ? error.message : "The answer could not be read. Please try again.",
+        });
+      } finally {
+        setPending(null);
+      }
     },
-    [projectId, isPending, mutate],
+    [projectId, busy, threadByProject, createThread, send],
   );
 
   // Text handed over from the top-bar search: ask it in a project, otherwise prefill the box.
   useEffect(
-    () => subscribeToQueries((query) => (projectId ? submit(query) : setDraft(query))),
-    [subscribeToQueries, projectId, submit],
+    () => subscribeToQueries((query) => (projectId ? void ask(query) : setDraft(query))),
+    [subscribeToQueries, projectId, ask],
   );
 
   useEffect(() => {
     if (open) inputRef.current?.focus();
   }, [open]);
 
+  useEffect(() => {
+    endRef.current?.scrollIntoView?.({ block: "end" });
+  }, [messages.length, pending, failure]);
+
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
-    submit(draft);
+    void ask(draft);
   };
+
+  const startOver = () => {
+    setThreadByProject(({ [projectId]: _dropped, ...rest }) => rest);
+    setFailure(null);
+    inputRef.current?.focus();
+  };
+
+  const expand = () => {
+    void navigate(`/projects/${projectId}/ask${threadId ? `?thread=${threadId}` : ""}`);
+    closeAssistant();
+  };
+
+  const reportGap = (answer: Answer) =>
+    createFlag.mutate(
+      {
+        projectId,
+        targetType: "answer",
+        targetId: answer.id,
+        kind: "missing_context",
+        comment: answer.question,
+      },
+      { onSuccess: () => setReported((current) => new Set(current).add(answer.id)) },
+    );
+
+  const pageLabel = projectId
+    ? projectName
+    : (NAV_ITEMS.find((item) => (item.end ? location.pathname === item.to : location.pathname.startsWith(item.to)))
+        ?.label ?? "ContextOS");
+  const firstName = me.data?.name.split(/\s+/)[0];
+  const showWelcome = messages.length === 0 && !busy && !failure;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="flex h-18 shrink-0 items-center gap-3 px-5">
-        <span
-          aria-hidden
-          className="grid size-9 place-items-center rounded-[30%] bg-ai-container text-on-ai-container"
-        >
-          <HubFilledIcon className="size-5" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h2 className="font-heading text-base font-semibold">Context Bot</h2>
-          <p className="truncate text-xs text-on-surface-variant">
-            {projectId ? "Answers from this project's sources" : "Open a project to ask"}
-          </p>
+      <header className="flex shrink-0 items-center gap-2 pt-3.5 pr-3 pb-2 pl-5">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <BotGlyph size="sm" />
+          <div className="min-w-0">
+            <h2 className="font-heading text-base leading-6 font-medium">Context Bot</h2>
+            <p className="truncate text-xs text-on-surface-variant">Answers from sources you can access</p>
+          </div>
         </div>
-        <Button variant="ghost" size="icon" aria-label="Close Context Bot" onClick={closeAssistant}>
-          <CloseIcon />
-        </Button>
+        <div className="flex gap-0.5">
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-on-surface-variant"
+                  aria-label="New conversation"
+                  disabled={!threadId && !failure}
+                  onClick={startOver}
+                />
+              }
+            >
+              <EditSquareIcon />
+            </TooltipTrigger>
+            <TooltipContent>New conversation</TooltipContent>
+          </Tooltip>
+          {projectId ? (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="hidden text-on-surface-variant medium:inline-flex"
+                    aria-label="Expand to the Ask page"
+                    onClick={expand}
+                  />
+                }
+              >
+                <OpenInFullIcon />
+              </TooltipTrigger>
+              <TooltipContent>Expand</TooltipContent>
+            </Tooltip>
+          ) : null}
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-on-surface-variant"
+                  aria-label="Close Context Bot"
+                  onClick={closeAssistant}
+                />
+              }
+            >
+              <CloseIcon />
+            </TooltipTrigger>
+            <TooltipContent>Close</TooltipContent>
+          </Tooltip>
+        </div>
       </header>
 
-      <ScrollArea className="min-h-0 flex-1 px-5">
-        <div className="flex flex-col gap-4 pb-4" aria-live="polite">
-          {ask.isPending ? (
-            <div className="flex items-center gap-3 rounded-xl bg-ai-container/40 px-4 py-3 text-sm">
-              <Spinner className="text-ai" />
-              Searching this project's sources…
-            </div>
-          ) : null}
-          {ask.isError ? (
-            <Banner
-              tone="error"
-              icon={<CloseIcon />}
-              title="Couldn't get an answer"
-              description={ask.error.message}
-              actions={
-                <Button variant="ghost" size="sm" onClick={() => submit(ask.variables.question)}>
-                  Retry
-                </Button>
-              }
-            />
+      <div className="flex shrink-0 flex-wrap items-center gap-2 px-5 pt-1 pb-3">
+        <span className="text-xs font-medium tracking-wide text-on-surface-variant">Context</span>
+        <MetaChip tone="filled">
+          <FolderOpenFilledIcon />
+          <span className="max-w-48 truncate">{pageLabel}</span>
+        </MetaChip>
+        <MetaChip tone="filled">
+          <FilterAltIcon />
+          {projectId ? "Project sources" : "Workspace"}
+        </MetaChip>
+      </div>
+
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="flex flex-col gap-5 px-5 pt-1 pb-4" aria-live="polite">
+          {showWelcome ? (
+            <>
+              <div className="flex flex-col items-center gap-2.5 px-2 pt-5 pb-2 text-center">
+                <BotGlyph size="xl" spin className="mb-2" />
+                <h3 className="font-heading text-2xl leading-8 font-semibold text-balance">
+                  {firstName ? `Hi ${firstName}, what would you like to understand?` : "What would you like to understand?"}
+                </h3>
+                <p className="max-w-[40ch] text-sm text-on-surface-variant">
+                  {projectId
+                    ? `I can explain ${projectName}'s decisions, current state, people and terms, and point you to the sources.`
+                    : "I answer from a project's sources, so pick the project you want to understand."}
+                </p>
+              </div>
+              <section className="flex flex-col gap-2.5">
+                <h4 className="text-sm font-medium text-on-surface-variant">
+                  {projectId ? "Suggested for you" : "Your projects"}
+                </h4>
+                <SegmentedList>
+                  {projectId
+                    ? PROMPTS(projectName).map((prompt) => (
+                        <SegmentedItem
+                          key={prompt}
+                          render={<button type="button" onClick={() => void ask(prompt)} />}
+                          className="min-h-0 gap-3 bg-card py-3.5 text-base hover:bg-ai/8 [&>svg]:size-5 [&>svg]:shrink-0 [&>svg]:text-ai"
+                        >
+                          <NorthEastIcon aria-hidden />
+                          <span>{prompt}</span>
+                        </SegmentedItem>
+                      ))
+                    : (projects.data?.items ?? []).slice(0, 6).map((project) => (
+                        <SegmentedItem
+                          key={project.id}
+                          render={<button type="button" onClick={() => void navigate(`/projects/${project.id}`)} />}
+                          className="min-h-0 gap-3 bg-card py-3.5 text-base hover:bg-ai/8 [&>svg]:size-5 [&>svg]:shrink-0 [&>svg]:text-ai"
+                        >
+                          <FolderOpenFilledIcon aria-hidden />
+                          <span className="min-w-0 truncate">{project.name}</span>
+                        </SegmentedItem>
+                      ))}
+                </SegmentedList>
+                {!projectId && projects.data?.items.length === 0 ? (
+                  <p className="text-xs text-on-surface-variant">No projects yet. Create one from Projects.</p>
+                ) : null}
+              </section>
+              <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-xs text-on-surface-variant [&_svg]:size-4">
+                <LockIcon aria-hidden />
+                Only sources you can access are searched. Restricted content is never shown.
+              </p>
+            </>
           ) : null}
 
-          {thread.map((answer) => (
-            <AssistantAnswer key={answer.id} answer={answer} />
+          {messages.map((answer) => (
+            <div key={answer.id} className="flex flex-col gap-5">
+              <UserBubble text={answer.question} />
+              <BotMessage>
+                {answer.confidence === "insufficient" ? (
+                  <NoAnswerCard
+                    answer={answer}
+                    projectName={projectName}
+                    readySources={readySources}
+                    reported={reported.has(answer.id)}
+                    reporting={createFlag.isPending && createFlag.variables.targetId === answer.id}
+                    onReport={() => reportGap(answer)}
+                  />
+                ) : (
+                  <AnswerBody projectId={projectId} answer={answer} />
+                )}
+              </BotMessage>
+            </div>
           ))}
 
-          {thread.length === 0 && !ask.isPending ? (
-            <div className="flex flex-col gap-3 pt-2">
-              <p className="text-sm text-on-surface">
-                {projectId
-                  ? "Ask about decisions, current state, people or terms. Every answer cites the passages it rests on, and says when the evidence is thin."
-                  : "Context Bot answers only from a project's sources, so it needs a project open. Pick one from Projects, then ask here."}
-              </p>
-              {projectId ? (
-                <div className="flex flex-col items-start gap-2">
-                  {SUGGESTIONS.map((suggestion) => (
-                    <Chip key={suggestion} variant="ai" onClick={() => submit(suggestion)}>
-                      <AiSparkleIcon />
-                      {suggestion}
-                    </Chip>
-                  ))}
+          {pending ? (
+            <div className="flex flex-col gap-5">
+              <UserBubble text={pending} />
+              <BotMessage>
+                <div className="flex min-h-10 items-center gap-3" role="status">
+                  <Loader size="sm" contained label="Context Bot is answering" />
+                  <span className="text-sm text-on-surface-variant">
+                    Searching {formatCount(readySources, "source")} you can access…
+                  </span>
                 </div>
-              ) : null}
+              </BotMessage>
             </div>
           ) : null}
+
+          {failure ? (
+            <div className="flex flex-col gap-5">
+              <UserBubble text={failure.question} />
+              <BotMessage>
+                <div className="flex flex-col items-start gap-2.5 rounded-xl bg-card p-4">
+                  <StatusChip tone="error" icon={<CloudOffIcon />}>
+                    Couldn't get an answer
+                  </StatusChip>
+                  <p className="text-sm">Something went wrong reaching ContextOS. Your question is saved.</p>
+                  <p className="text-xs text-on-surface-variant">{failure.message}</p>
+                  <Button size="xs" variant="secondary" onClick={() => void ask(failure.question)}>
+                    <RefreshIcon aria-hidden />
+                    Try again
+                  </Button>
+                </div>
+              </BotMessage>
+            </div>
+          ) : null}
+          <div ref={endRef} />
         </div>
       </ScrollArea>
 
-      <form onSubmit={onSubmit} className="shrink-0 border-t border-outline-variant/60 p-4">
-        <label htmlFor="assistant-input" className="sr-only">
-          Ask Context Bot
-        </label>
-        <div className="flex items-end gap-2 rounded-2xl bg-field px-4 py-2 focus-within:ring-3 focus-within:ring-ring/50">
+      <form onSubmit={onSubmit} className="shrink-0 px-4 pt-2 pb-3">
+        <div className="flex items-end gap-1 rounded-2xl bg-field p-2 transition-[background-color,box-shadow] duration-[140ms] focus-within:bg-pane focus-within:shadow-[inset_0_0_0_2px_var(--color-ai)]">
+          <label htmlFor="assistant-input" className="sr-only">
+            Ask Context Bot
+          </label>
           <textarea
             id="assistant-input"
             ref={inputRef}
@@ -162,64 +363,86 @@ export function AssistantPanel() {
             disabled={!projectId}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
+              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                 event.preventDefault();
-                submit(draft);
+                void ask(draft);
               }
             }}
-            placeholder={projectId ? "Ask about this project…" : "Open a project first"}
-            className="max-h-40 min-h-9 flex-1 resize-none bg-transparent py-1.5 text-sm outline-none placeholder:text-on-surface-variant disabled:opacity-60"
+            placeholder={projectId ? `Ask about ${projectName}…` : "Open a project to ask"}
+            className="field-sizing-content max-h-40 min-h-10 min-w-0 flex-1 resize-none bg-transparent px-2 py-2 text-base text-on-surface outline-none placeholder:text-on-surface-variant disabled:opacity-60"
           />
           <Button
             type="submit"
             variant="ai"
-            size="icon-sm"
-            aria-label="Send"
-            disabled={!projectId || draft.trim().length < 3 || ask.isPending}
+            size="icon"
+            className="mb-0.5 disabled:bg-on-surface/10 disabled:text-on-surface/38 disabled:opacity-100"
+            aria-label="Send question"
+            disabled={!projectId || draft.trim().length < 3 || busy}
           >
-            <SendIcon />
+            <ArrowUpwardIcon />
           </Button>
         </div>
-        <p className="mt-2 text-xs text-on-surface-variant">
-          Enter to send · Shift+Enter for a new line · ⌘J toggles Context Bot
+        <p className="pt-2 text-center text-xs text-on-surface-variant">
+          Context Bot can make mistakes. Check the cited sources.
         </p>
       </form>
     </div>
   );
 }
 
-function AssistantAnswer({ answer }: { answer: Answer }) {
-  const confidence = CONFIDENCE[answer.confidence];
+function UserBubble({ text }: { text: string }) {
   return (
-    <article className="flex flex-col gap-3 rounded-2xl bg-card p-4 text-sm">
-      <p className="font-medium text-on-surface">{answer.question}</p>
-      <StatusChip tone={confidence.tone} icon={confidence.icon} className="self-start">
-        {confidence.label}
+    <div className="flex justify-end">
+      <p className="max-w-[85%] rounded-xl rounded-br-xs bg-secondary-container px-4 py-2.5 text-base break-words text-on-secondary-container">
+        {text}
+      </p>
+    </div>
+  );
+}
+
+function BotMessage({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-[1.75rem_minmax(0,1fr)] items-start gap-3">
+      <BotGlyph size="xs" />
+      <div className="min-w-0">{children}</div>
+    </div>
+  );
+}
+
+interface NoAnswerCardProps {
+  answer: Answer;
+  projectName: string;
+  readySources: number;
+  reported: boolean;
+  reporting: boolean;
+  onReport: () => void;
+}
+
+/** The prototype's honest "no reliable answer" state, with a way to route the gap to owners. */
+function NoAnswerCard({ answer, projectName, readySources, reported, reporting, onReport }: NoAnswerCardProps) {
+  return (
+    <div className="flex flex-col items-start gap-2.5 rounded-xl bg-card p-4">
+      <StatusChip tone="warning" icon={<SearchOffIcon />}>
+        No reliable answer found
       </StatusChip>
-      <p className="whitespace-pre-wrap text-on-surface">{answer.answer}</p>
-      {answer.uncertainties.length > 0 ? (
-        <ul className="list-disc space-y-1 pl-5 text-xs text-on-surface-variant">
-          {answer.uncertainties.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
-      ) : null}
-      {answer.citations.length > 0 ? (
-        <ol className="flex flex-col gap-1 text-xs text-on-surface-variant">
-          {answer.citations.map((citation) => (
-            <li key={citation.ref} className="flex gap-2">
-              <span className="font-mono">[{citation.ref}]</span>
-              <span className="truncate">{citation.sourceTitle}</span>
-            </li>
-          ))}
-        </ol>
-      ) : null}
-      <Link
-        to={`/projects/${answer.projectId}/ask`}
-        className="inline-flex items-center gap-1 self-start text-xs font-medium text-primary hover:underline"
-      >
-        Open in Ask with full evidence <NorthEastIcon className="size-3.5" aria-hidden />
-      </Link>
-    </article>
+      <p className="text-[15px] leading-6">
+        I couldn't find anything that answers this in sources you can access, so I won't guess.
+      </p>
+      {answer.answer ? <p className="text-sm text-on-surface-variant">{answer.answer}</p> : null}
+      <p className="flex items-start gap-1.5 text-xs text-on-surface-variant [&_svg]:mt-px [&_svg]:size-4 [&_svg]:shrink-0">
+        <ManageSearchIcon aria-hidden />
+        Searched {formatCount(readySources, "source")} in {projectName}
+      </p>
+      {reported ? (
+        <StatusChip tone="success" icon={<CheckCircleFilledIcon />}>
+          Reported to this project's knowledge owners
+        </StatusChip>
+      ) : (
+        <Button size="xs" variant="ai-tonal" disabled={reporting} onClick={onReport}>
+          <AddTaskIcon aria-hidden />
+          Report a knowledge gap
+        </Button>
+      )}
+    </div>
   );
 }

@@ -97,12 +97,46 @@ import KeyboardArrowDownIcon from "@material-symbols/svg-400/rounded/keyboard_ar
 import KeyboardArrowUpIcon from "@material-symbols/svg-400/rounded/keyboard_arrow_up.svg?react";
 import CableIcon from "@material-symbols/svg-400/rounded/cable.svg?react";
 import WarningFilledIcon from "@material-symbols/svg-400/rounded/warning-fill.svg?react";
+import EditSquareIcon from "@material-symbols/svg-400/rounded/edit_square.svg?react";
+import OpenInFullIcon from "@material-symbols/svg-400/rounded/open_in_full.svg?react";
+import ArrowUpwardIcon from "@material-symbols/svg-400/rounded/arrow_upward.svg?react";
+import CloudOffIcon from "@material-symbols/svg-400/rounded/cloud_off.svg?react";
+import ManageSearchIcon from "@material-symbols/svg-400/rounded/manage_search.svg?react";
+import AddTaskIcon from "@material-symbols/svg-400/rounded/add_task.svg?react";
+import ThumbUpIcon from "@material-symbols/svg-400/rounded/thumb_up.svg?react";
+import ThumbUpFilledIcon from "@material-symbols/svg-400/rounded/thumb_up-fill.svg?react";
+import ThumbDownIcon from "@material-symbols/svg-400/rounded/thumb_down.svg?react";
+import ThumbDownFilledIcon from "@material-symbols/svg-400/rounded/thumb_down-fill.svg?react";
+import ContentCopyIcon from "@material-symbols/svg-400/rounded/content_copy.svg?react";
+import SubdirectoryArrowRightIcon from "@material-symbols/svg-400/rounded/subdirectory_arrow_right.svg?react";
+import FilterAltIcon from "@material-symbols/svg-400/rounded/filter_alt.svg?react";
+import PaletteIcon from "@material-symbols/svg-400/rounded/palette.svg?react";
+import TuneIcon from "@material-symbols/svg-400/rounded/tune.svg?react";
+import LoginIcon from "@material-symbols/svg-400/rounded/login.svg?react";
+import SettingsFilledIcon from "@material-symbols/svg-400/rounded/settings-fill.svg?react";
 import VisibilityIcon from "@material-symbols/svg-400/rounded/visibility.svg?react";
 
 export type MaterialIcon = ComponentType<SVGProps<SVGSVGElement>>;
 
 export {
   AddIcon,
+  SettingsFilledIcon,
+  LoginIcon,
+  TuneIcon,
+  PaletteIcon,
+  FilterAltIcon,
+  SubdirectoryArrowRightIcon,
+  ContentCopyIcon,
+  ThumbDownFilledIcon,
+  ThumbDownIcon,
+  ThumbUpFilledIcon,
+  ThumbUpIcon,
+  AddTaskIcon,
+  ManageSearchIcon,
+  CloudOffIcon,
+  ArrowUpwardIcon,
+  OpenInFullIcon,
+  EditSquareIcon,
   WarningFilledIcon,
   CableIcon,
   KeyboardArrowUpIcon,

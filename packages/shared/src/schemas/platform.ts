@@ -348,3 +348,36 @@ export const NotificationSchema = z.object({
 });
 export type Notification = z.infer<typeof NotificationSchema>;
 export const NotificationListSchema = z.object({ items: z.array(NotificationSchema) });
+
+/* ---- Current user (`GET/PATCH /users/me`) and personal preferences ------------------------ */
+
+export const MeSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string().nullable(),
+  role: SystemRoleSchema,
+  workspaceId: z.string(),
+  preferences: z
+    .object({
+      timezone: z.string().optional(),
+      leaderboardOptOut: z.boolean().optional(),
+    })
+    .passthrough()
+    .default({}),
+});
+export type Me = z.infer<typeof MeSchema>;
+export type ProfileUpdate = z.infer<typeof ProfileUpdateSchema>;
+
+/** `GET/PATCH /notifications/preferences`. */
+export const NotificationPreferencesSchema = z.object({
+  email: z.boolean().default(false),
+  inApp: z.boolean().default(true),
+  quietStartHour: z.number().int().min(0).max(23).default(22),
+  quietEndHour: z.number().int().min(0).max(23).default(8),
+});
+export type NotificationPreferences = z.infer<typeof NotificationPreferencesSchema>;
+
+export type CompanionPreferences = z.infer<typeof CompanionPreferencesSchema>;
+export type FlagInput = z.input<typeof FlagInputSchema>;
+/** `POST /flags` returns the stored flag record. */
+export const FlagRecordSchema = z.object({ id: z.string(), status: z.string() }).passthrough();

@@ -2,10 +2,11 @@ import type { ContextItem, ContextItemKind, Hub } from "@contextos/shared";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { useAssistant } from "@/components/layout/assistant-context";
+import { BotGlyph } from "@/components/ui/bot-glyph";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
-import { HelpIcon, HubFilledIcon, NorthEastIcon, OpenInNewIcon, ShieldIcon, SyncProblemIcon } from "@/components/ui/icons";
+import { HelpIcon, NorthEastIcon, OpenInNewIcon, ShieldIcon, SyncProblemIcon } from "@/components/ui/icons";
 import {
   SegmentedItem,
   SegmentedItemBody,
@@ -15,7 +16,6 @@ import {
   SegmentedItemTrail,
   SegmentedList,
 } from "@/components/ui/segmented-list";
-import { Shape } from "@/components/ui/shape";
 import { StatusChip } from "@/components/ui/status-chip";
 import { StateBadge } from "@/features/hub/components/badges";
 import { KIND_ICON, SOURCE_KIND_ICON } from "@/features/hub/components/kind-icon";
@@ -180,10 +180,7 @@ export function OverviewTab({ projectId, hub, items }: { projectId: string; hub:
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2.5">
-              <span aria-hidden className="relative grid size-8 shrink-0 place-items-center">
-                <Shape kind="cookie9" className="col-start-1 row-start-1 size-8 text-ai-container" />
-                <HubFilledIcon className="relative z-10 col-start-1 row-start-1 size-4 text-on-ai-container" />
-              </span>
+              <BotGlyph size="sm" />
               Ask about this project
             </CardTitle>
           </CardHeader>

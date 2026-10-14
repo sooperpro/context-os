@@ -42,10 +42,11 @@ export type ShapeKind = keyof typeof SHAPES;
 export const SHAPE_KINDS = Object.keys(SHAPES) as ShapeKind[];
 
 const pathCache = new Map<ShapeKind, string>();
+const radiiCache = new Map<ShapeKind, number[]>();
 
-/** SVG path for a shape in a 100×100 box, normalized so the widest point touches the edge. */
-export function shapePath(kind: ShapeKind): string {
-  const cached = pathCache.get(kind);
+/** The shape's radius at SAMPLES evenly spaced angles, normalized so the largest is 1. */
+export function shapeRadii(kind: ShapeKind): number[] {
+  const cached = radiiCache.get(kind);
   if (cached) return cached;
   const radius = SHAPES[kind];
   const radii: number[] = [];
@@ -55,13 +56,27 @@ export function shapePath(kind: ShapeKind): string {
     radii.push(value);
     if (value > max) max = value;
   }
+  const normalized = radii.map((value) => value / max);
+  radiiCache.set(kind, normalized);
+  return normalized;
+}
+
+/** SVG path in a 100×100 box from normalized radii (any shape, or a blend of two). */
+export function pathFromRadii(radii: readonly number[]): string {
   let d = "";
-  for (let i = 0; i < SAMPLES; i++) {
-    const t = (i / SAMPLES) * TAU - Math.PI / 2;
-    const r = (radii[i]! / max) * 50;
+  for (let i = 0; i < radii.length; i++) {
+    const t = (i / radii.length) * TAU - Math.PI / 2;
+    const r = (radii[i] ?? 0) * 50;
     d += `${i ? "L" : "M"}${(50 + Math.cos(t) * r).toFixed(3)} ${(50 + Math.sin(t) * r).toFixed(3)}`;
   }
-  const path = `${d}Z`;
+  return `${d}Z`;
+}
+
+/** SVG path for a shape in a 100×100 box, normalized so the widest point touches the edge. */
+export function shapePath(kind: ShapeKind): string {
+  const cached = pathCache.get(kind);
+  if (cached) return cached;
+  const path = pathFromRadii(shapeRadii(kind));
   pathCache.set(kind, path);
   return path;
 }
