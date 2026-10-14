@@ -22,6 +22,7 @@ const TOKENS = {
   outlineVariant: "--md-sys-color-outline-variant",
   font: "--md-ref-typeface-plain",
   radius: "--md-sys-shape-corner-medium",
+  logoTile: "--cx-logo-tile",
 } as const;
 
 function readTokens(): Record<keyof typeof TOKENS, string> {
@@ -54,16 +55,32 @@ export function buildClerkAppearance(tokens: Record<keyof typeof TOKENS, string>
       socialButtonsPlacement: "top",
       logoPlacement: "none",
     },
+    // Style objects, not class names: Clerk injects its own styles with higher specificity than
+    // utility classes. The sign-in frame provides the heading, card and chrome.
     elements: {
-      // The sign-in frame provides its own heading, card and chrome.
-      rootBox: "w-full",
-      cardBox: "w-full shadow-none",
-      card: "bg-transparent p-0 shadow-none",
-      header: "hidden",
-      socialButtonsBlockButton: "h-14 rounded-full",
-      formButtonPrimary: "h-14 rounded-full",
-      formFieldInput: "h-14 rounded-md",
-      footer: "bg-transparent",
+      rootBox: { width: "100%" },
+      cardBox: { width: "100%", boxShadow: "none", borderRadius: 0 },
+      card: { backgroundColor: "transparent", boxShadow: "none", padding: 0, gap: "1rem" },
+      header: { display: "none" },
+      // The prototype's Google button is a filled primary button.
+      socialButtonsBlockButton: {
+        minHeight: "3.5rem",
+        borderRadius: "9999px",
+        backgroundColor: tokens.primary,
+        borderColor: tokens.primary,
+        color: tokens.onPrimary,
+      },
+      socialButtonsBlockButtonText: { color: tokens.onPrimary, fontWeight: 500 },
+      socialButtonsProviderIcon: {
+        backgroundColor: tokens.logoTile,
+        borderRadius: "9999px",
+        padding: "0.25rem",
+        boxSizing: "content-box",
+      },
+      formButtonPrimary: { minHeight: "3.5rem", borderRadius: "9999px" },
+      formFieldInput: { minHeight: "3.5rem" },
+      footer: { background: "transparent" },
+      footerAction: { padding: 0 },
     },
   };
 }

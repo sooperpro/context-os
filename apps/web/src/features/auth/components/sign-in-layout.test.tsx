@@ -1,11 +1,11 @@
-import { screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { SignInLayout } from "@/features/auth/components/sign-in-layout";
-import { renderWithProviders } from "@/test/utils";
 
 describe("SignInLayout", () => {
-  it("frames its content with the brand pitch, a titled card and the sign-on note", () => {
-    renderWithProviders(
+  it("frames its content with the brand pitch, a titled card and the sign-on note, outside any router", () => {
+    // The auth gate mounts this before the router exists, so no router is provided here on purpose.
+    render(
       <SignInLayout title="Sign in" description="Use your work account.">
         <button type="button">Continue with Google Workspace</button>
       </SignInLayout>,
