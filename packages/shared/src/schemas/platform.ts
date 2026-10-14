@@ -280,3 +280,51 @@ export const DriveImportInputSchema = z
   })
   .strict();
 export type DriveImportInput = z.infer<typeof DriveImportInputSchema>;
+
+/* ---- Members and org structure --------------------------------------------------------- */
+
+export const MembershipStatusSchema = z.enum(["active", "suspended", "offboarded"]);
+export type MembershipStatus = z.infer<typeof MembershipStatusSchema>;
+
+/** `GET /users`: the workspace directory (guests may not read it). */
+export const WorkspaceMemberSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  role: SystemRoleSchema,
+  status: MembershipStatusSchema,
+});
+export type WorkspaceMember = z.infer<typeof WorkspaceMemberSchema>;
+export const WorkspaceMemberListSchema = z.object({ items: z.array(WorkspaceMemberSchema) });
+
+/** `PATCH /users/:id` returns the updated membership row. */
+export const MembershipUpdateResultSchema = z.object({
+  userId: z.string(),
+  role: SystemRoleSchema,
+  status: MembershipStatusSchema,
+});
+export type UserUpdate = z.infer<typeof UserUpdateSchema>;
+
+export const DepartmentSchema = z.object({ id: z.string(), name: z.string() });
+export type Department = z.infer<typeof DepartmentSchema>;
+export const DepartmentListSchema = z.object({ items: z.array(DepartmentSchema) });
+
+export const TeamSchema = z.object({
+  id: z.string(),
+  departmentId: z.string(),
+  parentId: z.string().nullable(),
+  name: z.string(),
+});
+export type Team = z.infer<typeof TeamSchema>;
+export const TeamListSchema = z.object({ items: z.array(TeamSchema) });
+
+export const OrgNameInputSchema = z.object({ name: z.string().trim().min(1, "Enter a name.").max(200) }).strict();
+export type OrgNameInput = z.infer<typeof OrgNameInputSchema>;
+export const TeamInputSchema = OrgNameInputSchema.extend({
+  departmentId: z.uuid(),
+  parentId: z.uuid().nullable().default(null),
+});
+export type TeamInput = z.infer<typeof TeamInputSchema>;
+export const TeamUpdateInputSchema = OrgNameInputSchema.partial()
+  .extend({ parentId: z.uuid().nullable().optional() })
+  .strict();
+export type TeamUpdateInput = z.infer<typeof TeamUpdateInputSchema>;

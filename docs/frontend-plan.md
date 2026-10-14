@@ -88,7 +88,10 @@ appearance API is a Phase 4 polish item.
        stepper, evidence-backed completion, skip and resume, sync counts. Composes the create-project
        dialog, a new invite-member dialog (`features/members`) and Google Drive authorization
        (`features/connectors`). Steps 2 and 5 are honest placeholders until their screens ship.
-2. Members, invites, roles, departments and teams
+2. [x] People at `/members`: directory with role and status, owner/admin management menu (role, suspend,
+       reactivate, offboard; ownership changes limited to owners, last-owner protection surfaced from the
+       API), invite dialog, and departments with nested teams (create, rename, delete, sub-teams to three
+       levels). Employment profiles (`/users/:id/organization`) are not edited yet.
 3. [x] Google Drive connector flow: authorize from the wizard or the Sources page, browse folders with
        Google page tokens, import one selected file at a time (`features/sources` Drive import dialog on
        top of `features/connectors` queries). Sheets and Slides are listed as not supported, matching the API.

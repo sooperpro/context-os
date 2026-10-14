@@ -1,4 +1,5 @@
 import type {
+  SystemRole,
   AnswerConfidence,
   Confidence,
   ContextItemKind,
@@ -84,4 +85,12 @@ export const JOB_STATUS_LABEL: Record<JobStatus, string> = {
   running: "Running",
   done: "Done",
   failed: "Failed",
+};
+
+export const ROLE_LABEL: Record<SystemRole, string> = {
+  owner: "Owner",
+  admin: "Admin",
+  manager: "Manager",
+  member: "Member",
+  guest: "Guest",
 };
