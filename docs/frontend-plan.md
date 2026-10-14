@@ -30,7 +30,7 @@ roles (`primary-container`, the `surface-container` ladder, `tertiary` as `ai`, 
 | Design system   | Material 3 Expressive tokens on top of shadcn/Base UI mechanics                    | Prototype fidelity without rewriting focus management and composition                   |
 | Theme mechanism | `data-theme` attribute on `<html>`, resolved by `ThemeProvider`                    | Matches the prototype and the token file; `dark:` utilities key on it                   |
 | Fonts           | Google Sans Flex and Google Sans Code from Google Fonts, system fallback           | Not self-hostable; fallback stack must be checked, not assumed                          |
-| Icons           | Material Symbols Rounded as per-icon SVG components (`components/ui/icons.ts`, SVGR); the shell uses them, feature screens migrate from Lucide as they are touched | One registry keeps the set visible; filled variants mark active navigation (FILL 1) |
+| Icons           | Material Symbols Rounded as per-icon SVG components (`components/ui/icons.ts`, SVGR) everywhere; Lucide removed and blocked by lint | One registry keeps the set visible; filled variants mark active navigation (FILL 1) |
 | Token source    | Hand-maintained CSS, no generator                                                  | One consumer today; a generator pays off at two                                         |
 | Roles           | Navigation and visibility from the backend role (Owner/Admin/Manager/Member/Guest) | The prototype's four fixed roles do not match the API; HR maps to Admin plus assignments |
 
@@ -121,7 +121,11 @@ Each screen composes library pieces only. A missing primitive goes into the libr
       overview with "How it connects" (by kind), the cited overview, risks and open questions, and an aside
       with Ask prompts and sources. Timeline on the prototype's rail. Badges became icon status chips.
       New primitives: PillTabs, MetaChip, TypeChip, Card tone "pane".
-- [ ] Sources page and answer cards
+- [x] Sources page and answer cards: segmented source rows with kind tiles, provenance and icon status
+      chips, confirmed delete; answer card with the prototype's confidence label, AI citation chips and a
+      numbered source list.
+- [x] One icon language: every screen, layout and primitive uses Material Symbols from the registry;
+      `lucide-react` is removed and lint rejects it (shadcn generates Lucide imports, swap them on add).
 
 ## Guardrails
 
@@ -134,6 +138,7 @@ Each screen composes library pieces only. A missing primitive goes into the libr
   by another feature (the Sources page uses the connectors queries); its components and pages may not,
   except for orchestrating features such as the setup wizard, which compose other features' dialogs.
   Anything two features both render moves down into `components/`.
+- **Lint enforces one icon set.** `lucide-react` imports are errors; add missing icons to the registry.
 - **Teal is for AI only.** A convention, not a lint rule; it lives in the component docs and review.
 
 ## Risks

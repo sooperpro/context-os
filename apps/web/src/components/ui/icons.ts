@@ -92,12 +92,22 @@ import PersonRemoveIcon from "@material-symbols/svg-400/rounded/person_remove.sv
 import DomainIcon from "@material-symbols/svg-400/rounded/domain.svg?react";
 import EditIcon from "@material-symbols/svg-400/rounded/edit.svg?react";
 import SearchOffIcon from "@material-symbols/svg-400/rounded/search_off.svg?react";
+import ProgressActivityIcon from "@material-symbols/svg-400/rounded/progress_activity.svg?react";
+import KeyboardArrowDownIcon from "@material-symbols/svg-400/rounded/keyboard_arrow_down.svg?react";
+import KeyboardArrowUpIcon from "@material-symbols/svg-400/rounded/keyboard_arrow_up.svg?react";
+import CableIcon from "@material-symbols/svg-400/rounded/cable.svg?react";
+import WarningFilledIcon from "@material-symbols/svg-400/rounded/warning-fill.svg?react";
 import VisibilityIcon from "@material-symbols/svg-400/rounded/visibility.svg?react";
 
 export type MaterialIcon = ComponentType<SVGProps<SVGSVGElement>>;
 
 export {
   AddIcon,
+  WarningFilledIcon,
+  CableIcon,
+  KeyboardArrowUpIcon,
+  KeyboardArrowDownIcon,
+  ProgressActivityIcon,
   SearchOffIcon,
   EditIcon,
   DomainIcon,

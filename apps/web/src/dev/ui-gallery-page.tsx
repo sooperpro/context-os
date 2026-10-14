@@ -1,19 +1,3 @@
-import {
-  AlertTriangleIcon,
-  ArrowUpRightIcon,
-  CableIcon,
-  CheckIcon,
-  ChevronRightIcon,
-  ClockIcon,
-  FileTextIcon,
-  HelpCircleIcon,
-  InfoIcon,
-  MoreHorizontalIcon,
-  PlusIcon,
-  RefreshCwIcon,
-  SparklesIcon,
-  XCircleIcon,
-} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
@@ -113,6 +97,22 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ConfidenceBadge, StateBadge, VerificationBadge } from "@/features/hub/components/badges";
 import { SourceStatusBadge } from "@/features/sources/components/source-status-badge";
+import {
+  AddIcon,
+  AiSparkleIcon,
+  CableIcon,
+  CancelIcon,
+  CheckIcon,
+  ChevronRightIcon,
+  DescriptionIcon,
+  HelpIcon,
+  InfoIcon,
+  MoreHorizIcon,
+  NorthEastIcon,
+  RefreshIcon,
+  ScheduleIcon,
+  WarningIcon,
+} from "@/components/ui/icons";
 
 /**
  * Component gallery (development builds only, see app/router.tsx).
@@ -135,11 +135,11 @@ const BUTTON_SIZES = ["xs", "sm", "default", "md"] as const;
 const STATUS_TONES = ["success", "warning", "error", "info", "ai", "neutral"] as const;
 const STATUS_ICONS = {
   success: <CheckIcon />,
-  warning: <AlertTriangleIcon />,
-  error: <XCircleIcon />,
+  warning: <WarningIcon />,
+  error: <CancelIcon />,
   info: <InfoIcon />,
-  ai: <SparklesIcon />,
-  neutral: <ClockIcon />,
+  ai: <AiSparkleIcon />,
+  neutral: <ScheduleIcon />,
 } as const;
 const AVATAR_TONES = ["primary", "ai", "secondary", "warning", "success", "neutral"] as const;
 const PEOPLE = [
@@ -312,28 +312,28 @@ export function UiGalleryPage() {
           ))}
           <Row label="icons">
             <Button size="icon-xs" variant="ghost" aria-label="More">
-              <MoreHorizontalIcon />
+              <MoreHorizIcon />
             </Button>
             <Button size="icon-sm" variant="outline" aria-label="Add">
-              <PlusIcon />
+              <AddIcon />
             </Button>
             <Button size="icon" variant="secondary" aria-label="Refresh">
-              <RefreshCwIcon />
+              <RefreshIcon />
             </Button>
             <Button size="icon-lg" variant="ai-tonal" aria-label="Ask">
-              <SparklesIcon />
+              <AiSparkleIcon />
             </Button>
             <Button size="lg">Start</Button>
           </Row>
           <Row label="FAB">
             <Fab aria-label="Ask Context Bot">
-              <SparklesIcon />
+              <AiSparkleIcon />
             </Fab>
             <Fab floating>
-              <SparklesIcon /> Ask Context Bot
+              <AiSparkleIcon /> Ask Context Bot
             </Fab>
             <Fab variant="primary">
-              <PlusIcon /> New project
+              <AddIcon /> New project
             </Fab>
           </Row>
           <Row label="Connected">
@@ -361,16 +361,16 @@ export function UiGalleryPage() {
           </PillTabs>
           <Row label="Meta chips">
             <MetaChip>
-              <PlusIcon /> Lead: Priya Nair
+              <AddIcon /> Lead: Priya Nair
             </MetaChip>
             <MetaChip>
-              <ClockIcon /> Updated today
+              <ScheduleIcon /> Updated today
             </MetaChip>
             <MetaChip>6 sources</MetaChip>
           </Row>
           <Row label="Type chips">
             <TypeChip>
-              <FileTextIcon /> Decision
+              <DescriptionIcon /> Decision
             </TypeChip>
             <TypeChip>Project</TypeChip>
             <TypeChip>System</TypeChip>
@@ -380,7 +380,7 @@ export function UiGalleryPage() {
         <Section title="Chips and status">
           <Row label="Assist">
             <Chip>
-              <FileTextIcon /> View roadmap
+              <DescriptionIcon /> View roadmap
             </Chip>
             <Chip>Open source</Chip>
           </Row>
@@ -394,12 +394,12 @@ export function UiGalleryPage() {
           <Row label="Suggestion">
             <Chip variant="suggestion">Who owns the ingest gateway?</Chip>
             <Chip variant="ai">
-              <SparklesIcon /> Ask about this lesson
+              <AiSparkleIcon /> Ask about this lesson
             </Chip>
           </Row>
           <Row label="Prompt">
             <Chip variant="prompt" className="max-w-xs">
-              <SparklesIcon /> Why is billing moving to events, and what breaks if we roll it back?
+              <AiSparkleIcon /> Why is billing moving to events, and what breaks if we roll it back?
             </Chip>
           </Row>
           <Row label="Status">
@@ -490,13 +490,13 @@ export function UiGalleryPage() {
               <OptionTile
                 input={<input type="checkbox" defaultChecked />}
                 title="Engineering shared drive"
-                trailing={<StatusChip tone="neutral" icon={<FileTextIcon />}>1,204</StatusChip>}
+                trailing={<StatusChip tone="neutral" icon={<DescriptionIcon />}>1,204</StatusChip>}
               />
               <OptionTile
                 input={<input type="checkbox" />}
                 title="Finance"
                 description="Restricted: 3 items need admin consent"
-                trailing={<StatusChip tone="warning" icon={<AlertTriangleIcon />}>Restricted</StatusChip>}
+                trailing={<StatusChip tone="warning" icon={<WarningIcon />}>Restricted</StatusChip>}
               />
             </OptionList>
           </div>
@@ -504,30 +504,30 @@ export function UiGalleryPage() {
 
         <Section title="Tiles, banners, logos">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <KpiTile label="Active hires" value="12" delta={<><ArrowUpRightIcon /> +3 this week</>} deltaTone="good" />
-            <KpiTile label="Overdue modules" value="4" delta={<><ArrowUpRightIcon /> +2</>} deltaTone="bad" />
+            <KpiTile label="Active hires" value="12" delta={<><NorthEastIcon /> +3 this week</>} deltaTone="good" />
+            <KpiTile label="Overdue modules" value="4" delta={<><NorthEastIcon /> +2</>} deltaTone="bad" />
             <KpiTile label="Knowledge gaps" value="7" delta="unchanged" />
             <div className="grid grid-cols-3 gap-2">
               <MiniTile label="Docs" value="1.2k" />
-              <MiniTile label={<><AlertTriangleIcon /> Stale</>} value="38" tone="warning" />
-              <MiniTile label={<><XCircleIcon /> Failed</>} value="2" tone="error" />
+              <MiniTile label={<><WarningIcon /> Stale</>} value="38" tone="warning" />
+              <MiniTile label={<><CancelIcon /> Failed</>} value="2" tone="error" />
             </div>
           </div>
           <div className="space-y-3">
             <Banner
               tone="error"
-              icon={<XCircleIcon />}
+              icon={<CancelIcon />}
               title="Jira sync is failing"
               description="Three projects returned 403 since Oct 12. Answers may be out of date."
               actions={<Button variant="ghost" size="sm">Reconnect</Button>}
             />
             <Banner
               tone="info"
-              icon={<RefreshCwIcon />}
+              icon={<RefreshIcon />}
               title="First sync in progress"
               description="Indexing 1,204 documents from the Engineering drive."
             />
-            <Banner tone="ai" icon={<SparklesIcon />} title="Context Bot drafted this from 4 sources" />
+            <Banner tone="ai" icon={<AiSparkleIcon />} title="Context Bot drafted this from 4 sources" />
           </div>
           <Row label="Logo tiles">
             <LogoTile size="sm"><DemoLogo /></LogoTile>
@@ -604,13 +604,13 @@ export function UiGalleryPage() {
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger render={<Button size="icon-xs" variant="ghost" aria-label="Actions" />}>
-                            <MoreHorizontalIcon />
+                            <MoreHorizIcon />
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuGroup>
                               <DropdownMenuLabel>Google Drive</DropdownMenuLabel>
                               <DropdownMenuItem>
-                                <RefreshCwIcon /> Sync now
+                                <RefreshIcon /> Sync now
                               </DropdownMenuItem>
                               <DropdownMenuItem>
                                 <CableIcon /> Change scope
@@ -628,11 +628,11 @@ export function UiGalleryPage() {
                       </TableCell>
                       <TableCell>312</TableCell>
                       <TableCell>
-                        <StatusChip tone="error" icon={<XCircleIcon />}>Error</StatusChip>
+                        <StatusChip tone="error" icon={<CancelIcon />}>Error</StatusChip>
                       </TableCell>
                       <TableCell>
                         <Button size="icon-xs" variant="ghost" aria-label="Help">
-                          <HelpCircleIcon />
+                          <HelpIcon />
                         </Button>
                       </TableCell>
                     </TableRow>

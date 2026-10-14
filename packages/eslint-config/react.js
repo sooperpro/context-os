@@ -84,6 +84,24 @@ export function createReactConfig(options) {
         ],
       },
     },
+    {
+      // One icon language: Material Symbols through the registry. shadcn generates lucide-react
+      // imports; swap them for registry icons when adding a component.
+      files: ["src/**/*.{ts,tsx}"],
+      rules: {
+        "no-restricted-imports": [
+          "error",
+          {
+            paths: [
+              {
+                name: "lucide-react",
+                message: "Use Material Symbols from @/components/ui/icons (add the icon there if it is missing).",
+              },
+            ],
+          },
+        ],
+      },
+    },
     // Must be last: disables formatting rules that conflict with Prettier.
     prettier,
   ]);

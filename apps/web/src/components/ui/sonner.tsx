@@ -1,13 +1,13 @@
-import {
-  CircleCheckIcon,
-  InfoIcon,
-  Loader2Icon,
-  OctagonXIcon,
-  TriangleAlertIcon,
-} from "lucide-react";
 import type * as React from "react";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 import { useTheme } from "@/hooks/use-theme";
+import {
+  CheckCircleFilledIcon,
+  ErrorFilledIcon,
+  InfoIcon,
+  ProgressActivityIcon,
+  WarningFilledIcon,
+} from "@/components/ui/icons";
 
 const Toaster = ({ ...props }: ToasterProps) => {
   const { resolvedTheme } = useTheme();
@@ -17,11 +17,11 @@ const Toaster = ({ ...props }: ToasterProps) => {
       theme={resolvedTheme}
       className="toaster group"
       icons={{
-        success: <CircleCheckIcon className="size-4" />,
+        success: <CheckCircleFilledIcon className="size-4" />,
         info: <InfoIcon className="size-4" />,
-        warning: <TriangleAlertIcon className="size-4" />,
-        error: <OctagonXIcon className="size-4" />,
-        loading: <Loader2Icon className="size-4 animate-spin" />,
+        warning: <WarningFilledIcon className="size-4" />,
+        error: <ErrorFilledIcon className="size-4" />,
+        loading: <ProgressActivityIcon className="size-4 animate-spin" />,
       }}
       style={
         {

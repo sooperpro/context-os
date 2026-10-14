@@ -1,5 +1,4 @@
 import { render, screen } from "@testing-library/react";
-import { CheckIcon } from "lucide-react";
 import { describe, expect, it } from "vitest";
 import { Avatar, AvatarFallback, avatarToneFor } from "@/components/ui/avatar";
 import { Banner } from "@/components/ui/banner";
@@ -12,6 +11,9 @@ import { OptionList, OptionTile } from "@/components/ui/option-tile";
 import { Progress } from "@/components/ui/progress";
 import { StatusChip } from "@/components/ui/status-chip";
 import { Stepper, StepperItem } from "@/components/ui/stepper";
+import {
+  CheckIcon,
+} from "@/components/ui/icons";
 
 describe("Button", () => {
   it("renders every variant and size without a raw palette class", () => {
