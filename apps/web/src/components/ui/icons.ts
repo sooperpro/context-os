@@ -122,6 +122,19 @@ import LocalShippingIcon from "@material-symbols/svg-400/rounded/local_shipping.
 import ConversionPathIcon from "@material-symbols/svg-400/rounded/conversion_path.svg?react";
 import MenuBookIcon from "@material-symbols/svg-400/rounded/menu_book.svg?react";
 import VisibilityIcon from "@material-symbols/svg-400/rounded/visibility.svg?react";
+import SchoolIcon from "@material-symbols/svg-400/rounded/school.svg?react";
+import PlayArrowIcon from "@material-symbols/svg-400/rounded/play_arrow.svg?react";
+import RouteFilledIcon from "@material-symbols/svg-400/rounded/route-fill.svg?react";
+import CancelFilledIcon from "@material-symbols/svg-400/rounded/cancel-fill.svg?react";
+import ReplayIcon from "@material-symbols/svg-400/rounded/replay.svg?react";
+import HighlightIcon from "@material-symbols/svg-400/rounded/highlight.svg?react";
+import FormatListNumberedIcon from "@material-symbols/svg-400/rounded/format_list_numbered.svg?react";
+import LockClockIcon from "@material-symbols/svg-400/rounded/lock_clock.svg?react";
+import ContactSupportIcon from "@material-symbols/svg-400/rounded/contact_support.svg?react";
+import EditCalendarIcon from "@material-symbols/svg-400/rounded/edit_calendar.svg?react";
+import PaymentsIcon from "@material-symbols/svg-400/rounded/payments.svg?react";
+import SlideshowIcon from "@material-symbols/svg-400/rounded/slideshow.svg?react";
+import SmartDisplayIcon from "@material-symbols/svg-400/rounded/smart_display.svg?react";
 import EditNoteFilledIcon from "@material-symbols/svg-400/rounded/edit_note-fill.svg?react";
 import AdminPanelSettingsIcon from "@material-symbols/svg-400/rounded/admin_panel_settings.svg?react";
 import BadgeIcon from "@material-symbols/svg-400/rounded/badge.svg?react";
@@ -177,6 +190,19 @@ export type MaterialIcon = ComponentType<SVGProps<SVGSVGElement>>;
 
 export {
   AddIcon,
+  SchoolIcon,
+  PlayArrowIcon,
+  RouteFilledIcon,
+  CancelFilledIcon,
+  ReplayIcon,
+  HighlightIcon,
+  FormatListNumberedIcon,
+  LockClockIcon,
+  ContactSupportIcon,
+  EditCalendarIcon,
+  PaymentsIcon,
+  SlideshowIcon,
+  SmartDisplayIcon,
   EditNoteFilledIcon,
   AdminPanelSettingsIcon,
   BadgeIcon,

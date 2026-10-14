@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { Link } from "react-router";
 import { useAssistant } from "@/components/layout/assistant-context";
 import { PageHeader } from "@/components/layout/page-header";
+import { OnboardingStatusChip } from "@/components/onboarding-status-chip";
 import { SectionCard } from "@/components/section-card";
 import { PersonAvatar } from "@/components/ui/avatar";
 import { BotGlyph } from "@/components/ui/bot-glyph";
@@ -57,7 +58,7 @@ import {
 } from "@/lib/format";
 import { DotList } from "@/components/ui/dot-list";
 import { DashboardGrid } from "./dashboard";
-import { ONBOARDING_PROGRESS_TONE, ONBOARDING_STATUS, firstName, span } from "./dashboard-meta";
+import { ONBOARDING_PROGRESS_TONE, firstName, span } from "./dashboard-meta";
 
 /** The manager's Home (prototype `managerHome`): who needs attention, upcoming check-ins, the team's plan. */
 export function ManagerHome() {
@@ -280,7 +281,6 @@ function RosterCard({ query }: { query: UseQueryResult<TeamOnboarding> }) {
               </TableHeader>
               <TableBody>
                 {people.map((row) => {
-                  const status = ONBOARDING_STATUS[row.status];
                   const days = daysFromToday(row.startDate);
                   const started = days <= 0;
                   return (
@@ -336,9 +336,7 @@ function RosterCard({ query }: { query: UseQueryResult<TeamOnboarding> }) {
                       </TableCell>
                       <TableCell className="text-xs whitespace-nowrap">{row.next ?? "—"}</TableCell>
                       <TableCell>
-                        <StatusChip tone={status.tone} icon={status.icon}>
-                          {status.label}
-                        </StatusChip>
+                        <OnboardingStatusChip status={row.status} />
                       </TableCell>
                       <TableCell className="text-right">
                         <Button

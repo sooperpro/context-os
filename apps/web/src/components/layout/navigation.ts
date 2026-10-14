@@ -6,6 +6,8 @@ import {
   EditNoteIcon,
   HubFilledIcon,
   HubIcon,
+  RouteFilledIcon,
+  RouteIcon,
   GroupFilledIcon,
   GroupIcon,
   HomeFilledIcon,
@@ -63,6 +65,15 @@ export const NAV_ITEMS: readonly NavItem[] = [
     to: "/",
     end: true,
     personas: ["admin"],
+  },
+  {
+    id: "roadmap",
+    label: "My roadmap",
+    short: "Roadmap",
+    icon: RouteIcon,
+    activeIcon: RouteFilledIcon,
+    to: "/roadmap",
+    personas: ["employee"],
   },
   // The prototype has no Projects item: projects are a collection inside the Knowledge Hub.
   {

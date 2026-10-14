@@ -34,6 +34,34 @@ const appChildren = [
     },
   },
   {
+    path: "roadmap",
+    lazy: async () => {
+      const { RoadmapPage } = await import("@/features/learning/pages/roadmap-page");
+      return { Component: RoadmapPage };
+    },
+  },
+  {
+    path: "roadmap/modules/:moduleId",
+    lazy: async () => {
+      const { ModulePage } = await import("@/features/learning/pages/module-page");
+      return { Component: ModulePage };
+    },
+  },
+  {
+    path: "roadmap/lessons/:lessonId",
+    lazy: async () => {
+      const { LessonPage } = await import("@/features/learning/pages/lesson-page");
+      return { Component: LessonPage };
+    },
+  },
+  {
+    path: "roadmap/checks/:checkId",
+    lazy: async () => {
+      const { CheckPage } = await import("@/features/learning/pages/check-page");
+      return { Component: CheckPage };
+    },
+  },
+  {
     path: "contributions",
     lazy: async () => {
       const { ContributionsPage } =

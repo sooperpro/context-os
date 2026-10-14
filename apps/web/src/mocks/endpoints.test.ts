@@ -5,6 +5,13 @@ import { setupMockApi } from "@/test/msw";
 
 setupMockApi();
 
+/** Example ids for parameterized endpoints, from the fixtures. */
+const EXAMPLE: Record<string, string> = {
+  "/v1/me/modules/:id": "/v1/me/modules/m4",
+  "/v1/me/lessons/:id": "/v1/me/lessons/m4-l3",
+  "/v1/me/checks/:id": "/v1/me/checks/m4-check",
+};
+
 describe("mock layer", () => {
   it("registers each endpoint once", () => {
     const keys = mockEndpoints.map((endpoint) => endpoint.key);
@@ -17,7 +24,9 @@ describe("mock layer", () => {
     .map((endpoint) => endpoint.key)
     .filter((key) => key.startsWith("GET "));
   it.each(reads)("%s answers with data its schema accepts", async (key) => {
-    const path = key.replace(/^GET /, "");
+    const pattern = key.replace(/^GET /, "");
+    const path = EXAMPLE[pattern] ?? pattern;
+    expect(path, `add an example id for ${pattern}`).not.toContain(":");
     const response = await fetch(new URL(buildApiUrl(path), window.location.origin));
     expect(response.status).toBe(200);
     expect(response.headers.get("X-ContextOS-Mock")).toBe("1");

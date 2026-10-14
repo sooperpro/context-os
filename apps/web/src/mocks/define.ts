@@ -3,6 +3,19 @@ import type { z } from "zod";
 import { buildApiUrl } from "@/lib/api-client";
 import { mockKey } from "@/lib/preview-data";
 
+/** Throw from a resolver to answer 404 with the API's error envelope. */
+export class MockNotFoundError extends Error {
+  constructor(what: string) {
+    super(`${what} not found`);
+    this.name = "MockNotFoundError";
+  }
+}
+
+function notFound(error: unknown) {
+  if (!(error instanceof MockNotFoundError)) throw error;
+  return HttpResponse.json({ error: { code: "NOT_FOUND", message: error.message } }, { status: 404 });
+}
+
 export interface MockEndpoint {
   /** "GET /v1/me/tasks": the path as the UI requests it, before the API base is added. */
   key: string;
@@ -27,8 +40,12 @@ export function mockGet<S extends z.ZodType>(endpoint: { path: string; schema: S
     handler: http.get(buildApiUrl(endpoint.path), async ({ request, params }) => {
       // A realistic pause in the browser (instant under Node), so loading states get exercised.
       await delay();
-      const body = endpoint.schema.parse(resolve({ request, params })) as JsonBodyType;
-      return HttpResponse.json(body, { headers: { "X-ContextOS-Mock": "1" } });
+      try {
+        const body = endpoint.schema.parse(resolve({ request, params })) as JsonBodyType;
+        return HttpResponse.json(body, { headers: { "X-ContextOS-Mock": "1" } });
+      } catch (error) {
+        return notFound(error);
+      }
     }),
   });
 }
@@ -64,8 +81,12 @@ export function mockPost<S extends z.ZodType, I extends z.ZodType>(endpoint: {
           { status: 400 },
         );
       }
-      const body = endpoint.schema.parse(resolve(parsed.data, { request, params })) as JsonBodyType;
-      return HttpResponse.json(body, { status, headers: { "X-ContextOS-Mock": "1" } });
+      try {
+        const body = endpoint.schema.parse(resolve(parsed.data, { request, params })) as JsonBodyType;
+        return HttpResponse.json(body, { status, headers: { "X-ContextOS-Mock": "1" } });
+      } catch (error) {
+        return notFound(error);
+      }
     }),
   });
 }

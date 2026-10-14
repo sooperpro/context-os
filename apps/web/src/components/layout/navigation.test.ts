@@ -24,12 +24,9 @@ describe("navigation config", () => {
       role: Parameters<typeof navItemsFor>[0],
       persona: Parameters<typeof navItemsFor>[1],
     ) => navItemsFor(role, persona).map((item) => item.id);
-    expect(rail("member", "employee")).toEqual(["home", "knowledge", "people", "contributions"]);
+    expect(rail("member", "employee")).toEqual(["home", "roadmap", "knowledge", "people", "contributions"]);
     expect(rail("manager", "manager")).toEqual(["home", "knowledge", "people"]);
     expect(rail("owner", "admin")).toEqual(["overview", "knowledge", "people", "setup"]);
-    for (const persona of ["employee", "manager", "people_ops", "admin"] as const) {
-      expect(navItemsFor("member", persona).length).toBeLessThanOrEqual(BOTTOM_NAV_LIMIT);
-    }
   });
 
   it("never configures more bottom-bar destinations than M3 allows for everyone", () => {

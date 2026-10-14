@@ -178,4 +178,5 @@ export const KNOWLEDGE_ORIGIN_LABEL: Record<KnowledgeOrigin, string> = {
   jira: "Jira",
   confluence: "Confluence",
   knowledge_hub: "Knowledge Hub",
+  loom: "Loom",
 };

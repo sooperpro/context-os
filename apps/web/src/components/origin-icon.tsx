@@ -5,6 +5,7 @@ import {
   ConfirmationNumberIcon,
   DescriptionIcon,
   HubIcon,
+  SmartDisplayIcon,
   TagIcon,
 } from "@/components/ui/icons";
 
@@ -15,6 +16,7 @@ const ICON = {
   jira: ConfirmationNumberIcon,
   confluence: ArticleIcon,
   knowledge_hub: HubIcon,
+  loom: SmartDisplayIcon,
 } as const;
 
 /**

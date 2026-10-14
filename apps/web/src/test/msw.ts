@@ -3,6 +3,7 @@ import { afterAll, afterEach, beforeAll } from "vitest";
 import { registerPreviewEndpoints } from "@/lib/preview-data";
 import { resetContributionMocks } from "@/mocks/contributions";
 import { mockEndpoints } from "@/mocks/endpoints";
+import { resetLearningMocks } from "@/mocks/learning";
 
 /**
  * The development mock layer under Node, for tests. `setupMockApi()` answers the mocked endpoints
@@ -19,6 +20,7 @@ export function setupMockApi(): void {
   afterEach(() => {
     mockServer.resetHandlers();
     resetContributionMocks();
+    resetLearningMocks();
   });
   afterAll(() => mockServer.close());
 }

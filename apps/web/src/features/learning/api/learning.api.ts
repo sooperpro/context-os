@@ -1,0 +1,88 @@
+import {
+  CheckAttemptInputSchema,
+  CheckResultSchema,
+  KnowledgeCheckSchema,
+  LearningRatingInputSchema,
+  LearningRatingSchema,
+  LearningRequestInputSchema,
+  LearningRequestSchema,
+  LessonCompletionInputSchema,
+  LessonCompletionSchema,
+  LessonSchema,
+  ModuleDetailSchema,
+  MyRoadmapSchema,
+  type CheckAttemptInput,
+  type CheckResult,
+  type KnowledgeCheck,
+  type LearningRatingInput,
+  type LearningRequest,
+  type LearningRequestInput,
+  type Lesson,
+  type LessonCompletion,
+  type ModuleDetail,
+  type MyRoadmap,
+} from "@contextos/shared";
+import { apiRequest } from "@/lib/api-client";
+
+/**
+ * The learner's onboarding endpoints. None is served yet (the API's `/learning/*` routes return
+ * generic records); in development the mock layer answers them (src/mocks/learning.ts). Contracts:
+ * packages/shared/src/schemas/learning.ts.
+ */
+export const LEARNING_ENDPOINTS = {
+  roadmap: { path: "/v1/me/roadmap", schema: MyRoadmapSchema },
+  module: { path: "/v1/me/modules/:id", schema: ModuleDetailSchema },
+  lesson: { path: "/v1/me/lessons/:id", schema: LessonSchema },
+  completeLesson: {
+    path: "/v1/me/lessons/:id/complete",
+    schema: LessonCompletionSchema,
+    input: LessonCompletionInputSchema,
+  },
+  check: { path: "/v1/me/checks/:id", schema: KnowledgeCheckSchema },
+  attempt: {
+    path: "/v1/me/checks/:id/attempts",
+    schema: CheckResultSchema,
+    input: CheckAttemptInputSchema,
+  },
+  rating: {
+    path: "/v1/me/learning-ratings",
+    schema: LearningRatingSchema,
+    input: LearningRatingInputSchema,
+  },
+  request: {
+    path: "/v1/me/learning-requests",
+    schema: LearningRequestSchema,
+    input: LearningRequestInputSchema,
+  },
+} as const;
+
+const E = LEARNING_ENDPOINTS;
+const withId = (path: string, id: string) => path.replace(":id", encodeURIComponent(id));
+
+export const fetchRoadmap = (signal?: AbortSignal): Promise<MyRoadmap> =>
+  apiRequest(E.roadmap.path, { schema: E.roadmap.schema, signal });
+
+export const fetchModule = (id: string, signal?: AbortSignal): Promise<ModuleDetail> =>
+  apiRequest(withId(E.module.path, id), { schema: E.module.schema, signal });
+
+export const fetchLesson = (id: string, signal?: AbortSignal): Promise<Lesson> =>
+  apiRequest(withId(E.lesson.path, id), { schema: E.lesson.schema, signal });
+
+export const completeLesson = (id: string): Promise<LessonCompletion> =>
+  apiRequest(withId(E.completeLesson.path, id), {
+    method: "POST",
+    body: {},
+    schema: E.completeLesson.schema,
+  });
+
+export const fetchCheck = (id: string, signal?: AbortSignal): Promise<KnowledgeCheck> =>
+  apiRequest(withId(E.check.path, id), { schema: E.check.schema, signal });
+
+export const submitCheckAttempt = (id: string, input: CheckAttemptInput): Promise<CheckResult> =>
+  apiRequest(withId(E.attempt.path, id), { method: "POST", body: input, schema: E.attempt.schema });
+
+export const rateLearning = (input: LearningRatingInput) =>
+  apiRequest(E.rating.path, { method: "POST", body: input, schema: E.rating.schema });
+
+export const sendLearningRequest = (input: LearningRequestInput): Promise<LearningRequest> =>
+  apiRequest(E.request.path, { method: "POST", body: input, schema: E.request.schema });

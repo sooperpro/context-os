@@ -1,14 +1,4 @@
 import type { OnboardingStatus } from "@contextos/shared";
-import type { ReactNode } from "react";
-import {
-  BlockIcon,
-  CheckCircleIcon,
-  ErrorIcon,
-  InfoIcon,
-  ScheduleIcon,
-  TrendingUpIcon,
-} from "@/components/ui/icons";
-import type { StatusChip } from "@/components/ui/status-chip";
 
 /** Shared, non-component pieces of the Home dashboards (kept apart from components for fast refresh). */
 
@@ -23,21 +13,6 @@ const SPAN = {
 export function span(columns: keyof typeof SPAN): string {
   return SPAN[columns];
 }
-
-type Tone = NonNullable<React.ComponentProps<typeof StatusChip>["tone"]>;
-
-/** How each onboarding status reads: never color alone, always an icon and a label. */
-export const ONBOARDING_STATUS: Record<
-  OnboardingStatus,
-  { label: string; tone: Tone; icon: ReactNode }
-> = {
-  ahead: { label: "Ahead", tone: "success", icon: <TrendingUpIcon /> },
-  on_track: { label: "On track", tone: "success", icon: <CheckCircleIcon /> },
-  at_risk: { label: "At risk", tone: "warning", icon: <ErrorIcon /> },
-  blocked: { label: "Blocked", tone: "error", icon: <BlockIcon /> },
-  not_started: { label: "Not started", tone: "neutral", icon: <ScheduleIcon /> },
-  needs_setup: { label: "Needs setup", tone: "info", icon: <InfoIcon /> },
-};
 
 /** Progress tone for a status, for bars next to the status chip. */
 export const ONBOARDING_PROGRESS_TONE: Record<OnboardingStatus, "primary" | "warning" | "error"> = {

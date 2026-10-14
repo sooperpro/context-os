@@ -169,6 +169,12 @@ A pass over every built surface against the prototype's CSS and JS found three g
       suggested reviewer, the readiness checklist, Save draft and Submit for review. "Contributions" is
       in the Employee rail. Home's contribution card, its "Contribute knowledge" button and the
       manager's "Create article" gap action open these screens.
+- [x] My roadmap, module, lesson and knowledge check, from the reference: stage tabs with the probation
+      review, modules by state, progress, help and history; the module hero, lessons, objectives,
+      sources and people; lessons rendered from typed blocks (flow diagrams, decision records,
+      milestones, practice questions) with "select text to ask Context Bot"; the graded check with its
+      review and what passing changed. Request clarification and Request a roadmap change send to the
+      owner and manager. Home's "View roadmap", "Resume module", milestones and task buttons open them.
 - [x] The rail is gated by persona as well as role, so each "Prototype · view as" persona (Employee,
       Manager, HR, Admin) gets the reference's items as their screens ship.
 

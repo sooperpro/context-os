@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { IsoDateTimeSchema } from "./common.js";
-import { KnowledgeOriginSchema, PersonRefSchema } from "./home.js";
+import { KnowledgeOriginSchema, PersonRefSchema } from "./refs.js";
 
 /*
  * Contracts for contributions: knowledge people write or fix, reviewed by an owner, then published

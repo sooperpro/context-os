@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { IsoDateTimeSchema } from "./common.js";
+import { LearningTargetSchema, LessonTypeSchema } from "./learning.js";
+import { KnowledgeOriginSchema, OnboardingStatusSchema, PersonRefSchema } from "./refs.js";
 
 /*
  * Contracts for the Home dashboards (one per role in the reference prototype).
@@ -18,25 +20,6 @@ const Fraction = z.number().min(0).max(1);
 const DateOnly = z.iso.date();
 const Count = z.number().int().min(0);
 const DoneOfTotal = z.object({ done: Count, total: Count });
-
-/** A person as dashboards show them: name for the avatar, title for the second line. */
-export const PersonRefSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  title: z.string().nullable(),
-});
-export type PersonRef = z.infer<typeof PersonRefSchema>;
-
-/** Where someone is against their onboarding plan. */
-export const OnboardingStatusSchema = z.enum([
-  "ahead",
-  "on_track",
-  "at_risk",
-  "blocked",
-  "not_started",
-  "needs_setup",
-]);
-export type OnboardingStatus = z.infer<typeof OnboardingStatusSchema>;
 
 /* ---- Employee ----------------------------------------------------------------------------- */
 
@@ -78,8 +61,15 @@ export const NextUpSchema = z.object({
   title: z.string(),
   summary: z.string(),
   lessons: z.array(
-    z.object({ id: z.string(), title: z.string(), state: z.enum(["done", "current", "todo"]) }),
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      type: LessonTypeSchema,
+      state: z.enum(["done", "current", "todo"]),
+    }),
   ),
+  /** Where "Resume module" goes: the current lesson, or the knowledge check. */
+  resume: LearningTargetSchema,
   progress: Fraction,
   minutesLeft: Count,
   owner: PersonRefSchema.nullable(),
@@ -103,6 +93,8 @@ export const MyTaskSchema = z.object({
   state: z.enum(["open", "done"]),
   inProgress: z.boolean(),
   completedAt: IsoDateTimeSchema.nullable(),
+  /** The lesson, check or module the task opens, if it is part of the roadmap. */
+  target: LearningTargetSchema.nullable(),
 });
 export type MyTask = z.infer<typeof MyTaskSchema>;
 
@@ -126,16 +118,6 @@ export type Milestone = z.infer<typeof MilestoneSchema>;
 
 /** `GET /v1/me/milestones`: upcoming milestones of the caller's plan, soonest first. */
 export const MilestoneListSchema = z.object({ items: z.array(MilestoneSchema) });
-
-export const KnowledgeOriginSchema = z.enum([
-  "google_drive",
-  "github",
-  "slack",
-  "jira",
-  "confluence",
-  "knowledge_hub",
-]);
-export type KnowledgeOrigin = z.infer<typeof KnowledgeOriginSchema>;
 
 export const KnowledgeUpdateSchema = z.object({
   id: z.string(),

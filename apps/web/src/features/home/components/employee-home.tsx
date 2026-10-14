@@ -14,6 +14,7 @@ import { Link } from "react-router";
 import { AskBand } from "@/components/ask-band";
 import { useAssistant } from "@/components/layout/assistant-context";
 import { PageHeader } from "@/components/layout/page-header";
+import { OnboardingStatusChip } from "@/components/onboarding-status-chip";
 import { OriginIcon } from "@/components/origin-icon";
 import { PreviewDataChip } from "@/components/preview-data-chip";
 import { SectionCard } from "@/components/section-card";
@@ -77,6 +78,7 @@ import {
   isInReview,
 } from "@/features/contributions/contribution-meta";
 import { HOME_ENDPOINTS as E } from "@/features/home/api/home.api";
+import { ROADMAP_PATH, learningPath } from "@/features/learning/learning-meta";
 import { homeQuery } from "@/features/home/api/home.queries";
 import { comingSoon } from "@/lib/coming-soon";
 import { CONTRIBUTION_KIND_LABEL, KNOWLEDGE_ORIGIN_LABEL } from "@/lib/labels";
@@ -94,7 +96,7 @@ import {
   parseDateOnly,
 } from "@/lib/format";
 import { DotList } from "@/components/ui/dot-list";
-import { ONBOARDING_STATUS, firstName, formatDateRange } from "./dashboard-meta";
+import { firstName, formatDateRange } from "./dashboard-meta";
 
 /** The employee's Home (prototype `employeeHome`): what to do next, how onboarding is going, who to ask. */
 export function EmployeeHome() {
@@ -136,7 +138,7 @@ export function EmployeeHome() {
           ) : undefined
         }
         actions={
-          <Button variant="outline" onClick={() => comingSoon("My roadmap")}>
+          <Button variant="outline" nativeButton={false} render={<Link to={ROADMAP_PATH} />}>
             <RouteIcon aria-hidden /> View roadmap
           </Button>
         }
@@ -288,8 +290,8 @@ function NextUpBody({ item, headingId }: { item: NextUp; headingId: string }) {
         <span className="text-sm font-medium whitespace-nowrap">{item.minutesLeft} min left</span>
       </div>
       <div className="mt-1 flex flex-wrap gap-3">
-        <Button size="md" onClick={() => comingSoon("Lessons")}>
-          <PlayArrowFilledIcon aria-hidden /> Resume module
+        <Button size="md" nativeButton={false} render={<Link to={learningPath(item.resume)} />}>
+          <PlayArrowFilledIcon aria-hidden /> {item.progress > 0 ? "Resume module" : "Start module"}
         </Button>
         {item.suggestedQuestion ? (
           <Button
@@ -325,20 +327,13 @@ function OnboardingCard({
   day: number | null;
 }) {
   const plan = query.data;
-  const status = plan ? ONBOARDING_STATUS[plan.status] : null;
   return (
     <SectionCard
       className="[grid-area:prog]"
       title="Your onboarding"
       endpoint={E.myOnboarding.path}
       status={query}
-      action={
-        status ? (
-          <StatusChip tone={status.tone} icon={status.icon}>
-            {status.label}
-          </StatusChip>
-        ) : undefined
-      }
+      action={plan ? <OnboardingStatusChip status={plan.status} /> : undefined}
     >
       {plan ? (
         <>
@@ -601,15 +596,20 @@ function TaskRow({ task, overdue }: { task: MyTask; overdue: boolean }) {
               {due}
             </span>
           ) : null}
-          <Button
-            size="xs"
-            variant={task.kind === "check" ? "default" : "outline"}
-            onClick={() =>
-              comingSoon(task.kind === "meeting" ? "Check-in agendas" : "Learning tasks")
-            }
-          >
-            {TASK_ACTION[task.kind]}
-          </Button>
+          {task.target ? (
+            <Button
+              size="xs"
+              variant={task.kind === "check" ? "default" : "outline"}
+              nativeButton={false}
+              render={<Link to={learningPath(task.target)} />}
+            >
+              {TASK_ACTION[task.kind]}
+            </Button>
+          ) : (
+            <Button size="xs" variant="outline" onClick={() => comingSoon("Check-in agendas")}>
+              {TASK_ACTION[task.kind]}
+            </Button>
+          )}
         </SegmentedItemTrail>
       ) : null}
     </SegmentedItem>
@@ -635,14 +635,7 @@ function MilestonesCard() {
       endpoint={E.milestones.path}
       status={query}
       action={
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="See all milestones"
-          onClick={() => comingSoon("My roadmap")}
-        >
-          <ArrowForwardIcon />
-        </Button>
+        <ArrowLink to={ROADMAP_PATH} label="See all milestones" />
       }
     >
       {query.data && query.data.items.length > 0 ? (
