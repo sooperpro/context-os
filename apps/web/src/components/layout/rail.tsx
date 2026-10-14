@@ -3,7 +3,6 @@ import { NavLink } from "react-router";
 import { useAssistant } from "@/components/layout/assistant-context";
 import { Brand } from "@/components/layout/brand";
 import type { NavItem } from "@/components/layout/navigation";
-import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Fab } from "@/components/ui/fab";
 import { HubFilledIcon, MenuIcon, MenuOpenIcon } from "@/components/ui/icons";
@@ -28,11 +27,11 @@ export function Rail({ items, collapsed, canToggle, onToggle }: RailProps) {
       aria-label="Main"
       data-collapsed={collapsed || undefined}
       className={cn(
-        "sticky top-0 hidden h-svh shrink-0 flex-col gap-4 px-3 py-3 transition-[width] duration-[410ms] ease-spring-default-spatial medium:flex",
-        collapsed ? "w-24" : "w-62",
+        "sticky top-0 hidden h-svh shrink-0 flex-col gap-1 overflow-x-hidden overflow-y-auto pt-3 pb-4 transition-[width] duration-[410ms] ease-spring-default-spatial medium:flex",
+        collapsed ? "w-24 px-2" : "w-62 px-3",
       )}
     >
-      <div className={cn("flex h-12 items-center gap-1", collapsed && "justify-center")}>
+      <div className={cn("mb-2 flex h-12 items-center gap-1", collapsed ? "justify-center" : "pl-2")}>
         {/* When the window forces the collapsed state there is nothing to toggle: show the mark instead. */}
         {canToggle ? (
           <Button
@@ -56,13 +55,13 @@ export function Rail({ items, collapsed, canToggle, onToggle }: RailProps) {
         aria-pressed={open}
         aria-controls="assistant"
         onClick={toggleAssistant}
-        className={cn(collapsed ? "w-14 self-center px-0" : "w-full justify-start self-start")}
+        className={cn("mt-1 mb-4", collapsed ? "w-14 self-center px-0" : "self-start")}
       >
         <HubFilledIcon />
         {collapsed ? null : <span>Ask Context Bot</span>}
       </Fab>
 
-      <ul className="flex flex-col gap-1">
+      <ul className={cn("flex flex-col", collapsed ? "gap-2" : "gap-1")}>
         {items.map((item) => (
           <li key={item.id}>
             <NavLink
@@ -72,8 +71,8 @@ export function Rail({ items, collapsed, canToggle, onToggle }: RailProps) {
                 cn(
                   "group/nav flex items-center gap-3 rounded-full text-sm outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
                   // One state layer only: the whole row when expanded, the icon pill when collapsed.
-                  collapsed ? "flex-col gap-1 py-1 text-xs" : "h-14 px-4 hover:bg-on-surface/8",
-                  isActive ? "font-medium text-on-surface" : "text-on-surface-variant",
+                  collapsed ? "flex-col gap-1 py-1 text-xs" : "h-14 px-4 text-sm font-medium hover:bg-on-surface/8",
+                  isActive ? "text-on-surface" : "text-on-surface-variant",
                   isActive && !collapsed && "bg-secondary-container text-on-secondary-container",
                 )
               }
@@ -90,7 +89,9 @@ export function Rail({ items, collapsed, canToggle, onToggle }: RailProps) {
                   >
                     {isActive ? <item.activeIcon /> : <item.icon />}
                   </span>
-                  <span className="truncate">{collapsed ? (item.short ?? item.label) : item.label}</span>
+                  <span className={cn("truncate", collapsed && "max-w-21 text-center font-medium")}>
+                    {collapsed ? (item.short ?? item.label) : item.label}
+                  </span>
                 </>
               )}
             </NavLink>
@@ -98,9 +99,6 @@ export function Rail({ items, collapsed, canToggle, onToggle }: RailProps) {
         ))}
       </ul>
 
-      <div className={cn("mt-auto flex", collapsed ? "justify-center" : "px-2")}>
-        <ThemeToggle />
-      </div>
     </nav>
   );
 }

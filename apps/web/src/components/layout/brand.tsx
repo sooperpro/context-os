@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { Link, useInRouterContext } from "react-router";
-import { HubFilledIcon } from "@/components/ui/icons";
+import { Shape } from "@/components/ui/shape";
 
 /**
  * Wordmark with the AI-teal brand mark. `compact` shows the mark only.
@@ -15,15 +15,14 @@ export function Brand({ compact = false, className }: { compact?: boolean; class
   };
   const content = (
     <>
-      <span
-        aria-hidden
-        className="grid size-9 shrink-0 place-items-center rounded-[30%] bg-ai-container text-on-ai-container"
-      >
-        <HubFilledIcon className="size-5" />
+      {/* Prototype brand mark: a primary clover with the AI-teal dot at its center. */}
+      <span aria-hidden className="relative grid size-8 shrink-0 place-items-center">
+        <Shape kind="clover4" className="col-start-1 row-start-1 size-8 text-primary" />
+        <span className="col-start-1 row-start-1 size-2.5 rounded-full bg-ai" />
       </span>
       {compact ? null : (
-        <span className="font-heading text-lg font-semibold tracking-tight">
-          Context<b className="font-bold">OS</b>
+        <span className="font-heading text-xl leading-none font-semibold tracking-tight whitespace-nowrap">
+          Context<b className="font-semibold text-primary">OS</b>
         </span>
       )}
     </>

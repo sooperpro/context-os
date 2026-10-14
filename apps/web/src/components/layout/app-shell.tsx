@@ -123,10 +123,10 @@ export function AppShell({ assistant }: { assistant: ReactNode }) {
         <Rail items={items} collapsed={collapsed} canToggle={!forcedCollapsed} onToggle={toggleRail} />
         <div className="flex min-w-0 flex-1 flex-col">
           <TopBar />
-          <div className="flex flex-1 items-start gap-3 px-3 pb-3">
+          <div className="flex flex-1 items-start gap-3 pr-4 pb-4 pl-3 medium:pl-1">
             <main
               id="main"
-              className="@container min-h-[calc(100svh-5.25rem)] min-w-0 flex-1 rounded-3xl bg-pane px-4 py-6 pb-28 medium:px-8 medium:py-8 medium:pb-8"
+              className="@container min-h-[calc(100svh-5.5rem)] min-w-0 flex-1 rounded-2xl bg-pane px-4 py-6 pb-28 medium:px-8 medium:py-8 medium:pb-8"
             >
               <div className="mx-auto w-full max-w-6xl">
                 <Outlet />

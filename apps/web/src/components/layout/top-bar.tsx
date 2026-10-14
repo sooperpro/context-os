@@ -24,13 +24,13 @@ export function TopBar() {
   };
 
   return (
-    <header className="flex h-18 shrink-0 items-center gap-3 px-3 medium:px-4">
+    <header className="flex h-18 shrink-0 items-center gap-2 py-2 pr-4 pl-3 medium:pl-1">
       <Brand compact className="medium:hidden" />
 
       <form
         role="search"
         onSubmit={submit}
-        className="hidden h-14 max-w-2xl flex-1 items-center gap-3 rounded-full bg-surface-container-high px-5 text-on-surface-variant focus-within:ring-3 focus-within:ring-ring/50 medium:flex"
+        className="hidden h-12 max-w-180 flex-1 items-center gap-2 rounded-full bg-field pr-2 pl-4 text-on-surface-variant focus-within:ring-3 focus-within:ring-ring/50 medium:flex"
       >
         <SearchIcon className="size-5 shrink-0" aria-hidden />
         <label htmlFor={GLOBAL_SEARCH_ID} className="sr-only">
@@ -47,7 +47,7 @@ export function TopBar() {
         />
         <kbd
           aria-hidden
-          className="hidden rounded-xs bg-surface-container-highest px-1.5 py-0.5 font-mono text-xs expanded:inline"
+          className="mr-2 hidden rounded-xs bg-surface-container-highest px-1.5 py-0.5 font-mono text-xs expanded:inline"
         >
           /
         </kbd>
@@ -55,7 +55,7 @@ export function TopBar() {
 
       <span className="flex-1 medium:hidden" />
 
-      <div className="flex items-center gap-1 medium:gap-2">
+      <div className="flex items-center gap-1">
         <Button
           variant="ghost"
           size="icon"
@@ -73,10 +73,10 @@ export function TopBar() {
             afterLeaveOrganizationUrl="/"
           />
         </div>
-        <span className="medium:hidden">
-          <ThemeToggle />
+        <ThemeToggle />
+        <span className="ml-1 flex">
+          <UserButton />
         </span>
-        <UserButton />
       </div>
     </header>
   );

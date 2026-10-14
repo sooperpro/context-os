@@ -20,7 +20,7 @@ export function AssistantPane({ children }: { children: ReactNode }) {
       <aside
         id="assistant"
         aria-label="Context Bot"
-        className="sticky top-3 flex h-[calc(100svh-0.75rem)] w-105 shrink-0 flex-col overflow-hidden rounded-3xl bg-pane"
+        className="sticky top-3 flex h-[calc(100svh-1rem)] w-105 shrink-0 flex-col overflow-hidden rounded-2xl bg-pane"
       >
         {children}
       </aside>
@@ -34,7 +34,7 @@ export function AssistantPane({ children }: { children: ReactNode }) {
         side="right"
         showCloseButton={false}
         aria-label="Context Bot"
-        className="w-full gap-0 border-0 bg-pane p-0 sm:max-w-none medium:w-105 medium:rounded-l-3xl"
+        className="w-full gap-0 border-0 bg-pane p-0 sm:max-w-none medium:w-105 medium:rounded-l-2xl"
       >
         {children}
       </SheetContent>
