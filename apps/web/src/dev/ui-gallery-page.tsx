@@ -55,6 +55,7 @@ import {
   SegmentedItemTrail,
   SegmentedList,
 } from "@/components/ui/segmented-list";
+import { SHAPE_KINDS, Shape } from "@/components/ui/shape";
 import { StatusChip } from "@/components/ui/status-chip";
 import { Stepper, StepperItem } from "@/components/ui/stepper";
 import { Switch } from "@/components/ui/switch";
@@ -243,6 +244,20 @@ export function UiGalleryPage() {
               >
                 <Icon />
                 {name.replace(/Icon$/, "")}
+              </span>
+            ))}
+          </div>
+        </Section>
+
+        <Section title="Expressive shapes">
+          <div className="flex flex-wrap gap-3">
+            {SHAPE_KINDS.map((kind, index) => (
+              <span key={kind} className="flex flex-col items-center gap-1 text-[10px] text-on-surface-variant">
+                <Shape
+                  kind={kind}
+                  className={["text-primary", "text-ai", "text-secondary-strong", "text-warning", "text-success"][index % 5]!.concat(" size-14")}
+                />
+                {kind}
               </span>
             ))}
           </div>

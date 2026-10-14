@@ -79,8 +79,15 @@ clip-path shapes (cookie, clover, sunny, flower), navigation rail items (Phase 3
 - [x] Existing pages moved inside unchanged; shell tests cover landmarks, FAB and keyboard toggle
 
 Window size classes are Tailwind breakpoints from the token package: `medium` 600, `expanded` 1200,
-`large` 1600. Clerk's own components still use Clerk's default styling; theming them through the
-appearance API is a Phase 4 polish item.
+`large` 1600.
+
+**Sign-in (done):** the prototype's split frame (`features/auth/components/sign-in-layout.tsx`: brand
+panel with expressive shapes and the pitch, card on the right, single-sign-on note) hosts Clerk's
+sign-in and organization list. Clerk's components are themed from the design tokens at runtime
+(`features/auth/clerk-appearance.ts`, read from the document so both themes work), which also covers
+the organization switcher and account menu in the top bar. The company-domain check belongs to
+Clerk's allowed-domain settings, not to the page. The first-day flow after sign-in (welcome, profile,
+first 90 days) is part of learning paths and onboarding.
 
 ### Phase 4: screens, in order of value
 

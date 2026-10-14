@@ -5,8 +5,21 @@ import { useState, type ReactNode } from "react";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { env } from "@/config/env";
+import { useClerkAppearance } from "@/features/auth/clerk-appearance";
 import { AuthGate } from "@/features/auth/components/auth-gate";
+import { useTheme } from "@/hooks/use-theme";
 import { createQueryClient } from "@/lib/query-client";
+
+/** Clerk themed from the design tokens, following the active theme. */
+function ThemedClerkProvider({ publishableKey, children }: { publishableKey: string; children: ReactNode }) {
+  const { resolvedTheme } = useTheme();
+  const appearance = useClerkAppearance(resolvedTheme);
+  return (
+    <ClerkProvider publishableKey={publishableKey} appearance={appearance}>
+      {children}
+    </ClerkProvider>
+  );
+}
 
 export function Providers({ children }: { children: ReactNode }) {
   // One QueryClient per app instance; useState keeps it stable across re-renders.
@@ -20,14 +33,14 @@ export function Providers({ children }: { children: ReactNode }) {
   }
 
   return (
-    <ClerkProvider publishableKey={publishableKey}>
-      <ThemeProvider>
+    <ThemeProvider>
+      <ThemedClerkProvider publishableKey={publishableKey}>
         <QueryClientProvider client={queryClient}>
           <AuthGate>{children}</AuthGate>
           <Toaster richColors position="top-right" />
           <ReactQueryDevtools initialIsOpen={false} buttonPosition="bottom-left" />
         </QueryClientProvider>
-      </ThemeProvider>
-    </ClerkProvider>
+      </ThemedClerkProvider>
+    </ThemeProvider>
   );
 }

@@ -28,6 +28,7 @@ import LightModeIcon from "@material-symbols/svg-400/rounded/light_mode.svg?reac
 import MenuIcon from "@material-symbols/svg-400/rounded/menu.svg?react";
 import MenuOpenIcon from "@material-symbols/svg-400/rounded/menu_open.svg?react";
 import MoreHorizIcon from "@material-symbols/svg-400/rounded/more_horiz.svg?react";
+import RouteIcon from "@material-symbols/svg-400/rounded/route.svg?react";
 import SearchIcon from "@material-symbols/svg-400/rounded/search.svg?react";
 import SendIcon from "@material-symbols/svg-400/rounded/send.svg?react";
 import SettingsIcon from "@material-symbols/svg-400/rounded/settings.svg?react";
@@ -54,6 +55,7 @@ export {
   MenuIcon,
   MenuOpenIcon,
   MoreHorizIcon,
+  RouteIcon,
   SearchIcon,
   SendIcon,
   SettingsIcon,
