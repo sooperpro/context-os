@@ -2,6 +2,7 @@ import path from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { loadEnv } from "vite";
+import svgr from "vite-plugin-svgr";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig(({ mode }) => {
@@ -12,7 +13,16 @@ export default defineConfig(({ mode }) => {
       : "http://localhost:3000";
 
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [
+      react(),
+      tailwindcss(),
+      // Material Symbols ship as one SVG per icon; `?react` imports them as components, so only the
+      // icons a screen uses end up in the bundle.
+      svgr({
+        include: "**/*.svg?react",
+        svgrOptions: { icon: true, svgProps: { fill: "currentColor", "aria-hidden": "true" } },
+      }),
+    ],
     resolve: {
       alias: {
         "@": path.resolve(import.meta.dirname, "./src"),

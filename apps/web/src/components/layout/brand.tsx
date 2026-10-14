@@ -1,6 +1,6 @@
 import { cn } from "cn";
-import { SparklesIcon } from "lucide-react";
 import { Link } from "react-router";
+import { HubFilledIcon } from "@/components/ui/icons";
 
 /** Wordmark with the AI-teal brand mark. `compact` shows the mark only. */
 export function Brand({ compact = false, className }: { compact?: boolean; className?: string }) {
@@ -14,7 +14,7 @@ export function Brand({ compact = false, className }: { compact?: boolean; class
         aria-hidden
         className="grid size-9 shrink-0 place-items-center rounded-[30%] bg-ai-container text-on-ai-container"
       >
-        <SparklesIcon className="size-5" />
+        <HubFilledIcon className="size-5" />
       </span>
       {compact ? null : (
         <span className="font-heading text-lg font-semibold tracking-tight">

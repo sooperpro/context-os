@@ -1,10 +1,10 @@
-import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
 import type { Theme } from "@/components/theme-context";
 import { Button } from "@/components/ui/button";
+import { DarkModeIcon, DesktopWindowsIcon, LightModeIcon } from "@/components/ui/icons";
 import { useTheme } from "@/hooks/use-theme";
 
 const ORDER: Theme[] = ["light", "dark", "system"];
-const ICONS = { light: SunIcon, dark: MoonIcon, system: MonitorIcon } as const;
+const ICONS = { light: LightModeIcon, dark: DarkModeIcon, system: DesktopWindowsIcon } as const;
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
@@ -19,7 +19,7 @@ export function ThemeToggle() {
       title={`Theme: ${theme}`}
       onClick={() => setTheme(next)}
     >
-      <Icon className="size-4" />
+      <Icon className="size-5" />
     </Button>
   );
 }

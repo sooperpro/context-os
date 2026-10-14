@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
+import * as Icons from "@/components/ui/icons";
 import { ConnectedButton, ConnectedButtonGroup } from "@/components/ui/connected-button-group";
 import {
   DropdownMenu,
@@ -228,6 +229,21 @@ export function UiGalleryPage() {
               >
                 {role.name}
               </div>
+            ))}
+          </div>
+        </Section>
+
+        <Section title="Icons (Material Symbols Rounded)">
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(Icons).map(([name, Icon]) => (
+              <span
+                key={name}
+                title={name}
+                className="flex h-12 w-24 flex-col items-center justify-center gap-1 rounded-md bg-card text-[10px] text-on-surface-variant [&_svg]:size-6 [&_svg]:text-on-surface"
+              >
+                <Icon />
+                {name.replace(/Icon$/, "")}
+              </span>
             ))}
           </div>
         </Section>

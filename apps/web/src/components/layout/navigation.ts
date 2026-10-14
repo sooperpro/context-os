@@ -1,5 +1,13 @@
 import type { SystemRole } from "@contextos/shared";
-import { FolderKanbanIcon, ListChecksIcon, UsersIcon, type LucideIcon } from "lucide-react";
+import {
+  ChecklistFilledIcon,
+  ChecklistIcon,
+  FolderOpenFilledIcon,
+  FolderOpenIcon,
+  GroupFilledIcon,
+  GroupIcon,
+  type MaterialIcon,
+} from "@/components/ui/icons";
 
 /**
  * The one place navigation is defined. The rail, the bottom bar and any future command palette
@@ -13,7 +21,9 @@ export interface NavItem {
   label: string;
   /** Short label for the collapsed rail and the bottom bar. */
   short?: string;
-  icon: LucideIcon;
+  icon: MaterialIcon;
+  /** Filled variant shown while the destination is active (M3 FILL 1). */
+  activeIcon: MaterialIcon;
   to: string;
   /** Match only the exact path (for the home item). */
   end?: boolean;
@@ -22,9 +32,9 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: readonly NavItem[] = [
-  { id: "projects", label: "Projects", icon: FolderKanbanIcon, to: "/", end: true },
-  { id: "people", label: "People", icon: UsersIcon, to: "/members", roles: ["owner", "admin", "manager", "member"] },
-  { id: "setup", label: "Workspace setup", short: "Setup", icon: ListChecksIcon, to: "/setup", roles: ["owner", "admin"] },
+  { id: "projects", label: "Projects", icon: FolderOpenIcon, activeIcon: FolderOpenFilledIcon, to: "/", end: true },
+  { id: "people", label: "People", icon: GroupIcon, activeIcon: GroupFilledIcon, to: "/members", roles: ["owner", "admin", "manager", "member"] },
+  { id: "setup", label: "Workspace setup", short: "Setup", icon: ChecklistIcon, activeIcon: ChecklistFilledIcon, to: "/setup", roles: ["owner", "admin"] },
 ];
 
 export function navItemsFor(role: SystemRole | undefined): NavItem[] {

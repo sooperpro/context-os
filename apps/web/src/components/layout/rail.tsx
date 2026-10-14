@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import { PanelLeftCloseIcon, PanelLeftOpenIcon, SparklesIcon } from "lucide-react";
 import { NavLink } from "react-router";
 import { useAssistant } from "@/components/layout/assistant-context";
 import { Brand } from "@/components/layout/brand";
@@ -7,6 +6,7 @@ import type { NavItem } from "@/components/layout/navigation";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Fab } from "@/components/ui/fab";
+import { HubFilledIcon, MenuIcon, MenuOpenIcon } from "@/components/ui/icons";
 
 interface RailProps {
   items: NavItem[];
@@ -33,18 +33,22 @@ export function Rail({ items, collapsed, canToggle, onToggle }: RailProps) {
       )}
     >
       <div className={cn("flex h-12 items-center gap-1", collapsed && "justify-center")}>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-on-surface-variant"
-          aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
-          aria-expanded={!collapsed}
-          disabled={!canToggle}
-          onClick={onToggle}
-        >
-          {collapsed ? <PanelLeftOpenIcon /> : <PanelLeftCloseIcon />}
-        </Button>
-        {collapsed ? null : <Brand />}
+        {/* When the window forces the collapsed state there is nothing to toggle: show the mark instead. */}
+        {canToggle ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-on-surface-variant"
+            aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+            aria-expanded={!collapsed}
+            onClick={onToggle}
+          >
+            {collapsed ? <MenuIcon /> : <MenuOpenIcon />}
+          </Button>
+        ) : (
+          <Brand compact />
+        )}
+        {collapsed || !canToggle ? null : <Brand />}
       </div>
 
       <Fab
@@ -54,7 +58,7 @@ export function Rail({ items, collapsed, canToggle, onToggle }: RailProps) {
         onClick={toggleAssistant}
         className={cn("self-start", collapsed ? "w-14 px-0" : "w-full justify-start")}
       >
-        <SparklesIcon />
+        <HubFilledIcon />
         {collapsed ? null : <span>Ask Context Bot</span>}
       </Fab>
 
@@ -85,7 +89,7 @@ export function Rail({ items, collapsed, canToggle, onToggle }: RailProps) {
                       collapsed && isActive && "bg-secondary-container text-on-secondary-container",
                     )}
                   >
-                    <item.icon />
+                    {isActive ? <item.activeIcon /> : <item.icon />}
                   </span>
                   <span className="truncate">{collapsed ? (item.short ?? item.label) : item.label}</span>
                 </>

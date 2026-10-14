@@ -1,20 +1,12 @@
 import type { Answer, AnswerConfidence } from "@contextos/shared";
-import {
-  AlertTriangleIcon,
-  ArrowUpRightIcon,
-  CheckIcon,
-  HelpCircleIcon,
-  InfoIcon,
-  SendIcon,
-  SparklesIcon,
-  XIcon,
-} from "lucide-react";
+import { AlertTriangleIcon, ArrowUpRightIcon, CheckIcon, HelpCircleIcon, InfoIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useMatch } from "react-router";
 import { useAssistant } from "@/components/layout/assistant-context";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
+import { AiSparkleIcon, CloseIcon, HubFilledIcon, SendIcon } from "@/components/ui/icons";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import { StatusChip } from "@/components/ui/status-chip";
@@ -87,7 +79,7 @@ export function AssistantPanel() {
           aria-hidden
           className="grid size-9 place-items-center rounded-[30%] bg-ai-container text-on-ai-container"
         >
-          <SparklesIcon className="size-5" />
+          <HubFilledIcon className="size-5" />
         </span>
         <div className="min-w-0 flex-1">
           <h2 className="font-heading text-base font-semibold">Context Bot</h2>
@@ -96,7 +88,7 @@ export function AssistantPanel() {
           </p>
         </div>
         <Button variant="ghost" size="icon" aria-label="Close Context Bot" onClick={closeAssistant}>
-          <XIcon />
+          <CloseIcon />
         </Button>
       </header>
 
@@ -111,7 +103,7 @@ export function AssistantPanel() {
           {ask.isError ? (
             <Banner
               tone="error"
-              icon={<XIcon />}
+              icon={<CloseIcon />}
               title="Couldn't get an answer"
               description={ask.error.message}
               actions={
@@ -137,7 +129,7 @@ export function AssistantPanel() {
                 <div className="flex flex-col items-start gap-2">
                   {SUGGESTIONS.map((suggestion) => (
                     <Chip key={suggestion} variant="ai" onClick={() => submit(suggestion)}>
-                      <SparklesIcon />
+                      <AiSparkleIcon />
                       {suggestion}
                     </Chip>
                   ))}

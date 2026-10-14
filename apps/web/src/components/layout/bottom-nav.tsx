@@ -1,9 +1,9 @@
 import { cn } from "cn";
-import { SparklesIcon } from "lucide-react";
 import { NavLink } from "react-router";
 import { useAssistant } from "@/components/layout/assistant-context";
 import { BOTTOM_NAV_LIMIT, type NavItem } from "@/components/layout/navigation";
 import { Fab } from "@/components/ui/fab";
+import { HubFilledIcon } from "@/components/ui/icons";
 
 /** Compact windows (< 600px): a bottom navigation bar with up to four destinations and the Ask FAB. */
 export function BottomNav({ items }: { items: NavItem[] }) {
@@ -19,7 +19,7 @@ export function BottomNav({ items }: { items: NavItem[] }) {
         onClick={toggleAssistant}
         className="fixed right-4 bottom-24 z-20 medium:hidden"
       >
-        <SparklesIcon />
+        <HubFilledIcon />
       </Fab>
       <nav
         aria-label="Main"
@@ -46,7 +46,7 @@ export function BottomNav({ items }: { items: NavItem[] }) {
                     isActive && "bg-secondary-container text-on-secondary-container",
                   )}
                 >
-                  <item.icon />
+                  {isActive ? <item.activeIcon /> : <item.icon />}
                 </span>
                 {item.short ?? item.label}
               </>

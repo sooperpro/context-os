@@ -1,10 +1,10 @@
 import { OrganizationSwitcher, UserButton } from "@clerk/react";
-import { SearchIcon } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { useAssistant } from "@/components/layout/assistant-context";
 import { Brand } from "@/components/layout/brand";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Button } from "@/components/ui/button";
+import { SearchIcon } from "@/components/ui/icons";
 
 export const GLOBAL_SEARCH_ID = "global-search";
 
