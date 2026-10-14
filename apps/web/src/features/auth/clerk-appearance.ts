@@ -22,6 +22,7 @@ const TOKENS = {
   outlineVariant: "--md-sys-color-outline-variant",
   font: "--md-ref-typeface-plain",
   radius: "--md-sys-shape-corner-medium",
+  menuRadius: "--md-sys-shape-corner-large",
   logoTile: "--cx-logo-tile",
 } as const;
 
@@ -32,6 +33,14 @@ function readTokens(): Record<keyof typeof TOKENS, string> {
     (Object.keys(TOKENS) as Array<keyof typeof TOKENS>).map((key) => [key, read(TOKENS[key])]),
   ) as Record<keyof typeof TOKENS, string>;
 }
+
+/** Inside the sign-in frame our card is the chrome: Clerk's own card and header disappear. */
+const SIGN_IN_FRAME = {
+  rootBox: { width: "100%" },
+  cardBox: { width: "100%", boxShadow: "none", borderRadius: 0 },
+  card: { backgroundColor: "transparent", boxShadow: "none", padding: 0, gap: "1rem" },
+  header: { display: "none" },
+};
 
 export function buildClerkAppearance(tokens: Record<keyof typeof TOKENS, string>): Appearance {
   return {
@@ -56,12 +65,18 @@ export function buildClerkAppearance(tokens: Record<keyof typeof TOKENS, string>
       logoPlacement: "none",
     },
     // Style objects, not class names: Clerk injects its own styles with higher specificity than
-    // utility classes. The sign-in frame provides the heading, card and chrome.
+    // utility classes. Shared elements first; the sign-in frame's chrome is scoped below so the
+    // organization and account popovers keep their own card.
     elements: {
-      rootBox: { width: "100%" },
-      cardBox: { width: "100%", boxShadow: "none", borderRadius: 0 },
-      card: { backgroundColor: "transparent", boxShadow: "none", padding: 0, gap: "1rem" },
-      header: { display: "none" },
+      organizationSwitcherTrigger: {
+        minHeight: "2.5rem",
+        borderRadius: "9999px",
+        padding: "0 0.5rem 0 0.75rem",
+        color: tokens.text,
+      },
+      organizationSwitcherPopoverCard: { borderRadius: tokens.menuRadius, backgroundColor: tokens.background },
+      userButtonPopoverCard: { borderRadius: tokens.menuRadius, backgroundColor: tokens.background },
+      userButtonAvatarBox: { width: "2rem", height: "2rem" },
       // The prototype's Google button is a filled primary button.
       socialButtonsBlockButton: {
         minHeight: "3.5rem",
@@ -82,6 +97,9 @@ export function buildClerkAppearance(tokens: Record<keyof typeof TOKENS, string>
       footer: { background: "transparent" },
       footerAction: { padding: 0 },
     },
+    signIn: { elements: SIGN_IN_FRAME },
+    signUp: { elements: SIGN_IN_FRAME },
+    organizationList: { elements: SIGN_IN_FRAME },
   };
 }
 

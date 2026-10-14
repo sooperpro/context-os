@@ -126,9 +126,9 @@ export function AppShell({ assistant }: { assistant: ReactNode }) {
           <div className="flex flex-1 items-start gap-3 pr-4 pb-4 pl-3 medium:pl-1">
             <main
               id="main"
-              className="@container min-h-[calc(100svh-5.5rem)] min-w-0 flex-1 rounded-2xl bg-pane px-4 py-6 pb-28 medium:px-8 medium:py-8 medium:pb-8"
+              className="@container min-h-[calc(100svh-5.5rem)] min-w-0 flex-1 rounded-2xl bg-pane px-4 py-6 pb-28 medium:px-8 medium:pt-8 medium:pb-14"
             >
-              <div className="mx-auto w-full max-w-6xl">
+              <div className="mx-auto w-full max-w-360">
                 <Outlet />
               </div>
             </main>

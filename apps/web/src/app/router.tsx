@@ -18,13 +18,8 @@ const devRoutes = import.meta.env.DEV
     ]
   : [];
 
-export const router = createBrowserRouter([
-  ...devRoutes,
-  {
-    path: "/",
-    Component: RootLayout,
-    ErrorBoundary: RouteErrorBoundary,
-    children: [
+/** The application's routes under the shell, shared by "/" and the development shell preview. */
+const appChildren = [
       { index: true, Component: ProjectsPage },
       {
         path: "members",
@@ -72,6 +67,19 @@ export const router = createBrowserRouter([
         ],
       },
       { path: "*", Component: NotFoundPage },
-    ],
+];
+
+export const router = createBrowserRouter([
+  ...devRoutes,
+  // Development only: the same shell and pages without a session, for visual checks. The API in
+  // development mode needs no token; links inside still point at the real routes.
+  ...(import.meta.env.DEV
+    ? [{ path: "/dev/shell", Component: RootLayout, ErrorBoundary: RouteErrorBoundary, children: appChildren }]
+    : []),
+  {
+    path: "/",
+    Component: RootLayout,
+    ErrorBoundary: RouteErrorBoundary,
+    children: appChildren,
   },
 ]);

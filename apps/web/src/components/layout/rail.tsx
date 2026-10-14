@@ -31,23 +31,25 @@ export function Rail({ items, collapsed, canToggle, onToggle }: RailProps) {
         collapsed ? "w-24 px-2" : "w-62 px-3",
       )}
     >
-      <div className={cn("mb-2 flex h-12 items-center gap-1", collapsed ? "justify-center" : "pl-2")}>
-        {/* When the window forces the collapsed state there is nothing to toggle: show the mark instead. */}
+      {/* Prototype rail-top: toggle then brand in a row; collapsed, a column of toggle and mark. */}
+      <div
+        className={cn(
+          "mb-2 flex items-center gap-1",
+          collapsed ? "mb-1 flex-col justify-center gap-3" : "h-12 pl-2",
+        )}
+      >
         {canToggle ? (
           <Button
             variant="ghost"
             size="icon"
             className="text-on-surface-variant"
             aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
-            aria-expanded={!collapsed}
             onClick={onToggle}
           >
             {collapsed ? <MenuIcon /> : <MenuOpenIcon />}
           </Button>
-        ) : (
-          <Brand compact />
-        )}
-        {collapsed || !canToggle ? null : <Brand />}
+        ) : null}
+        <Brand compact={collapsed} />
       </div>
 
       <Fab

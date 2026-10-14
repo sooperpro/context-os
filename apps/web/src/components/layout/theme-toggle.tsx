@@ -1,25 +1,26 @@
-import type { Theme } from "@/components/theme-context";
 import { Button } from "@/components/ui/button";
-import { DarkModeIcon, DesktopWindowsIcon, LightModeIcon } from "@/components/ui/icons";
+import { DarkModeIcon, LightModeIcon } from "@/components/ui/icons";
 import { useTheme } from "@/hooks/use-theme";
 
-const ORDER: Theme[] = ["light", "dark", "system"];
-const ICONS = { light: LightModeIcon, dark: DarkModeIcon, system: DesktopWindowsIcon } as const;
-
+/**
+ * Light/dark switch as in the prototype: the icon shows the theme you will switch to. "System"
+ * stays the default until the person chooses; a future settings page can hand control back.
+ */
 export function ThemeToggle() {
-  const { theme, setTheme } = useTheme();
-  const next = ORDER[(ORDER.indexOf(theme) + 1) % ORDER.length] ?? "system";
-  const Icon = ICONS[theme];
+  const { resolvedTheme, setTheme } = useTheme();
+  const next = resolvedTheme === "dark" ? "light" : "dark";
+  const Icon = next === "dark" ? DarkModeIcon : LightModeIcon;
 
   return (
     <Button
       variant="ghost"
       size="icon"
+      className="text-on-surface-variant"
       aria-label={`Switch to ${next} theme`}
-      title={`Theme: ${theme}`}
+      title={`${next === "dark" ? "Dark" : "Light"} theme`}
       onClick={() => setTheme(next)}
     >
-      <Icon className="size-5" />
+      <Icon />
     </Button>
   );
 }

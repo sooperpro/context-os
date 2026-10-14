@@ -21,7 +21,7 @@ export function Brand({ compact = false, className }: { compact?: boolean; class
         <span className="col-start-1 row-start-1 size-2.5 rounded-full bg-ai" />
       </span>
       {compact ? null : (
-        <span className="font-heading text-xl leading-none font-semibold tracking-tight whitespace-nowrap">
+        <span className="font-heading text-xl leading-none font-semibold tracking-tight whitespace-nowrap [font-variation-settings:'ROND'_70]">
           Context<b className="font-semibold text-primary">OS</b>
         </span>
       )}
