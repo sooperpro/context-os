@@ -1,0 +1,24 @@
+services:
+  api:
+    environment:
+      CORS_ORIGINS: https://dev.contextos.sooper.pro
+      # Must exactly match an Authorized redirect URI on the Google OAuth web client.
+      GOOGLE_REDIRECT_URI: https://dev.contextos.sooper.pro/api/v1/connectors/google-drive/callback
+
+  caddy:
+    image: caddy:2-alpine
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    restart: unless-stopped
+
+volumes:
+  caddy-data:
+  caddy-config:
