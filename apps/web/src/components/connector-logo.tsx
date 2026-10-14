@@ -12,6 +12,7 @@ const url = (file: string) => FILES[`../assets/logos/${file}.svg`];
 /** Provider id (as the API names it) → logo file. Providers without a brand mark get a generic icon. */
 const LOGO: Record<string, string> = {
   "google-drive": "google-icon",
+  google: "google-icon",
   google_drive: "google-icon",
   onedrive: "microsoft-onedrive",
   dropbox: "dropbox",

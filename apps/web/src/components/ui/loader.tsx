@@ -9,7 +9,15 @@ import { pathFromRadii, shapePath, shapeRadii, type ShapeKind } from "@/componen
  * indeterminate waits that are about content being produced (Context Bot thinking); use Spinner for
  * small inline waits and Progress when the amount of work is known.
  */
-const SEQUENCE: ShapeKind[] = ["softburst", "cookie9", "pentagon", "pill", "sunny", "cookie4", "circle"];
+const SEQUENCE: ShapeKind[] = [
+  "softburst",
+  "cookie9",
+  "pentagon",
+  "pill",
+  "sunny",
+  "cookie4",
+  "circle",
+];
 const STEP_MS = 650;
 
 const loaderVariants = cva("grid shrink-0 place-items-center", {
@@ -23,16 +31,27 @@ const loaderVariants = cva("grid shrink-0 place-items-center", {
   defaultVariants: { size: "default", contained: false },
 });
 
-interface LoaderProps extends Omit<React.ComponentProps<"span">, "children">, VariantProps<typeof loaderVariants> {
+interface LoaderProps
+  extends Omit<React.ComponentProps<"span">, "children">, VariantProps<typeof loaderVariants> {
   /** Announced to assistive technology. */
   label?: string;
 }
 
 function prefersReducedMotion(): boolean {
-  return typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (document.documentElement.dataset.motion === "reduced") return true;
+  return (
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
 }
 
-function Loader({ className, size = "default", contained = false, label = "Loading", ...props }: LoaderProps) {
+function Loader({
+  className,
+  size = "default",
+  contained = false,
+  label = "Loading",
+  ...props
+}: LoaderProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const pathRef = useRef<SVGPathElement>(null);
 
@@ -66,7 +85,12 @@ function Loader({ className, size = "default", contained = false, label = "Loadi
       className={cn(loaderVariants({ size, contained }), className)}
       {...props}
     >
-      <svg ref={svgRef} viewBox="0 0 100 100" aria-hidden className="size-[70%] overflow-visible fill-current">
+      <svg
+        ref={svgRef}
+        viewBox="0 0 100 100"
+        aria-hidden
+        className="size-[70%] overflow-visible fill-current"
+      >
         <path ref={pathRef} d={shapePath(SEQUENCE[0]!)} />
       </svg>
     </span>

@@ -225,6 +225,10 @@ A pass over every built surface against the prototype's CSS and JS found three g
       help, what ContextOS does, the profile (preferred name, pronouns, location, topics already
       known, reminder channel) and the first 90 days from the roadmap, ending in the dashboard or the
       roadmap. Employee Home offers it until it is finished.
+- [x] The rest of Settings from the reference: Reduce motion (this device, like the OS setting),
+      Context Bot preferences that change the panel and lessons, sign-in and "Where you're signed
+      in" from Clerk with sign-out per device, connected apps and a copy of your data. Admins' links
+      go to Members & roles, AI settings and Workspace setup.
 - [x] The rail is gated by persona as well as role, so each "Prototype · view as" persona (Employee,
       Manager, HR, Admin) gets the reference's items as their screens ship.
 

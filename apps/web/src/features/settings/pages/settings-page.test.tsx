@@ -97,6 +97,7 @@ describe("SettingsPage", () => {
     mockApi("admin");
     render();
     expect(await screen.findByText("Workspace settings")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /People/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Members & roles/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "AI settings" })).toBeInTheDocument();
   });
 });

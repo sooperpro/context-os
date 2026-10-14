@@ -2,7 +2,7 @@ import type { Lesson } from "@contextos/shared";
 import { useBotContext } from "@/components/layout/bot-context";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { PreviewDataChip } from "@/components/preview-data-chip";
@@ -40,6 +40,9 @@ import {
   modulePath,
 } from "@/features/learning/learning-meta";
 import { formatShortDate } from "@/lib/format";
+import { assistantPreferencesQuery } from "@/features/account/api/account.queries";
+import { useMediaQuery, WINDOW } from "@/hooks/use-media-query";
+import { useAssistant } from "@/components/layout/assistant-context";
 
 /** A lesson (prototype `lessonPage`): the module outline beside a readable article. */
 export function LessonPage() {
@@ -68,6 +71,7 @@ export function LessonPage() {
 }
 
 function LessonView({ lesson }: { lesson: Lesson }) {
+  useOpenBesideLesson();
   useBotContext(
     {
       chips: [
@@ -251,4 +255,17 @@ function LessonView({ lesson }: { lesson: Lesson }) {
       <SelectionAsk containerRef={articleRef} />
     </div>
   );
+}
+
+/** Settings → "Open beside lessons": on large screens, Context Bot opens next to the lesson. */
+function useOpenBesideLesson() {
+  const { openAssistant } = useAssistant();
+  const preferences = useQuery(assistantPreferencesQuery());
+  const expanded = useMediaQuery(WINDOW.expanded);
+  const enabled = preferences.data?.openBesideLessons === true && expanded;
+  useEffect(() => {
+    if (enabled) openAssistant();
+    // Once per lesson visit, not on every preference refetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled]);
 }

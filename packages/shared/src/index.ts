@@ -1,3 +1,4 @@
+export * from "./schemas/account.js";
 export * from "./schemas/admin.js";
 export * from "./schemas/api.js";
 export * from "./schemas/ask.js";

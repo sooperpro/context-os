@@ -31,7 +31,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { SegmentedItem, SegmentedList } from "@/components/ui/segmented-list";
 import { StatusChip } from "@/components/ui/status-chip";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { meQuery } from "@/features/account/api/account.queries";
+import { assistantPreferencesQuery, meQuery } from "@/features/account/api/account.queries";
 import { useAskWorkspace } from "@/features/ask/api/assistant.queries";
 import {
   threadQuery,
@@ -81,6 +81,7 @@ export function AssistantPanel() {
   // Until the role loads, the bot speaks as for everyone: an employee's defaults.
   const persona = useViewer().persona ?? "employee";
   const declared = useDeclaredBotContext();
+  const preferences = useQuery(assistantPreferencesQuery());
   const askWorkspace = useAskWorkspace();
   const [workspaceThread, setWorkspaceThread] = useState<AssistantAnswer[]>([]);
 
@@ -212,8 +213,12 @@ export function AssistantPanel() {
             { icon: navItem?.icon ?? HomeIcon, label: navItem?.label ?? "Home" },
             { icon: FilterAltIcon, label: DEFAULT_SCOPE[persona] },
           ]),
+    // Settings → "Show suggested questions" can turn them off.
     suggestions:
-      declared?.suggestions ?? (inProject ? PROMPTS(projectName) : DEFAULT_SUGGESTIONS[persona]),
+      preferences.data?.showSuggestions === false
+        ? []
+        : (declared?.suggestions ??
+          (inProject ? PROMPTS(projectName) : DEFAULT_SUGGESTIONS[persona])),
     intro:
       declared?.intro ??
       (inProject

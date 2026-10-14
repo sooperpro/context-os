@@ -133,6 +133,20 @@ describe("Context Bot outside a project", () => {
     expect(screen.getByText("Elena Brooks")).toBeInTheDocument();
   });
 
+  it("hides suggested questions when they are turned off in Settings", async () => {
+    mockServer.use(
+      http.get(buildApiUrl("/v1/me/assistant-preferences"), () =>
+        HttpResponse.json({ openBesideLessons: true, showSuggestions: false }),
+      ),
+    );
+    render("/knowledge");
+
+    expect(
+      await screen.findByText("Hi Maya, what would you like to understand?"),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText("Suggested for you")).not.toBeInTheDocument());
+  });
+
   it("follows the page's context and pauses during a knowledge check", async () => {
     render("/roadmap/checks/m4-check");
 

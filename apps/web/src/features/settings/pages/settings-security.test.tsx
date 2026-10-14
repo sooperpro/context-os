@@ -1,0 +1,120 @@
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { http, HttpResponse } from "msw";
+import { describe, expect, it, vi } from "vitest";
+import { ThemeProvider } from "@/components/theme-provider";
+import { SettingsPage } from "@/features/settings/pages/settings-page";
+import { buildApiUrl } from "@/lib/api-client";
+import { mockServer, setupMockApi } from "@/test/msw";
+import { renderWithProviders } from "@/test/utils";
+
+setupMockApi();
+
+const revoke = vi.fn(() => Promise.resolve());
+const activity = (isMobile: boolean, browserName: string, city: string) => ({
+  id: browserName,
+  isMobile,
+  browserName,
+  city,
+  country: "UK",
+});
+
+vi.mock("@clerk/react", () => ({
+  useClerk: () => ({ openUserProfile: vi.fn(), signOut: vi.fn() }),
+  useSession: () => ({ session: { id: "s1" } }),
+  useUser: () => ({
+    user: {
+      id: "user_1",
+      externalAccounts: [{ provider: "google", emailAddress: "maya@tessellate.io" }],
+      primaryEmailAddress: { emailAddress: "maya@tessellate.io" },
+      twoFactorEnabled: false,
+      getSessions: () =>
+        Promise.resolve([
+          {
+            id: "s1",
+            lastActiveAt: new Date(),
+            latestActivity: activity(false, "Chrome", "London"),
+            revoke,
+          },
+          {
+            id: "s2",
+            lastActiveAt: new Date(Date.now() - 7_200_000),
+            latestActivity: activity(true, "Safari", "London"),
+            revoke,
+          },
+        ]),
+    },
+  }),
+}));
+
+function render(route: string) {
+  mockServer.use(
+    http.get(buildApiUrl("/v1/workspaces/current"), () =>
+      HttpResponse.json({
+        id: "w1",
+        name: "Tessellate",
+        role: "member",
+        authentication: "development",
+      }),
+    ),
+    http.get(buildApiUrl("/v1/users/me"), () =>
+      HttpResponse.json({
+        id: "u1",
+        name: "Maya Okafor",
+        email: "maya@tessellate.io",
+        role: "member",
+        workspaceId: "w1",
+        preferences: {},
+      }),
+    ),
+  );
+  renderWithProviders(
+    <ThemeProvider>
+      <SettingsPage />
+    </ThemeProvider>,
+    { route },
+  );
+}
+
+describe("Settings · security and preferences", () => {
+  it("shows sign-in and devices from the identity provider, and signs out another device", async () => {
+    const user = userEvent.setup();
+    render("/settings?tab=security");
+
+    expect(await screen.findByText("Google Workspace single sign-on")).toBeInTheDocument();
+    const devices = await screen.findByText("Phone · Safari");
+    expect(screen.getByText("Computer · Chrome")).toBeInTheDocument();
+    await user.click(within(devices.closest("li")!).getByRole("button", { name: "Sign out" }));
+    await waitFor(() => expect(revoke).toHaveBeenCalledTimes(1));
+
+    const apps = screen.getByText("ContextOS for Slack").closest("li")!;
+    await user.click(within(apps).getByRole("button", { name: "Disconnect" }));
+    expect(await screen.findByText("No connected apps.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Request a copy" }));
+    expect(await screen.findByRole("button", { name: "Copy requested" })).toBeDisabled();
+  });
+
+  it("saves Context Bot preferences and reduces motion on this device", async () => {
+    const user = userEvent.setup();
+    render("/settings?tab=preferences");
+
+    const suggestions = await screen.findByRole("switch", { name: /Show suggested questions/ });
+    expect(suggestions).toBeChecked();
+    await user.click(suggestions);
+    await waitFor(() =>
+      expect(screen.getByRole("switch", { name: /Show suggested questions/ })).not.toBeChecked(),
+    );
+    const saved = (await (
+      await fetch(new URL(buildApiUrl("/v1/me/assistant-preferences"), window.location.origin))
+    ).json()) as {
+      showSuggestions: boolean;
+    };
+    expect(saved.showSuggestions).toBe(false);
+
+    await user.click(screen.getByRole("switch", { name: /Reduce motion/ }));
+    expect(document.documentElement.dataset.motion).toBe("reduced");
+    await user.click(screen.getByRole("switch", { name: /Reduce motion/ }));
+    expect(document.documentElement.dataset.motion).toBeUndefined();
+  });
+});

@@ -40,6 +40,22 @@
     mask: none;
     animation: none;
   }
+  :root[data-motion="reduced"] & {
+    height: 4px;
+    border-radius: 2px;
+    mask: none;
+    animation: none;
+  }
+}
+
+/* Settings → Reduce motion, for this device: the same as the OS setting. */
+:root[data-motion="reduced"] *,
+:root[data-motion="reduced"] *::before,
+:root[data-motion="reduced"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
 }
 
 @keyframes progress-wave {

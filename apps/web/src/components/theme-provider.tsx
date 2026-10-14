@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import {
+  MOTION_STORAGE_KEY,
   THEME_STORAGE_KEY,
   ThemeContext,
   type ResolvedTheme,
@@ -26,6 +27,14 @@ function readStoredTheme(fallback: Theme): Theme {
     return isTheme(stored) ? stored : fallback;
   } catch {
     return fallback;
+  }
+}
+
+function readStoredMotion(): boolean {
+  try {
+    return window.localStorage.getItem(MOTION_STORAGE_KEY) === "reduced";
+  } catch {
+    return false;
   }
 }
 
@@ -60,6 +69,24 @@ export function ThemeProvider({ children, defaultTheme = "system" }: ThemeProvid
     () => "light",
   );
   const resolvedTheme: ResolvedTheme = theme === "system" ? systemTheme : theme;
+  const [reducedMotion, setReducedMotionState] = useState(readStoredMotion);
+
+  // `data-motion="reduced"` stops animation and transitions (index.css), like the OS setting does.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (reducedMotion) root.dataset.motion = "reduced";
+    else delete root.dataset.motion;
+  }, [reducedMotion]);
+
+  const setReducedMotion = useCallback((reduced: boolean) => {
+    setReducedMotionState(reduced);
+    try {
+      if (reduced) window.localStorage.setItem(MOTION_STORAGE_KEY, "reduced");
+      else window.localStorage.removeItem(MOTION_STORAGE_KEY);
+    } catch {
+      // Storage unavailable: the preference lasts until reload.
+    }
+  }, []);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -76,8 +103,8 @@ export function ThemeProvider({ children, defaultTheme = "system" }: ThemeProvid
   }, []);
 
   const value = useMemo<ThemeContextValue>(
-    () => ({ theme, resolvedTheme, setTheme }),
-    [theme, resolvedTheme, setTheme],
+    () => ({ theme, resolvedTheme, setTheme, reducedMotion, setReducedMotion }),
+    [theme, resolvedTheme, setTheme, reducedMotion, setReducedMotion],
   );
 
   return <ThemeContext value={value}>{children}</ThemeContext>;
