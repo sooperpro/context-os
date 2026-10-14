@@ -23,6 +23,11 @@ function FullPagePanel({ children }: { children: ReactNode }) {
 export function AuthGate({ children }: { children: ReactNode }) {
   const { getToken, isLoaded, isSignedIn, orgId } = useAuth();
 
+  // Development-only pages (the UI gallery) need no session and make no API calls.
+  if (import.meta.env.DEV && window.location.pathname.startsWith("/dev/")) {
+    return children;
+  }
+
   if (!isLoaded) {
     return (
       <FullPagePanel>

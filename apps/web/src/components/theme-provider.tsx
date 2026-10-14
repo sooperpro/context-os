@@ -49,8 +49,8 @@ interface ThemeProviderProps {
 
 /**
  * Light/dark/system theming for a client-rendered app: persists the preference,
- * follows the OS when set to "system", and toggles the `dark` class on <html>
- * (which Tailwind's `dark:` variant and the shadcn theme variables key off).
+ * follows the OS when set to "system", and sets `data-theme` on <html>, which the
+ * design tokens, Tailwind's `dark:` variant and `color-scheme` all key off.
  */
 export function ThemeProvider({ children, defaultTheme = "system" }: ThemeProviderProps) {
   const [theme, setThemeState] = useState<Theme>(() => readStoredTheme(defaultTheme));
@@ -63,8 +63,7 @@ export function ThemeProvider({ children, defaultTheme = "system" }: ThemeProvid
 
   useEffect(() => {
     const root = document.documentElement;
-    root.classList.toggle("dark", resolvedTheme === "dark");
-    root.style.colorScheme = resolvedTheme;
+    root.dataset.theme = resolvedTheme;
   }, [resolvedTheme]);
 
   const setTheme = useCallback((next: Theme) => {

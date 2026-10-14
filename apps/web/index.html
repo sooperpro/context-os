@@ -6,6 +6,13 @@
     <meta name="description" content="ContextOS: AI-powered content analysis" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>ContextOS</title>
+    <!-- Typefaces from the design tokens package (see packages/design-tokens/README.md). -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght,ROND@6..144,1..1000,0..100&family=Google+Sans+Code:wght@400..600&display=swap"
+    />
     <script>
       // Apply the saved/system theme before React renders to avoid a flash of the wrong theme.
       // Keep the storage key in sync with src/components/theme-context.ts.
@@ -16,8 +23,7 @@
             stored === "dark" ||
             ((stored === null || stored === "system") &&
               matchMedia("(prefers-color-scheme: dark)").matches);
-          document.documentElement.classList.toggle("dark", dark);
-          document.documentElement.style.colorScheme = dark ? "dark" : "light";
+          document.documentElement.dataset.theme = dark ? "dark" : "light";
         } catch (_) {}
       })();
     </script>

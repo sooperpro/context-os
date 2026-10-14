@@ -76,7 +76,7 @@ export function OverviewCard({ projectId, hub, items }: OverviewCardProps) {
               {overview.stale ? (
                 <Badge
                   variant="outline"
-                  className="border-amber-500/40 text-amber-700 dark:text-amber-400"
+                  className="border-warning/40 text-warning"
                 >
                   Sources changed since generated
                 </Badge>

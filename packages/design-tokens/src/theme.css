@@ -1,0 +1,123 @@
+/* ==========================================================================
+   Tailwind theme
+   Turns semantic tokens into utilities. `inline` keeps the var() references
+   so values follow the active theme at runtime.
+   ========================================================================== */
+
+/* Dark mode keys on the same attribute the token layer uses. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@theme inline {
+  /* ---- Type ------------------------------------------------------------ */
+  --font-sans: var(--md-ref-typeface-plain);
+  --font-heading: var(--md-ref-typeface-brand);
+  --font-mono: var(--md-ref-typeface-code);
+
+  /* ---- shadcn contract ------------------------------------------------- */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* ---- Material roles -------------------------------------------------- */
+  --color-primary-container: var(--primary-container);
+  --color-on-primary-container: var(--on-primary-container);
+  --color-inverse-primary: var(--inverse-primary);
+  --color-secondary-strong: var(--secondary-strong);
+  --color-on-secondary: var(--on-secondary);
+  --color-secondary-container: var(--secondary-container);
+  --color-on-secondary-container: var(--on-secondary-container);
+  --color-surface: var(--surface);
+  --color-on-surface: var(--on-surface);
+  --color-surface-variant: var(--surface-variant);
+  --color-on-surface-variant: var(--on-surface-variant);
+  --color-surface-dim: var(--surface-dim);
+  --color-surface-bright: var(--surface-bright);
+  --color-surface-container-lowest: var(--surface-container-lowest);
+  --color-surface-container-low: var(--surface-container-low);
+  --color-surface-container: var(--surface-container);
+  --color-surface-container-high: var(--surface-container-high);
+  --color-surface-container-highest: var(--surface-container-highest);
+  --color-outline: var(--outline);
+  --color-outline-variant: var(--outline-variant);
+  --color-inverse-surface: var(--inverse-surface);
+  --color-inverse-on-surface: var(--inverse-on-surface);
+  --color-scrim: var(--scrim);
+  --color-shell: var(--shell);
+  --color-pane: var(--pane);
+  --color-card-strong: var(--card-strong);
+  --color-field: var(--field);
+
+  --color-success: var(--success);
+  --color-on-success: var(--on-success);
+  --color-success-container: var(--success-container);
+  --color-on-success-container: var(--on-success-container);
+  --color-warning: var(--warning);
+  --color-on-warning: var(--on-warning);
+  --color-warning-container: var(--warning-container);
+  --color-on-warning-container: var(--on-warning-container);
+  --color-error: var(--error);
+  --color-on-error: var(--on-error);
+  --color-error-container: var(--error-container);
+  --color-on-error-container: var(--on-error-container);
+  --color-info: var(--info);
+  --color-on-info: var(--on-info);
+  --color-info-container: var(--info-container);
+  --color-on-info-container: var(--on-info-container);
+  --color-ai: var(--ai);
+  --color-on-ai: var(--on-ai);
+  --color-ai-container: var(--ai-container);
+  --color-on-ai-container: var(--on-ai-container);
+
+  /* ---- Shape: the M3 Expressive corner scale replaces Tailwind's -------- */
+  --radius-xs: var(--md-sys-shape-corner-extra-small);
+  --radius-sm: var(--md-sys-shape-corner-small);
+  --radius-md: var(--md-sys-shape-corner-medium);
+  --radius-lg: var(--md-sys-shape-corner-large);
+  --radius-xl: var(--md-sys-shape-corner-large-increased);
+  --radius-2xl: var(--md-sys-shape-corner-extra-large);
+  --radius-3xl: var(--md-sys-shape-corner-extra-large-increased);
+  --radius-4xl: var(--md-sys-shape-corner-extra-extra-large);
+
+  /* ---- Elevation --------------------------------------------------------- */
+  --shadow-elevation-1: var(--md-sys-elevation-1);
+  --shadow-elevation-2: var(--md-sys-elevation-2);
+  --shadow-elevation-3: var(--md-sys-elevation-3);
+  --shadow-elevation-4: var(--md-sys-elevation-4);
+
+  /* ---- Motion: `ease-spring-*` utilities ---------------------------------- */
+  --ease-spring-fast-spatial: var(--md-sys-motion-spring-fast-spatial);
+  --ease-spring-default-spatial: var(--md-sys-motion-spring-default-spatial);
+  --ease-spring-slow-spatial: var(--md-sys-motion-spring-slow-spatial);
+  --ease-spring-fast-effects: var(--md-sys-motion-spring-fast-effects);
+  --ease-spring-default-effects: var(--md-sys-motion-spring-default-effects);
+  --ease-spring-slow-effects: var(--md-sys-motion-spring-slow-effects);
+}

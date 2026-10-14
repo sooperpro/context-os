@@ -8,7 +8,7 @@ export function SyncStatus({ sync }: { sync: SyncStatusValue }) {
   if (sync.state === "processing") {
     const pending = sync.queued + sync.running;
     return (
-      <Badge variant="outline" className="text-sky-700 dark:text-sky-400">
+      <Badge variant="outline" className="text-info">
         <Spinner className="size-3" />
         Processing {pending} {pending === 1 ? "job" : "jobs"}
       </Badge>

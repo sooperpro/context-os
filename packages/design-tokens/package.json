@@ -1,0 +1,15 @@
+{
+  "name": "@contextos/design-tokens",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ContextOS design tokens: Material 3 Expressive color, type, shape, elevation and motion, plus the semantic layer the UI library reads",
+  "type": "module",
+  "main": "./src/index.css",
+  "style": "./src/index.css",
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "lint": "node ./scripts/check.mjs"
+  }
+}

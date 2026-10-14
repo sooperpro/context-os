@@ -1,0 +1,90 @@
+# Frontend plan: design foundation and UI library
+
+Status: in progress. Owner: frontend. Started 2026-10-14 on branch `feat/design-foundation`.
+
+The design prototype (Material 3 Expressive, delivered as `Context OS/` with `HANDOFF.md`) is the source of
+truth for layout, behavior and copy. This plan turns it into a production frontend inside the existing
+React 19 / Vite / Tailwind v4 / shadcn (Base UI) / TanStack Query / React Router 8 stack.
+
+## Architecture: three layers, one dependency direction
+
+```
+packages/design-tokens      reference → semantic → Tailwind theme   (values live here, nowhere else)
+        ↓
+apps/web/src/components/ui  primitives: generic, variant-driven, no domain words
+        ↓
+apps/web/src/features/*     domain compositions, API, queries, pages (existing structure)
+```
+
+Nothing reads upward. A feature never defines a color; a primitive never knows what a "source" is.
+
+**The adapter.** shadcn's variable contract (`--primary`, `--card`, `--muted`, `--ring`...) is kept and
+fed from Material roles in `semantic.css`. The existing components retheme without edits. Material-only
+roles (`primary-container`, the `surface-container` ladder, `tertiary` as `ai`, `success`, `warning`,
+`info`) are exposed alongside for new primitives.
+
+## Decisions
+
+| Decision        | Choice                                                                             | Why                                                                                     |
+| --------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Design system   | Material 3 Expressive tokens on top of shadcn/Base UI mechanics                    | Prototype fidelity without rewriting focus management and composition                   |
+| Theme mechanism | `data-theme` attribute on `<html>`, resolved by `ThemeProvider`                    | Matches the prototype and the token file; `dark:` utilities key on it                   |
+| Fonts           | Google Sans Flex and Google Sans Code from Google Fonts, system fallback           | Not self-hostable; fallback stack must be checked, not assumed                          |
+| Icons           | Material Symbols (SVG, imported by name) replacing Lucide: separate PR             | Touches every feature file; kept out of the foundation change                           |
+| Token source    | Hand-maintained CSS, no generator                                                  | One consumer today; a generator pays off at two                                         |
+| Roles           | Navigation and visibility from the backend role (Owner/Admin/Manager/Member/Guest) | The prototype's four fixed roles do not match the API; HR maps to Admin plus assignments |
+
+## Phases
+
+### Phase 1: foundation (this branch)
+
+- [x] `packages/design-tokens` with reference, semantic and Tailwind theme layers
+- [x] Font swap: Geist out, Google Sans Flex and Google Sans Code in
+- [x] Theme provider and pre-render snippet switched to `data-theme`
+- [x] ESLint guardrail: no raw colors, no Tailwind palette classes, no `dark:` in feature code
+- [x] Status colors in feature badges moved to semantic tokens
+- [x] Component gallery at `/dev/ui` (development builds only, outside the auth gate)
+- [x] This plan and a decision-log entry
+
+Exit: every existing screen renders in both themes with the new tokens; typecheck, lint, tests and build pass.
+
+### Phase 2: primitive library
+
+Add from shadcn and restyle: avatar, switch, progress, dropdown menu, table, breadcrumb, button group.
+Hand-build: chip (assist, filter, suggestion, AI prompt), status chip with icon, stepper, KPI tile,
+mini tile, logo tile, banner, FAB, segmented list with option tiles. Add AI, AI tonal, tonal and
+elevated variants to Button; XS to L sizes. Each primitive: gallery entry, variants test, both themes,
+phone width.
+
+### Phase 3: app shell
+
+Navigation rail (expanded 248px, collapsed 96px), top bar with search, bottom navigation below 600px,
+assistant pane (420px side pane at 1200px and above, modal sheet below, full screen on phones). Navigation
+items come from one config keyed by backend role. Existing pages move inside unchanged.
+
+### Phase 4: screens, in order of value
+
+1. Workspace setup wizard (`GET/PATCH /workspaces/current/setup`)
+2. Members, invites, roles, departments and teams
+3. Google Drive connector flow (authorize, file browser, import)
+4. Ask threads with streaming (`POST /ask/threads/:id/messages`, SSE)
+5. Learning paths and onboarding
+
+Each screen composes library pieces only. A missing primitive goes into the library first.
+
+## Guardrails
+
+- **Lint enforces tokens.** `src/components/**` and `src/features/**` may not contain hex, `rgb()`,
+  `oklch()`, Tailwind palette classes (`bg-emerald-500`) or, in features, `dark:` variants.
+- **Review enforces reuse.** Pull request checklist: typecheck, lint, tests, gallery reviewed in both
+  themes and at phone width, and "did this add a component that already existed?"
+- **The gallery makes duplication visible.** Check `/dev/ui` before building anything.
+- **Features do not import from other features.** Shared things move down a layer.
+- **Teal is for AI only.** A convention, not a lint rule; it lives in the component docs and review.
+
+## Risks
+
+- Google Fonts is a network dependency; the fallback stack is `system-ui`.
+- Material Symbols is large; import icons by name only.
+- The non-admin dead end (API 403 "An organization admin must initialize the workspace") is unhandled in
+  the auth gate and will surface when a second user joins an organization.

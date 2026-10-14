@@ -1,0 +1,106 @@
+/* ==========================================================================
+   ContextOS semantic tokens
+   App roles built on the reference layer. No raw values here: every line
+   points at a --md-sys-* or --cx-* reference token, so light/dark switching
+   is inherited automatically.
+
+   Section 1 is the adapter: shadcn/ui's variable contract, fed from Material
+   roles. Existing primitives keep working untouched.
+   Section 2 exposes Material roles the prototype relies on (containers, the
+   surface ladder, status groups, AI) for new primitives.
+   ========================================================================== */
+
+:root {
+  /* ---- 1. shadcn/ui contract -> Material roles ------------------------ */
+  --background: var(--md-sys-color-surface);
+  --foreground: var(--md-sys-color-on-surface);
+  --card: var(--cx-card);
+  --card-foreground: var(--md-sys-color-on-surface);
+  --popover: var(--cx-pane);
+  --popover-foreground: var(--md-sys-color-on-surface);
+  --primary: var(--md-sys-color-primary);
+  --primary-foreground: var(--md-sys-color-on-primary);
+  /* shadcn "secondary" is a tonal surface, which is M3's secondary container. */
+  --secondary: var(--md-sys-color-secondary-container);
+  --secondary-foreground: var(--md-sys-color-on-secondary-container);
+  --muted: var(--md-sys-color-surface-container-high);
+  --muted-foreground: var(--md-sys-color-on-surface-variant);
+  --accent: var(--md-sys-color-surface-container-highest);
+  --accent-foreground: var(--md-sys-color-on-surface);
+  --destructive: var(--md-sys-color-error);
+  --destructive-foreground: var(--md-sys-color-on-error);
+  --border: var(--md-sys-color-outline-variant);
+  --input: var(--md-sys-color-outline-variant);
+  /* The prototype's focus ring is 3px secondary. */
+  --ring: var(--md-sys-color-secondary);
+  --chart-1: var(--md-sys-color-primary);
+  --chart-2: var(--md-sys-color-tertiary);
+  --chart-3: var(--md-sys-color-secondary);
+  --chart-4: var(--md-sys-color-warning);
+  --chart-5: var(--md-sys-color-success);
+  --sidebar: var(--cx-shell);
+  --sidebar-foreground: var(--md-sys-color-on-surface);
+  --sidebar-primary: var(--md-sys-color-primary);
+  --sidebar-primary-foreground: var(--md-sys-color-on-primary);
+  --sidebar-accent: var(--md-sys-color-secondary-container);
+  --sidebar-accent-foreground: var(--md-sys-color-on-secondary-container);
+  --sidebar-border: var(--md-sys-color-outline-variant);
+  --sidebar-ring: var(--md-sys-color-secondary);
+  --radius: var(--md-sys-shape-corner-large);
+
+  /* ---- 2. Material roles for the UI library ---------------------------- */
+  --primary-container: var(--md-sys-color-primary-container);
+  --on-primary-container: var(--md-sys-color-on-primary-container);
+  --inverse-primary: var(--md-sys-color-inverse-primary);
+  /* M3 "secondary" itself (text/icon tone), distinct from shadcn --secondary. */
+  --secondary-strong: var(--md-sys-color-secondary);
+  --on-secondary: var(--md-sys-color-on-secondary);
+  --secondary-container: var(--md-sys-color-secondary-container);
+  --on-secondary-container: var(--md-sys-color-on-secondary-container);
+
+  --surface: var(--md-sys-color-surface);
+  --on-surface: var(--md-sys-color-on-surface);
+  --surface-variant: var(--md-sys-color-surface-variant);
+  --on-surface-variant: var(--md-sys-color-on-surface-variant);
+  --surface-dim: var(--md-sys-color-surface-dim);
+  --surface-bright: var(--md-sys-color-surface-bright);
+  --surface-container-lowest: var(--md-sys-color-surface-container-lowest);
+  --surface-container-low: var(--md-sys-color-surface-container-low);
+  --surface-container: var(--md-sys-color-surface-container);
+  --surface-container-high: var(--md-sys-color-surface-container-high);
+  --surface-container-highest: var(--md-sys-color-surface-container-highest);
+  --outline: var(--md-sys-color-outline);
+  --outline-variant: var(--md-sys-color-outline-variant);
+  --inverse-surface: var(--md-sys-color-inverse-surface);
+  --inverse-on-surface: var(--md-sys-color-inverse-on-surface);
+  --scrim: var(--md-sys-color-scrim);
+
+  --shell: var(--cx-shell);
+  --pane: var(--cx-pane);
+  --card-strong: var(--cx-card-strong);
+  --field: var(--cx-field);
+
+  /* Status groups. Status is never color alone: pair with an icon or label. */
+  --success: var(--md-sys-color-success);
+  --on-success: var(--md-sys-color-on-success);
+  --success-container: var(--md-sys-color-success-container);
+  --on-success-container: var(--md-sys-color-on-success-container);
+  --warning: var(--md-sys-color-warning);
+  --on-warning: var(--md-sys-color-on-warning);
+  --warning-container: var(--md-sys-color-warning-container);
+  --on-warning-container: var(--md-sys-color-on-warning-container);
+  --error: var(--md-sys-color-error);
+  --on-error: var(--md-sys-color-on-error);
+  --error-container: var(--md-sys-color-error-container);
+  --on-error-container: var(--md-sys-color-on-error-container);
+  --info: var(--md-sys-color-primary);
+  --on-info: var(--md-sys-color-on-primary);
+  --info-container: var(--md-sys-color-primary-container);
+  --on-info-container: var(--md-sys-color-on-primary-container);
+
+  /* AI. Teal (tertiary) is reserved for Context Bot and AI-generated content. */
+  --ai: var(--md-sys-color-tertiary);
+  --on-ai: var(--md-sys-color-on-tertiary);
+  --ai-container: var(--md-sys-color-tertiary-container);
+  --on-ai-container: var(--md-sys-color-on-tertiary-container);
+}

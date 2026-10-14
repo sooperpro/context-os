@@ -5,10 +5,10 @@ import { cn } from "@/lib/utils";
 
 const VERIFICATION_STYLE: Record<Verification, string> = {
   inferred: "text-muted-foreground",
-  confirmed: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
-  stale: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+  confirmed: "border-success/40 bg-success/10 text-success",
+  stale: "border-warning/40 bg-warning/10 text-warning",
   disputed: "border-destructive/40 bg-destructive/10 text-destructive",
-  superseded: "border-slate-500/40 bg-slate-500/10 text-slate-700 line-through dark:text-slate-300",
+  superseded: "border-outline/40 bg-surface-container-high text-on-surface-variant line-through",
 };
 
 export function VerificationBadge({ verification }: { verification: Verification }) {
@@ -22,7 +22,7 @@ export function VerificationBadge({ verification }: { verification: Verification
 const CONFIDENCE_STYLE: Record<Confidence, string> = {
   high: "text-muted-foreground",
   medium: "text-muted-foreground",
-  low: "border-amber-500/40 text-amber-700 dark:text-amber-400",
+  low: "border-warning/40 text-warning",
 };
 
 export function ConfidenceBadge({ confidence }: { confidence: Confidence }) {
@@ -34,12 +34,12 @@ export function ConfidenceBadge({ confidence }: { confidence: Confidence }) {
 }
 
 const STATE_STYLE: Record<StatusState, string> = {
-  active: "border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-400",
+  active: "border-info/40 bg-info/10 text-info",
   blocked: "border-destructive/40 bg-destructive/10 text-destructive",
-  done: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+  done: "border-success/40 bg-success/10 text-success",
   planned: "text-muted-foreground",
-  risk: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
-  open_question: "border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-400",
+  risk: "border-warning/40 bg-warning/10 text-warning",
+  open_question: "border-outline/40 bg-surface-container-high text-on-surface-variant",
 };
 
 export function StateBadge({ state }: { state: StatusState }) {

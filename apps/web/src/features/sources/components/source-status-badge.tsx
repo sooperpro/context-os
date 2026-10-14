@@ -6,8 +6,8 @@ import { cn } from "@/lib/utils";
 
 const STYLES: Record<SourceStatus, string> = {
   pending: "text-muted-foreground",
-  processing: "text-sky-700 dark:text-sky-400",
-  ready: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+  processing: "text-info",
+  ready: "border-success/40 bg-success/10 text-success",
   failed: "border-destructive/40 bg-destructive/10 text-destructive",
 };
 

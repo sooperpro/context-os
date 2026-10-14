@@ -37,7 +37,7 @@ export function EvidenceList({ evidence }: { evidence: Evidence[] }) {
               </>
             ) : null}
             {!item.quoteVerified ? (
-              <span className="flex items-center gap-1 text-amber-700 dark:text-amber-400">
+              <span className="flex items-center gap-1 text-warning">
                 <AlertTriangleIcon className="size-3" aria-hidden />
                 Quote not found verbatim in source
               </span>

@@ -11,9 +11,9 @@ import { ANSWER_CONFIDENCE_LABEL, KIND_LABEL, SOURCE_KIND_LABEL } from "@/lib/la
 import { cn } from "@/lib/utils";
 
 const CONFIDENCE_STYLE: Record<AnswerConfidence, string> = {
-  high: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+  high: "border-success/40 bg-success/10 text-success",
   medium: "text-muted-foreground",
-  low: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+  low: "border-warning/40 bg-warning/10 text-warning",
   insufficient: "border-destructive/40 bg-destructive/10 text-destructive",
 };
 
@@ -66,8 +66,8 @@ export function AnswerCard({ projectId, answer }: AnswerCardProps) {
         ) : null}
 
         {answer.uncertainties.length > 0 ? (
-          <section className="rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-sm">
-            <h3 className="mb-1 flex items-center gap-1.5 text-xs font-medium tracking-wide text-amber-700 uppercase dark:text-amber-400">
+          <section className="rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-sm">
+            <h3 className="mb-1 flex items-center gap-1.5 text-xs font-medium tracking-wide text-warning uppercase">
               <AlertTriangleIcon className="size-3.5" aria-hidden />
               Uncertainties
             </h3>

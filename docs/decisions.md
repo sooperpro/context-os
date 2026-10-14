@@ -9,6 +9,8 @@ Living log of material decisions. Keep entries short; link to the implementation
 - Authentication is implemented in Clerk mode; development actor remains local-only and is rejected by production configuration. Private source imports default to restricted; unverified/unlocatable quotes are discarded; answers retain source dependencies and are withheld after access loss.
 - SQLite/FTS5 remains the implementation stack, **not an approved substitute for the PRD's production scale/pgvector requirements**. Full Phase 1/production readiness is not claimed. See [release gates](backend-production-readiness.md).
 
+- 2026-10-14, frontend: **Material 3 Expressive design tokens on top of shadcn/Base UI.** Tokens live in `packages/design-tokens` (reference → semantic → Tailwind theme); shadcn's variable contract is fed from Material roles so existing components retheme without edits. Theme is `data-theme` on `<html>`. Fonts are Google Sans Flex / Google Sans Code. Icons move to Material Symbols in a separate change. Lint blocks raw colors and Tailwind palette classes in component and feature code. See [frontend plan](frontend-plan.md).
+
 ## Historical prototype decisions (superseded where noted above)
 
 | Date       | Decision                                                                                                          | Options considered                                   | Rationale                                                                                                                         | Owner                   | Revisit trigger                                                        |

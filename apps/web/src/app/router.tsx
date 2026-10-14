@@ -4,7 +4,22 @@ import { RouteErrorBoundary } from "@/components/route-error-boundary";
 import { ProjectsPage } from "@/features/projects/pages/projects-page";
 import { NotFoundPage } from "@/pages/not-found-page";
 
+/** Development-only routes: the component gallery lives outside the app shell and auth gate. */
+const devRoutes = import.meta.env.DEV
+  ? [
+      {
+        path: "/dev/ui",
+        ErrorBoundary: RouteErrorBoundary,
+        lazy: async () => {
+          const { UiGalleryPage } = await import("@/dev/ui-gallery-page");
+          return { Component: UiGalleryPage };
+        },
+      },
+    ]
+  : [];
+
 export const router = createBrowserRouter([
+  ...devRoutes,
   {
     path: "/",
     Component: AppShell,
