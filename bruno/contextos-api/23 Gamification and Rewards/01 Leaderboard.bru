@@ -1,0 +1,24 @@
+meta {
+  name: Leaderboard
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/gamification/leaderboards?scope=company&window=month
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Top 10 plus private self rank; opt-out is symmetric; departments need 5 members.
+}

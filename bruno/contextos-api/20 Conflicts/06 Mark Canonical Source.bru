@@ -1,0 +1,35 @@
+meta {
+  name: Mark Canonical Source
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/projects/{{projectId}}/canonical-sources
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  { "sourceId": "{{sourceId}}", "topicType": "delivery_status" }
+}
+
+script:pre-request {
+  const value = bru.getEnvVar("sourceId");
+  if (!value || value === "false") bru.runner.skipRequest();
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Domain owner marks a source canonical for a topic; canonical evidence outranks defaults.
+}

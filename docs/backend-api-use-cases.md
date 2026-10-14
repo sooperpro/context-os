@@ -1,6 +1,6 @@
 # Backend API use cases and feature guide
 
-Updated: 13 October 2026. Requirements source: [ContextOS_PRD.md](../ContextOS_PRD.md). The five-day roadmap is not used.
+Updated: 14 October 2026. Requirements source: [ContextOS_PRD.md](../ContextOS_PRD.md). The five-day roadmap is not used. The complete endpoint catalogue with request and response shapes is [api-reference.md](api-reference.md); this guide explains the workflows.
 
 Release target confirmed by the owner: **complete Phase 1 first; defer subsequent phases**. Production Clerk/Google accounts will be configured later. Missing accounts do not enable bypass authentication in production or certify live integrations.
 
@@ -229,13 +229,38 @@ This is selected-file/manual synchronization, not full folder backfill, webhook 
 
 The implementation follows Google's [web-server OAuth guidance](https://developers.google.com/identity/protocols/oauth2/web-server) and [export format reference](https://developers.google.com/workspace/drive/api/guides/ref-export-formats). Already-revoked tokens are recognized using the documented [`invalid_token` revocation response](https://developers.google.com/identity/openid-connect/reference); disconnect is allowed for `needs_reauth` connections as well as connected ones. Provider/network revocation failures require retry before purging. Source/import mutations and their jobs/grants/audit writes are transaction-wrapped.
 
+## 9. PRD §20 additions (14 October 2026)
+
+The backend now serves every endpoint group in PRD §20. Workflows added since the previous revision, each documented in [api-reference.md](api-reference.md):
+
+| Area                      | Workflow                                                                                                                                                                                                                                                    |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Workspace settings        | `PATCH /workspaces/current/settings` merges gamification, rewards, policies, EPM and source-authority sections with defaults resolved on read; owners schedule deletion with a 7-day grace.                                                                 |
+| Directory and invites     | `GET /users` filters by query, role, status, department and team; `POST /users/invite` accepts single or bulk rows, records invitations locally (Clerk delivers them when configured) and applies requested role/org data on first sign-in.                 |
+| Identity links            | Google links are OAuth-verified through the Drive connection; other providers are user-requested and admin-confirmed; admins review unlinked identities. Webhooks only attribute events through confirmed links.                                            |
+| Projects by slug          | Every `/projects/:ref` route accepts the slug generated from the project name.                                                                                                                                                                              |
+| Hub sections and KHS      | Ten rendered sections with status chips, coverage, domain owner, honest empty states, the Knowledge Health Score and the project team; `GET /evidence/:id` backs the Source Drawer.                                                                         |
+| Conflicts                 | Conflict objects are materialised during ingestion, auto-resolved only by source authority (never recency), reviewed/resolved/disputed by domain owners with full evidence access, and seeded with draft bounties.                                          |
+| Ask                       | Answer ratings with reasons (leak reports alert admins), promotion to hub FAQ claims verified by a domain owner, aggregate Ask usage counts for managers.                                                                                                   |
+| Flags                     | Routing to the most specific domain owner, co-reporter merging, 30 flags/day limit, `pending_verification` and `bounty_created` states, escalation after 10 business days, queue with stale candidates, conflicts and bounties.                             |
+| Bounties                  | Full lifecycle with sponsor rights, budget, 7-day claims with one extension, verifier approval (never the claimant), automatic payout and flag resolution.                                                                                                  |
+| Learning                  | Curator credit on publication and learner completion, learner `path_completed`, quiz first-try points, mentor nudge after three failures, stuck flags, self-enrolment, ratings, archive, event-verified items completed by webhooks.                        |
+| Onboarding                | Default milestone framework, automatic mentor assignments with capacity, transparent health with reasons, pause, time-to-first-win with department median and fast-start bonus, mentor credit, sweeps for activation, overdue nudges and summary reminders. |
+| Gamification and rewards  | Leaderboards (top 10, private rank, symmetric opt-out, department minimum), kudos with caps, badges, admin adjustments and clawbacks, anomaly holds, rewards catalog with approvals, stock, refunds and KC expiry.                                          |
+| EPM                       | Footprint themes with annotations and recency-bias indicator, brag docs generated from own evidence, sharing snapshots, review cycles with phases and manual ratings only.                                                                                  |
+| Companion                 | Context resolution by URL or checkpoint, stuck-help bullets with mentor escalation draft, proactive caps (2 per 4 hours, dormant after two dismissals), notification centre with quiet hours and per-category preferences.                                  |
+| Connectors                | Drive scope selection per project, queued sync jobs with cooldown, tombstones, health, `keep_derived`/`purge` disconnect, signed webhook receivers for Slack/GitHub/Jira/Drive.                                                                             |
+| Search, analytics, export | Global faceted search, aggregated k-anonymous analytics (JSON/CSV), workspace export, audit CSV with filters.                                                                                                                                               |
+
+Bruno folders `17`–`26` exercise these endpoints; requests that need a second user, provider configuration or an opt-in flag skip themselves.
+
 ## Verification
 
 The Vitest backend suite exercises the original pipeline and the new access/state workflows with in-memory SQLite and a fake Gemini client. Google contract tests mock OAuth/provider responses to exercise state replay, scope validation, encryption, ACL denial/revocation, deduplication, size limits and disconnect. Mocked success is not live integration verification. Error logging strips SDK payloads/causes, and does not store Ask queries on FTS failures. Bruno can additionally run against an isolated HTTP fixture:
 
 ```bash
 # Terminal 1, from apps/api; uses an ephemeral DB and fake model
-NODE_ENV=test AUTH_MODE=development GEMINI_API_KEY=smoke-fixture \
+NODE_ENV=test AUTH_MODE=development GEMINI_API_KEY=smoke-fixture RATE_LIMIT_MAX=0 \
   node --import tsx src/scripts/smoke-server.ts
 
 # Terminal 2, from bruno/contextos-api

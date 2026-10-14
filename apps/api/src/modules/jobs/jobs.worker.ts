@@ -14,6 +14,9 @@ export interface WorkerOptions {
   pollIntervalMs?: number;
   /** Jobs locked longer than this are considered abandoned and re-queued at start. */
   staleAfterMs?: number;
+  /** Periodic maintenance (bounty expiry, nudges, purges) run between job polls. */
+  sweeps?: { run: () => unknown };
+  sweepIntervalMs?: number;
 }
 
 const backoffMs = (attempt: number) => Math.min(60_000, 2_000 * 2 ** (attempt - 1));
@@ -25,11 +28,14 @@ export function createWorker({
   logger,
   pollIntervalMs = 1000,
   staleAfterMs = 15 * 60_000,
+  sweeps,
+  sweepIntervalMs = 60_000,
 }: WorkerOptions) {
   let running = false;
   let timer: NodeJS.Timeout | null = null;
   let loopPromise: Promise<void> | null = null;
   let wake: (() => void) | null = null;
+  let lastSweepAt = 0;
 
   async function execute(job: JobRow): Promise<void> {
     const log = logger.child({
@@ -62,6 +68,16 @@ export function createWorker({
     return true;
   }
 
+  function runSweeps(): unknown {
+    lastSweepAt = Date.now();
+    try {
+      return sweeps?.run();
+    } catch (error) {
+      logger.error({ err: error }, "Maintenance sweep failed");
+      return undefined;
+    }
+  }
+
   /** Process jobs until the queue has nothing runnable (bounded). Used in tests. */
   async function drain(maxJobs = 200): Promise<number> {
     let processed = 0;
@@ -79,6 +95,7 @@ export function createWorker({
       }
       if (!running) break;
       if (!processed) {
+        if (sweeps && Date.now() - lastSweepAt >= sweepIntervalMs) runSweeps();
         await new Promise<void>((resolve) => {
           wake = resolve;
           timer = setTimeout(resolve, pollIntervalMs);
@@ -106,6 +123,7 @@ export function createWorker({
     },
     runOnce,
     drain,
+    runSweeps,
   };
 }
 

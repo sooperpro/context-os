@@ -1,0 +1,31 @@
+meta {
+  name: List Conflicts
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/projects/{{projectId}}/conflicts?history=false
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+script:post-response {
+  if (res.getStatus() === 200 && res.getBody().items.length) {
+    bru.setEnvVar("conflictId", res.getBody().items[0].id);
+    bru.setEnvVar("conflictVersion", res.getBody().items[0].version);
+  }
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Conflict objects with visible members. history=true includes resolved conflicts.
+}

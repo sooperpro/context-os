@@ -1,0 +1,35 @@
+meta {
+  name: Decide Promotion
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/promotions/{{promotionId}}/decide
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  { "version": 1, "accepted": true, "reason": "Verified" }
+}
+
+script:pre-request {
+  const value = bru.getEnvVar("reviewerAccessToken") && bru.getEnvVar("promotionId");
+  if (!value || value === "false") bru.runner.skipRequest();
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Domain owner (not the proposer). Accepted proposals become FAQ note sources and award ask_promoted.
+}

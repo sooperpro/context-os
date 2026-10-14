@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { IdSchema, IsoDateTimeSchema, listOf } from "./common.js";
 
-export const JobTypeSchema = z.enum(["process_source", "refresh_hub"]);
+export const JobTypeSchema = z.enum(["process_source", "refresh_hub", "sync_connector"]);
 export type JobType = z.infer<typeof JobTypeSchema>;
 
 export const JobStatusSchema = z.enum(["queued", "running", "done", "failed"]);

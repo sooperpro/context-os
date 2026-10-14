@@ -9,9 +9,11 @@ export interface EnqueueParams {
   type: JobType;
   payload: Record<string, unknown>;
   subject?: string | null;
-  /** Skip when an identical queued job already exists for the project. */
+  /** Skip when an identical queued job (same type and payload) already exists for the project. */
   dedupe?: boolean;
   maxAttempts?: number;
+  /** Delay execution until this time (defaults to now). */
+  runAfter?: Date;
 }
 
 const iso = (d: Date | null) => (d ? d.toISOString() : null);
@@ -48,7 +50,8 @@ export function createJobQueue(db: Db) {
               eq(jobs.status, "queued"),
             ),
           )
-          .get();
+          .all()
+          .find((row) => JSON.stringify(row.payload) === JSON.stringify(params.payload));
         if (existing) return existing;
       }
       return db
@@ -62,7 +65,7 @@ export function createJobQueue(db: Db) {
           status: "queued",
           attempts: 0,
           maxAttempts: params.maxAttempts ?? 3,
-          runAfter: new Date(),
+          runAfter: params.runAfter ?? new Date(),
         })
         .returning()
         .get();

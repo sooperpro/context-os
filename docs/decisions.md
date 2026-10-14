@@ -9,6 +9,13 @@ Living log of material decisions. Keep entries short; link to the implementation
 - Authentication is implemented in Clerk mode; development actor remains local-only and is rejected by production configuration. Private source imports default to restricted; unverified/unlocatable quotes are discarded; answers retain source dependencies and are withheld after access loss.
 - SQLite/FTS5 remains the implementation stack, **not an approved substitute for the PRD's production scale/pgvector requirements**. Full Phase 1/production readiness is not claimed. See [release gates](backend-production-readiness.md).
 
+- 2026-10-14, PRD §20 completion: conflicts are materialised as objects and may be **auto-resolved only by source authority** (canonical source, then the workspace authority order per topic) when the higher-ranked evidence is not older; recency alone never resolves (PRD §8.6.3). Rule resolutions are labelled and disputable.
+- 2026-10-14: projects carry a unique slug generated from the name; every `/projects/:ref` route accepts the UUID or the slug. Legacy rows are backfilled at startup.
+- 2026-10-14: Domain Owner assignments gain a `section` scope (`<projectId>:<sectionKey>`); the most specific owner receives routed flags and appears on the section (PRD §6.5).
+- 2026-10-14: a reserved `system` user owns auto-created records (conflict/ownership bounties, tombstones). Kudos Credits are issued at a configurable ratio (default 1 KC per 10 RP) only when the rewards catalog is enabled; the ledger gained `currency`, `status` and `actorId` columns while remaining append-only, except for the sanctioned full workspace purge.
+- 2026-10-14: EPM and rewards are feature-gated per workspace (`settings.epm.enabled`, `settings.rewards.enabled`) per decisions D3 and D7; endpoints answer 403/409 until enabled.
+- 2026-10-14: webhook receivers are public but signature-verified and attribute events to workspaces only through confirmed identity links; Slack/Jira/GitHub ingestion connectors remain unimplemented.
+
 ## Historical prototype decisions (superseded where noted above)
 
 | Date       | Decision                                                                                                          | Options considered                                   | Rationale                                                                                                                         | Owner                   | Revisit trigger                                                        |

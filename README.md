@@ -7,6 +7,7 @@ ContextOS reconstructs project context from a team's existing sources: **how the
 - Decision log: [docs/decisions.md](docs/decisions.md)
 - Authentication, roles, Google Drive and file parsing additions: [docs/auth-and-connectors-stack.md](docs/auth-and-connectors-stack.md)
 - Backend API workflows and Bruno setup: [docs/backend-api-use-cases.md](docs/backend-api-use-cases.md)
+- Complete endpoint reference (purpose, roles, request/response): [docs/api-reference.md](docs/api-reference.md)
 - PRD coverage and production release gates: [docs/backend-production-readiness.md](docs/backend-production-readiness.md)
 
 | Layer   | Stack                                                                                                                                    |
@@ -122,7 +123,7 @@ See [the Graphify guide](docs/graphify.md) for installation, examples, and limit
 
 ## API
 
-Base path `/api/v1`. Every error uses one envelope:
+Base path `/api/v1`. The full endpoint reference, including the PRD §20 areas added on 14 October 2026 (workspace settings and deletion, directory filters and bulk invites, identity links, hub sections and Knowledge Health Score, conflict objects with authority-rule resolution, evidence drawer, Ask feedback and promotion, flags with routing and co-reporters, bounties, leaderboards, kudos, badges, rewards catalog, EPM, companion context, notifications, connector scopes/sync/webhooks, global search, analytics and export), is in [docs/api-reference.md](docs/api-reference.md). The table below lists the original V0 project endpoints the web app uses today. Every error uses one envelope:
 
 ```json
 {
@@ -135,48 +136,51 @@ Base path `/api/v1`. Every error uses one envelope:
 }
 ```
 
-| Method           | Path                                                      | Purpose                                         |
-| ---------------- | --------------------------------------------------------- | ----------------------------------------------- |
-| GET              | `/health`, `/health/ready`                                | liveness / readiness (checks SQLite)            |
-| GET / POST       | `/projects`                                               | list / create                                   |
-| GET/PATCH/DELETE | `/projects/:projectId`                                    | read / update / delete                          |
-| GET              | `/projects/:projectId/hub`                                | overview + sync status + counts                 |
-| POST             | `/projects/:projectId/hub/refresh`                        | queue overview regeneration                     |
-| GET / POST       | `/projects/:projectId/sources`                            | list / import a source (queues processing)      |
-| GET / DELETE     | `/projects/:projectId/sources/:sourceId`                  | detail with content / delete (+ orphan cleanup) |
-| POST             | `/projects/:projectId/sources/:sourceId/reprocess`        | re-run the pipeline for one source              |
-| GET              | `/projects/:projectId/context-items?kind=`                | items with evidence and conflict flags          |
-| PATCH            | `/projects/:projectId/context-items/:itemId/verification` | confirmed / stale / disputed / …                |
-| POST             | `/projects/:projectId/ask`                                | evidence-backed answer (synchronous)            |
-| GET              | `/projects/:projectId/questions`                          | answer history                                  |
-| GET / POST       | `/projects/:projectId/feedback`                           | feedback on items, answers, overview            |
-| GET              | `/projects/:projectId/jobs?status=`                       | background job detail                           |
-| POST             | `/projects/:projectId/jobs/:jobId/retry`                  | retry a failed job                              |
+| Method           | Path                                                      | Purpose                                               |
+| ---------------- | --------------------------------------------------------- | ----------------------------------------------------- |
+| GET              | `/health`, `/health/ready`                                | liveness / readiness (checks SQLite)                  |
+| GET / POST       | `/projects`                                               | list / create                                         |
+| GET/PATCH/DELETE | `/projects/:projectId`                                    | read / update / delete (UUID or slug)                 |
+| GET              | `/projects/:projectId/hub`                                | overview + sync status + counts + KHS, sections, team |
+| POST             | `/projects/:projectId/hub/refresh`                        | queue overview regeneration                           |
+| GET / POST       | `/projects/:projectId/sources`                            | list / import a source (queues processing)            |
+| GET / DELETE     | `/projects/:projectId/sources/:sourceId`                  | detail with content / delete (+ orphan cleanup)       |
+| POST             | `/projects/:projectId/sources/:sourceId/reprocess`        | re-run the pipeline for one source                    |
+| GET              | `/projects/:projectId/context-items?kind=`                | items with evidence, conflict flags, supersession     |
+| PATCH            | `/projects/:projectId/context-items/:itemId/verification` | confirmed / stale / disputed / …                      |
+| POST             | `/projects/:projectId/ask`                                | evidence-backed answer (synchronous)                  |
+| GET              | `/projects/:projectId/questions`                          | answer history                                        |
+| GET / POST       | `/projects/:projectId/feedback`                           | feedback on items, answers, overview                  |
+| GET              | `/projects/:projectId/jobs?status=`                       | background job detail                                 |
+| POST             | `/projects/:projectId/jobs/:jobId/retry`                  | retry a failed job                                    |
 
 Request and response shapes live once in `packages/shared/src/schemas` and are validated on both sides.
 
 ### Environment (`apps/api/.env`)
 
-| Variable                                                 | Default                        | Notes                                                                         |
-| -------------------------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------- |
-| `GEMINI_API_KEY`                                         | required                       |                                                                               |
-| `GEMINI_MODEL`                                           | `gemini-3.8-flash`             | Extraction, overview synthesis, answers (structured output)                   |
-| `GEMINI_EMBEDDING_MODEL` / `GEMINI_EMBEDDING_DIMENSIONS` | `gemini-embedding-001` / `768` | Retrieval vectors; the pipeline degrades to keyword search if embedding fails |
-| `DATABASE_URL`                                           | `./data/contextos.db`          | SQLite path, or `:memory:`                                                    |
-| `WORKER_ENABLED` / `WORKER_POLL_INTERVAL_MS`             | `true` / `1000`                | Run the job worker in-process (set `false` for API-only)                      |
-| `WORKSPACE_NAME`, `DEV_ACTOR_ID`, `DEV_ACTOR_NAME`       | defaults                       | Single workspace + development actor until identity is wired                  |
-| `AUTH_MODE`                                              | `development`                  | Set to `clerk` to require authenticated requests                              |
-| `CLERK_PUBLISHABLE_KEY` / `CLERK_SECRET_KEY`             | required in Clerk mode         | Clerk application credentials; keep the secret server-side                    |
-| `PORT` / `HOST`                                          | `3000` / `127.0.0.1`           | Set `HOST=0.0.0.0` explicitly only behind appropriate deployment controls.    |
-| `CORS_ORIGINS`                                           | `http://localhost:5173`        | Comma-separated                                                               |
-| `LOG_LEVEL`                                              | `info`                         | pino; pretty-printed in development                                           |
-| `RATE_LIMIT_WINDOW_MS` / `RATE_LIMIT_MAX`                | `60000` / `120`                | Per client IP; `0` disables                                                   |
-| `TRUST_PROXY`                                            | `false`                        | Use `X-Forwarded-For` behind a reverse proxy                                  |
-| `SHUTDOWN_TIMEOUT_MS`                                    | `10000`                        | Force exit if connections do not drain                                        |
+| Variable                                                                                               | Default                        | Notes                                                                           |
+| ------------------------------------------------------------------------------------------------------ | ------------------------------ | ------------------------------------------------------------------------------- |
+| `GEMINI_API_KEY`                                                                                       | required                       |                                                                                 |
+| `GEMINI_MODEL`                                                                                         | `gemini-3.8-flash`             | Extraction, overview synthesis, answers (structured output)                     |
+| `GEMINI_EMBEDDING_MODEL` / `GEMINI_EMBEDDING_DIMENSIONS`                                               | `gemini-embedding-001` / `768` | Retrieval vectors; the pipeline degrades to keyword search if embedding fails   |
+| `DATABASE_URL`                                                                                         | `./data/contextos.db`          | SQLite path, or `:memory:`                                                      |
+| `WORKER_ENABLED` / `WORKER_POLL_INTERVAL_MS`                                                           | `true` / `1000`                | Run the job worker in-process (set `false` for API-only)                        |
+| `WORKSPACE_NAME`, `DEV_ACTOR_ID`, `DEV_ACTOR_NAME`                                                     | defaults                       | Single workspace + development actor until identity is wired                    |
+| `AUTH_MODE`                                                                                            | `development`                  | Set to `clerk` to require authenticated requests                                |
+| `CLERK_PUBLISHABLE_KEY` / `CLERK_SECRET_KEY`                                                           | required in Clerk mode         | Clerk application credentials; keep the secret server-side                      |
+| `PORT` / `HOST`                                                                                        | `3000` / `127.0.0.1`           | Set `HOST=0.0.0.0` explicitly only behind appropriate deployment controls.      |
+| `CORS_ORIGINS`                                                                                         | `http://localhost:5173`        | Comma-separated                                                                 |
+| `LOG_LEVEL`                                                                                            | `info`                         | pino; pretty-printed in development                                             |
+| `RATE_LIMIT_WINDOW_MS` / `RATE_LIMIT_MAX`                                                              | `60000` / `120`                | Per client IP; `0` disables                                                     |
+| `TRUST_PROXY`                                                                                          | `false`                        | Use `X-Forwarded-For` behind a reverse proxy                                    |
+| `SHUTDOWN_TIMEOUT_MS`                                                                                  | `10000`                        | Force exit if connections do not drain                                          |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REDIRECT_URI` / `CONNECTOR_TOKEN_ENCRYPTION_KEY` | unset                          | Google Drive OAuth and AES-GCM token storage; connectors answer `503` until set |
+| `SLACK_SIGNING_SECRET` / `GITHUB_WEBHOOK_SECRET` / `JIRA_WEBHOOK_SECRET` / `GOOGLE_WEBHOOK_TOKEN`      | unset                          | Webhook receivers (`POST /webhooks/:provider`) answer `503` until set           |
+| `MAINTENANCE_SWEEP_INTERVAL_MS`                                                                        | `60000`                        | Background sweeps: bounty expiry, nudges, invitation expiry, scheduled deletion |
 
 ### How the pipeline works
 
-`POST /sources` stores the source and queues `process_source`. The worker chunks the text (paragraph-aware), inserts chunks (FTS5 rows are maintained by triggers), embeds them (best effort), and asks Gemini for a strictly structured extraction (`apps/api/src/modules/context/extraction.schema.ts`). Each extracted item carries an `evidenceQuote`; the API checks the quote against the source text and the chunk it came from. Unverifiable quotes are kept but flagged (`quoteVerified=false`) and the item's confidence is capped at low. Items with the same subject across sources are merged (evidence accumulates); incompatible status claims stay separate and are flagged as conflicting. Finally `refresh_hub` regenerates the cited overview. Prompt versions are recorded on every extraction run and hub snapshot.
+`POST /sources` stores the source and queues `process_source`. The worker chunks the text (paragraph-aware), inserts chunks (FTS5 rows are maintained by triggers), embeds them (best effort), and asks Gemini for a strictly structured extraction (`apps/api/src/modules/context/extraction.schema.ts`). Each extracted item carries an `evidenceQuote`; the API checks the quote against the source text and the chunk it came from. Unverifiable quotes are kept but flagged (`quoteVerified=false`) and the item's confidence is capped at low. Items with the same subject across sources are merged (evidence accumulates); incompatible status claims stay separate and become conflict objects. A conflict is resolved by rule only when one side's evidence outranks the other for the topic (canonical source, then the workspace authority order) and is not older; otherwise it stays open, creates a draft bounty and waits for a domain owner (PRD §8.6). Finally `refresh_hub` regenerates the cited overview. Prompt versions are recorded on every extraction run and hub snapshot.
 
 `POST /ask` runs keyword (BM25) and vector retrieval over the project's chunks, fuses the rankings, pulls in context items linked to the retrieved sources, and asks Gemini for a structured answer that must cite passages by number. Citations that do not map to a real passage are dropped, and an answer without citations is downgraded to low confidence. If no passages match, the API answers "insufficient" without calling the model.
 

@@ -1,0 +1,24 @@
+meta {
+  name: Project Team
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/projects/{{projectId}}/hub/team
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Project members and scoped assignments.
+}

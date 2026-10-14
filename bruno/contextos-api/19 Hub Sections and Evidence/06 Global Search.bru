@@ -1,0 +1,24 @@
+meta {
+  name: Global Search
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/search?q=ledger&types=context_item,source,project
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Permission-filtered search with type facets.
+}

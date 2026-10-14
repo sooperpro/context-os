@@ -17,6 +17,7 @@ import { logger } from "../lib/logger.js";
 import type { AnswerOutput } from "../modules/ask/answer.schema.js";
 import type { ExtractionOutput } from "../modules/context/extraction.schema.js";
 import type { OverviewOutput } from "../modules/hub/overview.js";
+import type { BragDocOutput } from "../modules/platform/brag-doc.js";
 
 export const SAMPLE_SOURCE = {
   kind: "document",
@@ -143,7 +144,13 @@ export const SAMPLE_ANSWER: AnswerOutput = {
   relatedItemRefs: [1, 2, 42],
 };
 
+export const SAMPLE_BRAG_DOC: BragDocOutput = {
+  narrative: "During this period I resolved knowledge flags and verified corrections [F1].",
+  highlights: ["Verified correction accepted [F1]"],
+};
+
 export interface FakeGeminiOptions {
+  bragDoc?: BragDocOutput;
   extraction?:
     ExtractionOutput | ((request: StructuredGenerationRequest<z.ZodType>) => ExtractionOutput);
   overview?: OverviewOutput;
@@ -197,6 +204,9 @@ export function createFakeGemini(options: FakeGeminiOptions = {}): FakeGemini {
           break;
         case "ask":
           output = options.answer ?? SAMPLE_ANSWER;
+          break;
+        case "brag_doc":
+          output = options.bragDoc ?? SAMPLE_BRAG_DOC;
           break;
         default:
           return Promise.reject(

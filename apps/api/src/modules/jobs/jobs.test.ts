@@ -37,6 +37,7 @@ describe("job queue + worker", () => {
       logger,
       handlers: {
         process_source: () => Promise.resolve(),
+        sync_connector: () => Promise.resolve(),
         refresh_hub: () => {
           attempts += 1;
           return attempts < 3 ? Promise.reject(new Error("flaky")) : Promise.resolve();

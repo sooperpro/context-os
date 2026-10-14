@@ -1,0 +1,24 @@
+meta {
+  name: Unlinked Identities (admin)
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/users/identities/unlinked
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Owner/admin review queue of suggested links and members without links.
+}

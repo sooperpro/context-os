@@ -1,0 +1,35 @@
+meta {
+  name: Confirm Member Identity (admin)
+  type: http
+  seq: 7
+}
+
+patch {
+  url: {{baseUrl}}/users/{{managedUserId}}/identities/github
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  { "status": "confirmed" }
+}
+
+script:pre-request {
+  const value = bru.getEnvVar("managedUserId");
+  if (!value || value === "false") bru.runner.skipRequest();
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Owner/admin confirms or rejects a suggested link.
+}

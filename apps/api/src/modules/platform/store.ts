@@ -6,6 +6,12 @@ import { AppError, NotFoundError } from "../../lib/errors.js";
 import type { Actor } from "../../types.js";
 
 export type PlatformRecord = typeof platformRecords.$inferSelect;
+export interface RecordFilter {
+  projectId?: string;
+  status?: string;
+  ownerId?: string;
+  parentId?: string;
+}
 export function createPlatformStore(db: Db) {
   return {
     create(
@@ -14,17 +20,37 @@ export function createPlatformStore(db: Db) {
       data: Record<string, unknown>,
       options: { projectId?: string; parentId?: string; status?: string; ownerId?: string } = {},
     ): PlatformRecord {
+      return this.insert({
+        workspaceId: actor.workspaceId,
+        ownerId: options.ownerId ?? actor.id,
+        kind,
+        data,
+        projectId: options.projectId,
+        parentId: options.parentId,
+        status: options.status,
+      });
+    },
+    /** Actor-less insert for system-owned records (owner `system`) and background work. */
+    insert(input: {
+      workspaceId: string;
+      ownerId: string;
+      kind: string;
+      data: Record<string, unknown>;
+      projectId?: string | null;
+      parentId?: string | null;
+      status?: string;
+    }): PlatformRecord {
       return db
         .insert(platformRecords)
         .values({
           id: randomUUID(),
-          workspaceId: actor.workspaceId,
-          ownerId: options.ownerId ?? actor.id,
-          kind,
-          data,
-          projectId: options.projectId,
-          parentId: options.parentId,
-          status: options.status ?? "draft",
+          workspaceId: input.workspaceId,
+          ownerId: input.ownerId,
+          kind: input.kind,
+          data: input.data,
+          projectId: input.projectId ?? null,
+          parentId: input.parentId ?? null,
+          status: input.status ?? "draft",
         })
         .returning()
         .get();
@@ -44,12 +70,50 @@ export function createPlatformStore(db: Db) {
       if (!row) throw new NotFoundError(kind);
       return row;
     },
+    find(workspaceId: string, kind: string, id: string): PlatformRecord | undefined {
+      return db
+        .select()
+        .from(platformRecords)
+        .where(
+          and(
+            eq(platformRecords.workspaceId, workspaceId),
+            eq(platformRecords.kind, kind),
+            eq(platformRecords.id, id),
+          ),
+        )
+        .get();
+    },
     list(actor: Actor, kind: string, limit = 50, offset = 0): PlatformRecord[] {
       return db
         .select()
         .from(platformRecords)
         .where(
           and(eq(platformRecords.workspaceId, actor.workspaceId), eq(platformRecords.kind, kind)),
+        )
+        .orderBy(desc(platformRecords.createdAt))
+        .limit(limit)
+        .offset(offset)
+        .all();
+    },
+    listWhere(
+      workspaceId: string,
+      kind: string,
+      filter: RecordFilter = {},
+      limit = 100,
+      offset = 0,
+    ): PlatformRecord[] {
+      return db
+        .select()
+        .from(platformRecords)
+        .where(
+          and(
+            eq(platformRecords.workspaceId, workspaceId),
+            eq(platformRecords.kind, kind),
+            filter.projectId ? eq(platformRecords.projectId, filter.projectId) : undefined,
+            filter.status ? eq(platformRecords.status, filter.status) : undefined,
+            filter.ownerId ? eq(platformRecords.ownerId, filter.ownerId) : undefined,
+            filter.parentId ? eq(platformRecords.parentId, filter.parentId) : undefined,
+          ),
         )
         .orderBy(desc(platformRecords.createdAt))
         .limit(limit)
@@ -86,8 +150,17 @@ export function createPlatformStore(db: Db) {
         .limit(limit)
         .all();
     },
+    /** Optimistic-lock update: the caller's `version` must match or 409 is raised. */
     update(
       actor: Actor,
+      row: PlatformRecord,
+      version: number,
+      patch: { data?: Record<string, unknown>; status?: string },
+    ): PlatformRecord {
+      return this.updateVersioned(actor.workspaceId, row, version, patch);
+    },
+    updateVersioned(
+      workspaceId: string,
       row: PlatformRecord,
       version: number,
       patch: { data?: Record<string, unknown>; status?: string },
@@ -97,7 +170,7 @@ export function createPlatformStore(db: Db) {
         .set({ ...patch, version: version + 1, updatedAt: new Date() })
         .where(
           and(
-            eq(platformRecords.workspaceId, actor.workspaceId),
+            eq(platformRecords.workspaceId, workspaceId),
             eq(platformRecords.kind, row.kind),
             eq(platformRecords.id, row.id),
             eq(platformRecords.version, version),
@@ -108,10 +181,15 @@ export function createPlatformStore(db: Db) {
       if (!updated) throw new AppError(409, "CONFLICT", "The resource changed; reload and retry");
       return updated;
     },
+    /** System update using the row's current version (background sweeps, side effects). */
+    patch(row: PlatformRecord, patch: { data?: Record<string, unknown>; status?: string }) {
+      return this.updateVersioned(row.workspaceId, row, row.version, patch);
+    },
     event(actor: Actor, type: string, data: Record<string, unknown>): void {
-      db.insert(domainEvents)
-        .values({ id: randomUUID(), workspaceId: actor.workspaceId, type, data })
-        .run();
+      this.emit(actor.workspaceId, type, data);
+    },
+    emit(workspaceId: string, type: string, data: Record<string, unknown>): void {
+      db.insert(domainEvents).values({ id: randomUUID(), workspaceId, type, data }).run();
     },
   };
 }

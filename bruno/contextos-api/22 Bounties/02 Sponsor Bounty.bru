@@ -1,0 +1,37 @@
+meta {
+  name: Sponsor Bounty
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/bounties
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  { "projectId": "{{projectId}}", "title": "Document the ledger API", "description": "Write the integration guide", "acceptanceCriteria": "Reviewed by the domain owner", "rewardRp": 50 }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    bru.setEnvVar("bountyId", res.getBody().id);
+    bru.setEnvVar("bountyVersion", res.getBody().version);
+  }
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Owner/admin/manager, bounty sponsors, or Keepers (<= 50 RP).
+}

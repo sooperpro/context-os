@@ -1,5 +1,5 @@
 import type { ProjectStats } from "@contextos/shared";
-import { and, count, desc, eq, max } from "drizzle-orm";
+import { and, count, desc, eq, isNull, max } from "drizzle-orm";
 import type { Db } from "../../db/index.js";
 import {
   contextItems,
@@ -28,6 +28,24 @@ export function createProjectRepository(db: Db) {
         .get();
     },
 
+    findBySlug(slug: string, workspaceId: string): ProjectRow | undefined {
+      return db
+        .select()
+        .from(projects)
+        .where(and(eq(projects.slug, slug), eq(projects.workspaceId, workspaceId)))
+        .get();
+    },
+
+    slugTaken(workspaceId: string, slug: string, exceptId?: string): boolean {
+      const row = this.findBySlug(slug, workspaceId);
+      return !!row && row.id !== exceptId;
+    },
+
+    /** Legacy rows created before slugs existed. */
+    listWithoutSlug(): ProjectRow[] {
+      return db.select().from(projects).where(isNull(projects.slug)).all();
+    },
+
     /** For background jobs that already hold a trusted project id (no actor in scope). */
     findByIdUnscoped(id: string): ProjectRow | undefined {
       return db.select().from(projects).where(eq(projects.id, id)).get();
@@ -39,7 +57,7 @@ export function createProjectRepository(db: Db) {
 
     update(
       id: string,
-      patch: Partial<Pick<ProjectRow, "name" | "description">>,
+      patch: Partial<Pick<ProjectRow, "name" | "description" | "slug">>,
     ): ProjectRow | undefined {
       return db
         .update(projects)

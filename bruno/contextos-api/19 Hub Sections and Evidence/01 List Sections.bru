@@ -1,0 +1,24 @@
+meta {
+  name: List Sections
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/projects/{{projectId}}/sections
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Ten PRD hub sections with status, coverage and domain owner, plus KHS.
+}

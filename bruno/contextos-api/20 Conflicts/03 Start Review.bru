@@ -1,0 +1,35 @@
+meta {
+  name: Start Review
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/projects/{{projectId}}/conflicts/{{conflictId}}/review
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  { "version": {{conflictVersion}} }
+}
+
+script:pre-request {
+  const value = bru.getEnvVar("conflictId");
+  if (!value || value === "false") bru.runner.skipRequest();
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Domain owner moves an open conflict to under_review.
+}

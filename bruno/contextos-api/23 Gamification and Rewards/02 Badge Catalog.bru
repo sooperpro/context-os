@@ -1,0 +1,24 @@
+meta {
+  name: Badge Catalog
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/gamification/badges
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Appendix B catalog with earned state.
+}

@@ -1,0 +1,24 @@
+meta {
+  name: Workspace Export
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/admin/export
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Owner/admin JSON export, permission-filtered; Ask content excluded.
+}

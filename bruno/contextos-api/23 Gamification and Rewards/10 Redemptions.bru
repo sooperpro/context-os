@@ -1,0 +1,29 @@
+meta {
+  name: Redemptions
+  type: http
+  seq: 10
+}
+
+get {
+  url: {{baseUrl}}/rewards/redemptions?queue=false
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+script:pre-request {
+  const value = bru.getEnvVar("enableRewards");
+  if (!value || value === "false") bru.runner.skipRequest();
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Own history, or queue=true for approvers.
+}

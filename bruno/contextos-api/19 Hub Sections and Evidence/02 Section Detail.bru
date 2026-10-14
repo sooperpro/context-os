@@ -1,0 +1,30 @@
+meta {
+  name: Section Detail
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/projects/{{projectId}}/sections/decisions
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+script:post-response {
+  const body = res.getBody();
+  const first = body && body.content && body.content.decisions && body.content.decisions[0];
+  if (first && first.evidence && first.evidence[0]) bru.setEnvVar("evidenceId", first.evidence[0].id);
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Keys: overview, business_context, architecture, timeline, decisions, people, current_state, dependencies, resources, glossary.
+}

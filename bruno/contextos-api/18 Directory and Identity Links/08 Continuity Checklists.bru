@@ -1,0 +1,24 @@
+meta {
+  name: Continuity Checklists
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{baseUrl}}/continuity/checklists
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Manager checklist created when a report is offboarded (PRD 8.11).
+}

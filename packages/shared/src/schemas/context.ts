@@ -99,6 +99,8 @@ const base = {
   confidence: ConfidenceSchema,
   /** Ids of items making an incompatible claim about the same subject. */
   conflictsWith: z.array(IdSchema),
+  /** Successor item when this claim was superseded (PRD §8.1.1); null otherwise. */
+  supersededBy: IdSchema.nullable().optional(),
   evidence: z.array(EvidenceSchema),
   createdAt: IsoDateTimeSchema,
   updatedAt: IsoDateTimeSchema,

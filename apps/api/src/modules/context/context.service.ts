@@ -198,7 +198,7 @@ export function createContextService({ repo, audit, logger, identity }: ContextS
     const conflicts = detectConflicts(eligible);
     const items: ContextItem[] = [];
     for (const row of eligible) {
-      const { _generationSources: _ignored, ...publicData } = row.data;
+      const { _generationSources: _ignored, supersededBy, ...publicData } = row.data;
       const parsed = ContextItemSchema.safeParse({
         id: row.id,
         projectId: row.projectId,
@@ -211,6 +211,7 @@ export function createContextService({ repo, audit, logger, identity }: ContextS
         verification: row.verification,
         confidence: row.confidence,
         conflictsWith: conflicts.get(row.id) ?? [],
+        supersededBy: typeof supersededBy === "string" ? supersededBy : null,
         evidence: (evidenceByItem.get(row.id) ?? []).map(toEvidence),
         createdAt: row.createdAt.toISOString(),
         updatedAt: row.updatedAt.toISOString(),
@@ -396,7 +397,8 @@ export function detectConflicts(rows: ContextItemRow[]): Map<string, string[]> {
   const conflicts = new Map<string, string[]>();
   const groups = new Map<string, ContextItemRow[]>();
   for (const row of rows) {
-    if (row.kind !== "status_claim") continue;
+    // Superseded claims are history (PRD §8.1.1) and no longer participate in conflicts.
+    if (row.kind !== "status_claim" || row.verification === "superseded") continue;
     const list = groups.get(row.normalizedKey) ?? [];
     list.push(row);
     groups.set(row.normalizedKey, list);

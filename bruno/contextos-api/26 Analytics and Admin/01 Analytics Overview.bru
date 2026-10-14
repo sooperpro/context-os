@@ -1,0 +1,24 @@
+meta {
+  name: Analytics Overview
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/analytics/overview?days=90
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Owner/admin/department head; aggregated and k-anonymous. format=csv available.
+}

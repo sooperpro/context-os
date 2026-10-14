@@ -1,0 +1,35 @@
+meta {
+  name: Dispute Rule Resolution
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/projects/{{projectId}}/conflicts/{{conflictId}}/dispute
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  { "version": {{conflictVersion}}, "reason": "The sources describe different migrations" }
+}
+
+script:pre-request {
+  const value = bru.getEnvVar("conflictId");
+  if (!value || value === "false") bru.runner.skipRequest();
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Any reader can dispute an auto_resolved conflict; it reopens for human review.
+}

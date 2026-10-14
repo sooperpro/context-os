@@ -1,0 +1,29 @@
+meta {
+  name: Conflict Detail
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/projects/{{projectId}}/conflicts/{{conflictId}}
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+script:pre-request {
+  const value = bru.getEnvVar("conflictId");
+  if (!value || value === "false") bru.runner.skipRequest();
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Side-by-side members with evidence.
+}

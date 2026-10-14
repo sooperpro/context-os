@@ -29,6 +29,6 @@ script:pre-request {
 tests {
   test("Creates a labelled evidence-template draft", function () {
     expect(res.getStatus()).to.equal(201);
-    expect(res.getBody().data.generationMethod).to.equal("evidence_template_v1");
+    expect(res.getBody().data.generationMethod).to.equal("evidence_template_v2");
   });
 }

@@ -106,8 +106,28 @@ describe("context items", () => {
     expect(claims.items).toHaveLength(2);
     const [newer, older] = claims.items;
     expect(newer?.asOf).toBe("2026-04-10T00:00:00.000Z");
-    expect(newer?.conflictsWith).toEqual([older?.id]);
-    expect(older?.conflictsWith).toEqual([newer?.id]);
+    // PRD §8.6: a newer conversation outranks an older document for delivery status, so the
+    // conflict is resolved by rule (labelled, disputable) and the older claim is superseded.
+    expect(older?.verification).toBe("superseded");
+    expect(older?.supersededBy).toBe(newer?.id);
+    expect(newer?.conflictsWith).toEqual([]);
+    const conflicts = (await (
+      await t.app.request(`/api/v1/projects/${project.id}/conflicts`)
+    ).json()) as {
+      items: Array<{
+        status: string;
+        autoRule: string | null;
+        canonicalItemId: string | null;
+        members: unknown[];
+      }>;
+    };
+    expect(conflicts.items).toHaveLength(1);
+    expect(conflicts.items[0]).toMatchObject({
+      status: "auto_resolved",
+      canonicalItemId: newer?.id,
+    });
+    expect(conflicts.items[0]?.autoRule).toContain("conversation");
+    expect(conflicts.items[0]?.members).toHaveLength(2);
     void SAMPLE_SOURCE;
   });
 });

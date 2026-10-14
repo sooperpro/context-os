@@ -1,0 +1,24 @@
+meta {
+  name: Knowledge Health Score
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/projects/{{projectId}}/health
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  PRD 8.13 KHS with components, weights and top improvement actions.
+}

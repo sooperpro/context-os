@@ -1,0 +1,29 @@
+meta {
+  name: Rewards Catalog
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/rewards/catalog
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+script:pre-request {
+  const value = bru.getEnvVar("enableRewards");
+  if (!value || value === "false") bru.runner.skipRequest();
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  409 until rewards are enabled in workspace settings.
+}

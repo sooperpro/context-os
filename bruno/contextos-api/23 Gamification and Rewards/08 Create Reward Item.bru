@@ -1,0 +1,39 @@
+meta {
+  name: Create Reward Item
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/rewards/catalog
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  { "name": "Team lunch", "kcCost": 10, "itemType": "experience", "approvalRequired": true }
+}
+
+script:pre-request {
+  const value = bru.getEnvVar("enableRewards");
+  if (!value || value === "false") bru.runner.skipRequest();
+}
+
+script:post-response {
+  if (res.getStatus() === 201) bru.setEnvVar("rewardItemId", res.getBody().id);
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Owner/admin.
+}

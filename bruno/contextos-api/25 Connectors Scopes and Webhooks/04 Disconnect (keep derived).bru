@@ -1,0 +1,29 @@
+meta {
+  name: Disconnect (keep derived)
+  type: http
+  seq: 4
+}
+
+delete {
+  url: {{baseUrl}}/connectors/{{connectionId}}?mode=keep_derived
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+script:pre-request {
+  const value = bru.getEnvVar("enableConnectorCleanup");
+  if (!value || value === "false") bru.runner.skipRequest();
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  keep_derived retains claims without updates; default purge hard-deletes imported sources.
+}

@@ -1,5 +1,6 @@
 import type {
   Answer,
+  AnswerFeedback,
   Confidence,
   ContextItemKind,
   FeedbackKind,
@@ -12,6 +13,13 @@ import type {
   Verification,
   SystemRole,
   AssignmentType,
+  ConflictStatus,
+  IdentityLinkStatus,
+  IdentityProvider,
+  LedgerCurrency,
+  LedgerStatus,
+  ScopeType,
+  TopicType,
 } from "@contextos/shared";
 import { blob, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
@@ -41,11 +49,16 @@ export const projects = sqliteTable(
       .notNull()
       .references(() => workspaces.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
+    /** URL slug, unique per workspace; null only for legacy rows before backfill. */
+    slug: text("slug"),
     description: text("description"),
     createdAt: ts("created_at").notNull().$defaultFn(now),
     updatedAt: ts("updated_at").notNull().$defaultFn(now),
   },
-  (t) => [index("projects_workspace_idx").on(t.workspaceId)],
+  (t) => [
+    index("projects_workspace_idx").on(t.workspaceId),
+    uniqueIndex("projects_workspace_slug_uq").on(t.workspaceId, t.slug),
+  ],
 );
 
 /** Normalized source object: one document / thread / ticket / PR from any connector. */
@@ -209,6 +222,8 @@ export const questions = sqliteTable(
     model: text("model").notNull(),
     actorId: text("actor_id").notNull(),
     sourceIds: text("source_ids", { mode: "json" }).$type<string[]>(),
+    /** Asker rating with reason (FR-ASK-008); only the asker can set it. */
+    feedback: text("feedback", { mode: "json" }).$type<AnswerFeedback>(),
     createdAt: ts("created_at").notNull().$defaultFn(now),
   },
   (t) => [index("questions_project_idx").on(t.projectId, t.createdAt)],
@@ -375,7 +390,7 @@ export const assignments = sqliteTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     type: text("type").$type<AssignmentType>().notNull(),
-    scopeType: text("scope_type").$type<"project" | "user" | "workspace">().notNull(),
+    scopeType: text("scope_type").$type<"project" | "user" | "workspace" | "section">().notNull(),
     scopeId: text("scope_id").notNull(),
     expiresAt: ts("expires_at"),
   },
@@ -496,13 +511,24 @@ export const pointsLedger = sqliteTable(
       .notNull()
       .references(() => users.id),
     amount: integer("amount").notNull(),
+    /** Reputation (rp, non-spendable) or Kudos Credits (kc, spendable). */
+    currency: text("currency").$type<LedgerCurrency>().notNull().default("rp"),
     action: text("action").notNull(),
     sourceId: text("source_id").notNull(),
     reason: text("reason").notNull(),
+    status: text("status").$type<LedgerStatus>().notNull().default("posted"),
+    actorId: text("actor_id"),
     createdAt: ts("created_at").notNull().$defaultFn(now),
   },
   (t) => [
-    uniqueIndex("points_action_source_user_uq").on(t.workspaceId, t.userId, t.action, t.sourceId),
+    uniqueIndex("points_action_source_user_uq").on(
+      t.workspaceId,
+      t.userId,
+      t.currency,
+      t.action,
+      t.sourceId,
+    ),
+    index("points_user_created_idx").on(t.workspaceId, t.userId, t.createdAt),
   ],
 );
 export const domainEvents = sqliteTable("domain_events", {
@@ -515,3 +541,100 @@ export const domainEvents = sqliteTable("domain_events", {
   createdAt: ts("created_at").notNull().$defaultFn(now),
   processedAt: ts("processed_at"),
 });
+
+/** Identity links across connected sources (PRD §6.6). */
+export const identityLinks = sqliteTable(
+  "identity_links",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    provider: text("provider").$type<IdentityProvider>().notNull(),
+    externalId: text("external_id").notNull(),
+    externalLogin: text("external_login"),
+    email: text("email"),
+    status: text("status").$type<IdentityLinkStatus>().notNull().default("suggested"),
+    /** oauth | admin | user | auto_match */
+    source: text("source").notNull().default("user"),
+    linkedAt: ts("linked_at"),
+    createdAt: ts("created_at").notNull().$defaultFn(now),
+  },
+  (t) => [
+    uniqueIndex("identity_links_user_provider_uq").on(t.workspaceId, t.userId, t.provider),
+    index("identity_links_external_idx").on(t.provider, t.externalId),
+  ],
+);
+
+/** Selected source scopes per connection and project (PRD §16.3 source_scopes, §8.1.8). */
+export const connectorScopes = sqliteTable(
+  "connector_scopes",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    connectionId: text("connection_id")
+      .notNull()
+      .references(() => connectorConnections.id, { onDelete: "cascade" }),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    scopeType: text("scope_type").$type<ScopeType>().notNull(),
+    externalId: text("external_id").notNull(),
+    name: text("name").notNull(),
+    isExcluded: integer("is_excluded", { mode: "boolean" }).notNull().default(false),
+    backfillFrom: ts("backfill_from"),
+    cursor: text("cursor", { mode: "json" }).$type<Record<string, unknown>>(),
+    status: text("status").notNull().default("selected"),
+    lastSyncRequestedAt: ts("last_sync_requested_at"),
+    lastSyncedAt: ts("last_synced_at"),
+    itemCount: integer("item_count").notNull().default(0),
+    lastError: text("last_error"),
+    createdAt: ts("created_at").notNull().$defaultFn(now),
+  },
+  (t) => [
+    uniqueIndex("connector_scopes_uq").on(t.connectionId, t.projectId, t.externalId),
+    index("connector_scopes_project_idx").on(t.projectId),
+  ],
+);
+
+/** Materialised conflicts between incompatible claims (PRD §8.1.4, §8.6). */
+export const conflicts = sqliteTable(
+  "conflicts",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    /** Normalised subject key shared by the conflicting items. */
+    subjectKey: text("subject_key").notNull(),
+    topicType: text("topic_type").$type<TopicType>().notNull().default("delivery_status"),
+    status: text("status").$type<ConflictStatus>().notNull().default("open"),
+    memberIds: text("member_ids", { mode: "json" }).$type<string[]>().notNull(),
+    canonicalItemId: text("canonical_item_id"),
+    rationale: text("rationale"),
+    /** Label of the authority rule when auto-resolved, e.g. "canonical source". */
+    autoRule: text("auto_rule"),
+    resolvedBy: text("resolved_by"),
+    resolvedAt: ts("resolved_at"),
+    bountyId: text("bounty_id"),
+    version: integer("version").notNull().default(1),
+    createdAt: ts("created_at").notNull().$defaultFn(now),
+    updatedAt: ts("updated_at").notNull().$defaultFn(now),
+  },
+  (t) => [
+    uniqueIndex("conflicts_project_subject_uq").on(t.projectId, t.subjectKey),
+    index("conflicts_project_status_idx").on(t.projectId, t.status),
+  ],
+);
+
+export type IdentityLinkRow = typeof identityLinks.$inferSelect;
+export type ConnectorScopeRow = typeof connectorScopes.$inferSelect;
+export type ConflictRow = typeof conflicts.$inferSelect;
+export type PointsLedgerRow = typeof pointsLedger.$inferSelect;
+export type MembershipRow = typeof memberships.$inferSelect;
+export type UserRow = typeof users.$inferSelect;
