@@ -47,7 +47,16 @@ describe("navigation config", () => {
       "people",
       "knowledge",
     ]);
-    expect(rail("owner", "admin")).toEqual(["overview", "members", "knowledge", "setup"]);
+    expect(rail("owner", "admin")).toEqual([
+      "overview",
+      "members",
+      "connectors",
+      "access",
+      "ai",
+      "audit",
+      "knowledge",
+      "setup",
+    ]);
   });
 
   it("never configures more bottom-bar destinations than M3 allows for everyone", () => {

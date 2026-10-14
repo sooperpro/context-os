@@ -106,6 +106,34 @@ const appChildren = [
     },
   },
   {
+    path: "connectors",
+    lazy: async () => {
+      const { ConnectorsPage } = await import("@/features/admin/pages/connectors-page");
+      return { Component: ConnectorsPage };
+    },
+  },
+  {
+    path: "access",
+    lazy: async () => {
+      const { AccessPage } = await import("@/features/admin/pages/access-page");
+      return { Component: AccessPage };
+    },
+  },
+  {
+    path: "ai",
+    lazy: async () => {
+      const { AiSettingsPage } = await import("@/features/admin/pages/ai-settings-page");
+      return { Component: AiSettingsPage };
+    },
+  },
+  {
+    path: "audit",
+    lazy: async () => {
+      const { AuditPage } = await import("@/features/admin/pages/audit-page");
+      return { Component: AuditPage };
+    },
+  },
+  {
     path: "onboarding",
     lazy: async () => {
       const { OnboardingListPage } =

@@ -1,3 +1,4 @@
+import { adminPageMocks } from "@/mocks/admin";
 import { contributionMocks } from "@/mocks/contributions";
 import { learningMocks } from "@/mocks/learning";
 import { peopleMocks } from "@/mocks/people";
@@ -23,4 +24,5 @@ export const mockEndpoints = [
   ...peopleOpsMocks,
   ...peopleOpsPageMocks,
   ...adminMocks,
+  ...adminPageMocks,
 ];

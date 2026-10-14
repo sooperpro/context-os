@@ -8,6 +8,7 @@ import type {
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { Link } from "react-router";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/page-header";
 import { SectionCard } from "@/components/section-card";
 import { Banner } from "@/components/ui/banner";
@@ -19,16 +20,10 @@ import {
   CableIcon,
   CheckCircleIcon,
   DescriptionIcon,
-  DomainIcon,
   ErrorIcon,
-  FolderIcon,
-  GroupsIcon,
-  HistoryIcon,
   KeyIcon,
-  ManageAccountsIcon,
   PersonAddIcon,
   PolicyIcon,
-  RouteIcon,
   SyncAltIcon,
   SyncProblemIcon,
   TuneIcon,
@@ -52,12 +47,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useUpdateAiSettings } from "@/features/admin/api/admin.queries";
+import {
+  ACCESS_PATH,
+  AI_SETTINGS_PATH,
+  AUDIT_PATH,
+  CONNECTORS_PATH,
+  MEMBERS_PATH,
+  auditArea,
+} from "@/features/admin/admin-meta";
 import { connectorsQuery } from "@/features/connectors/api/connectors.queries";
 import { HOME_ENDPOINTS as E } from "@/features/home/api/home.api";
 import { homeQuery } from "@/features/home/api/home.queries";
 import { membersQuery } from "@/features/members/api/members.queries";
 import { currentWorkspaceQuery } from "@/features/workspace/api/workspace.queries";
-import { comingSoon } from "@/lib/coming-soon";
 import {
   formatCount,
   formatDate,
@@ -94,10 +97,10 @@ export function AdminHome() {
         }
         actions={
           <>
-            <Button variant="outline" nativeButton={false} render={<Link to="/members" />}>
+            <Button variant="outline" nativeButton={false} render={<Link to={MEMBERS_PATH} />}>
               <PersonAddIcon aria-hidden /> Invite people
             </Button>
-            <Button nativeButton={false} render={<Link to="/setup" />}>
+            <Button nativeButton={false} render={<Link to={CONNECTORS_PATH} />}>
               <AddIcon aria-hidden /> Add connector
             </Button>
           </>
@@ -161,7 +164,7 @@ function SourcesCard({ query }: { query: UseQueryResult<ConnectorConnection[]> }
       count={query.data ? `${items.length} connected` : undefined}
       status={query}
       action={
-        <Button variant="ghost" nativeButton={false} render={<Link to="/setup" />}>
+        <Button variant="ghost" nativeButton={false} render={<Link to={CONNECTORS_PATH} />}>
           All connectors <ArrowForwardIcon aria-hidden />
         </Button>
       }
@@ -198,7 +201,7 @@ function SourcesCard({ query }: { query: UseQueryResult<ConnectorConnection[]> }
           );
         })}
         <Link
-          to="/setup"
+          to={CONNECTORS_PATH}
           className="flex min-h-28 flex-col items-start justify-center gap-2 rounded-xl p-4 text-sm font-medium text-on-surface-variant shadow-[inset_0_0_0_1px_var(--color-outline-variant)] transition-colors outline-none hover:bg-on-surface/8 focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           <span className="grid size-10 place-items-center rounded-md bg-surface-container-high [&_svg]:size-5">
@@ -215,9 +218,9 @@ function SourcesCard({ query }: { query: UseQueryResult<ConnectorConnection[]> }
 
 const SECURITY: Record<SecurityCheck["id"], { label: string; icon: ReactNode; to?: string }> = {
   sso: { label: "Single sign-on", icon: <KeyIcon /> },
-  scim: { label: "SCIM provisioning", icon: <SyncAltIcon /> },
-  access_policies: { label: "Knowledge access policies", icon: <PolicyIcon /> },
-  role_requests: { label: "Role requests", icon: <PersonAddIcon />, to: "/members" },
+  scim: { label: "SCIM provisioning", icon: <SyncAltIcon />, to: MEMBERS_PATH },
+  access_policies: { label: "Knowledge access policies", icon: <PolicyIcon />, to: ACCESS_PATH },
+  role_requests: { label: "Role requests", icon: <PersonAddIcon />, to: MEMBERS_PATH },
   data_retention: { label: "Data retention", icon: <AutoDeleteIcon /> },
 };
 
@@ -341,6 +344,7 @@ function SyncActivityCard() {
 
 function AiAnswersCard() {
   const query = useQuery(homeQuery("ai"));
+  const update = useUpdateAiSettings();
   const data = query.data;
   return (
     <SectionCard
@@ -353,7 +357,8 @@ function AiAnswersCard() {
           variant="ghost"
           size="icon"
           aria-label="AI settings"
-          onClick={() => comingSoon("AI settings")}
+          nativeButton={false}
+          render={<Link to={AI_SETTINGS_PATH} />}
         >
           <TuneIcon />
         </Button>
@@ -381,8 +386,20 @@ function AiAnswersCard() {
                 <Switch
                   id={`ai-${setting.id}`}
                   checked={setting.enabled}
-                  disabled={setting.locked}
-                  onCheckedChange={() => comingSoon("Changing AI settings")}
+                  disabled={setting.locked || update.isPending}
+                  onCheckedChange={(enabled) =>
+                    update.mutate(
+                      { rules: { [setting.id]: enabled } },
+                      {
+                        onSuccess: () =>
+                          toast.success(
+                            `${enabled ? "Turned on" : "Turned off"}: ${setting.label}`,
+                          ),
+                        onError: () =>
+                          toast.error("The setting could not be saved. Please try again."),
+                      },
+                    )
+                  }
                 />
               </li>
             ))}
@@ -395,31 +412,9 @@ function AiAnswersCard() {
 
 /* ---- Audit log (live) --------------------------------------------------------------------- */
 
-function auditIcon(action: string): ReactNode {
-  const area = action.split(".")[0];
-  switch (area) {
-    case "connector":
-      return <CableIcon />;
-    case "user":
-    case "assignment":
-      return <ManageAccountsIcon />;
-    case "source":
-      return <DescriptionIcon />;
-    case "project":
-      return <FolderIcon />;
-    case "team":
-    case "department":
-      return <GroupsIcon />;
-    case "workspace":
-      return <DomainIcon />;
-    case "path":
-    case "onboarding":
-    case "milestone":
-    case "checkpoint":
-      return <RouteIcon />;
-    default:
-      return <HistoryIcon />;
-  }
+function AuditIcon({ action }: { action: string }) {
+  const Icon = auditArea(action).icon;
+  return <Icon />;
 }
 
 /** Newest first. The endpoint returns the oldest entries first and takes no sort yet. */
@@ -438,7 +433,7 @@ function AuditCard() {
       title="Audit log"
       status={query}
       action={
-        <Button variant="ghost" onClick={() => comingSoon("The full audit log")}>
+        <Button variant="ghost" nativeButton={false} render={<Link to={AUDIT_PATH} />}>
           Full log <ArrowForwardIcon aria-hidden />
         </Button>
       }
@@ -448,7 +443,7 @@ function AuditCard() {
           {entries.map((entry) => (
             <SegmentedItem key={entry.id} className="min-h-0 gap-3 px-3 py-2.5">
               <SegmentedItemLead tone="neutral" size="sm">
-                {auditIcon(entry.action)}
+                <AuditIcon action={entry.action} />
               </SegmentedItemLead>
               <SegmentedItemBody>
                 <span className="text-sm text-on-surface">
@@ -485,7 +480,7 @@ function MembersCard({ query }: { query: UseQueryResult<WorkspaceMember[]> }) {
           variant="ghost"
           size="icon"
           nativeButton={false}
-          render={<Link to="/members" />}
+          render={<Link to={MEMBERS_PATH} />}
           aria-label="Manage members"
         >
           <ArrowForwardIcon />

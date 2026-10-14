@@ -297,6 +297,14 @@ export const WorkspaceMemberSchema = z.object({
   name: z.string(),
   role: SystemRoleSchema,
   status: MembershipStatusSchema,
+  /*
+   * Requested for Members & roles (docs/api-change-requests.md, item 11); optional until served.
+   * `invitedAt` is set while the person has not signed in yet.
+   */
+  email: z.string().nullable().optional(),
+  team: z.string().nullable().optional(),
+  lastActiveAt: z.string().nullable().optional(),
+  invitedAt: z.string().nullable().optional(),
 });
 export type WorkspaceMember = z.infer<typeof WorkspaceMemberSchema>;
 export const WorkspaceMemberListSchema = z.object({ items: z.array(WorkspaceMemberSchema) });

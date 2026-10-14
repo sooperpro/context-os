@@ -24,15 +24,22 @@ const bannerVariants = cva(
 );
 
 interface BannerProps
-  extends Omit<React.ComponentProps<"div">, "title">,
-    VariantProps<typeof bannerVariants> {
+  extends Omit<React.ComponentProps<"div">, "title">, VariantProps<typeof bannerVariants> {
   icon?: ReactNode;
   title: ReactNode;
   description?: ReactNode;
   actions?: ReactNode;
 }
 
-function Banner({ className, tone = "info", icon, title, description, actions, ...props }: BannerProps) {
+function Banner({
+  className,
+  tone = "info",
+  icon,
+  title,
+  description,
+  actions,
+  ...props
+}: BannerProps) {
   return (
     <div
       role={tone === "error" ? "alert" : "status"}
@@ -46,7 +53,12 @@ function Banner({ className, tone = "info", icon, title, description, actions, .
         <span className="font-medium">{title}</span>
         {description ? <span className="opacity-90">{description}</span> : null}
       </div>
-      {actions ? <div className="flex flex-wrap gap-2 [&_button]:text-current">{actions}</div> : null}
+      {/* Text buttons take the banner's color; filled ones (Reconnect, Resolve) keep their own. */}
+      {actions ? (
+        <div className="flex flex-wrap gap-2 [&_[data-variant=ghost]]:text-current [&_[data-variant=link]]:text-current [&_[data-variant=outline]]:text-current">
+          {actions}
+        </div>
+      ) : null}
     </div>
   );
 }

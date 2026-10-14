@@ -383,7 +383,13 @@ export type SyncRun = z.infer<typeof SyncRunSchema>;
 export const SyncRunListSchema = z.object({ items: z.array(SyncRunSchema) });
 
 export const AiSettingSchema = z.object({
-  id: z.enum(["cite_sources", "answer_without_sources", "learning_suggestions", "train_on_data"]),
+  id: z.enum([
+    "cite_sources",
+    "access_only",
+    "route_unanswered",
+    "include_dms",
+    "pause_during_checks",
+  ]),
   label: z.string(),
   detail: z.string(),
   enabled: z.boolean(),

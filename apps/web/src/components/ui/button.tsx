@@ -19,11 +19,14 @@ const buttonVariants = cva(
         secondary: "bg-secondary-container text-on-secondary-container",
         outline:
           "bg-transparent text-on-surface-variant shadow-[inset_0_0_0_1px_var(--color-outline-variant)] aria-expanded:bg-secondary-container aria-expanded:text-on-secondary-container",
-        ghost: "text-primary aria-expanded:bg-secondary-container aria-expanded:text-on-secondary-container",
-        elevated: "bg-surface-container-low text-primary shadow-elevation-1 hover:shadow-elevation-2",
+        ghost:
+          "text-primary aria-expanded:bg-secondary-container aria-expanded:text-on-secondary-container",
+        elevated:
+          "bg-surface-container-low text-primary shadow-elevation-1 hover:shadow-elevation-2",
         ai: "bg-ai text-on-ai hover:shadow-elevation-1",
         "ai-tonal": "bg-ai-container text-on-ai-container",
-        destructive: "bg-error text-on-error hover:shadow-elevation-1 focus-visible:ring-destructive/30",
+        destructive:
+          "bg-error text-on-error hover:shadow-elevation-1 focus-visible:ring-destructive/30",
         link: "h-auto rounded-none px-0 text-primary underline-offset-4 before:hidden hover:underline active:rounded-none",
       },
       size: {
@@ -54,6 +57,7 @@ function Button({
   return (
     <ButtonPrimitive
       data-slot="button"
+      data-variant={variant}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />

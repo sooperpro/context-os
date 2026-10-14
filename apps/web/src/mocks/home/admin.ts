@@ -3,18 +3,10 @@ import { mockGet } from "@/mocks/define";
 import { atFromToday } from "@/mocks/fixtures/time";
 
 /**
- * The admin overview's cards with no API yet. Connectors, members and the audit log are live and
- * are not mocked.
+ * The admin overview's sync activity, which has no API yet. Security and AI answers come from the
+ * admin store (mocks/admin.ts); connectors, members and the audit log are live and are not mocked.
  */
 export const adminMocks = [
-  mockGet(E.security)(() => ({
-    items: [
-      { id: "sso", value: "Google Workspace · enforced", state: "ok" },
-      { id: "scim", value: "On · last run 8:00 AM", state: "ok" },
-      { id: "access_policies", value: "14 active · 1 conflict", state: "attention" },
-      { id: "role_requests", value: "Admin, Manager · 2 pending", state: "attention" },
-    ],
-  })),
   mockGet(E.syncRuns)(() => ({
     items: [
       {
@@ -56,41 +48,6 @@ export const adminMocks = [
         ok: true,
         detail: "3 users provisioned",
         durationMs: 9_000,
-      },
-    ],
-  })),
-  mockGet(E.ai)(() => ({
-    helpfulRate: 0.87,
-    ratings: 2413,
-    periodDays: 30,
-    settings: [
-      {
-        id: "cite_sources",
-        label: "Cite sources in every answer",
-        detail: "Answers without a source are shown as “not found”.",
-        enabled: true,
-        locked: false,
-      },
-      {
-        id: "answer_without_sources",
-        label: "Answer only from sources the person can access",
-        detail: "Required. Enforced by connector permissions.",
-        enabled: true,
-        locked: true,
-      },
-      {
-        id: "learning_suggestions",
-        label: "Route unanswered questions to knowledge owners",
-        detail: "Creates knowledge gaps for team owners.",
-        enabled: true,
-        locked: false,
-      },
-      {
-        id: "train_on_data",
-        label: "Include Slack direct messages",
-        detail: "Off by policy.",
-        enabled: false,
-        locked: true,
       },
     ],
   })),

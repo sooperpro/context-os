@@ -199,6 +199,18 @@ A pass over every built surface against the prototype's CSS and JS found three g
       Onboarding, Probation reviews, Templates, People, Knowledge Hub. Shared pieces moved down into
       `components/`: `ProfileHero` (profiles, member page, HR records), `PersonCell`, `AskCard`,
       `SearchField`, `EmptyMini`, `ChipCount` and a compact `ProgressSteps`.
+- [x] The Admin view, from the reference: Members & roles (seats, role counts, role requests with an
+      admin confirmation, the members table with roles changed in place and a confirmation for admin
+      or owner, what each role can do; departments and teams stay in their tab), Connectors (summary,
+      connected sources with sync progress and Fix, the catalog with categories and search, the
+      three-step connect wizard, Request a connector), Access policies (conflict banner and
+      resolution, policies with sources and groups, new and edit, preview access per person), AI
+      settings (quality tiles, answer rules, strictness, staleness and routing, never used in answers,
+      why answers were rated unhelpful, top unanswered questions, weekly digest) and the Audit log
+      (search, date range, categories, expandable entries; live). The admin Home's buttons and cards
+      open them. Brand logos for connectors (CC0, gilbarbara/logos) live in `src/assets/logos` behind
+      `ConnectorLogo`. The rail is the reference's: Overview, Members & roles, Connectors, Access
+      policies, AI settings, Audit log, Knowledge Hub, then Workspace setup.
 - [x] The rail is gated by persona as well as role, so each "Prototype · view as" persona (Employee,
       Manager, HR, Admin) gets the reference's items as their screens ship.
 

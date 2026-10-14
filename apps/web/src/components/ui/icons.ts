@@ -205,11 +205,33 @@ import ShieldPersonIcon from "@material-symbols/svg-400/rounded/shield_person.sv
 import HowToRegFilledIcon from "@material-symbols/svg-400/rounded/how_to_reg-fill.svg?react";
 import EventAvailableFilledIcon from "@material-symbols/svg-400/rounded/event_available-fill.svg?react";
 import LibraryBooksFilledIcon from "@material-symbols/svg-400/rounded/library_books-fill.svg?react";
+import LanguageIcon from "@material-symbols/svg-400/rounded/language.svg?react";
+import LinkOffIcon from "@material-symbols/svg-400/rounded/link_off.svg?react";
+import SyncIcon from "@material-symbols/svg-400/rounded/sync.svg?react";
+import AddCommentIcon from "@material-symbols/svg-400/rounded/add_comment.svg?react";
+import VerifiedUserIcon from "@material-symbols/svg-400/rounded/verified_user.svg?react";
+import MailIcon from "@material-symbols/svg-400/rounded/mail.svg?react";
+import PersonOffIcon from "@material-symbols/svg-400/rounded/person_off.svg?react";
+import CableFilledIcon from "@material-symbols/svg-400/rounded/cable-fill.svg?react";
+import PolicyFilledIcon from "@material-symbols/svg-400/rounded/policy-fill.svg?react";
+import TuneFilledIcon from "@material-symbols/svg-400/rounded/tune-fill.svg?react";
+import HistoryFilledIcon from "@material-symbols/svg-400/rounded/history-fill.svg?react";
 
 export type MaterialIcon = ComponentType<SVGProps<SVGSVGElement>>;
 
 export {
   AddIcon,
+  LanguageIcon,
+  LinkOffIcon,
+  SyncIcon,
+  AddCommentIcon,
+  VerifiedUserIcon,
+  MailIcon,
+  PersonOffIcon,
+  CableFilledIcon,
+  PolicyFilledIcon,
+  TuneFilledIcon,
+  HistoryFilledIcon,
   ArrowDownwardIcon,
   LibraryAddIcon,
   PublishIcon,
