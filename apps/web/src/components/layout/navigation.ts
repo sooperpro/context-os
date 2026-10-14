@@ -1,5 +1,5 @@
 import type { SystemRole } from "@contextos/shared";
-import { FolderKanbanIcon, type LucideIcon } from "lucide-react";
+import { FolderKanbanIcon, ListChecksIcon, type LucideIcon } from "lucide-react";
 
 /**
  * The one place navigation is defined. The rail, the bottom bar and any future command palette
@@ -23,6 +23,7 @@ export interface NavItem {
 
 export const NAV_ITEMS: readonly NavItem[] = [
   { id: "projects", label: "Projects", icon: FolderKanbanIcon, to: "/", end: true },
+  { id: "setup", label: "Workspace setup", short: "Setup", icon: ListChecksIcon, to: "/setup", roles: ["owner", "admin"] },
 ];
 
 export function navItemsFor(role: SystemRole | undefined): NavItem[] {

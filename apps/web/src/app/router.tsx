@@ -27,6 +27,13 @@ export const router = createBrowserRouter([
     children: [
       { index: true, Component: ProjectsPage },
       {
+        path: "setup",
+        lazy: async () => {
+          const { SetupPage } = await import("@/features/setup/pages/setup-page");
+          return { Component: SetupPage };
+        },
+      },
+      {
         path: "projects/:projectId",
         // Project pages are code-split: this chunk loads only when a project is opened.
         lazy: async () => {

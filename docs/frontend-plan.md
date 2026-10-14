@@ -84,7 +84,10 @@ appearance API is a Phase 4 polish item.
 
 ### Phase 4: screens, in order of value
 
-1. Workspace setup wizard (`GET/PATCH /workspaces/current/setup`)
+1. [x] Workspace setup wizard (`GET/PATCH /workspaces/current/setup`) at `/setup` for owners and admins:
+       stepper, evidence-backed completion, skip and resume, sync counts. Composes the create-project
+       dialog, a new invite-member dialog (`features/members`) and Google Drive authorization
+       (`features/connectors`). Steps 2 and 5 are honest placeholders until their screens ship.
 2. Members, invites, roles, departments and teams
 3. Google Drive connector flow (authorize, file browser, import)
 4. Ask threads with streaming (`POST /ask/threads/:id/messages`, SSE)
