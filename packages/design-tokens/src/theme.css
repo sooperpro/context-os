@@ -113,6 +113,7 @@
   --radius-2xl: var(--md-sys-shape-corner-extra-large);
   --radius-3xl: var(--md-sys-shape-corner-extra-large-increased);
   --radius-4xl: var(--md-sys-shape-corner-extra-extra-large);
+  --radius-card: var(--cx-card-radius);
 
   /* ---- Elevation --------------------------------------------------------- */
   --shadow-elevation-1: var(--md-sys-elevation-1);

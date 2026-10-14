@@ -155,6 +155,8 @@
   --cx-topbar-height: 72px;
   --cx-bot-width: 420px;
   --cx-pane-gap: 12px;
+  /* Cards and KPI tiles use 24px corners in the prototype (between M3 large-increased and extra-large). */
+  --cx-card-radius: 24px;
 }
 
 /* ---- Color: dark ---------------------------------------------------------

@@ -4,6 +4,7 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { useState, type ReactNode } from "react";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { env } from "@/config/env";
 import { useClerkAppearance } from "@/features/auth/clerk-appearance";
 import { AuthGate } from "@/features/auth/components/auth-gate";
@@ -36,8 +37,10 @@ export function Providers({ children }: { children: ReactNode }) {
     <ThemeProvider>
       <ThemedClerkProvider publishableKey={publishableKey}>
         <QueryClientProvider client={queryClient}>
-          <AuthGate>{children}</AuthGate>
-          <Toaster richColors position="top-right" />
+          <TooltipProvider>
+            <AuthGate>{children}</AuthGate>
+          </TooltipProvider>
+          <Toaster position="bottom-center" offset={24} mobileOffset={{ bottom: 96 }} />
           <ReactQueryDevtools initialIsOpen={false} buttonPosition="bottom-left" />
         </QueryClientProvider>
       </ThemedClerkProvider>

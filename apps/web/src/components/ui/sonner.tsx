@@ -25,15 +25,20 @@ const Toaster = ({ ...props }: ToasterProps) => {
       }}
       style={
         {
-          "--normal-bg": "var(--popover)",
-          "--normal-text": "var(--popover-foreground)",
-          "--normal-border": "var(--border)",
-          "--border-radius": "var(--radius)",
+          // Prototype snackbar: inverse surface, 12px corners, actions in inverse primary.
+          "--normal-bg": "var(--color-inverse-surface)",
+          "--normal-text": "var(--color-inverse-on-surface)",
+          "--normal-border": "transparent",
+          "--border-radius": "var(--radius-md)",
+          "--width": "min(35rem, calc(100vw - 2rem))",
         } as React.CSSProperties
       }
       toastOptions={{
         classNames: {
-          toast: "rounded-2xl",
+          toast: "min-h-12 shadow-elevation-3 text-sm",
+          actionButton: "!bg-transparent !font-medium !text-inverse-primary",
+          cancelButton: "!bg-transparent !text-inverse-on-surface",
+          icon: "[&_svg]:!text-inverse-primary",
         },
       }}
       {...props}
