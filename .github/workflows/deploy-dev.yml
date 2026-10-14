@@ -1,0 +1,131 @@
+name: Deploy dev
+
+on:
+  push:
+    branches: [dev]
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: Deploy to the dev VM
+    if: github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GCP_PROJECT_ID: contextos-511517
+      GCP_ZONE: asia-south1-c
+      VM_INSTANCE: instance-20261013-174005
+      VM_USER: sooperapp_pro
+      IAP_LOCAL_PORT: "2222"
+
+    steps:
+      - name: Check out the dev revision
+        uses: actions/checkout@v5
+
+      - name: Authenticate to Google Cloud with Workload Identity Federation
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Install Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Configure the restricted SSH identity
+        env:
+          DEV_VM_DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEV_VM_DEPLOY_SSH_PRIVATE_KEY }}
+          DEV_VM_KNOWN_HOSTS: ${{ vars.DEV_VM_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$DEV_VM_DEPLOY_SSH_PRIVATE_KEY" > "$HOME/.ssh/dev-vm-deploy"
+          chmod 600 "$HOME/.ssh/dev-vm-deploy"
+          printf '%s\n' "$DEV_VM_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          cat > "$HOME/.ssh/config" <<EOF
+          Host dev-vm
+            HostName localhost
+            Port $IAP_LOCAL_PORT
+            User $VM_USER
+            IdentityFile $HOME/.ssh/dev-vm-deploy
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            UserKnownHostsFile $HOME/.ssh/known_hosts
+            ServerAliveInterval 30
+            ServerAliveCountMax 10
+          EOF
+          chmod 600 "$HOME/.ssh/config"
+
+      - name: Start the IAP tunnel
+        run: |
+          set -euo pipefail
+          gcloud compute start-iap-tunnel "$VM_INSTANCE" 22 \
+            --project "$GCP_PROJECT_ID" \
+            --zone "$GCP_ZONE" \
+            --local-host-port="localhost:$IAP_LOCAL_PORT" \
+            --quiet > "$RUNNER_TEMP/iap-tunnel.log" 2>&1 &
+          echo "$!" > "$RUNNER_TEMP/iap-tunnel.pid"
+
+          for attempt in $(seq 1 30); do
+            if ssh dev-vm true >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+
+          cat "$RUNNER_TEMP/iap-tunnel.log"
+          echo "Could not establish the IAP SSH tunnel."
+          exit 1
+
+      - name: Package the checked-out revision
+        run: git archive --format=tar.gz --output="$RUNNER_TEMP/contextos-dev.tar.gz" "$GITHUB_SHA"
+
+      - name: Copy source and deploy
+        run: |
+          set -euo pipefail
+          scp "$RUNNER_TEMP/contextos-dev.tar.gz" dev-vm:contextos-dev.tar.gz
+          ssh dev-vm 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          mkdir -p "$HOME/context-os-dev"
+          tar -xzf "$HOME/contextos-dev.tar.gz" -C "$HOME/context-os-dev"
+          rm -f "$HOME/contextos-dev.tar.gz"
+
+          cd "$HOME/context-os-dev"
+          sudo -n docker compose \
+            -f docker-compose.yml \
+            -f docker-compose.vm.yml \
+            up -d --build
+
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error \
+              http://127.0.0.1:3000/api/v1/health/ready >/dev/null; then
+              echo "API readiness check passed."
+              sudo -n docker compose \
+                -f docker-compose.yml \
+                -f docker-compose.vm.yml \
+                ps
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "API readiness check did not pass within 120 seconds."
+          exit 1
+          REMOTE
+
+      - name: Stop the IAP tunnel
+        if: always()
+        run: |
+          if [[ -f "$RUNNER_TEMP/iap-tunnel.pid" ]]; then
+            kill "$(cat "$RUNNER_TEMP/iap-tunnel.pid")" 2>/dev/null || true
+          fi
