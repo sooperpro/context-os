@@ -56,7 +56,7 @@ export function Rail({ items, collapsed, canToggle, onToggle }: RailProps) {
         aria-pressed={open}
         aria-controls="assistant"
         onClick={toggleAssistant}
-        className={cn("self-start", collapsed ? "w-14 px-0" : "w-full justify-start")}
+        className={cn(collapsed ? "w-14 self-center px-0" : "w-full justify-start self-start")}
       >
         <HubFilledIcon />
         {collapsed ? null : <span>Ask Context Bot</span>}
@@ -71,10 +71,9 @@ export function Rail({ items, collapsed, canToggle, onToggle }: RailProps) {
               className={({ isActive }) =>
                 cn(
                   "group/nav flex items-center gap-3 rounded-full text-sm outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
-                  collapsed ? "flex-col gap-1 py-1 text-xs" : "h-14 px-4",
-                  isActive
-                    ? "font-medium text-on-surface"
-                    : "text-on-surface-variant hover:bg-on-surface/8",
+                  // One state layer only: the whole row when expanded, the icon pill when collapsed.
+                  collapsed ? "flex-col gap-1 py-1 text-xs" : "h-14 px-4 hover:bg-on-surface/8",
+                  isActive ? "font-medium text-on-surface" : "text-on-surface-variant",
                   isActive && !collapsed && "bg-secondary-container text-on-secondary-container",
                 )
               }
@@ -85,7 +84,7 @@ export function Rail({ items, collapsed, canToggle, onToggle }: RailProps) {
                     aria-hidden
                     className={cn(
                       "grid place-items-center rounded-full [&_svg]:size-6",
-                      collapsed && "h-8 w-14 transition-colors group-hover/nav:bg-on-surface/8",
+                      collapsed && "h-8 w-14 transition-colors group-hover/nav:bg-on-surface/8 group-focus-visible/nav:bg-on-surface/10",
                       collapsed && isActive && "bg-secondary-container text-on-secondary-container",
                     )}
                   >
