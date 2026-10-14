@@ -78,7 +78,7 @@ jobs:
           echo "$!" > "$RUNNER_TEMP/iap-tunnel.pid"
 
           for attempt in $(seq 1 30); do
-            if ssh-keyscan -T 5 -p "$IAP_LOCAL_PORT" localhost \
+            if ssh-keyscan -T 5 -t ed25519 -p "$IAP_LOCAL_PORT" localhost \
               > "$RUNNER_TEMP/known_hosts.tmp" 2>/dev/null; then
               actual_fingerprint="$(ssh-keygen -lf "$RUNNER_TEMP/known_hosts.tmp" | awk 'NR == 1 {print $2}')"
               if [[ "$actual_fingerprint" != "$DEV_VM_KNOWN_HOST_FINGERPRINT" ]]; then
