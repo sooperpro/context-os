@@ -328,3 +328,23 @@ export const TeamUpdateInputSchema = OrgNameInputSchema.partial()
   .extend({ parentId: z.uuid().nullable().optional() })
   .strict();
 export type TeamUpdateInput = z.infer<typeof TeamUpdateInputSchema>;
+
+/* ---- Notifications (`GET /notifications`, `PATCH /notifications/:id/read`) --------------- */
+
+/** Platform records of kind "notification"; `data` is what the producing feature stored. */
+export const NotificationSchema = z.object({
+  id: z.string(),
+  status: z.string(),
+  version: z.number().int(),
+  createdAt: z.string(),
+  data: z
+    .object({
+      title: z.string().optional(),
+      body: z.string().optional(),
+      link: z.string().optional(),
+      kind: z.string().optional(),
+    })
+    .default({}),
+});
+export type Notification = z.infer<typeof NotificationSchema>;
+export const NotificationListSchema = z.object({ items: z.array(NotificationSchema) });

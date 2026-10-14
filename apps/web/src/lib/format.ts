@@ -24,3 +24,13 @@ export function dateInputToIso(value: string | undefined): string | undefined {
 export function formatCount(count: number, singular: string, plural = `${singular}s`): string {
   return `${count.toLocaleString()} ${count === 1 ? singular : plural}`;
 }
+
+/** Up to two initials from a display name, for avatars. */
+export function initialsOf(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+}

@@ -7,8 +7,9 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { jsonResponse, renderWithProviders } from "@/test/utils";
 
 vi.mock("@clerk/react", () => ({
-  OrganizationSwitcher: () => null,
-  UserButton: () => null,
+  useUser: () => ({ user: { id: "u1", fullName: "Maya Okafor", firstName: "Maya", imageUrl: "", primaryEmailAddress: { emailAddress: "maya@tessellate.io" } } }),
+  useClerk: () => ({ organization: null, openUserProfile: vi.fn(), signOut: vi.fn() }),
+  useOrganizationList: () => ({ isLoaded: true, userMemberships: { data: [] }, setActive: vi.fn() }),
 }));
 
 function renderShell() {

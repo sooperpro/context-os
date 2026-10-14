@@ -1,16 +1,19 @@
-import { OrganizationSwitcher, UserButton } from "@clerk/react";
 import { useState, type FormEvent } from "react";
+import { AccountMenu } from "@/components/layout/account-menu";
 import { useAssistant } from "@/components/layout/assistant-context";
 import { Brand } from "@/components/layout/brand";
+import { NotificationsMenu } from "@/components/layout/notifications-menu";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { ViewAsPill } from "@/components/layout/view-as-pill";
 import { Button } from "@/components/ui/button";
 import { SearchIcon } from "@/components/ui/icons";
 
 export const GLOBAL_SEARCH_ID = "global-search";
 
 /**
- * Top bar (72px): search that hands its text to Context Bot, organization switcher and account.
- * On compact windows the brand moves here and search becomes an icon that opens the assistant.
+ * Top bar (72px), as in the prototype: search that hands its text to Context Bot, the "View as"
+ * pill, theme, notifications and the account menu (which also switches workspaces). On compact
+ * windows the brand moves here and search becomes an icon that opens the assistant.
  */
 export function TopBar() {
   const { openAssistant } = useAssistant();
@@ -65,18 +68,12 @@ export function TopBar() {
         >
           <SearchIcon />
         </Button>
-        <div className="hidden medium:block">
-          <OrganizationSwitcher
-            hidePersonal
-            afterCreateOrganizationUrl="/"
-            afterSelectOrganizationUrl="/"
-            afterLeaveOrganizationUrl="/"
-          />
-        </div>
-        <ThemeToggle />
-        <span className="ml-1 flex">
-          <UserButton />
+        <span className="hidden medium:flex">
+          <ViewAsPill />
         </span>
+        <ThemeToggle />
+        <NotificationsMenu />
+        <AccountMenu />
       </div>
     </header>
   );

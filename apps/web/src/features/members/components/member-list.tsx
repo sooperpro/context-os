@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/segmented-list";
 import { StatusChip } from "@/components/ui/status-chip";
 import { useUpdateMember } from "@/features/members/api/members.queries";
+import { initialsOf } from "@/lib/format";
 import { ROLE_LABEL } from "@/lib/labels";
 
 const STATUS: Record<MembershipStatus, { label: string; tone: "success" | "warning" | "neutral"; icon: React.ReactNode }> = {
@@ -29,15 +30,6 @@ const STATUS: Record<MembershipStatus, { label: string; tone: "success" | "warni
   suspended: { label: "Suspended", tone: "warning", icon: <PauseIcon /> },
   offboarded: { label: "Offboarded", tone: "neutral", icon: <UserMinusIcon /> },
 };
-
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("");
-}
 
 interface MemberListProps {
   members: WorkspaceMember[];
@@ -60,7 +52,7 @@ export function MemberList({ members, viewerRole }: MemberListProps) {
         return (
           <SegmentedItem key={member.id}>
             <Avatar tone={avatarToneFor(member.id)}>
-              <AvatarFallback>{initials(member.name) || <UserRoundIcon className="size-5" />}</AvatarFallback>
+              <AvatarFallback>{initialsOf(member.name) || <UserRoundIcon className="size-5" />}</AvatarFallback>
             </Avatar>
             <SegmentedItemBody>
               <SegmentedItemTitle>{member.name}</SegmentedItemTitle>
