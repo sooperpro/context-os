@@ -1,8 +1,12 @@
 import type { Answer, AssistantAnswer } from "@contextos/shared";
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useEffectEvent, useRef, useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { useAssistant } from "@/components/layout/assistant-context";
+import {
+  useAssistant,
+  type AssistantRequest,
+  type BotDemoState,
+} from "@/components/layout/assistant-context";
 import { useDeclaredBotContext, type BotPageContext } from "@/components/layout/bot-context";
 import { NAV_ITEMS } from "@/components/layout/navigation";
 import { BotGlyph } from "@/components/ui/bot-glyph";
@@ -11,6 +15,7 @@ import {
   AddTaskIcon,
   ArrowUpwardIcon,
   CheckCircleFilledIcon,
+  CloseFullscreenIcon,
   CloseIcon,
   CloudOffIcon,
   EditSquareIcon,
@@ -22,6 +27,7 @@ import {
   ManageSearchIcon,
   NorthEastIcon,
   OpenInFullIcon,
+  OpenInNewIcon,
   RefreshIcon,
   SearchOffIcon,
 } from "@/components/ui/icons";
@@ -50,10 +56,11 @@ import { formatCount } from "@/lib/format";
 
 /*
  * Context Bot, the assistant on every page (prototype bot.js). Inside a project it asks through the
- * Ask threads API, so every conversation here is also listed on the project's Ask page; "Expand"
- * opens it there. Elsewhere it answers about the workspace (`POST /v1/assistant/ask`). Answers come
- * only from sources the person can open, and say so when the evidence is thin. Pages tell it what
- * they show (`useBotContext`): chips, an intro and suggested questions, or a pause during checks.
+ * Ask threads API, so every conversation here is also listed on the project's Ask page; "Open on
+ * the Ask page" goes there. Elsewhere it answers about the workspace (`POST /v1/assistant/ask`).
+ * Answers come only from sources the person can open, and say so when the evidence is thin. Pages
+ * tell it what they show (`useBotContext`): chips, an intro and suggested questions, or a pause
+ * during checks. "Expand panel" widens the pane, as in the prototype.
  */
 
 const PROJECT_PATH = /\/projects\/([^/?#]+)/;
@@ -70,7 +77,7 @@ interface Failure {
 }
 
 export function AssistantPanel() {
-  const { open, closeAssistant, subscribeToQueries } = useAssistant();
+  const { open, wide, closeAssistant, toggleWide, subscribeToRequests } = useAssistant();
   const location = useLocation();
   const navigate = useNavigate();
   const projectId = PROJECT_PATH.exec(location.pathname)?.[1] ?? "";
@@ -109,9 +116,11 @@ export function AssistantPanel() {
   const inProject = projectId !== "";
 
   const ask = useCallback(
-    async (question: string) => {
+    // `fresh`: a review state just cleared the conversation, so ignore the thread and busy state
+    // this render still holds.
+    async (question: string, { fresh = false } = {}) => {
       const text = question.trim();
-      if (text.length < 3 || busy) return;
+      if (text.length < 3 || (busy && !fresh)) return;
       setDraft("");
       setFailure(null);
       setPending(text);
@@ -139,7 +148,7 @@ export function AssistantPanel() {
         return;
       }
       try {
-        let id = threadByProject[projectId];
+        let id = fresh ? undefined : threadByProject[projectId];
         if (!id) {
           const created = await createThread.mutateAsync({ projectId, title: text.slice(0, 80) });
           id = created.id;
@@ -164,9 +173,6 @@ export function AssistantPanel() {
     [projectId, busy, threadByProject, createThread, send, askWorkspace, location.pathname],
   );
 
-  // Text handed over from the top-bar search: ask it in a project, otherwise prefill the box.
-  useEffect(() => subscribeToQueries((query) => void ask(query)), [subscribeToQueries, ask]);
-
   useEffect(() => {
     if (open) inputRef.current?.focus();
   }, [open]);
@@ -184,8 +190,30 @@ export function AssistantPanel() {
     if (!projectId) setWorkspaceThread([]);
     setThreadByProject(({ [projectId]: _dropped, ...rest }) => rest);
     setFailure(null);
+    setPending(null);
     inputRef.current?.focus();
   };
+
+  // The prototype's review states (bot.js `demo`), from the View as menu in development.
+  const showDemo = (state: BotDemoState) => {
+    startOver();
+    if (state === "welcome") return;
+    const question =
+      state === "answer" || state === "thinking"
+        ? (DEFAULT_SUGGESTIONS[persona][0] ?? DEMO_QUESTION.no_answer)
+        : DEMO_QUESTION[state];
+    if (state === "thinking") setPending(question);
+    else if (state === "error")
+      setFailure({ question, message: "A review state: nothing was sent." });
+    else void ask(question, { fresh: true });
+  };
+
+  // Handed over: a question (top-bar search, "Ask about this…") or a review state.
+  const onRequest = useEffectEvent((request: AssistantRequest) => {
+    if ("query" in request) void ask(request.query);
+    else showDemo(request.demo);
+  });
+  useEffect(() => subscribeToRequests((request) => onRequest(request)), [subscribeToRequests]);
 
   const expand = () => {
     void navigate(`/projects/${projectId}/ask${threadId ? `?thread=${threadId}` : ""}`);
@@ -244,18 +272,17 @@ export function AssistantPanel() {
           <BotGlyph size="sm" />
           <div className="min-w-0">
             <h2 className="font-heading text-base leading-6 font-medium">Context Bot</h2>
-            <p className="truncate text-xs text-on-surface-variant">
-              Answers from sources you can access
-            </p>
+            <p className="text-xs text-on-surface-variant">Answers from sources you can access</p>
           </div>
         </div>
+        {/* Prototype bot-actions: 40px buttons with 20px icons. */}
         <div className="flex gap-0.5">
           <Tooltip>
             <TooltipTrigger
               render={
                 <Button
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon"
                   className="text-on-surface-variant"
                   aria-label="New conversation"
                   disabled={(inProject ? !threadId : workspaceThread.length === 0) && !failure}
@@ -263,7 +290,7 @@ export function AssistantPanel() {
                 />
               }
             >
-              <EditSquareIcon />
+              <EditSquareIcon className="size-5" />
             </TooltipTrigger>
             <TooltipContent>New conversation</TooltipContent>
           </Tooltip>
@@ -273,16 +300,16 @@ export function AssistantPanel() {
                 render={
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     className="hidden text-on-surface-variant medium:inline-flex"
-                    aria-label="Expand to the Ask page"
+                    aria-label="Open on the Ask page"
                     onClick={expand}
                   />
                 }
               >
-                <OpenInFullIcon />
+                <OpenInNewIcon className="size-5" />
               </TooltipTrigger>
-              <TooltipContent>Expand</TooltipContent>
+              <TooltipContent>Ask page</TooltipContent>
             </Tooltip>
           ) : null}
           <Tooltip>
@@ -290,14 +317,34 @@ export function AssistantPanel() {
               render={
                 <Button
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon"
+                  className="hidden text-on-surface-variant medium:inline-flex"
+                  aria-label={wide ? "Shrink panel" : "Expand panel"}
+                  onClick={toggleWide}
+                />
+              }
+            >
+              {wide ? (
+                <CloseFullscreenIcon className="size-5" />
+              ) : (
+                <OpenInFullIcon className="size-5" />
+              )}
+            </TooltipTrigger>
+            <TooltipContent>{wide ? "Shrink" : "Expand"}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
                   className="text-on-surface-variant"
                   aria-label="Close Context Bot"
                   onClick={closeAssistant}
                 />
               }
             >
-              <CloseIcon />
+              <CloseIcon className="size-5" />
             </TooltipTrigger>
             <TooltipContent>Close</TooltipContent>
           </Tooltip>
@@ -473,7 +520,7 @@ export function AssistantPanel() {
             aria-label="Send question"
             disabled={context.paused || draft.trim().length < 3 || busy}
           >
-            <ArrowUpwardIcon />
+            <ArrowUpwardIcon className="size-5" />
           </Button>
         </div>
         <p className="pt-2 text-center text-xs text-on-surface-variant">
@@ -551,6 +598,13 @@ function NoAnswerCard({
 /* What the live region says once an answer lands (prototype `announce`), citations left out. */
 
 const FAILED = "Couldn’t get an answer. Use Try again.";
+
+/** What the prototype's review states ask; "answer" and "thinking" use the first suggestion. */
+const DEMO_QUESTION = {
+  no_answer: "How do I roll back a Kestrel deploy?",
+  restricted: "What is the salary band for my level?",
+  error: "What is the event bus used for?",
+} as const;
 const NO_ANSWER = "No reliable answer found. Nothing in the sources you can access answers this.";
 const unmark = (text: string) =>
   text

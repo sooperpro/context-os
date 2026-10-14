@@ -63,7 +63,7 @@ export function Rail({ items, collapsed, canToggle, onToggle }: RailProps) {
         {collapsed ? null : <span>Ask Context Bot</span>}
       </Fab>
 
-      <ul className={cn("flex flex-col", collapsed ? "gap-2" : "gap-1")}>
+      <ul className={cn("flex flex-col", collapsed ? "mt-2 gap-2" : "gap-1")}>
         {items.map((item) => (
           <li key={item.id}>
             <RailLink item={item} collapsed={collapsed} />
@@ -93,7 +93,7 @@ function RailLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
           "group/nav flex items-center gap-3 rounded-full text-sm transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
           // One state layer only: the whole row when expanded, the icon pill when collapsed.
           collapsed
-            ? "flex-col gap-1 py-1 text-xs"
+            ? "flex-col gap-1 pb-1 text-xs tracking-[0.3px]"
             : "h-14 px-4 text-sm font-medium hover:bg-on-surface/8",
           isActive ? "text-on-surface" : "text-on-surface-variant",
           isActive && !collapsed && "bg-secondary-container text-on-secondary-container",

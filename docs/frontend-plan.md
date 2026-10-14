@@ -239,9 +239,19 @@ A pass over every built surface against the prototype's CSS and JS found three g
       band's ⌘J hint is hidden from screen readers; dialogs have no shadow.
 - [x] The rail is gated by persona as well as role, so each "Prototype · view as" persona (Employee,
       Manager, HR, Admin) gets the reference's items as their screens ship.
+- [x] Shell fidelity against the reference, measured side by side at full resolution: icon weight
+      (the Material Symbols SVGs are drawn at a large optical size, so `index.css` adds a 0.4px
+      outline to `svg[data-symbol]`, matching the variable font at 16–24px), icon sizes per button
+      size (24px in a 40px icon button), grayscale text antialiasing, the brand mark's fixed-teal
+      dot and wordmark tracking, the favicon, the top bar search, the page head type (display-small
+      emphasized), the collapsed rail's spacing, and identity avatars in the reference's expressive
+      shapes (`avatarShapeFor`). The View as menu is the reference's three sections in development
+      (personas, the first-day flow, Context Bot review states); Context Bot's header has the
+      reference's Expand/Shrink panel.
 
 Not built because nothing backs them yet: rail badges (no unread counts per area), the prototype's
-"Save" on answers and knowledge items, notification categories.
+"Save" on answers and knowledge items, notification categories, Settings' avatar shape picker
+(needs a stored preference on `/users/me`; until then each person's shape comes from their id).
 
 ## Building screens before the API exists
 

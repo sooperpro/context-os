@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { Route, Routes } from "react-router";
@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   AssistantContext,
   type AssistantContextValue,
+  type AssistantRequestHandler,
 } from "@/components/layout/assistant-context";
 import { useBotContext } from "@/components/layout/bot-context";
 import { QuizIcon } from "@/components/ui/icons";
@@ -21,7 +22,10 @@ const assistant: AssistantContextValue = {
   openAssistant: vi.fn(),
   closeAssistant: vi.fn(),
   toggleAssistant: vi.fn(),
-  subscribeToQueries: () => () => undefined,
+  wide: false,
+  toggleWide: vi.fn(),
+  showBotDemo: vi.fn(),
+  subscribeToRequests: () => () => undefined,
 };
 
 /** A page that tells the bot a knowledge check is open. */
@@ -38,7 +42,7 @@ function CheckInProgress() {
   return null;
 }
 
-function render(route: string, role = "member") {
+function render(route: string, role = "member", value = assistant) {
   mockServer.use(
     http.get(buildApiUrl("/v1/users/me"), () =>
       HttpResponse.json({
@@ -55,7 +59,7 @@ function render(route: string, role = "member") {
     ),
   );
   renderWithProviders(
-    <AssistantContext value={assistant}>
+    <AssistantContext value={value}>
       <Routes>
         <Route path="/knowledge" element={<AssistantPanel />} />
         <Route
@@ -110,6 +114,43 @@ describe("Context Bot outside a project", () => {
     expect(
       await within(conversation).findByText(/sends each billable action two ways/),
     ).toBeInTheDocument();
+  });
+
+  it("acts out the prototype's review states handed over from View as", async () => {
+    let handOver: AssistantRequestHandler = () => undefined;
+    render("/knowledge", "member", {
+      ...assistant,
+      subscribeToRequests: (handler) => {
+        handOver = handler;
+        return () => undefined;
+      },
+    });
+    expect(
+      await screen.findByText("Hi Maya, what would you like to understand?"),
+    ).toBeInTheDocument();
+    const conversation = screen.getByRole("log", { name: "Conversation" });
+
+    act(() => handOver({ demo: "restricted" }));
+    expect(
+      await within(conversation).findByText(/Compensation and performance records/),
+    ).toBeInTheDocument();
+    expect(
+      within(conversation).getByText("What is the salary band for my level?"),
+    ).toBeInTheDocument();
+
+    act(() => handOver({ demo: "thinking" }));
+    expect(await screen.findByText("Searching the sources you can access…")).toBeInTheDocument();
+    expect(within(conversation).queryByText(/Compensation/)).not.toBeInTheDocument();
+
+    act(() => handOver({ demo: "error" }));
+    expect(await screen.findByText("Couldn't get an answer")).toBeInTheDocument();
+    expect(screen.getByText("A review state: nothing was sent.")).toBeInTheDocument();
+
+    act(() => handOver({ demo: "welcome" }));
+    await waitFor(() =>
+      expect(screen.queryByText("Couldn't get an answer")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText("Hi Maya, what would you like to understand?")).toBeInTheDocument();
   });
 
   it("says when nothing answers, names who might know, and reports the gap", async () => {

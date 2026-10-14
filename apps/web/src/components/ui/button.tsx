@@ -9,6 +9,8 @@ import { cn } from "cn";
  * Variants: default (filled primary) · secondary (tonal) · outline · ghost (text) · elevated ·
  * ai · ai-tonal (teal, reserved for Context Bot) · destructive (filled error) · link.
  * Sizes follow the M3 scale: xs 32 · sm 36 · default 40 · md 56 · lg 96, plus icon squares.
+ * Icon sizes match the prototype: 18px in xs, 20px in default, 24px in md and in a 40px icon
+ * button, 20px in the smaller icon buttons.
  */
 const buttonVariants = cva(
   "group/button relative isolate inline-flex shrink-0 items-center justify-center rounded-full font-medium whitespace-nowrap transition-[border-radius,box-shadow] duration-[350ms] ease-spring-fast-spatial outline-none select-none before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:rounded-[inherit] before:bg-current before:opacity-0 before:transition-opacity before:duration-[140ms] before:content-[''] hover:before:opacity-8 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:before:opacity-10 active:rounded-sm active:before:opacity-10 disabled:pointer-events-none disabled:opacity-38 aria-invalid:ring-3 aria-invalid:ring-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0",
@@ -30,14 +32,14 @@ const buttonVariants = cva(
         link: "h-auto rounded-none px-0 text-primary underline-offset-4 before:hidden hover:underline active:rounded-none",
       },
       size: {
-        xs: "h-8 gap-1 px-3 text-xs active:rounded-sm [&_svg:not([class*='size-'])]:size-4",
-        sm: "h-9 gap-1.5 px-3.5 text-sm [&_svg:not([class*='size-'])]:size-4",
+        xs: "h-8 gap-1 px-3 text-xs active:rounded-sm [&_svg:not([class*='size-'])]:size-4.5",
+        sm: "h-9 gap-1.5 px-3.5 text-sm [&_svg:not([class*='size-'])]:size-4.5",
         default: "h-10 gap-2 px-4 text-sm [&_svg:not([class*='size-'])]:size-5",
         md: "h-14 gap-2 px-6 text-base active:rounded-md [&_svg:not([class*='size-'])]:size-6",
         lg: "h-24 gap-3 px-12 text-2xl active:rounded-lg [&_svg:not([class*='size-'])]:size-7",
-        icon: "size-10 [&_svg:not([class*='size-'])]:size-5",
-        "icon-xs": "size-8 [&_svg:not([class*='size-'])]:size-4",
-        "icon-sm": "size-9 [&_svg:not([class*='size-'])]:size-4.5",
+        icon: "size-10 [&_svg:not([class*='size-'])]:size-6",
+        "icon-xs": "size-8 [&_svg:not([class*='size-'])]:size-5",
+        "icon-sm": "size-9 [&_svg:not([class*='size-'])]:size-5",
         "icon-lg": "size-12 [&_svg:not([class*='size-'])]:size-6",
       },
     },

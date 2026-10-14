@@ -1,10 +1,10 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "@/components/layout/app-shell";
 import { ThemeProvider } from "@/components/theme-provider";
-import { setPreviewPersona } from "@/features/workspace/viewer";
+import { getPreviewPersona, setPreviewPersona } from "@/features/workspace/viewer";
 import { jsonResponse, renderWithProviders } from "@/test/utils";
 
 vi.mock("@clerk/react", () => ({
@@ -63,6 +63,35 @@ describe("AppShell", () => {
     );
     expect(screen.queryByRole("link", { name: /Setup/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Overview/ })).not.toBeInTheDocument();
+  });
+
+  it("previews another persona and Context Bot states from View as, like the prototype", async () => {
+    const user = userEvent.setup();
+    renderShell();
+    // An owner previews as Admin by default; their own persona is marked.
+    await user.click(await screen.findByRole("button", { name: "View as Admin" }));
+    let menu = await screen.findByRole("menu");
+    expect(within(menu).getByRole("group", { name: "Prototype · view as" })).toBeInTheDocument();
+    expect(within(menu).getByRole("group", { name: "Prototype · flows" })).toBeInTheDocument();
+    const admin = within(menu).getByRole("menuitemradio", { name: /Admin/ });
+    expect(admin).toHaveAttribute("aria-checked", "true");
+    expect(admin).toHaveTextContent("You");
+
+    await user.click(within(menu).getByRole("menuitemradio", { name: /Employee/ }));
+    expect(getPreviewPersona()).toBe("employee");
+    await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+
+    // Choosing your own persona again ends the preview.
+    await user.click(await screen.findByRole("button", { name: "View as Employee" }));
+    menu = await screen.findByRole("menu");
+    await user.click(within(menu).getByRole("menuitemradio", { name: /Admin/ }));
+    expect(getPreviewPersona()).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+
+    await user.click(await screen.findByRole("button", { name: "View as Admin" }));
+    menu = await screen.findByRole("menu");
+    await user.click(within(menu).getByRole("menuitem", { name: "Restricted" }));
+    expect(await screen.findByText("bot panel")).toBeInTheDocument();
   });
 
   it("renders the page inside the shell with main navigation landmarks", async () => {

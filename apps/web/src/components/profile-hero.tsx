@@ -1,6 +1,6 @@
 import type { PersonRef } from "@contextos/shared";
 import type { ReactNode } from "react";
-import { PersonAvatar } from "@/components/ui/avatar";
+import { avatarShapeFor, PersonAvatar } from "@/components/ui/avatar";
 
 /**
  * A person's page header (prototype `.profile-hero`): the large avatar, chips above the name, a line
@@ -25,6 +25,7 @@ export function ProfileHero({
       <PersonAvatar
         person={person}
         size="xl"
+        shape={avatarShapeFor(person.id)}
         className="size-22 text-3xl @min-[640px]:size-30 @min-[640px]:text-[40px]"
       />
       <div className="flex min-w-0 flex-1 flex-col gap-2">

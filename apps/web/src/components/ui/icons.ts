@@ -197,6 +197,14 @@ import HowToRegIcon from "@material-symbols/svg-400/rounded/how_to_reg.svg?react
 import AutoDeleteIcon from "@material-symbols/svg-400/rounded/auto_delete.svg?react";
 import TagIcon from "@material-symbols/svg-400/rounded/tag.svg?react";
 import ScienceIcon from "@material-symbols/svg-400/rounded/science.svg?react";
+import CloseFullscreenIcon from "@material-symbols/svg-400/rounded/close_fullscreen.svg?react";
+import PersonFilledIcon from "@material-symbols/svg-400/rounded/person-fill.svg?react";
+import SupervisorAccountFilledIcon from "@material-symbols/svg-400/rounded/supervisor_account-fill.svg?react";
+import BadgeFilledIcon from "@material-symbols/svg-400/rounded/badge-fill.svg?react";
+import AdminPanelSettingsFilledIcon from "@material-symbols/svg-400/rounded/admin_panel_settings-fill.svg?react";
+import ContrastFilledIcon from "@material-symbols/svg-400/rounded/contrast-fill.svg?react";
+import LightModeFilledIcon from "@material-symbols/svg-400/rounded/light_mode-fill.svg?react";
+import DarkModeFilledIcon from "@material-symbols/svg-400/rounded/dark_mode-fill.svg?react";
 import CodeBlocksIcon from "@material-symbols/svg-400/rounded/code_blocks.svg?react";
 import ArrowDownwardIcon from "@material-symbols/svg-400/rounded/arrow_downward.svg?react";
 import LibraryAddIcon from "@material-symbols/svg-400/rounded/library_add.svg?react";
@@ -326,6 +334,14 @@ export {
   AutoDeleteIcon,
   TagIcon,
   ScienceIcon,
+  CloseFullscreenIcon,
+  PersonFilledIcon,
+  SupervisorAccountFilledIcon,
+  BadgeFilledIcon,
+  AdminPanelSettingsFilledIcon,
+  ContrastFilledIcon,
+  LightModeFilledIcon,
+  DarkModeFilledIcon,
   CodeBlocksIcon,
   MenuBookIcon,
   ConversionPathIcon,

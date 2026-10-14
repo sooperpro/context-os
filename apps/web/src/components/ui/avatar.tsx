@@ -3,12 +3,14 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "cn";
 import * as React from "react";
 import { PersonIcon } from "@/components/ui/icons";
+import { shapePath, type ShapeKind } from "@/components/ui/shape";
 import { initialsOf } from "@/lib/format";
 
 /**
  * Avatar: initials on a tonal container, emphasized brand type. Six tones so a directory does not
- * look like one color; pick by hashing the person's id, not by role. `shape` accepts an M3
- * expressive clip (squircle, arch) for milestones and profiles.
+ * look like one color; pick by hashing the person's id, not by role. `shape` takes a rounded clip
+ * (squircle, arch) or one of the prototype's M3 expressive avatar shapes, which identity avatars
+ * wear: the account button and menu, profile pages and Settings (`avatarShapeFor`).
  */
 const avatarVariants = cva("group/avatar relative flex shrink-0 overflow-hidden select-none", {
   variants: {
@@ -39,11 +41,50 @@ const avatarVariants = cva("group/avatar relative flex shrink-0 overflow-hidden 
 
 const AVATAR_TONES = ["primary", "ai", "secondary", "warning", "success", "neutral"] as const;
 
-/** Stable tone for an id, so the same person always gets the same color. */
-function avatarToneFor(id: string): (typeof AVATAR_TONES)[number] {
+/** The prototype's avatar shapes (settings.js `SHAPES`), in its order. */
+const AVATAR_SHAPES = [
+  "cookie9",
+  "cookie6",
+  "clover4",
+  "sunny",
+  "flower",
+  "cookie4",
+  "clover8",
+  "cookie12",
+] as const satisfies readonly ShapeKind[];
+type AvatarShape = (typeof AVATAR_SHAPES)[number];
+
+function hashId(id: string): number {
   let hash = 0;
   for (const char of id) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
-  return AVATAR_TONES[hash % AVATAR_TONES.length] ?? "primary";
+  return hash;
+}
+
+/** Stable tone for an id, so the same person always gets the same color. */
+function avatarToneFor(id: string): (typeof AVATAR_TONES)[number] {
+  return AVATAR_TONES[hashId(id) % AVATAR_TONES.length] ?? "primary";
+}
+
+/** Stable expressive shape for an id, for identity avatars. */
+function avatarShapeFor(id: string): AvatarShape {
+  return AVATAR_SHAPES[hashId(id) % AVATAR_SHAPES.length] ?? "cookie9";
+}
+
+const maskCache = new Map<AvatarShape, string>();
+
+/** The shape as a CSS mask: the prototype clips with an SVG clip path; a mask scales the same way. */
+function shapeMask(shape: AvatarShape): string {
+  let mask = maskCache.get(shape);
+  if (!mask) {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="${shapePath(shape)}"/></svg>`;
+    mask = `url("data:image/svg+xml,${encodeURIComponent(svg)}") center / 100% 100% no-repeat`;
+    maskCache.set(shape, mask);
+  }
+  return mask;
+}
+
+function isAvatarShape(shape: string): shape is AvatarShape {
+  return AVATAR_SHAPES.some((kind) => kind === shape);
 }
 
 function Avatar({
@@ -51,13 +92,28 @@ function Avatar({
   size = "default",
   tone = "primary",
   shape = "circle",
+  style,
   ...props
-}: AvatarPrimitive.Root.Props & VariantProps<typeof avatarVariants>) {
+}: AvatarPrimitive.Root.Props &
+  Omit<VariantProps<typeof avatarVariants>, "shape"> & {
+    shape?: "circle" | "squircle" | "arch" | AvatarShape;
+  }) {
+  const expressive = isAvatarShape(shape) ? shape : null;
+  const rounded = isAvatarShape(shape) ? null : shape;
   return (
     <AvatarPrimitive.Root
       data-slot="avatar"
       data-size={size}
-      className={cn(avatarVariants({ size, tone, shape }), className)}
+      data-shape={shape}
+      className={cn(avatarVariants({ size, tone, shape: rounded }), className)}
+      style={
+        expressive
+          ? (state) => ({
+              ...(typeof style === "function" ? style(state) : style),
+              mask: shapeMask(expressive),
+            })
+          : style
+      }
       {...props}
     />
   );
@@ -155,4 +211,6 @@ export {
   AvatarBadge,
   avatarVariants,
   avatarToneFor,
+  avatarShapeFor,
+  type AvatarShape,
 };

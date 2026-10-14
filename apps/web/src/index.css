@@ -11,8 +11,21 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /* Prototype base: grayscale antialiasing and 0.1px tracking. Subpixel rendering reads a weight
+     heavier than the design. */
   body {
-    @apply bg-background font-sans text-foreground;
+    @apply bg-background font-sans tracking-[0.1px] text-foreground antialiased;
+  }
+  /* Material Symbols weight. The SVG set is drawn at a large optical size, so at 16–24px its
+     strokes read lighter than the prototype's variable font (opsz 20–24, wght 400–500). A 0.4px
+     outline in the icon's own color restores that weight at every size. */
+  svg[data-symbol] {
+    stroke: currentColor;
+    stroke-width: 0.4px;
+    stroke-linejoin: round;
+  }
+  svg[data-symbol] > path {
+    vector-effect: non-scaling-stroke;
   }
   h1,
   h2,

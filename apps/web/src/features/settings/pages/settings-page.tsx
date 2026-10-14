@@ -9,7 +9,7 @@ import { ConnectorLogo } from "@/components/connector-logo";
 import { PageHeader } from "@/components/layout/page-header";
 import { PreviewDataChip } from "@/components/preview-data-chip";
 import type { Theme } from "@/components/theme-context";
-import { Avatar, AvatarFallback, avatarToneFor } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, avatarShapeFor, avatarToneFor } from "@/components/ui/avatar";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -228,7 +228,7 @@ function ProfileTab() {
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="flex items-center gap-4">
-          <Avatar size="xl" tone={avatarToneFor(me.data.id)}>
+          <Avatar size="xl" tone={avatarToneFor(me.data.id)} shape={avatarShapeFor(me.data.id)}>
             <AvatarFallback>{initialsOf(currentName) || "?"}</AvatarFallback>
           </Avatar>
           <div className="text-sm text-on-surface-variant">

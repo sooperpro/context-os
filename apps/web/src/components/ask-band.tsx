@@ -89,7 +89,7 @@ export function AskBand({
           ⌘J
         </kbd>
         <Button type="submit" variant="ai" size="icon" className="rounded-full" aria-label="Ask">
-          <ArrowUpwardIcon />
+          <ArrowUpwardIcon className="size-5" />
         </Button>
       </form>
       {prompts.length > 0 ? (

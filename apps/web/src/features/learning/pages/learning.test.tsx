@@ -21,7 +21,10 @@ function renderAt(route: string) {
     openAssistant: vi.fn(),
     closeAssistant: vi.fn(),
     toggleAssistant: vi.fn(),
-    subscribeToQueries: () => () => undefined,
+    wide: false,
+    toggleWide: vi.fn(),
+    showBotDemo: vi.fn(),
+    subscribeToRequests: () => () => undefined,
   };
   renderWithProviders(
     <AssistantContext value={assistant}>

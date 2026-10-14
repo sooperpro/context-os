@@ -38,10 +38,13 @@ export default defineConfig(({ mode }) => {
       react(),
       tailwindcss(),
       // Material Symbols ship as one SVG per icon; `?react` imports them as components, so only the
-      // icons a screen uses end up in the bundle.
+      // icons a screen uses end up in the bundle. `data-symbol` lets index.css set their weight.
       svgr({
         include: "**/*.svg?react",
-        svgrOptions: { icon: true, svgProps: { fill: "currentColor", "aria-hidden": "true" } },
+        svgrOptions: {
+          icon: true,
+          svgProps: { fill: "currentColor", "aria-hidden": "true", "data-symbol": "" },
+        },
       }),
     ],
     resolve: {

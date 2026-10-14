@@ -104,4 +104,6 @@
   --on-ai: var(--md-sys-color-on-tertiary);
   --ai-container: var(--md-sys-color-tertiary-container);
   --on-ai-container: var(--md-sys-color-on-tertiary-container);
+  /* Fixed tone, the same in both themes: the dot in the brand mark. */
+  --ai-fixed-dim: var(--md-sys-color-tertiary-fixed-dim);
 }

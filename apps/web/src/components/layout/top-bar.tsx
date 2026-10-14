@@ -33,9 +33,9 @@ export function TopBar() {
       <form
         role="search"
         onSubmit={submit}
-        className="hidden h-12 shrink grow-0 basis-180 items-center gap-2 rounded-full bg-field pr-2 pl-4 text-on-surface-variant focus-within:ring-3 focus-within:ring-ring/50 medium:flex"
+        className="hidden h-12 shrink grow-0 basis-180 items-center gap-1 rounded-full bg-field pr-2 pl-4 text-on-surface-variant transition-[background-color,box-shadow] duration-[140ms] focus-within:bg-pane focus-within:shadow-elevation-2 medium:flex"
       >
-        <SearchIcon className="size-5 shrink-0" aria-hidden />
+        <SearchIcon className="size-6 shrink-0" aria-hidden />
         <label htmlFor={GLOBAL_SEARCH_ID} className="sr-only">
           Search knowledge or ask a question
         </label>
@@ -46,7 +46,7 @@ export function TopBar() {
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search knowledge, people and projects, or ask a question"
           autoComplete="off"
-          className="min-w-0 flex-1 bg-transparent text-base text-on-surface outline-none placeholder:text-on-surface-variant"
+          className="h-full min-w-0 flex-1 bg-transparent px-2 text-base text-on-surface outline-none placeholder:text-on-surface-variant"
         />
         <kbd
           aria-hidden
@@ -69,9 +69,7 @@ export function TopBar() {
         >
           <SearchIcon />
         </Button>
-        <span className="hidden medium:flex">
-          <ViewAsPill />
-        </span>
+        <ViewAsPill />
         <ThemeToggle />
         <NotificationsMenu />
         <AccountMenu />

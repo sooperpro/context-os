@@ -106,6 +106,7 @@
   --color-on-ai: var(--on-ai);
   --color-ai-container: var(--ai-container);
   --color-on-ai-container: var(--on-ai-container);
+  --color-ai-fixed-dim: var(--ai-fixed-dim);
 
   /* ---- Shape: the M3 Expressive corner scale replaces Tailwind's -------- */
   --radius-xs: var(--md-sys-shape-corner-extra-small);

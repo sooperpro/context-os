@@ -2,7 +2,10 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
 import { describe, expect, it, vi } from "vitest";
-import { AssistantContext, type AssistantContextValue } from "@/components/layout/assistant-context";
+import {
+  AssistantContext,
+  type AssistantContextValue,
+} from "@/components/layout/assistant-context";
 import { PeoplePage } from "@/features/people/pages/people-page";
 import { PersonPage } from "@/features/people/pages/person-page";
 import { setupMockApi } from "@/test/msw";
@@ -16,7 +19,10 @@ function renderAt(route: string) {
     openAssistant: vi.fn(),
     closeAssistant: vi.fn(),
     toggleAssistant: vi.fn(),
-    subscribeToQueries: () => () => undefined,
+    wide: false,
+    toggleWide: vi.fn(),
+    showBotDemo: vi.fn(),
+    subscribeToRequests: () => () => undefined,
   };
   renderWithProviders(
     <AssistantContext value={assistant}>
@@ -31,7 +37,9 @@ function renderAt(route: string) {
 }
 
 const card = (name: string) =>
-  within(screen.getByRole("list", { name: "People" })).getByRole("link", { name: new RegExp(name) });
+  within(screen.getByRole("list", { name: "People" })).getByRole("link", {
+    name: new RegExp(name),
+  });
 
 describe("People", () => {
   it("lists people with badges relative to you, and searches by skill", async () => {
@@ -58,12 +66,19 @@ describe("People", () => {
 
     await user.click(await screen.findByRole("button", { name: "Experts" }));
     expect(await screen.findByText("5 people")).toBeInTheDocument();
-    expect(within(screen.getByRole("list", { name: "People" })).queryByRole("link", { name: /Maya Okafor/ })).not.toBeInTheDocument();
+    expect(
+      within(screen.getByRole("list", { name: "People" })).queryByRole("link", {
+        name: /Maya Okafor/,
+      }),
+    ).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Teams" }));
     const platform = await screen.findByRole("region", { name: "Platform team" });
     expect(within(platform).getByText("Daniel Reyes")).toBeInTheDocument();
-    expect(within(platform).getByRole("link", { name: /Leah Park/ })).toHaveAttribute("href", "/people/p-leah");
+    expect(within(platform).getByRole("link", { name: /Leah Park/ })).toHaveAttribute(
+      "href",
+      "/people/p-leah",
+    );
     expect(screen.getByRole("article", { name: "Sales" })).toHaveTextContent("31 people");
   });
 
@@ -71,15 +86,19 @@ describe("People", () => {
     const user = userEvent.setup();
     const assistant = renderAt("/people/p-sana");
 
-    expect(await screen.findByRole("heading", { level: 1, name: "Sana Iqbal" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Sana Iqbal" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("Your buddy")).toBeInTheDocument();
     const owns = screen.getByRole("region", { name: /Owns in the Knowledge Hub/ });
-    expect(within(owns).getByRole("link", { name: /ADR-042: Billing events on Kafka/ })).toHaveAttribute(
-      "href",
-      "/knowledge?cat=decision",
-    );
+    expect(
+      within(owns).getByRole("link", { name: /ADR-042: Billing events on Kafka/ }),
+    ).toHaveAttribute("href", "/knowledge?cat=decision");
     const line = screen.getByRole("region", { name: "Reporting line" });
-    expect(within(line).getByRole("link", { name: /Daniel Reyes/ })).toHaveAttribute("href", "/people/p-daniel");
+    expect(within(line).getByRole("link", { name: /Daniel Reyes/ })).toHaveAttribute(
+      "href",
+      "/people/p-daniel",
+    );
 
     await user.click(screen.getByRole("button", { name: "What does Sana work on?" }));
     expect(assistant.openAssistant).toHaveBeenCalledWith("What does Sana work on?");

@@ -3,7 +3,8 @@ import { Outlet } from "react-router";
 import {
   AssistantContext,
   type AssistantContextValue,
-  type AssistantQueryHandler,
+  type AssistantRequest,
+  type AssistantRequestHandler,
 } from "@/components/layout/assistant-context";
 import { AssistantPane } from "@/components/layout/assistant-pane";
 import { BottomNav } from "@/components/layout/bottom-nav";
@@ -43,8 +44,9 @@ export function AppShell({ assistant }: { assistant: ReactNode }) {
 
   const [railPreference, setRailPreference] = useState<RailPreference>(readRailPreference);
   const [open, setOpen] = useState(false);
-  const queryHandlers = useRef(new Set<AssistantQueryHandler>());
-  const undeliveredQuery = useRef<string | null>(null);
+  const [wide, setWide] = useState(false);
+  const requestHandlers = useRef(new Set<AssistantRequestHandler>());
+  const undelivered = useRef<AssistantRequest | null>(null);
 
   // 1200–1599: the rail auto-collapses while the assistant is open to make room for it.
   const forcedCollapsed = !expanded || (open && !large);
@@ -62,33 +64,36 @@ export function AppShell({ assistant }: { assistant: ReactNode }) {
     });
   }, []);
 
-  const subscribeToQueries = useCallback((handler: AssistantQueryHandler) => {
-    queryHandlers.current.add(handler);
-    if (undeliveredQuery.current !== null) {
-      const query = undeliveredQuery.current;
-      undeliveredQuery.current = null;
-      handler(query);
+  const subscribeToRequests = useCallback((handler: AssistantRequestHandler) => {
+    requestHandlers.current.add(handler);
+    if (undelivered.current !== null) {
+      const request = undelivered.current;
+      undelivered.current = null;
+      handler(request);
     }
     return () => {
-      queryHandlers.current.delete(handler);
+      requestHandlers.current.delete(handler);
     };
   }, []);
 
-  const value = useMemo<AssistantContextValue>(
-    () => ({
+  const value = useMemo<AssistantContextValue>(() => {
+    // The panel mounts with the pane, so a request can arrive before anyone listens.
+    const hand = (request: AssistantRequest) => {
+      setOpen(true);
+      if (requestHandlers.current.size === 0) undelivered.current = request;
+      else for (const handler of requestHandlers.current) handler(request);
+    };
+    return {
       open,
-      openAssistant: (query) => {
-        setOpen(true);
-        if (query === undefined) return;
-        if (queryHandlers.current.size === 0) undeliveredQuery.current = query;
-        else for (const handler of queryHandlers.current) handler(query);
-      },
+      wide,
+      openAssistant: (query) => (query === undefined ? setOpen(true) : hand({ query })),
+      showBotDemo: (state) => hand({ demo: state }),
       closeAssistant: () => setOpen(false),
       toggleAssistant: () => setOpen((current) => !current),
-      subscribeToQueries,
-    }),
-    [open, subscribeToQueries],
-  );
+      toggleWide: () => setWide((current) => !current),
+      subscribeToRequests,
+    };
+  }, [open, wide, subscribeToRequests]);
 
   // Keyboard: ⌘J / Ctrl+J toggles Context Bot, "/" focuses search.
   useEffect(() => {

@@ -1,7 +1,13 @@
 import { useClerk, useOrganizationList, useUser } from "@clerk/react";
 import { Link } from "react-router";
 import type { Theme } from "@/components/theme-context";
-import { Avatar, AvatarFallback, AvatarImage, avatarToneFor } from "@/components/ui/avatar";
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+  avatarShapeFor,
+  avatarToneFor,
+} from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,25 +15,35 @@ import {
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuRadioItemIcon,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  ContrastFilledIcon,
   ContrastIcon,
+  DarkModeFilledIcon,
   DarkModeIcon,
+  LightModeFilledIcon,
   LightModeIcon,
   LogoutIcon,
   ManageAccountsIcon,
   NotificationsIcon,
-  SettingsIcon,
+  PersonIcon,
+  type MaterialIcon,
 } from "@/components/ui/icons";
 import { useTheme } from "@/hooks/use-theme";
 import { initialsOf } from "@/lib/format";
 
-const THEMES: Array<{ value: Theme; label: string; icon: React.ReactNode }> = [
-  { value: "system", label: "Match system", icon: <ContrastIcon /> },
-  { value: "light", label: "Light", icon: <LightModeIcon /> },
-  { value: "dark", label: "Dark", icon: <DarkModeIcon /> },
+const THEMES: Array<{
+  value: Theme;
+  label: string;
+  icon: MaterialIcon;
+  checkedIcon: MaterialIcon;
+}> = [
+  { value: "system", label: "Match system", icon: ContrastIcon, checkedIcon: ContrastFilledIcon },
+  { value: "light", label: "Light", icon: LightModeIcon, checkedIcon: LightModeFilledIcon },
+  { value: "dark", label: "Dark", icon: DarkModeIcon, checkedIcon: DarkModeFilledIcon },
 ];
 
 /**
@@ -44,6 +60,9 @@ export function AccountMenu() {
   const email = user?.primaryEmailAddress?.emailAddress;
   const memberships = organizations.isLoaded ? organizations.userMemberships.data : [];
   const activeOrganizationId = clerk.organization?.id ?? "";
+  // Your avatar wears your shape, as on your profile (prototype `.avatar.shape-*`).
+  const tone = avatarToneFor(user?.id ?? "account");
+  const shape = avatarShapeFor(user?.id ?? "account");
 
   return (
     <DropdownMenu>
@@ -52,29 +71,29 @@ export function AccountMenu() {
           <button
             type="button"
             aria-label={`Account: ${name}`}
-            className="ml-1 rounded-full outline-none transition-transform ease-spring-fast-spatial active:scale-95 focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="ml-1 rounded-full transition-transform ease-spring-fast-spatial outline-none focus-visible:ring-3 focus-visible:ring-ring/50 active:scale-95"
           />
         }
       >
-        <Avatar size="sm" tone={avatarToneFor(user?.id ?? "account")}>
+        <Avatar size="sm" tone={tone} shape={shape}>
           {user?.imageUrl ? <AvatarImage src={user.imageUrl} alt="" /> : null}
           <AvatarFallback>{initialsOf(name) || "?"}</AvatarFallback>
         </Avatar>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-72">
-        <div className="flex items-center gap-3 px-2 py-2">
-          <Avatar size="md" tone={avatarToneFor(user?.id ?? "account")}>
+      <DropdownMenuContent align="end" sideOffset={6}>
+        <div className="flex items-center gap-3 p-3">
+          <Avatar size="lg" tone={tone} shape={shape}>
             {user?.imageUrl ? <AvatarImage src={user.imageUrl} alt="" /> : null}
             <AvatarFallback>{initialsOf(name) || "?"}</AvatarFallback>
           </Avatar>
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{name}</p>
+            <p className="truncate text-base font-medium">{name}</p>
             {email ? <p className="truncate text-xs text-on-surface-variant">{email}</p> : null}
           </div>
         </div>
         <DropdownMenuSeparator />
         <DropdownMenuItem render={<Link to="/settings" />}>
-          <SettingsIcon /> Profile and preferences
+          <PersonIcon /> Profile & preferences
         </DropdownMenuItem>
         <DropdownMenuItem render={<Link to="/settings?tab=notifications" />}>
           <NotificationsIcon /> Notifications
@@ -87,7 +106,8 @@ export function AccountMenu() {
           <DropdownMenuLabel>Theme</DropdownMenuLabel>
           {THEMES.map((option) => (
             <DropdownMenuRadioItem key={option.value} value={option.value}>
-              {option.icon} {option.label}
+              <DropdownMenuRadioItemIcon icon={option.icon} checkedIcon={option.checkedIcon} />
+              {option.label}
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>
@@ -96,11 +116,16 @@ export function AccountMenu() {
             <DropdownMenuSeparator />
             <DropdownMenuRadioGroup
               value={activeOrganizationId}
-              onValueChange={(organizationId: string) => void organizations.setActive?.({ organization: organizationId })}
+              onValueChange={(organizationId: string) =>
+                void organizations.setActive?.({ organization: organizationId })
+              }
             >
               <DropdownMenuLabel>Workspace</DropdownMenuLabel>
               {memberships.map((membership) => (
-                <DropdownMenuRadioItem key={membership.organization.id} value={membership.organization.id}>
+                <DropdownMenuRadioItem
+                  key={membership.organization.id}
+                  value={membership.organization.id}
+                >
                   {membership.organization.name}
                 </DropdownMenuRadioItem>
               ))}

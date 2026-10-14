@@ -123,7 +123,10 @@ const assistant: AssistantContextValue = {
   openAssistant: vi.fn(),
   closeAssistant: vi.fn(),
   toggleAssistant: vi.fn(),
-  subscribeToQueries: () => () => undefined,
+  wide: false,
+  toggleWide: vi.fn(),
+  showBotDemo: vi.fn(),
+  subscribeToRequests: () => () => undefined,
 };
 
 function renderHub(route = "/knowledge") {
