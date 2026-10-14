@@ -5,8 +5,8 @@ import { useAssistant } from "@/components/layout/assistant-context";
 import { PageColumns, PageMain, PageSide } from "@/components/layout/page-columns";
 import { OnboardingStatusChip } from "@/components/onboarding-status-chip";
 import { PreviewDataChip } from "@/components/preview-data-chip";
+import { ProfileHero } from "@/components/profile-hero";
 import { SectionCard } from "@/components/section-card";
-import { PersonAvatar } from "@/components/ui/avatar";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -66,7 +66,11 @@ export function PersonPage() {
   if (query.isError) {
     return (
       <div className="mx-auto max-w-360">
-        <SectionCard title="This profile could not be loaded" endpoint={E.profile.path} status={query} />
+        <SectionCard
+          title="This profile could not be loaded"
+          endpoint={E.profile.path}
+          status={query}
+        />
       </div>
     );
   }
@@ -89,35 +93,17 @@ function Profile({ person }: { person: PersonProfile }) {
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
-      <header className="flex flex-col items-start gap-4 px-1 pt-2 @min-[640px]:flex-row @min-[640px]:gap-7">
-        <PersonAvatar person={person} size="xl" className="size-22 text-3xl @min-[640px]:size-30 @min-[640px]:text-[40px]" />
-        <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <span className="flex flex-wrap items-center gap-2">
+      <ProfileHero
+        person={person}
+        chips={
+          <>
             <PersonBadges person={person} />
             <PreviewDataChip endpoint={E.profile.path} />
-          </span>
-          <h1 className="font-heading text-[28px] leading-9 font-semibold tracking-tight medium:text-[32px] medium:leading-10">
-            {person.name}
-          </h1>
-          <p className="text-base">{roleAndTeam(person)}</p>
-          <div className="flex flex-wrap gap-1.5">
-            {person.location ? (
-              <MetaChip tone="filled">
-                <LocationOnIcon aria-hidden /> {person.location}
-              </MetaChip>
-            ) : null}
-            {person.timeZone ? (
-              <MetaChip tone="filled">
-                <ScheduleIcon aria-hidden /> {formatTimeZone(person.timeZone)}
-              </MetaChip>
-            ) : null}
-            {person.joinedOn ? (
-              <MetaChip tone="filled">
-                <CalendarMonthIcon aria-hidden /> {formatJoined(person.joinedOn)}
-              </MetaChip>
-            ) : null}
-          </div>
-          <div className="mt-1 flex flex-wrap gap-3">
+          </>
+        }
+        subtitle={roleAndTeam(person)}
+        actions={
+          <>
             <Button onClick={() => comingSoon("Messages")}>
               <ChatIcon aria-hidden /> Message
             </Button>
@@ -127,9 +113,27 @@ function Profile({ person }: { person: PersonProfile }) {
             <Button variant="ai-tonal" onClick={() => openAssistant(`What does ${first} work on?`)}>
               <HubIcon aria-hidden /> What does {first} work on?
             </Button>
-          </div>
+          </>
+        }
+      >
+        <div className="flex flex-wrap gap-1.5">
+          {person.location ? (
+            <MetaChip tone="filled">
+              <LocationOnIcon aria-hidden /> {person.location}
+            </MetaChip>
+          ) : null}
+          {person.timeZone ? (
+            <MetaChip tone="filled">
+              <ScheduleIcon aria-hidden /> {formatTimeZone(person.timeZone)}
+            </MetaChip>
+          ) : null}
+          {person.joinedOn ? (
+            <MetaChip tone="filled">
+              <CalendarMonthIcon aria-hidden /> {formatJoined(person.joinedOn)}
+            </MetaChip>
+          ) : null}
         </div>
-      </header>
+      </ProfileHero>
       <PageColumns>
         <PageMain>
           <SectionCard title="About">
@@ -152,7 +156,11 @@ function Profile({ person }: { person: PersonProfile }) {
                   return (
                     <Link
                       key={item.id}
-                      to={item.projectId ? `/projects/${item.projectId}` : `/knowledge?cat=${item.section}`}
+                      to={
+                        item.projectId
+                          ? `/projects/${item.projectId}`
+                          : `/knowledge?cat=${item.section}`
+                      }
                       className="flex flex-col items-start gap-2 rounded-lg bg-pane p-3.5 text-on-surface no-underline transition-colors hover:bg-[color-mix(in_srgb,var(--color-pane),var(--color-on-surface)_5%)]"
                     >
                       <TypeChip>
@@ -172,7 +180,8 @@ function Profile({ person }: { person: PersonProfile }) {
               action={<OnboardingStatusChip status={person.onboarding.status} />}
             >
               <p className="text-sm">
-                In onboarding since {formatJoined(person.onboarding.startedOn).replace(/^Joined /, "")}. Progress,
+                In onboarding since{" "}
+                {formatJoined(person.onboarding.startedOn).replace(/^Joined /, "")}. Progress,
                 check-ins and readiness are on the onboarding page.
               </p>
             </SectionCard>
@@ -187,7 +196,10 @@ function Profile({ person }: { person: PersonProfile }) {
                   <span aria-hidden className="ms-5.5 h-3.5 w-0.5 bg-outline-variant" />
                 </>
               ) : null}
-              <OrgNode person={{ id: person.id, name: person.name, title: person.title }} emphasis />
+              <OrgNode
+                person={{ id: person.id, name: person.name, title: person.title }}
+                emphasis
+              />
               {person.reports.length ? (
                 <>
                   <span aria-hidden className="ms-5.5 h-3.5 w-0.5 bg-outline-variant" />

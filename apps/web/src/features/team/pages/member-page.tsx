@@ -9,8 +9,8 @@ import { PageColumns, PageMain, PageSide } from "@/components/layout/page-column
 import { OnboardingStatusChip } from "@/components/onboarding-status-chip";
 import { PlanProgress, PlanTickNote } from "@/components/plan-progress";
 import { PreviewDataChip } from "@/components/preview-data-chip";
+import { ProfileHero } from "@/components/profile-hero";
 import { SectionCard } from "@/components/section-card";
-import { PersonAvatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { BotGlyph } from "@/components/ui/bot-glyph";
 import {
@@ -53,7 +53,10 @@ import { Shape } from "@/components/ui/shape";
 import { StatusChip } from "@/components/ui/status-chip";
 import { TEAM_ENDPOINTS as E } from "@/features/team/api/team.api";
 import { teamMemberQuery, useEditMemberRoadmap } from "@/features/team/api/team.queries";
-import { AssignLearningDialog, AssignRoadmapDialog } from "@/features/team/components/assign-dialogs";
+import {
+  AssignLearningDialog,
+  AssignRoadmapDialog,
+} from "@/features/team/components/assign-dialogs";
 import { CheckMark } from "@/features/team/components/check-mark";
 import { CHECKIN_TYPE_LABEL, PULSE, TEAM_PATH, checkinPath } from "@/features/team/team-meta";
 import { comingSoon } from "@/lib/coming-soon";
@@ -61,7 +64,12 @@ import { daysFromToday, firstName, formatShortDate, formatWeekday } from "@/lib/
 
 const MODULE_STATE: Record<
   MemberModuleState,
-  { label: string; tone: "success" | "info" | "neutral" | "warning" | "error"; lead: "success" | "neutral" | "warning" | "error"; icon: ReactNode }
+  {
+    label: string;
+    tone: "success" | "info" | "neutral" | "warning" | "error";
+    lead: "success" | "neutral" | "warning" | "error";
+    icon: ReactNode;
+  }
 > = {
   done: { label: "Done", tone: "success", lead: "success", icon: <CheckCircleIcon /> },
   active: { label: "In progress", tone: "info", lead: "neutral", icon: <PendingIcon /> },
@@ -84,7 +92,11 @@ export function MemberPage() {
   if (query.isError) {
     return (
       <div className="mx-auto max-w-360">
-        <SectionCard title="This onboarding could not be loaded" endpoint={E.member.path} status={query} />
+        <SectionCard
+          title="This onboarding could not be loaded"
+          endpoint={E.member.path}
+          status={query}
+        />
       </div>
     );
   }
@@ -105,7 +117,12 @@ function MemberView({ member }: { member: TeamMemberDetail }) {
     if (!action) return null;
     if (action.kind === "start_recommendation")
       return (
-        <Button size="xs" variant="ai" nativeButton={false} render={<Link to={checkinPath(member.person.id, "probation")} />}>
+        <Button
+          size="xs"
+          variant="ai"
+          nativeButton={false}
+          render={<Link to={checkinPath(member.person.id, "probation")} />}
+        >
           {action.label}
         </Button>
       );
@@ -139,28 +156,31 @@ function MemberView({ member }: { member: TeamMemberDetail }) {
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
-      <header className="flex flex-col items-start gap-4 px-1 pt-2 @min-[640px]:flex-row @min-[640px]:gap-7">
-        <PersonAvatar person={member.person} size="xl" className="size-22 text-3xl @min-[640px]:size-30 @min-[640px]:text-[40px]" />
-        <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <span className="flex flex-wrap items-center gap-1.5">
+      <ProfileHero
+        person={member.person}
+        chips={
+          <>
             <OnboardingStatusChip status={member.status} />
-            <Badge variant="neutral">{started ? `Day ${1 - days} of 90` : `Starts ${formatShortDate(member.startDate)}`}</Badge>
+            <Badge variant="neutral">
+              {started ? `Day ${1 - days} of 90` : `Starts ${formatShortDate(member.startDate)}`}
+            </Badge>
             {member.buddy ? <Badge variant="ai">Buddy: {member.buddy.name}</Badge> : null}
             <PreviewDataChip endpoint={E.member.path} />
-          </span>
-          <h1 className="font-heading text-[28px] leading-9 font-semibold tracking-tight medium:text-[32px] medium:leading-10">
-            {member.person.name}
-          </h1>
-          <p className="text-base">
-            <DotList
-              parts={[
-                member.person.title,
-                started ? `started ${formatShortDate(member.startDate)}` : `starts ${formatShortDate(member.startDate)}`,
-                member.stage ?? "Pre-boarding",
-              ]}
-            />
-          </p>
-          <div className="mt-1 flex flex-wrap gap-3">
+          </>
+        }
+        subtitle={
+          <DotList
+            parts={[
+              member.person.title,
+              started
+                ? `started ${formatShortDate(member.startDate)}`
+                : `starts ${formatShortDate(member.startDate)}`,
+              member.stage ?? "Pre-boarding",
+            ]}
+          />
+        }
+        actions={
+          <>
             <Button nativeButton={false} render={<Link to={checkinPath(member.person.id)} />}>
               <EditNoteIcon aria-hidden /> Record check-in
             </Button>
@@ -173,12 +193,15 @@ function MemberView({ member }: { member: TeamMemberDetail }) {
                 <RouteIcon aria-hidden /> Assign roadmap
               </Button>
             )}
-            <Button variant="ai-tonal" onClick={() => openAssistant(`Summarize ${member.person.name}’s onboarding progress`)}>
+            <Button
+              variant="ai-tonal"
+              onClick={() => openAssistant(`Summarize ${member.person.name}’s onboarding progress`)}
+            >
               <HubIcon aria-hidden /> Ask about {first}
             </Button>
-          </div>
-        </div>
-      </header>
+          </>
+        }
+      />
 
       {member.insight ? (
         <section
@@ -206,7 +229,10 @@ function MemberView({ member }: { member: TeamMemberDetail }) {
       <PageColumns>
         <PageMain>
           {started && hasRoadmap ? (
-            <SectionCard title="Progress" action={<span className="text-xs text-on-surface-variant">{member.stage}</span>}>
+            <SectionCard
+              title="Progress"
+              action={<span className="text-xs text-on-surface-variant">{member.stage}</span>}
+            >
               <PlanProgress
                 progress={member.progress}
                 expected={member.expected}
@@ -216,7 +242,11 @@ function MemberView({ member }: { member: TeamMemberDetail }) {
               <PlanTickNote who={first} />
             </SectionCard>
           ) : null}
-          <RoadmapCard member={member} onAssignRoadmap={() => setAssigning("roadmap")} onAssignLearning={() => setAssigning("learning")} />
+          <RoadmapCard
+            member={member}
+            onAssignRoadmap={() => setAssigning("roadmap")}
+            onAssignLearning={() => setAssigning("learning")}
+          />
           {member.checks.length ? (
             <SectionCard title="Knowledge checks">
               <SegmentedList>
@@ -239,14 +269,23 @@ function MemberView({ member }: { member: TeamMemberDetail }) {
           <SectionCard title="Coming up">
             <ol className="flex flex-col gap-0.5">
               {member.upcoming.map((entry) => (
-                <li key={entry.id} className="flex items-center gap-3 rounded-xs bg-pane p-2.5 first:rounded-t-xl last:rounded-b-xl">
+                <li
+                  key={entry.id}
+                  className="flex items-center gap-3 rounded-xs bg-pane p-2.5 first:rounded-t-xl last:rounded-b-xl"
+                >
                   <div className="flex h-13 w-12 shrink-0 flex-col items-center justify-center rounded-[14px] bg-secondary-container text-on-secondary-container">
-                    <span className="text-[11px] font-medium tracking-[0.8px] uppercase">{formatWeekday(entry.on)}</span>
-                    <span className="text-base font-medium tabular-nums">{Number(entry.on.slice(8))}</span>
+                    <span className="text-[11px] font-medium tracking-[0.8px] uppercase">
+                      {formatWeekday(entry.on)}
+                    </span>
+                    <span className="text-base font-medium tabular-nums">
+                      {Number(entry.on.slice(8))}
+                    </span>
                   </div>
                   <div className="flex min-w-0 flex-col">
                     <b className="text-sm font-medium">{entry.title}</b>
-                    <span className="text-xs text-on-surface-variant">{formatShortDate(entry.on)}</span>
+                    <span className="text-xs text-on-surface-variant">
+                      {formatShortDate(entry.on)}
+                    </span>
                   </div>
                 </li>
               ))}
@@ -258,11 +297,20 @@ function MemberView({ member }: { member: TeamMemberDetail }) {
                 {member.checkins.map((entry) => {
                   const pulse = PULSE[entry.pulse];
                   return (
-                    <li key={entry.id} className="flex flex-col gap-1.5 rounded-xs bg-pane px-3.5 py-3 first:rounded-t-lg last:rounded-b-lg">
+                    <li
+                      key={entry.id}
+                      className="flex flex-col gap-1.5 rounded-xs bg-pane px-3.5 py-3 first:rounded-t-lg last:rounded-b-lg"
+                    >
                       <div className="flex flex-wrap items-center gap-2">
                         <b className="text-sm font-medium">{CHECKIN_TYPE_LABEL[entry.type]}</b>
-                        <span className="text-xs text-on-surface-variant">{formatShortDate(entry.on)}</span>
-                        <StatusChip tone={pulse.tone} icon={<CheckCircleIcon />} className="ms-auto">
+                        <span className="text-xs text-on-surface-variant">
+                          {formatShortDate(entry.on)}
+                        </span>
+                        <StatusChip
+                          tone={pulse.tone}
+                          icon={<CheckCircleIcon />}
+                          className="ms-auto"
+                        >
                           {pulse.label}
                         </StatusChip>
                       </div>
@@ -279,8 +327,14 @@ function MemberView({ member }: { member: TeamMemberDetail }) {
             <dl className="flex flex-col gap-2.5 text-sm">
               {(
                 [
-                  ["Readiness review", member.readinessReviewOn ? formatShortDate(member.readinessReviewOn) : "—"],
-                  ["Probation review", member.probationReviewOn ? formatShortDate(member.probationReviewOn) : "—"],
+                  [
+                    "Readiness review",
+                    member.readinessReviewOn ? formatShortDate(member.readinessReviewOn) : "—",
+                  ],
+                  [
+                    "Probation review",
+                    member.probationReviewOn ? formatShortDate(member.probationReviewOn) : "—",
+                  ],
                   ["People partner", member.peoplePartner?.name ?? "—"],
                 ] as const
               ).map(([label, value]) => (
@@ -293,8 +347,14 @@ function MemberView({ member }: { member: TeamMemberDetail }) {
           </SectionCard>
         </PageSide>
       </PageColumns>
-      <AssignLearningDialog person={assigning === "learning" ? person : null} onOpenChange={(open) => (open ? null : setAssigning(null))} />
-      <AssignRoadmapDialog person={assigning === "roadmap" ? person : null} onOpenChange={(open) => (open ? null : setAssigning(null))} />
+      <AssignLearningDialog
+        person={assigning === "learning" ? person : null}
+        onOpenChange={(open) => (open ? null : setAssigning(null))}
+      />
+      <AssignRoadmapDialog
+        person={assigning === "roadmap" ? person : null}
+        onOpenChange={(open) => (open ? null : setAssigning(null))}
+      />
     </div>
   );
 }
@@ -333,7 +393,9 @@ function RoadmapCard({
       { changes: list },
       {
         onSuccess: () => {
-          toast.success(`Roadmap updated with ${list.length} ${list.length === 1 ? "change" : "changes"}. ${first} will be notified.`);
+          toast.success(
+            `Roadmap updated with ${list.length} ${list.length === 1 ? "change" : "changes"}. ${first} will be notified.`,
+          );
           setChanges({});
           setEditing(false);
         },
@@ -370,7 +432,9 @@ function RoadmapCard({
                   key={entry.id}
                   className={cn(
                     "flex-wrap gap-3 @min-[640px]:flex-nowrap",
-                    editing && entry.state !== "done" && "shadow-[inset_0_0_0_1px_var(--color-outline-variant)]",
+                    editing &&
+                      entry.state !== "done" &&
+                      "shadow-[inset_0_0_0_1px_var(--color-outline-variant)]",
                     change === "remove" && "opacity-50",
                   )}
                 >
@@ -378,10 +442,14 @@ function RoadmapCard({
                     {state.icon}
                   </SegmentedItemLead>
                   <SegmentedItemBody>
-                    <SegmentedItemTitle className={cn("whitespace-normal", change === "remove" && "line-through")}>
+                    <SegmentedItemTitle
+                      className={cn("whitespace-normal", change === "remove" && "line-through")}
+                    >
                       {entry.title}
                     </SegmentedItemTitle>
-                    <SegmentedItemMeta className={entry.state === "overdue" ? "text-warning" : undefined}>
+                    <SegmentedItemMeta
+                      className={entry.state === "overdue" ? "text-warning" : undefined}
+                    >
                       <DotList
                         parts={[
                           entry.completedOn
@@ -398,7 +466,12 @@ function RoadmapCard({
                     {editing && entry.state !== "done" ? (
                       <>
                         {entry.dueOn ? (
-                          <Button size="xs" variant="ghost" aria-pressed={change === "postpone_week"} onClick={() => toggle(entry.id, "postpone_week")}>
+                          <Button
+                            size="xs"
+                            variant="ghost"
+                            aria-pressed={change === "postpone_week"}
+                            onClick={() => toggle(entry.id, "postpone_week")}
+                          >
                             {change === "postpone_week" ? "Moved +1 week" : "+1 week"}
                           </Button>
                         ) : null}
@@ -429,13 +502,21 @@ function RoadmapCard({
         </>
       ) : (
         <div className="flex flex-wrap items-center gap-4 rounded-xl bg-pane p-5">
-          <span aria-hidden className="relative grid size-14 shrink-0 place-items-center text-on-surface-variant">
-            <Shape kind="cookie6" className="absolute inset-0 size-full text-surface-container-highest" />
+          <span
+            aria-hidden
+            className="relative grid size-14 shrink-0 place-items-center text-on-surface-variant"
+          >
+            <Shape
+              kind="cookie6"
+              className="absolute inset-0 size-full text-surface-container-highest"
+            />
             <RouteIcon className="relative z-10 size-6" />
           </span>
           <div className="flex-1">
             <b className="text-sm font-medium">No roadmap yet</b>
-            <p className="text-xs text-on-surface-variant">Pick a template so {first} has a plan on day one.</p>
+            <p className="text-xs text-on-surface-variant">
+              Pick a template so {first} has a plan on day one.
+            </p>
           </div>
           <Button size="xs" onClick={onAssignRoadmap}>
             Assign roadmap

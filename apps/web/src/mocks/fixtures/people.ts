@@ -25,4 +25,9 @@ export const people = {
   grace: person("p-grace", "Grace Liu", "Account Executive"),
   tomas: person("p-tomas", "Tomás Ruiz", "Support Specialist"),
   amara: person("p-amara", "Amara Diallo", "Finance Analyst"),
+  ruth: person("p-ruth", "Ruth Adeyemi", "Finance Manager"),
+  ivy: person("p-ivy", "Ivy Chen", "Product Manager · Track"),
+  lena: person("p-lena", "Lena Fischer", "Backend Engineer"),
+  omar: person("p-omar", "Omar Haddad", "Account Executive"),
+  priyaShah: person("p-priya-shah", "Priya Shah", "Senior Support Specialist"),
 } as const;

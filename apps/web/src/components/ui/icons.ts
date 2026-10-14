@@ -198,11 +198,25 @@ import AutoDeleteIcon from "@material-symbols/svg-400/rounded/auto_delete.svg?re
 import TagIcon from "@material-symbols/svg-400/rounded/tag.svg?react";
 import ScienceIcon from "@material-symbols/svg-400/rounded/science.svg?react";
 import CodeBlocksIcon from "@material-symbols/svg-400/rounded/code_blocks.svg?react";
+import ArrowDownwardIcon from "@material-symbols/svg-400/rounded/arrow_downward.svg?react";
+import LibraryAddIcon from "@material-symbols/svg-400/rounded/library_add.svg?react";
+import PublishIcon from "@material-symbols/svg-400/rounded/publish.svg?react";
+import ShieldPersonIcon from "@material-symbols/svg-400/rounded/shield_person.svg?react";
+import HowToRegFilledIcon from "@material-symbols/svg-400/rounded/how_to_reg-fill.svg?react";
+import EventAvailableFilledIcon from "@material-symbols/svg-400/rounded/event_available-fill.svg?react";
+import LibraryBooksFilledIcon from "@material-symbols/svg-400/rounded/library_books-fill.svg?react";
 
 export type MaterialIcon = ComponentType<SVGProps<SVGSVGElement>>;
 
 export {
   AddIcon,
+  ArrowDownwardIcon,
+  LibraryAddIcon,
+  PublishIcon,
+  ShieldPersonIcon,
+  HowToRegFilledIcon,
+  EventAvailableFilledIcon,
+  LibraryBooksFilledIcon,
   UndoIcon,
   RemoveIcon,
   Diversity3FilledIcon,

@@ -26,15 +26,78 @@ interface MockTeam {
 }
 
 const TEAMS: MockTeam[] = [
-  { id: "team-platform", name: "Platform", area: "engineering", size: 7, focus: "Ingest gateway, event bus, ledger service, developer tooling", lead: "daniel" },
-  { id: "team-billing", name: "Billing", area: "finance", size: 4, focus: "Pricing, invoicing, Project Kestrel", lead: "priya" },
-  { id: "team-product", name: "Product", area: "product", size: 12, focus: "Tessellate Track and Insights", lead: "ivy" },
-  { id: "team-data", name: "Data", area: "data", size: 9, focus: "ETA models, data warehouse, reporting", lead: "nina" },
-  { id: "team-design", name: "Design", area: "design", size: 6, focus: "Product design and the design system", lead: "owen" },
-  { id: "team-support", name: "Support", area: "support", size: 22, focus: "Customer support and the help center", lead: "aisha" },
-  { id: "team-sales", name: "Sales", area: "sales", size: 31, focus: "New business and renewals", lead: "marcus" },
-  { id: "team-people", name: "People Operations", area: "people", size: 6, focus: "Hiring, onboarding, probation, policies", lead: "elena" },
-  { id: "team-it", name: "IT", area: "it", size: 4, focus: "Devices, access and workspace tools", lead: "tom" },
+  {
+    id: "team-platform",
+    name: "Platform",
+    area: "engineering",
+    size: 7,
+    focus: "Ingest gateway, event bus, ledger service, developer tooling",
+    lead: "daniel",
+  },
+  {
+    id: "team-billing",
+    name: "Billing",
+    area: "finance",
+    size: 4,
+    focus: "Pricing, invoicing, Project Kestrel",
+    lead: "priya",
+  },
+  {
+    id: "team-product",
+    name: "Product",
+    area: "product",
+    size: 12,
+    focus: "Tessellate Track and Insights",
+    lead: "ivy",
+  },
+  {
+    id: "team-data",
+    name: "Data",
+    area: "data",
+    size: 9,
+    focus: "ETA models, data warehouse, reporting",
+    lead: "nina",
+  },
+  {
+    id: "team-design",
+    name: "Design",
+    area: "design",
+    size: 6,
+    focus: "Product design and the design system",
+    lead: "owen",
+  },
+  {
+    id: "team-support",
+    name: "Support",
+    area: "support",
+    size: 22,
+    focus: "Customer support and the help center",
+    lead: "aisha",
+  },
+  {
+    id: "team-sales",
+    name: "Sales",
+    area: "sales",
+    size: 31,
+    focus: "New business and renewals",
+    lead: "marcus",
+  },
+  {
+    id: "team-people",
+    name: "People Operations",
+    area: "people",
+    size: 6,
+    focus: "Hiring, onboarding, probation, policies",
+    lead: "elena",
+  },
+  {
+    id: "team-it",
+    name: "IT",
+    area: "it",
+    size: 4,
+    focus: "Devices, access and workspace tools",
+    lead: "tom",
+  },
 ];
 
 interface MockPerson {
@@ -75,31 +138,224 @@ const OWNED: Record<string, { title: string; section: KnowledgeSection }> = {
 
 const ref = (id: string, name: string, title: string): PersonRef => ({ id, name, title });
 const extra = {
-  ivy: ref("p-ivy", "Ivy Chen", "Product Manager · Track"),
   ceo: ref("p-ceo", "Rosa Martín", "Chief Executive Officer"),
 };
 
 const P: Record<string, MockPerson> = {
-  maya: { ref: cast.maya, team: "team-platform", manager: "daniel", location: "London", timeZone: "Europe/London", joinedOn: dateFromToday(-8), skills: ["TypeScript", "APIs", "Product engineering"], bio: "Product engineer on Platform. Before Tessellate, built checkout flows at a retail marketplace.", owns: ["shipment-event"] },
-  daniel: { ref: cast.daniel, team: "team-platform", manager: "ceo", location: "London", timeZone: "Europe/London", joinedOn: "2022-02-07", skills: ["Engineering management", "Incident response", "Hiring"], bio: "Leads the Platform team: ingest, event bus, ledger and developer tooling.", owns: ["oncall"] },
-  sana: { ref: cast.sana, team: "team-platform", manager: "daniel", location: "Manchester", timeZone: "Europe/London", joinedOn: "2021-06-14", expert: true, skills: ["Ingest gateway", "Kafka", "Carrier integrations", "Go"], bio: "Staff engineer and tech lead for ingest. Wrote ADR-042 and leads the technical side of Project Kestrel.", owns: ["ingest", "eventbus", "adr042", "adr045", "adr047", "api"] },
-  leah: { ref: cast.leah, team: "team-platform", manager: "daniel", location: "Dublin", timeZone: "Europe/Dublin", joinedOn: dateFromToday(-38), skills: ["Postgres", "Billing systems", "Python"], bio: "Backend engineer working on the ledger service during Kestrel.", owns: ["ledger", "dwell-time"] },
-  arjun: { ref: cast.arjun, team: "team-platform", manager: "daniel", location: "Bangalore", timeZone: "Asia/Kolkata", joinedOn: dateFromToday(-75), skills: ["Kubernetes", "Observability", "On-call"], bio: "Site reliability engineer. Owns release tooling and incident reviews.", owns: ["release", "incident"] },
-  chloe: { ref: cast.chloe, team: "team-platform", manager: "daniel", location: "Paris", timeZone: "Europe/Paris", joinedOn: dateFromToday(-21), skills: ["Data pipelines", "dbt", "Snowflake"], bio: "Data engineer building usage pipelines for the new billing tiers." },
-  jonah: { ref: cast.jonah, team: "team-platform", manager: "daniel", location: "Berlin", timeZone: "Europe/Berlin", joinedOn: dateFromToday(5), skills: ["Terraform", "AWS", "SRE"], bio: "Site reliability engineer joining Platform soon." },
-  priya: { ref: cast.priya, team: "team-billing", manager: "ivy", location: "London", timeZone: "Europe/London", joinedOn: "2023-03-06", expert: true, skills: ["Pricing", "Billing", "Project Kestrel"], bio: "Product manager for billing and pricing. Leads Project Kestrel and owns the 2026 pricing.", owns: ["kestrel"] },
-  elena: { ref: cast.elena, team: "team-people", manager: "ceo", location: "London", timeZone: "Europe/London", joinedOn: "2022-01-10", skills: ["Onboarding", "Probation reviews", "Policies"], bio: "People partner for Engineering and Product. Runs onboarding and probation reviews.", owns: ["values"] },
-  tom: { ref: cast.tom, team: "team-it", manager: "ceo", location: "London", timeZone: "Europe/London", joinedOn: "2021-08-02", skills: ["Google Workspace", "Access management", "SSO"], bio: "Runs IT and the ContextOS workspace: access, connectors and security." },
-  ivy: { ref: extra.ivy, team: "team-product", manager: "ceo", location: "London", timeZone: "Europe/London", joinedOn: "2020-05-11", expert: true, skills: ["Tessellate Track", "Customer research", "Roadmaps"], bio: "Product manager for Tessellate Track and Insights.", owns: ["track", "insights", "webapp"] },
-  nina: { ref: cast.nina, team: "team-data", manager: "ceo", location: "Amsterdam", timeZone: "Europe/Amsterdam", joinedOn: "2021-10-04", expert: true, skills: ["ETA models", "Data warehouse", "Machine learning"], bio: "Leads the Data team and Project Atlas, the next ETA model.", owns: ["atlas", "eta"] },
-  ravi: { ref: cast.ravi, team: "team-data", manager: "nina", location: "Amsterdam", timeZone: "Europe/Amsterdam", joinedOn: dateFromToday(-60), skills: ["SQL", "Looker"], bio: "Analyst on carrier performance reporting." },
-  owen: { ref: cast.owen, team: "team-design", manager: "ceo", location: "Bristol", timeZone: "Europe/London", joinedOn: "2021-04-12", skills: ["Design systems", "Research ops"], bio: "Leads Design. Owns the product design system." },
-  hana: { ref: cast.hana, team: "team-design", manager: "owen", location: "London", timeZone: "Europe/London", joinedOn: dateFromToday(-62), skills: ["Interaction design", "Prototyping"], bio: "Designs Tessellate Track. Owns the product tour module." },
-  marcus: { ref: cast.marcus, team: "team-sales", manager: "ceo", location: "New York", timeZone: "America/New_York", joinedOn: "2020-11-02", skills: ["Enterprise sales", "Pricing"], bio: "Runs the North America sales team." },
-  sofia: { ref: cast.sofia, team: "team-sales", manager: "marcus", location: "New York", timeZone: "America/New_York", joinedOn: dateFromToday(-80), skills: ["Retail accounts"], bio: "Account executive for retail customers." },
-  grace: { ref: cast.grace, team: "team-sales", manager: "marcus", location: "Toronto", timeZone: "America/Toronto", joinedOn: dateFromToday(5), skills: ["3PL accounts"], bio: "Account executive joining soon." },
-  aisha: { ref: cast.aisha, team: "team-support", manager: "ceo", location: "Dublin", timeZone: "Europe/Dublin", joinedOn: "2021-01-11", expert: true, skills: ["Customer support", "Zendesk", "Escalations"], bio: "Leads customer support and the help center." },
-  ben: { ref: cast.ben, team: "team-support", manager: "aisha", location: "Dublin", timeZone: "Europe/Dublin", joinedOn: dateFromToday(-65), skills: ["Carrier issues"], bio: "Support specialist for carrier-related tickets." },
+  maya: {
+    ref: cast.maya,
+    team: "team-platform",
+    manager: "daniel",
+    location: "London",
+    timeZone: "Europe/London",
+    joinedOn: dateFromToday(-8),
+    skills: ["TypeScript", "APIs", "Product engineering"],
+    bio: "Product engineer on Platform. Before Tessellate, built checkout flows at a retail marketplace.",
+    owns: ["shipment-event"],
+  },
+  daniel: {
+    ref: cast.daniel,
+    team: "team-platform",
+    manager: "ceo",
+    location: "London",
+    timeZone: "Europe/London",
+    joinedOn: "2022-02-07",
+    skills: ["Engineering management", "Incident response", "Hiring"],
+    bio: "Leads the Platform team: ingest, event bus, ledger and developer tooling.",
+    owns: ["oncall"],
+  },
+  sana: {
+    ref: cast.sana,
+    team: "team-platform",
+    manager: "daniel",
+    location: "Manchester",
+    timeZone: "Europe/London",
+    joinedOn: "2021-06-14",
+    expert: true,
+    skills: ["Ingest gateway", "Kafka", "Carrier integrations", "Go"],
+    bio: "Staff engineer and tech lead for ingest. Wrote ADR-042 and leads the technical side of Project Kestrel.",
+    owns: ["ingest", "eventbus", "adr042", "adr045", "adr047", "api"],
+  },
+  leah: {
+    ref: cast.leah,
+    team: "team-platform",
+    manager: "daniel",
+    location: "Dublin",
+    timeZone: "Europe/Dublin",
+    joinedOn: dateFromToday(-38),
+    skills: ["Postgres", "Billing systems", "Python"],
+    bio: "Backend engineer working on the ledger service during Kestrel.",
+    owns: ["ledger", "dwell-time"],
+  },
+  arjun: {
+    ref: cast.arjun,
+    team: "team-platform",
+    manager: "daniel",
+    location: "Bangalore",
+    timeZone: "Asia/Kolkata",
+    joinedOn: dateFromToday(-75),
+    skills: ["Kubernetes", "Observability", "On-call"],
+    bio: "Site reliability engineer. Owns release tooling and incident reviews.",
+    owns: ["release", "incident"],
+  },
+  chloe: {
+    ref: cast.chloe,
+    team: "team-platform",
+    manager: "daniel",
+    location: "Paris",
+    timeZone: "Europe/Paris",
+    joinedOn: dateFromToday(-21),
+    skills: ["Data pipelines", "dbt", "Snowflake"],
+    bio: "Data engineer building usage pipelines for the new billing tiers.",
+  },
+  jonah: {
+    ref: cast.jonah,
+    team: "team-platform",
+    manager: "daniel",
+    location: "Berlin",
+    timeZone: "Europe/Berlin",
+    joinedOn: dateFromToday(5),
+    skills: ["Terraform", "AWS", "SRE"],
+    bio: "Site reliability engineer joining Platform soon.",
+  },
+  priya: {
+    ref: cast.priya,
+    team: "team-billing",
+    manager: "ivy",
+    location: "London",
+    timeZone: "Europe/London",
+    joinedOn: "2023-03-06",
+    expert: true,
+    skills: ["Pricing", "Billing", "Project Kestrel"],
+    bio: "Product manager for billing and pricing. Leads Project Kestrel and owns the 2026 pricing.",
+    owns: ["kestrel"],
+  },
+  elena: {
+    ref: cast.elena,
+    team: "team-people",
+    manager: "ceo",
+    location: "London",
+    timeZone: "Europe/London",
+    joinedOn: "2022-01-10",
+    skills: ["Onboarding", "Probation reviews", "Policies"],
+    bio: "People partner for Engineering and Product. Runs onboarding and probation reviews.",
+    owns: ["values"],
+  },
+  tom: {
+    ref: cast.tom,
+    team: "team-it",
+    manager: "ceo",
+    location: "London",
+    timeZone: "Europe/London",
+    joinedOn: "2021-08-02",
+    skills: ["Google Workspace", "Access management", "SSO"],
+    bio: "Runs IT and the ContextOS workspace: access, connectors and security.",
+  },
+  ivy: {
+    ref: cast.ivy,
+    team: "team-product",
+    manager: "ceo",
+    location: "London",
+    timeZone: "Europe/London",
+    joinedOn: "2020-05-11",
+    expert: true,
+    skills: ["Tessellate Track", "Customer research", "Roadmaps"],
+    bio: "Product manager for Tessellate Track and Insights.",
+    owns: ["track", "insights", "webapp"],
+  },
+  nina: {
+    ref: cast.nina,
+    team: "team-data",
+    manager: "ceo",
+    location: "Amsterdam",
+    timeZone: "Europe/Amsterdam",
+    joinedOn: "2021-10-04",
+    expert: true,
+    skills: ["ETA models", "Data warehouse", "Machine learning"],
+    bio: "Leads the Data team and Project Atlas, the next ETA model.",
+    owns: ["atlas", "eta"],
+  },
+  ravi: {
+    ref: cast.ravi,
+    team: "team-data",
+    manager: "nina",
+    location: "Amsterdam",
+    timeZone: "Europe/Amsterdam",
+    joinedOn: dateFromToday(-60),
+    skills: ["SQL", "Looker"],
+    bio: "Analyst on carrier performance reporting.",
+  },
+  owen: {
+    ref: cast.owen,
+    team: "team-design",
+    manager: "ceo",
+    location: "Bristol",
+    timeZone: "Europe/London",
+    joinedOn: "2021-04-12",
+    skills: ["Design systems", "Research ops"],
+    bio: "Leads Design. Owns the product design system.",
+  },
+  hana: {
+    ref: cast.hana,
+    team: "team-design",
+    manager: "owen",
+    location: "London",
+    timeZone: "Europe/London",
+    joinedOn: dateFromToday(-62),
+    skills: ["Interaction design", "Prototyping"],
+    bio: "Designs Tessellate Track. Owns the product tour module.",
+  },
+  marcus: {
+    ref: cast.marcus,
+    team: "team-sales",
+    manager: "ceo",
+    location: "New York",
+    timeZone: "America/New_York",
+    joinedOn: "2020-11-02",
+    skills: ["Enterprise sales", "Pricing"],
+    bio: "Runs the North America sales team.",
+  },
+  sofia: {
+    ref: cast.sofia,
+    team: "team-sales",
+    manager: "marcus",
+    location: "New York",
+    timeZone: "America/New_York",
+    joinedOn: dateFromToday(-80),
+    skills: ["Retail accounts"],
+    bio: "Account executive for retail customers.",
+  },
+  grace: {
+    ref: cast.grace,
+    team: "team-sales",
+    manager: "marcus",
+    location: "Toronto",
+    timeZone: "America/Toronto",
+    joinedOn: dateFromToday(5),
+    skills: ["3PL accounts"],
+    bio: "Account executive joining soon.",
+  },
+  aisha: {
+    ref: cast.aisha,
+    team: "team-support",
+    manager: "ceo",
+    location: "Dublin",
+    timeZone: "Europe/Dublin",
+    joinedOn: "2021-01-11",
+    expert: true,
+    skills: ["Customer support", "Zendesk", "Escalations"],
+    bio: "Leads customer support and the help center.",
+  },
+  ben: {
+    ref: cast.ben,
+    team: "team-support",
+    manager: "aisha",
+    location: "Dublin",
+    timeZone: "Europe/Dublin",
+    joinedOn: dateFromToday(-65),
+    skills: ["Carrier issues"],
+    bio: "Support specialist for carrier-related tickets.",
+  },
 };
 
 const VIEWER = "maya";
@@ -107,7 +363,8 @@ const LEADERSHIP = { ref: extra.ceo };
 
 const keyOfId = (id: string) => Object.keys(P).find((key) => P[key]?.ref.id === id);
 const teamOf = (person: MockPerson) => TEAMS.find((team) => team.id === person.team);
-const personRef = (key: string): PersonRef => (key === "ceo" ? LEADERSHIP.ref : (P[key]?.ref ?? LEADERSHIP.ref));
+const personRef = (key: string): PersonRef =>
+  key === "ceo" ? LEADERSHIP.ref : (P[key]?.ref ?? LEADERSHIP.ref);
 const isNew = (person: MockPerson) => person.joinedOn > dateFromToday(-90);
 
 function relations(key: string): PersonRelation[] {
@@ -154,7 +411,9 @@ function profile(id: string): PersonProfile {
       .map(personRef),
     owns: (person.owns ?? []).flatMap((item) => {
       const owned = OWNED[item];
-      return owned ? [{ id: item, title: owned.title, section: owned.section, projectId: null }] : [];
+      return owned
+        ? [{ id: item, title: owned.title, section: owned.section, projectId: null }]
+        : [];
     }),
     onboarding: null,
   };
@@ -171,7 +430,9 @@ function directory(q: string, filter: string) {
       if (filter === "new" && !isNew(person)) return false;
       if (!needle) return true;
       const team = teamOf(person)?.name ?? "";
-      return `${person.ref.name} ${person.ref.title} ${team} ${person.skills.join(" ")}`.toLowerCase().includes(needle);
+      return `${person.ref.name} ${person.ref.title} ${team} ${person.skills.join(" ")}`
+        .toLowerCase()
+        .includes(needle);
     })
     .map(summary);
   return { total: 412, teamCount: 18, items };
@@ -217,7 +478,11 @@ function teams() {
 export const peopleMocks = [
   // Listed before the profile route so "/experts" and "/teams" are not read as person ids.
   mockGet(E.experts)(() => ({
-    items: EXPERTS.map((expert) => ({ topic: expert.topic, area: expert.area, person: personRef(expert.person) })),
+    items: EXPERTS.map((expert) => ({
+      topic: expert.topic,
+      area: expert.area,
+      person: personRef(expert.person),
+    })),
   })),
   mockGet(E.teams)(() => teams()),
   mockGet(E.directory)(({ request }) => {

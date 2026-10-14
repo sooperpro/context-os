@@ -12,6 +12,7 @@ import { TEAM_ENDPOINTS as E } from "@/features/team/api/team.api";
 import { mockGet, mockPatch, mockPost, MockNotFoundError } from "@/mocks/define";
 import { people } from "@/mocks/fixtures/people";
 import { dateFromToday } from "@/mocks/fixtures/time";
+import { submitProbationRecommendation } from "@/mocks/people-ops";
 import { learnerSnapshot } from "@/mocks/learning";
 
 /*
@@ -57,7 +58,13 @@ const module = (
   postponed: false,
 });
 
-const check = (id: string, title: string, state: CheckCell, result: string, note: string | null = null): MemberCheck => ({
+const check = (
+  id: string,
+  title: string,
+  state: CheckCell,
+  result: string,
+  note: string | null = null,
+): MemberCheck => ({
   id,
   title,
   state,
@@ -65,7 +72,13 @@ const check = (id: string, title: string, state: CheckCell, result: string, note
   note,
 });
 
-const checkin = (id: string, type: CheckinType, daysAgo: number, pulse: CheckinRecord["pulse"], note: string): CheckinRecord => ({
+const checkin = (
+  id: string,
+  type: CheckinType,
+  daysAgo: number,
+  pulse: CheckinRecord["pulse"],
+  note: string,
+): CheckinRecord => ({
   id,
   type,
   on: dateFromToday(-daysAgo),
@@ -94,14 +107,23 @@ const seed = (): MockMember[] => [
       module("l-arch", "Architecture overview", "done", { done: -19 }),
       module("l-ingest", "The ingest gateway", "done", { done: -14 }),
       module("l-bus", "Event bus and schemas", "done", { done: -11 }),
-      module("l-billing", "Billing architecture and Project Kestrel", "overdue", { due: -5, note: "Check failed twice" }),
+      module("l-billing", "Billing architecture and Project Kestrel", "overdue", {
+        due: -5,
+        note: "Check failed twice",
+      }),
       module("l-ledger", "Ledger service", "overdue", { due: -5 }),
       module("l-decisions", "Decisions you should know", "todo", { due: 3 }),
     ],
     checks: [
       check("c1", "Company & business model", "pass", "9 of 10"),
       check("c2", "Architecture overview", "pass", "8 of 10"),
-      check("c3", "Billing architecture", "fail", "3 of 5 · 2 attempts", "Missed both idempotency questions"),
+      check(
+        "c3",
+        "Billing architecture",
+        "fail",
+        "3 of 5 · 2 attempts",
+        "Missed both idempotency questions",
+      ),
     ],
     upcoming: [
       { id: "u1", title: "1:1 · Learning plan", in: 1 },
@@ -109,8 +131,20 @@ const seed = (): MockMember[] => [
       { id: "u3", title: "Probation review", in: 52 },
     ],
     checkins: [
-      checkin("k1", "weekly", 12, "concerns", "Unsure who to ask about the ledger. Would like more pairing time."),
-      checkin("k2", "weekly", 19, "on_track", "Finished the architecture overview early. Enjoying the ingest work."),
+      checkin(
+        "k1",
+        "weekly",
+        12,
+        "concerns",
+        "Unsure who to ask about the ledger. Would like more pairing time.",
+      ),
+      checkin(
+        "k2",
+        "weekly",
+        19,
+        "on_track",
+        "Finished the architecture overview early. Enjoying the ingest work.",
+      ),
       checkin("k3", "weekly", 26, "on_track", "Dev environment set up and first PR merged."),
     ],
   },
@@ -125,7 +159,10 @@ const seed = (): MockMember[] => [
     buddy: people.leah,
     readinessIn: 38,
     probationIn: 69,
-    issues: ["No data warehouse access for 4 days (IT-2291)", "3 upcoming modules need that access"],
+    issues: [
+      "No data warehouse access for 4 days (IT-2291)",
+      "3 upcoming modules need that access",
+    ],
     insight: {
       text: "Everything else is on schedule. Escalating IT-2291 to Tom Becker usually resolves access within a day.",
       action: { kind: "escalate", label: "Escalate IT-2291" },
@@ -136,12 +173,23 @@ const seed = (): MockMember[] => [
       module("c-usage", "Usage pipelines", "blocked", { note: "Needs warehouse access" }),
       module("c-bus", "Event bus and schemas", "active", { due: 3 }),
     ],
-    checks: [check("c1", "Company & business model", "pass", "10 of 10"), check("c2", "Architecture overview", "todo", "Due in 3 days")],
+    checks: [
+      check("c1", "Company & business model", "pass", "10 of 10"),
+      check("c2", "Architecture overview", "todo", "Due in 3 days"),
+    ],
     upcoming: [
       { id: "u1", title: "30-day review", in: 9 },
       { id: "u2", title: "60-day readiness review", in: 38 },
     ],
-    checkins: [checkin("k1", "weekly", 5, "concerns", "Blocked on warehouse access. Using the time to read pipeline docs.")],
+    checkins: [
+      checkin(
+        "k1",
+        "weekly",
+        5,
+        "concerns",
+        "Blocked on warehouse access. Using the time to read pipeline docs.",
+      ),
+    ],
   },
   {
     key: "jonah",
@@ -213,7 +261,15 @@ const seed = (): MockMember[] => [
       { id: "u2", title: "Recommendation due", in: 10 },
       { id: "u3", title: "Probation review", in: 15 },
     ],
-    checkins: [checkin("k1", "readiness_60", 6, "on_track", "Meets expectations across all four areas. Ready for on-call primary.")],
+    checkins: [
+      checkin(
+        "k1",
+        "readiness_60",
+        6,
+        "on_track",
+        "Meets expectations across all four areas. Ready for on-call primary.",
+      ),
+    ],
   },
 ];
 
@@ -246,7 +302,12 @@ function withLearning(member: MockMember): MockMember {
     checks: [
       check("c1", "Our customers", "pass", "9 of 10"),
       learner.m4.done
-        ? check("c2", "How Tessellate makes money", "pass", learner.m4.result?.replace(/^Passed /, "") ?? "Passed")
+        ? check(
+            "c2",
+            "How Tessellate makes money",
+            "pass",
+            learner.m4.result?.replace(/^Passed /, "") ?? "Passed",
+          )
         : check("c2", "How Tessellate makes money", "todo", "Due in 2 days"),
     ],
   };
@@ -277,7 +338,11 @@ function detail(personId: string): TeamMemberDetail {
     insight: member.insight,
     modules: member.modules,
     checks: member.checks,
-    upcoming: member.upcoming.map((entry) => ({ id: entry.id, title: entry.title, on: dateFromToday(entry.in) })),
+    upcoming: member.upcoming.map((entry) => ({
+      id: entry.id,
+      title: entry.title,
+      on: dateFromToday(entry.in),
+    })),
     checkins: member.checkins,
   };
 }
@@ -298,7 +363,12 @@ function roster() {
         progress: member.progress,
         expected: member.expected,
         status: member.status,
-        next: member.status === "needs_setup" ? "Assign a roadmap" : next ? `${next.title} · ${weekday(next.in)}` : null,
+        next:
+          member.status === "needs_setup"
+            ? "Assign a roadmap"
+            : next
+              ? `${next.title} · ${weekday(next.in)}`
+              : null,
         issue: member.issues[0] ?? null,
       };
     }),
@@ -312,18 +382,49 @@ function matrix() {
   return {
     topics: TOPICS,
     rows: [
-      { person: people.maya, cells: ["pass", "pass", learner.m4.done ? "pass" : "todo", "todo", "todo", "todo"] as CheckCell[] },
-      { person: people.chloe, cells: ["pass", "pass", "pass", "todo", "todo", "na"] as CheckCell[] },
-      { person: people.leah, cells: ["pass", "pass", "pass", "pass", "pass", "fail"] as CheckCell[] },
-      { person: people.arjun, cells: ["pass", "pass", "pass", "pass", "pass", "pass"] as CheckCell[] },
+      {
+        person: people.maya,
+        cells: [
+          "pass",
+          "pass",
+          learner.m4.done ? "pass" : "todo",
+          "todo",
+          "todo",
+          "todo",
+        ] as CheckCell[],
+      },
+      {
+        person: people.chloe,
+        cells: ["pass", "pass", "pass", "todo", "todo", "na"] as CheckCell[],
+      },
+      {
+        person: people.leah,
+        cells: ["pass", "pass", "pass", "pass", "pass", "fail"] as CheckCell[],
+      },
+      {
+        person: people.arjun,
+        cells: ["pass", "pass", "pass", "pass", "pass", "pass"] as CheckCell[],
+      },
     ],
   };
 }
 
 const AREAS = [
-  { id: "products", label: "Knows our products and customers", evidence: "Passed company and customer checks" },
-  { id: "systems", label: "Understands the systems they work on", evidence: "Architecture check passed" },
-  { id: "practices", label: "Works with team practices", evidence: "PRs reviewed on time; joined incident review" },
+  {
+    id: "products",
+    label: "Knows our products and customers",
+    evidence: "Passed company and customer checks",
+  },
+  {
+    id: "systems",
+    label: "Understands the systems they work on",
+    evidence: "Architecture check passed",
+  },
+  {
+    id: "practices",
+    label: "Works with team practices",
+    evidence: "PRs reviewed on time; joined incident review",
+  },
   { id: "delivery", label: "Delivers independently", evidence: "First change shipped" },
 ];
 
@@ -334,7 +435,12 @@ const EVIDENCE: Partial<Record<MockMember["key"], string[]>> = {
     "PRs reviewed on time; joined incident review",
     "First ledger change shipped",
   ],
-  arjun: ["All checks passed, average 92%", "Owns release tooling", "Leads incident reviews", "Runbook published"],
+  arjun: [
+    "All checks passed, average 92%",
+    "Owns release tooling",
+    "Leads incident reviews",
+    "Runbook published",
+  ],
 };
 
 const AGENDA: Partial<Record<MockMember["key"], string[]>> = {
@@ -375,15 +481,47 @@ function assignOptions(personId: string) {
         ? "Leah failed two questions about idempotent consumers in “Billing architecture”. These items target that gap."
         : null,
       items: [
-        { id: "billing-deep-dive", title: "Billing architecture: deep dive", kind: "module" as const, detail: "Module · 25 min · Owner Priya Nair", suggested: isLeah },
-        { id: "pair-priya", title: "Pairing session with Priya Nair", kind: "practical" as const, detail: "Practical task · 45 min", suggested: false },
-        { id: "retake-billing", title: "Retake: Billing architecture check", kind: "check" as const, detail: "Knowledge check · 10 min", suggested: false },
+        {
+          id: "billing-deep-dive",
+          title: "Billing architecture: deep dive",
+          kind: "module" as const,
+          detail: "Module · 25 min · Owner Priya Nair",
+          suggested: isLeah,
+        },
+        {
+          id: "pair-priya",
+          title: "Pairing session with Priya Nair",
+          kind: "practical" as const,
+          detail: "Practical task · 45 min",
+          suggested: false,
+        },
+        {
+          id: "retake-billing",
+          title: "Retake: Billing architecture check",
+          kind: "check" as const,
+          detail: "Knowledge check · 10 min",
+          suggested: false,
+        },
       ],
     },
     roadmap: {
       templates: [
-        { id: "tpl-eng-ic", name: "Engineering · Individual contributor", version: "v4", moduleCount: 20, weeks: 12, matchesRole: true },
-        { id: "tpl-support", name: "Support · Specialist", version: "v3", moduleCount: 14, weeks: 8, matchesRole: false },
+        {
+          id: "tpl-eng-ic",
+          name: "Engineering · Individual contributor",
+          version: "v4",
+          moduleCount: 20,
+          weeks: 12,
+          matchesRole: true,
+        },
+        {
+          id: "tpl-support",
+          name: "Support · Specialist",
+          version: "v3",
+          moduleCount: 14,
+          weeks: 8,
+          matchesRole: false,
+        },
       ],
       addOns: [
         { id: "oncall", label: "On-call readiness", suggested: true },
@@ -401,7 +539,8 @@ const ASSIGNABLE: Record<string, string> = {
   "retake-billing": "Retake: Billing architecture check",
 };
 
-const param = (value: string | readonly string[] | undefined) => (typeof value === "string" ? value : "");
+const param = (value: string | readonly string[] | undefined) =>
+  typeof value === "string" ? value : "";
 
 export const teamMocks = [
   mockGet(H.teamOnboarding)(() => roster()),
@@ -438,7 +577,19 @@ export const teamMocks = [
       note: input.notes.trim() || "No notes added.",
     };
     member.checkins = [record, ...member.checkins];
-    if (input.type === "probation") member.issues = member.issues.filter((issue) => !issue.startsWith("Probation recommendation"));
+    if (input.type === "probation") {
+      member.issues = member.issues.filter(
+        (issue) => !issue.startsWith("Probation recommendation"),
+      );
+      // The recommendation goes to People Ops' probation pipeline.
+      if (input.recommendation)
+        submitProbationRecommendation(
+          member.person.id,
+          input.recommendation,
+          input.ratings,
+          input.notes,
+        );
+    }
     return record;
   }, 201),
   mockGet(E.assignOptions)(({ params }) => assignOptions(param(params.id))),
@@ -463,7 +614,9 @@ export const teamMocks = [
       module("j-welcome", "Welcome to Tessellate", "todo", { due: 7 }),
       module("j-customers", "Our customers and what they need", "todo", { due: 9 }),
       module("j-setup", "Set up your local development environment", "todo", { due: 10 }),
-      ...(input.addOnIds.includes("oncall") ? [module("j-oncall", "On-call readiness", "todo", { due: 30 })] : []),
+      ...(input.addOnIds.includes("oncall")
+        ? [module("j-oncall", "On-call readiness", "todo", { due: 30 })]
+        : []),
     ];
     return { id: `roadmap-${member.key}` };
   }, 201),

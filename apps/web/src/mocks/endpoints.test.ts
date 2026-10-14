@@ -14,6 +14,9 @@ const EXAMPLE: Record<string, string> = {
   "/v1/team/members/:id": "/v1/team/members/p-leah",
   "/v1/team/members/:id/checkin-prep": "/v1/team/members/p-leah/checkin-prep?type=weekly",
   "/v1/team/members/:id/assign-options": "/v1/team/members/p-leah/assign-options",
+  "/v1/people-ops/onboardings/:id": "/v1/people-ops/onboardings/p-leah",
+  "/v1/people-ops/probation-reviews/:id": "/v1/people-ops/probation-reviews/pr-sofia",
+  "/v1/people-ops/templates/:id": "/v1/people-ops/templates/tpl-eng-ic",
 };
 
 describe("mock layer", () => {

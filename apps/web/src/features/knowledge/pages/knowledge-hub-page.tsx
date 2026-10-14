@@ -22,7 +22,6 @@ import {
   GroupsIcon,
   HubFilledIcon,
   RocketLaunchFilledIcon,
-  SearchIcon,
   SearchOffIcon,
 } from "@/components/ui/icons";
 import { TypeChip } from "@/components/ui/meta-chip";
@@ -35,6 +34,7 @@ import {
   SegmentedList,
 } from "@/components/ui/segmented-list";
 import { Shape } from "@/components/ui/shape";
+import { SearchField } from "@/components/ui/search-field";
 import { Skeleton } from "@/components/ui/skeleton";
 import { contextItemsQuery } from "@/features/hub/api/hub.queries";
 import { membersQuery, teamsQuery } from "@/features/members/api/members.queries";
@@ -181,23 +181,14 @@ export function KnowledgeHubPage() {
       />
 
       <div className="flex flex-col gap-3">
-        <form role="search" onSubmit={(event) => event.preventDefault()} className="max-w-180">
-          <label htmlFor="kb-search" className="sr-only">
-            Search the Knowledge Hub
-          </label>
-          <div className="flex h-14 items-center gap-2 rounded-full bg-field pr-2 pl-4 text-on-surface-variant focus-within:ring-3 focus-within:ring-ring/50">
-            <SearchIcon className="size-5 shrink-0" aria-hidden />
-            <input
-              id="kb-search"
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search projects, decisions, systems, people and terms"
-              autoComplete="off"
-              className="min-w-0 flex-1 bg-transparent text-base text-on-surface outline-none placeholder:text-on-surface-variant"
-            />
-          </div>
-        </form>
+        <SearchField
+          label="Search the Knowledge Hub"
+          value={query}
+          onValueChange={setQuery}
+          placeholder="Search projects, decisions, systems, people and terms"
+          tone="field"
+          className="max-w-180"
+        />
         <div
           role="group"
           aria-label="Filter by type"

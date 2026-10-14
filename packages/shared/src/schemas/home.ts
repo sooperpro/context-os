@@ -265,17 +265,38 @@ export const ProbationReviewSchema = z.object({
   team: z.string(),
   manager: PersonRefSchema,
   reviewOn: DateOnly,
-  recommendation: z.enum(["confirm", "extend", "awaiting_manager", "not_started"]),
+  recommendation: z.enum(["confirm", "extend", "discuss", "awaiting_manager", "not_started"]),
   readiness: Fraction,
-  state: z.enum(["ready_for_approval", "awaiting_manager", "needs_hr_review", "checkins_missing"]),
+  state: z.enum([
+    "ready_for_approval",
+    "awaiting_manager",
+    "needs_hr_review",
+    "checkins_missing",
+    "completed",
+  ]),
+  /** What People Ops recorded; set when `state` is completed. */
+  decision: z
+    .object({
+      outcome: z.enum(["confirmed", "extended"]),
+      /** For extensions: "30 days". */
+      extension: z.string().nullable(),
+      decidedOn: DateOnly,
+    })
+    .nullable(),
   /** When the manager's recommendation is due. */
   recommendationDueOn: DateOnly.nullable(),
   missingCheckins: Count,
 });
 export type ProbationReview = z.infer<typeof ProbationReviewSchema>;
 
-/** `GET /v1/people-ops/probation-reviews?within=30`: reviews in the next N days, soonest first. */
-export const ProbationReviewListSchema = z.object({ items: z.array(ProbationReviewSchema) });
+/**
+ * `GET /v1/people-ops/probation-reviews?within=30`: reviews in the next N days, soonest first, and
+ * reviews decided in the last N days whose date has passed.
+ */
+export const ProbationReviewListSchema = z.object({
+  items: z.array(ProbationReviewSchema),
+  recentlyCompleted: z.array(ProbationReviewSchema),
+});
 
 export const StarterSchema = z.object({
   id: z.string(),
@@ -303,13 +324,31 @@ export type OverdueMilestone = z.infer<typeof OverdueMilestoneSchema>;
 /** `GET /v1/people-ops/overdue-milestones`: missed onboarding milestones, oldest first. */
 export const OverdueMilestoneListSchema = z.object({ items: z.array(OverdueMilestoneSchema) });
 
+/** Which kind of role a template is for; picks its icon. */
+export const TemplateFamilySchema = z.enum([
+  "engineering",
+  "sales",
+  "support",
+  "design",
+  "data",
+  "manager",
+  "other",
+]);
+export type TemplateFamily = z.infer<typeof TemplateFamilySchema>;
+
 export const OnboardingTemplateSchema = z.object({
   id: z.string(),
   name: z.string(),
-  family: z.enum(["engineering", "sales", "support", "manager", "other"]),
+  family: TemplateFamilySchema,
   version: z.string(),
   activeCount: Count,
   updatedAt: IsoDateTimeSchema,
+  status: z.enum(["published", "draft"]),
+  roles: z.array(z.string()),
+  weeks: Count,
+  stageCount: Count,
+  moduleCount: Count,
+  updatedBy: z.string(),
 });
 export type OnboardingTemplate = z.infer<typeof OnboardingTemplateSchema>;
 

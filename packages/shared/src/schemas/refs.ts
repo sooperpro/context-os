@@ -18,6 +18,8 @@ export const OnboardingStatusSchema = z.enum([
   "blocked",
   "not_started",
   "needs_setup",
+  /** Starting soon with everything set up. */
+  "ready",
 ]);
 export type OnboardingStatus = z.infer<typeof OnboardingStatusSchema>;
 

@@ -106,6 +106,52 @@ const appChildren = [
     },
   },
   {
+    path: "onboarding",
+    lazy: async () => {
+      const { OnboardingListPage } =
+        await import("@/features/people-ops/pages/onboarding-list-page");
+      return { Component: OnboardingListPage };
+    },
+  },
+  {
+    path: "onboarding/:recordId",
+    lazy: async () => {
+      const { OnboardingRecordPage } =
+        await import("@/features/people-ops/pages/onboarding-record-page");
+      return { Component: OnboardingRecordPage };
+    },
+  },
+  {
+    path: "probation",
+    lazy: async () => {
+      const { ProbationListPage } = await import("@/features/people-ops/pages/probation-list-page");
+      return { Component: ProbationListPage };
+    },
+  },
+  {
+    path: "probation/:reviewId",
+    lazy: async () => {
+      const { ProbationDetailPage } =
+        await import("@/features/people-ops/pages/probation-detail-page");
+      return { Component: ProbationDetailPage };
+    },
+  },
+  {
+    path: "templates",
+    lazy: async () => {
+      const { TemplatesPage } = await import("@/features/people-ops/pages/templates-page");
+      return { Component: TemplatesPage };
+    },
+  },
+  {
+    path: "templates/:templateId",
+    lazy: async () => {
+      const { TemplateEditorPage } =
+        await import("@/features/people-ops/pages/template-editor-page");
+      return { Component: TemplateEditorPage };
+    },
+  },
+  {
     path: "learning",
     lazy: async () => {
       const { MyLearningPage } = await import("@/features/learning/pages/my-learning-page");

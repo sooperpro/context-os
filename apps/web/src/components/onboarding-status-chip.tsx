@@ -1,6 +1,13 @@
 import type { OnboardingStatus } from "@contextos/shared";
 import type { ReactNode } from "react";
-import { BlockIcon, CheckCircleIcon, ErrorIcon, InfoIcon, ScheduleIcon, TrendingUpIcon } from "@/components/ui/icons";
+import {
+  BlockIcon,
+  CheckCircleIcon,
+  ErrorIcon,
+  InfoIcon,
+  ScheduleIcon,
+  TrendingUpIcon,
+} from "@/components/ui/icons";
 import { StatusChip } from "@/components/ui/status-chip";
 
 const STATUS: Record<
@@ -13,6 +20,7 @@ const STATUS: Record<
   blocked: { label: "Blocked", tone: "error", icon: <BlockIcon /> },
   not_started: { label: "Not started", tone: "neutral", icon: <ScheduleIcon /> },
   needs_setup: { label: "Needs setup", tone: "info", icon: <InfoIcon /> },
+  ready: { label: "Ready", tone: "success", icon: <CheckCircleIcon /> },
 };
 
 /** Where someone is against their onboarding plan; never color alone, always an icon and a label. */

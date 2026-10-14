@@ -4,6 +4,7 @@ import { registerPreviewEndpoints } from "@/lib/preview-data";
 import { resetContributionMocks } from "@/mocks/contributions";
 import { mockEndpoints } from "@/mocks/endpoints";
 import { resetLearningMocks } from "@/mocks/learning";
+import { resetPeopleOpsMocks } from "@/mocks/people-ops";
 import { resetTeamMocks } from "@/mocks/team";
 
 /**
@@ -23,6 +24,7 @@ export function setupMockApi(): void {
     resetContributionMocks();
     resetLearningMocks();
     resetTeamMocks();
+    resetPeopleOpsMocks();
   });
   afterAll(() => mockServer.close());
 }

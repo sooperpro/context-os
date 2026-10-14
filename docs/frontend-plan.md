@@ -25,14 +25,14 @@ roles (`primary-container`, the `surface-container` ladder, `tertiary` as `ai`, 
 
 ## Decisions
 
-| Decision        | Choice                                                                             | Why                                                                                     |
-| --------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Design system   | Material 3 Expressive tokens on top of shadcn/Base UI mechanics                    | Prototype fidelity without rewriting focus management and composition                   |
-| Theme mechanism | `data-theme` attribute on `<html>`, resolved by `ThemeProvider`                    | Matches the prototype and the token file; `dark:` utilities key on it                   |
-| Fonts           | Google Sans Flex and Google Sans Code from Google Fonts, system fallback           | Not self-hostable; fallback stack must be checked, not assumed                          |
-| Icons           | Material Symbols Rounded as per-icon SVG components (`components/ui/icons.ts`, SVGR) everywhere; Lucide removed and blocked by lint | One registry keeps the set visible; filled variants mark active navigation (FILL 1) |
-| Token source    | Hand-maintained CSS, no generator                                                  | One consumer today; a generator pays off at two                                         |
-| Roles           | Navigation and visibility from the backend role (Owner/Admin/Manager/Member/Guest) | The prototype's four fixed roles do not match the API; HR maps to Admin plus assignments |
+| Decision        | Choice                                                                                                                              | Why                                                                                      |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Design system   | Material 3 Expressive tokens on top of shadcn/Base UI mechanics                                                                     | Prototype fidelity without rewriting focus management and composition                    |
+| Theme mechanism | `data-theme` attribute on `<html>`, resolved by `ThemeProvider`                                                                     | Matches the prototype and the token file; `dark:` utilities key on it                    |
+| Fonts           | Google Sans Flex and Google Sans Code from Google Fonts, system fallback                                                            | Not self-hostable; fallback stack must be checked, not assumed                           |
+| Icons           | Material Symbols Rounded as per-icon SVG components (`components/ui/icons.ts`, SVGR) everywhere; Lucide removed and blocked by lint | One registry keeps the set visible; filled variants mark active navigation (FILL 1)      |
+| Token source    | Hand-maintained CSS, no generator                                                                                                   | One consumer today; a generator pays off at two                                          |
+| Roles           | Navigation and visibility from the backend role (Owner/Admin/Manager/Member/Guest)                                                  | The prototype's four fixed roles do not match the API; HR maps to Admin plus assignments |
 
 ## Phases
 
@@ -188,6 +188,17 @@ A pass over every built surface against the prototype's CSS and JS found three g
       "Assign a roadmap" dialogs open from Home, the team page and the member page. The rail is the
       reference's: Home, Team onboarding, Knowledge Hub, Review queue, People, My learning. Home is
       treated as an orchestrator: it may open other features' dialogs.
+- [x] The HR view, from the reference: Onboarding (search, team, filter chips with counts, the records
+      table, New onboarding), an onboarding record (assignments with change dialogs, the setup checklist,
+      progress, milestones), Probation reviews (the pipeline with a review track per person, Remind
+      managers, recently completed), a review (the manager's ratings and note, milestones, activity, and
+      the Employment status decision with a confirmation) and Templates (cards, a stage and module
+      editor with Add module, Save draft and Publish with a note, version history, New template). HR
+      Home's buttons, review rows, follow-ups and template cards open them. A manager's probation
+      recommendation from a check-in lands in the HR pipeline. The rail is the reference's: Home,
+      Onboarding, Probation reviews, Templates, People, Knowledge Hub. Shared pieces moved down into
+      `components/`: `ProfileHero` (profiles, member page, HR records), `PersonCell`, `AskCard`,
+      `SearchField`, `EmptyMini`, `ChipCount` and a compact `ProgressSteps`.
 - [x] The rail is gated by persona as well as role, so each "Prototype · view as" persona (Employee,
       Manager, HR, Admin) gets the reference's items as their screens ship.
 

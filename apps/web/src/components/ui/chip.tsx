@@ -51,4 +51,18 @@ function Chip({ className, variant = "assist", selected, render, ...props }: Chi
   });
 }
 
-export { Chip, chipVariants };
+/** A filter chip's count (prototype `.chip-count`): "Needs attention 4". */
+function ChipCount({ className, ...props }: React.ComponentProps<"span">) {
+  return (
+    <span
+      data-slot="chip-count"
+      className={cn(
+        "-me-1.5 inline-grid h-5 min-w-5 place-items-center rounded-[10px] bg-surface-container-highest px-1.5 text-[11px] font-medium tabular-nums group-aria-pressed/chip:bg-on-secondary-container/14",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+export { Chip, ChipCount, chipVariants };

@@ -1,28 +1,25 @@
-import type { OnboardingTemplate, PeopleOpsOverview, ProbationReview } from "@contextos/shared";
+import type { PeopleOpsOverview, ProbationReview } from "@contextos/shared";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { cn } from "cn";
-import type { ReactNode } from "react";
+import { useState } from "react";
+import { Link } from "react-router";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/page-header";
+import { PersonCell } from "@/components/person-cell";
 import { PreviewDataChip } from "@/components/preview-data-chip";
 import { SectionCard } from "@/components/section-card";
 import { PersonAvatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { DotList } from "@/components/ui/dot-list";
 import {
   ArrowForwardIcon,
   ArrowUpwardIcon,
   AssignmentLateIcon,
   CheckCircleFilledIcon,
-  CodeIcon,
   ErrorIcon,
-  HandshakeIcon,
-  HourglassEmptyIcon,
   LibraryBooksIcon,
-  MoreTimeIcon,
   PersonAddIcon,
   RadioButtonUncheckedIcon,
-  SupervisorAccountIcon,
-  SupportAgentIcon,
-  ThumbUpIcon,
 } from "@/components/ui/icons";
 import { KpiTile } from "@/components/ui/kpi-tile";
 import { Progress } from "@/components/ui/progress";
@@ -34,7 +31,6 @@ import {
   SegmentedItemTitle,
   SegmentedList,
 } from "@/components/ui/segmented-list";
-import { Shape, type ShapeKind } from "@/components/ui/shape";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusChip } from "@/components/ui/status-chip";
 import {
@@ -48,9 +44,27 @@ import {
 import { meQuery } from "@/features/account/api/account.queries";
 import { HOME_ENDPOINTS as E } from "@/features/home/api/home.api";
 import { homeQuery } from "@/features/home/api/home.queries";
-import { comingSoon } from "@/lib/coming-soon";
-import { daysFromToday, firstName, formatCount, formatDayDate, formatLongDate, formatPercent, formatShortDate, greetingFor } from "@/lib/format";
-import { DotList } from "@/components/ui/dot-list";
+import { useRemindManagers } from "@/features/people-ops/api/people-ops.queries";
+import { NewOnboardingDialog } from "@/features/people-ops/components/onboarding-dialogs";
+import { TemplateTile } from "@/features/people-ops/components/template-parts";
+import {
+  PROBATION_PATH,
+  TEMPLATES_PATH,
+  needsHr,
+  probationPath,
+  recommendationChip,
+  templatePath,
+} from "@/features/people-ops/people-ops-meta";
+import {
+  daysFromToday,
+  firstName,
+  formatCount,
+  formatDayDate,
+  formatLongDate,
+  formatPercent,
+  formatShortDate,
+  greetingFor,
+} from "@/lib/format";
 import { DashboardGrid } from "./dashboard";
 import { span } from "./dashboard-meta";
 
@@ -58,6 +72,7 @@ import { span } from "./dashboard-meta";
 export function PeopleOpsHome() {
   const me = useQuery(meQuery());
   const overview = useQuery(homeQuery("peopleOpsOverview"));
+  const [creating, setCreating] = useState(false);
   const data = overview.data;
 
   return (
@@ -83,10 +98,10 @@ export function PeopleOpsHome() {
         }
         actions={
           <>
-            <Button variant="outline" onClick={() => comingSoon("Templates")}>
+            <Button variant="outline" nativeButton={false} render={<Link to={TEMPLATES_PATH} />}>
               <LibraryBooksIcon aria-hidden /> Templates
             </Button>
-            <Button onClick={() => comingSoon("New onboarding")}>
+            <Button onClick={() => setCreating(true)}>
               <PersonAddIcon aria-hidden /> New onboarding
             </Button>
           </>
@@ -133,6 +148,7 @@ export function PeopleOpsHome() {
         <OverdueCard />
         <TemplatesCard />
       </DashboardGrid>
+      <NewOnboardingDialog open={creating} onOpenChange={setCreating} />
     </div>
   );
 }
@@ -148,21 +164,12 @@ function Change({ value, suffix }: { value: number; suffix: string }) {
 
 /* ---- Probation reviews -------------------------------------------------------------------- */
 
-const RECOMMENDATION: Record<
-  ProbationReview["recommendation"],
-  { label: string; tone: "success" | "warning" | "neutral"; icon: ReactNode }
-> = {
-  confirm: { label: "Confirm", tone: "success", icon: <ThumbUpIcon /> },
-  extend: { label: "Extend 30 days", tone: "warning", icon: <MoreTimeIcon /> },
-  awaiting_manager: { label: "Awaiting manager", tone: "neutral", icon: <HourglassEmptyIcon /> },
-  not_started: { label: "Not started", tone: "neutral", icon: <HourglassEmptyIcon /> },
-};
-
+/** The state column and the row's action (prototype `reviewRows`). */
 function reviewState(review: ProbationReview): {
   text: string;
   className: string;
   action: string;
-  primary: boolean;
+  kind: "open" | "remind";
 } {
   switch (review.state) {
     case "ready_for_approval":
@@ -170,21 +177,18 @@ function reviewState(review: ProbationReview): {
         text: "Ready for approval",
         className: "text-info",
         action: "Review & approve",
-        primary: true,
+        kind: "open",
       };
     case "needs_hr_review":
-      return {
-        text: "Needs HR review",
-        className: "text-warning",
-        action: "Review",
-        primary: true,
-      };
+      return { text: "Needs HR review", className: "text-warning", action: "Review", kind: "open" };
+    case "completed":
+      return { text: "Completed", className: "text-success", action: "View", kind: "open" };
     case "checkins_missing":
       return {
         text: `${formatCount(review.missingCheckins, "check-in")} missing`,
         className: "text-error",
         action: "Follow up",
-        primary: false,
+        kind: "remind",
       };
     case "awaiting_manager":
       return {
@@ -193,14 +197,26 @@ function reviewState(review: ProbationReview): {
           : "Awaiting manager",
         className: "text-on-surface-variant",
         action: "Send reminder",
-        primary: false,
+        kind: "remind",
       };
   }
 }
 
 function ReviewsCard() {
   const query = useQuery(homeQuery("probationReviews", { within: 30 }));
+  const remind = useRemindManagers();
   const items = query.data?.items ?? [];
+  const sendReminder = (review: ProbationReview, action: string) =>
+    remind.mutate(
+      { about: "probation_review", ids: [review.id] },
+      {
+        onSuccess: () =>
+          toast.success(
+            `${action === "Follow up" ? "Follow-up" : "Reminder"} sent to ${review.manager.name}`,
+          ),
+        onError: () => toast.error("The reminder could not be sent. Please try again."),
+      },
+    );
   return (
     <SectionCard
       className={span(12)}
@@ -208,7 +224,7 @@ function ReviewsCard() {
       endpoint={E.probationReviews.path}
       status={query}
       action={
-        <Button variant="ghost" onClick={() => comingSoon("Probation reviews")}>
+        <Button variant="ghost" nativeButton={false} render={<Link to={PROBATION_PATH} />}>
           All reviews <ArrowForwardIcon aria-hidden />
         </Button>
       }
@@ -230,20 +246,20 @@ function ReviewsCard() {
             </TableHeader>
             <TableBody>
               {items.map((review) => {
-                const recommendation = RECOMMENDATION[review.recommendation];
+                const recommendation = recommendationChip(review);
                 const state = reviewState(review);
                 return (
                   <TableRow key={review.id}>
                     <TableCell>
-                      <div className="flex items-center gap-3">
-                        <PersonAvatar person={review.person} size="sm" />
-                        <span className="flex min-w-0 flex-col">
-                          <b className="text-sm font-medium">{review.person.name}</b>
-                          <span className="text-xs whitespace-nowrap text-on-surface-variant">
+                      <PersonCell
+                        person={review.person}
+                        to={probationPath(review.id)}
+                        meta={
+                          <span className="whitespace-nowrap">
                             <DotList parts={[review.person.title, review.team]} />
                           </span>
-                        </span>
-                      </div>
+                        }
+                      />
                     </TableCell>
                     <TableCell>
                       <span className="text-sm whitespace-nowrap tabular-nums">
@@ -255,7 +271,7 @@ function ReviewsCard() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <StatusChip tone={recommendation.tone} icon={recommendation.icon}>
+                      <StatusChip tone={recommendation.tone} icon={<recommendation.icon />}>
                         {recommendation.label}
                       </StatusChip>
                     </TableCell>
@@ -287,14 +303,27 @@ function ReviewsCard() {
                       </span>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        size="xs"
-                        variant={state.primary ? "secondary" : "ghost"}
-                        className="whitespace-nowrap"
-                        onClick={() => comingSoon(state.action)}
-                      >
-                        {state.action}
-                      </Button>
+                      {state.kind === "open" ? (
+                        <Button
+                          size="xs"
+                          variant={needsHr(review.state) ? "secondary" : "ghost"}
+                          className="whitespace-nowrap"
+                          nativeButton={false}
+                          render={<Link to={probationPath(review.id)} />}
+                        >
+                          {state.action}
+                        </Button>
+                      ) : (
+                        <Button
+                          size="xs"
+                          variant="ghost"
+                          className="whitespace-nowrap"
+                          disabled={remind.isPending}
+                          onClick={() => sendReminder(review, state.action)}
+                        >
+                          {state.action}
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 );
@@ -454,6 +483,7 @@ function StartersCard() {
 
 function OverdueCard() {
   const query = useQuery(homeQuery("overdueMilestones"));
+  const remind = useRemindManagers();
   const items = query.data?.items ?? [];
   return (
     <SectionCard
@@ -480,7 +510,22 @@ function OverdueCard() {
                   />
                 </SegmentedItemMeta>
               </SegmentedItemBody>
-              <Button size="xs" variant="ghost" onClick={() => comingSoon("Follow-ups")}>
+              <Button
+                size="xs"
+                variant="ghost"
+                disabled={remind.isPending}
+                onClick={() =>
+                  remind.mutate(
+                    { about: "milestone", ids: [item.id] },
+                    {
+                      onSuccess: () =>
+                        toast.success(`Follow-up sent to ${item.person.name}’s manager`),
+                      onError: () =>
+                        toast.error("The follow-up could not be sent. Please try again."),
+                    },
+                  )
+                }
+              >
                 Follow up
               </Button>
             </SegmentedItem>
@@ -495,17 +540,10 @@ function OverdueCard() {
 
 /* ---- Onboarding templates ----------------------------------------------------------------- */
 
-const TEMPLATE_LOOK: Record<OnboardingTemplate["family"], { shape: ShapeKind; icon: ReactNode }> = {
-  engineering: { shape: "cookie6", icon: <CodeIcon /> },
-  sales: { shape: "clover4", icon: <HandshakeIcon /> },
-  support: { shape: "sunny", icon: <SupportAgentIcon /> },
-  manager: { shape: "cookie4", icon: <SupervisorAccountIcon /> },
-  other: { shape: "flower", icon: <LibraryBooksIcon /> },
-};
-
 function TemplatesCard() {
   const query = useQuery(homeQuery("templates"));
-  const items = query.data?.items ?? [];
+  // The most used templates; the rest are on the Templates page.
+  const items = (query.data?.items ?? []).slice(0, 4);
   return (
     <SectionCard
       className={span(7)}
@@ -513,44 +551,33 @@ function TemplatesCard() {
       endpoint={E.templates.path}
       status={query}
       action={
-        <Button variant="ghost" onClick={() => comingSoon("Templates")}>
+        <Button variant="ghost" nativeButton={false} render={<Link to={TEMPLATES_PATH} />}>
           Manage templates <ArrowForwardIcon aria-hidden />
         </Button>
       }
     >
       <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3">
-        {items.map((template) => {
-          const look = TEMPLATE_LOOK[template.family];
-          return (
-            <button
-              key={template.id}
-              type="button"
-              onClick={() => comingSoon("Templates")}
-              className="relative isolate flex flex-col gap-2 rounded-xl bg-pane p-4 text-start transition-colors outline-none hover:bg-on-surface/8 focus-visible:ring-3 focus-visible:ring-ring/50"
-            >
-              <span
-                aria-hidden
-                className="relative mb-1 grid size-11 place-items-center text-on-primary-container"
-              >
-                <Shape
-                  kind={look.shape}
-                  className="absolute inset-0 size-full text-primary-container"
-                />
-                <span className="relative z-10 [&_svg]:size-5">{look.icon}</span>
-              </span>
-              <span className="text-sm font-medium">{template.name}</span>
-              <span className="flex flex-wrap items-center gap-x-2 text-xs text-on-surface-variant">
-                <DotList
-                  parts={[
-                    template.version,
-                    `${template.activeCount} active`,
-                    `Updated ${formatShortDate(template.updatedAt)}`,
-                  ]}
-                />
-              </span>
-            </button>
-          );
-        })}
+        {items.map((template) => (
+          <Link
+            key={template.id}
+            to={templatePath(template.id)}
+            className="relative isolate flex flex-col gap-2 rounded-xl bg-pane p-4 text-start text-on-surface no-underline transition-colors outline-none hover:bg-on-surface/8 focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <span className="mb-1">
+              <TemplateTile family={template.family} />
+            </span>
+            <span className="text-sm font-medium">{template.name}</span>
+            <span className="flex flex-wrap items-center gap-x-2 text-xs text-on-surface-variant">
+              <DotList
+                parts={[
+                  template.status === "draft" ? `Draft ${template.version}` : template.version,
+                  `${template.activeCount} active`,
+                  `Updated ${formatShortDate(template.updatedAt)}`,
+                ]}
+              />
+            </span>
+          </Link>
+        ))}
       </div>
     </SectionCard>
   );

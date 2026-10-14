@@ -11,6 +11,7 @@ export * from "./schemas/job.js";
 export * from "./schemas/learning.js";
 export * from "./schemas/manager.js";
 export * from "./schemas/people.js";
+export * from "./schemas/people-ops.js";
 export * from "./schemas/project.js";
 export * from "./schemas/refs.js";
 export * from "./schemas/source.js";

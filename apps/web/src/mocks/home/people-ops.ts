@@ -1,15 +1,23 @@
 import { HOME_ENDPOINTS as E } from "@/features/home/api/home.api";
 import { mockGet } from "@/mocks/define";
-import { people } from "@/mocks/fixtures/people";
-import { atFromToday, dateFromToday } from "@/mocks/fixtures/time";
+import { needsHrCount, probationReviewList, starterList } from "@/mocks/people-ops";
 
-/** Elena's view of onboarding across the organization, as in the prototype's HR Home. */
+/**
+ * Elena's view of onboarding across the organization, as in the prototype's HR Home. The probation
+ * reviews, starters, overdue milestones and templates come from the People Ops store
+ * (mocks/people-ops.ts), so changes made on the HR pages show here.
+ */
 export const peopleOpsMocks = [
   mockGet(E.peopleOpsOverview)(() => ({
     activeOnboardings: { count: 23, changeVsLastMonth: 4 },
     atRiskOrBlocked: { count: 5, changeThisWeek: 1 },
-    reviewsNext30Days: { count: 5, needAction: 2 },
-    startingNext14Days: { count: 6, notReady: 1 },
+    reviewsNext30Days: { count: probationReviewList(30).items.length, needAction: needsHrCount() },
+    startingNext14Days: {
+      count: 6,
+      notReady: starterList(14).filter(
+        (starter) => !(starter.accountsReady && starter.buddyAssigned && starter.roadmapAssigned),
+      ).length,
+    },
     teams: [
       { team: "Engineering", onTrack: 7, atRisk: 1, blocked: 1 },
       { team: "Sales", onTrack: 4, atRisk: 1, blocked: 0 },
@@ -17,171 +25,6 @@ export const peopleOpsMocks = [
       { team: "Design", onTrack: 2, atRisk: 0, blocked: 0 },
       { team: "Data", onTrack: 1, atRisk: 1, blocked: 0 },
       { team: "Finance", onTrack: 1, atRisk: 0, blocked: 0 },
-    ],
-  })),
-  mockGet(E.probationReviews)(() => ({
-    items: [
-      {
-        id: "pr1",
-        person: people.sofia,
-        team: "Sales",
-        manager: people.marcus,
-        reviewOn: dateFromToday(12),
-        recommendation: "confirm",
-        readiness: 0.96,
-        state: "ready_for_approval",
-        recommendationDueOn: null,
-        missingCheckins: 0,
-      },
-      {
-        id: "pr2",
-        person: people.arjun,
-        team: "Platform",
-        manager: people.daniel,
-        reviewOn: dateFromToday(14),
-        recommendation: "awaiting_manager",
-        readiness: 0.86,
-        state: "awaiting_manager",
-        recommendationDueOn: dateFromToday(9),
-        missingCheckins: 0,
-      },
-      {
-        id: "pr3",
-        person: people.ben,
-        team: "Support",
-        manager: people.aisha,
-        reviewOn: dateFromToday(16),
-        recommendation: "extend",
-        readiness: 0.61,
-        state: "needs_hr_review",
-        recommendationDueOn: null,
-        missingCheckins: 0,
-      },
-      {
-        id: "pr4",
-        person: people.hana,
-        team: "Design",
-        manager: people.owen,
-        reviewOn: dateFromToday(23),
-        recommendation: "awaiting_manager",
-        readiness: 0.79,
-        state: "awaiting_manager",
-        recommendationDueOn: dateFromToday(18),
-        missingCheckins: 0,
-      },
-      {
-        id: "pr5",
-        person: people.ravi,
-        team: "Data",
-        manager: people.nina,
-        reviewOn: dateFromToday(29),
-        recommendation: "not_started",
-        readiness: 0.58,
-        state: "checkins_missing",
-        recommendationDueOn: null,
-        missingCheckins: 2,
-      },
-    ],
-  })),
-  mockGet(E.starters)(() => ({
-    items: [
-      {
-        id: "st1",
-        person: people.jonah,
-        team: "Platform",
-        startDate: dateFromToday(5),
-        accountsReady: true,
-        buddyAssigned: true,
-        roadmapAssigned: false,
-      },
-      {
-        id: "st2",
-        person: people.grace,
-        team: "Sales",
-        startDate: dateFromToday(5),
-        accountsReady: true,
-        buddyAssigned: true,
-        roadmapAssigned: true,
-      },
-      {
-        id: "st3",
-        person: people.tomas,
-        team: "Support",
-        startDate: dateFromToday(12),
-        accountsReady: true,
-        buddyAssigned: false,
-        roadmapAssigned: true,
-      },
-      {
-        id: "st4",
-        person: people.amara,
-        team: "Finance",
-        startDate: dateFromToday(12),
-        accountsReady: true,
-        buddyAssigned: true,
-        roadmapAssigned: true,
-      },
-    ],
-  })),
-  mockGet(E.overdueMilestones)(() => ({
-    items: [
-      {
-        id: "od1",
-        person: people.ravi,
-        team: "Data",
-        milestone: "2 check-ins not recorded",
-        dueOn: dateFromToday(-9),
-      },
-      {
-        id: "od2",
-        person: people.ben,
-        team: "Support",
-        milestone: "60-day check-in",
-        dueOn: dateFromToday(-5),
-      },
-      {
-        id: "od3",
-        person: people.leah,
-        team: "Platform",
-        milestone: "2 learning modules",
-        dueOn: dateFromToday(-5),
-      },
-    ],
-  })),
-  mockGet(E.templates)(() => ({
-    items: [
-      {
-        id: "tpl-eng-ic",
-        name: "Engineering · Individual contributor",
-        family: "engineering",
-        version: "v4",
-        activeCount: 12,
-        updatedAt: atFromToday(-14),
-      },
-      {
-        id: "tpl-sales-ae",
-        name: "Sales · Account executive",
-        family: "sales",
-        version: "v2",
-        activeCount: 5,
-        updatedAt: atFromToday(-61),
-      },
-      {
-        id: "tpl-support",
-        name: "Support · Specialist",
-        family: "support",
-        version: "v3",
-        activeCount: 4,
-        updatedAt: atFromToday(-42),
-      },
-      {
-        id: "tpl-manager",
-        name: "People manager onboarding",
-        family: "manager",
-        version: "v1",
-        activeCount: 2,
-        updatedAt: atFromToday(-85),
-      },
     ],
   })),
 ];

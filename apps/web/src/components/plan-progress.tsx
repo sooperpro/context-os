@@ -10,6 +10,7 @@ const TONE: Record<OnboardingStatus, "primary" | "warning" | "error"> = {
   blocked: "error",
   not_started: "primary",
   needs_setup: "primary",
+  ready: "primary",
 };
 
 /**

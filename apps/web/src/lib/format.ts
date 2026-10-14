@@ -160,3 +160,7 @@ export function firstName(name: string | undefined): string {
   return name?.trim().split(/\s+/)[0] ?? "";
 }
 
+/** "Daniel Reyes and Owen Hughes", "A, B, and C". */
+export function formatList(items: readonly string[]): string {
+  return new Intl.ListFormat(undefined, { style: "long", type: "conjunction" }).format(items);
+}

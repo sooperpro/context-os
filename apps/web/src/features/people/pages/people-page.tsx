@@ -1,6 +1,6 @@
 import { PeopleFilterSchema, type PeopleFilter } from "@contextos/shared";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { useAssistant } from "@/components/layout/assistant-context";
 import { PageColumns, PageMain, PageSide } from "@/components/layout/page-columns";
@@ -11,7 +11,13 @@ import { PersonAvatar } from "@/components/ui/avatar";
 import { BotGlyph } from "@/components/ui/bot-glyph";
 import { Chip } from "@/components/ui/chip";
 import { ConnectedButton, ConnectedButtonGroup } from "@/components/ui/connected-button-group";
-import { AccountTreeIcon, CheckIcon, NorthEastIcon, PersonIcon, PersonSearchIcon, SearchIcon } from "@/components/ui/icons";
+import {
+  AccountTreeIcon,
+  CheckIcon,
+  NorthEastIcon,
+  PersonIcon,
+  PersonSearchIcon,
+} from "@/components/ui/icons";
 import {
   SegmentedItem,
   SegmentedItemBody,
@@ -20,10 +26,15 @@ import {
   SegmentedItemTitle,
   SegmentedList,
 } from "@/components/ui/segmented-list";
-import { Shape } from "@/components/ui/shape";
+import { EmptyMini } from "@/components/ui/empty-mini";
+import { SearchField } from "@/components/ui/search-field";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PEOPLE_ENDPOINTS as E } from "@/features/people/api/people.api";
-import { directoryQuery, expertsQuery, teamsDirectoryQuery } from "@/features/people/api/people.queries";
+import {
+  directoryQuery,
+  expertsQuery,
+  teamsDirectoryQuery,
+} from "@/features/people/api/people.queries";
 import { OrgNode, PersonCard, TeamCard } from "@/features/people/components/person-parts";
 import { TEAM_AREA_ICON, peoplePath } from "@/features/people/people-meta";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
@@ -36,7 +47,11 @@ const FILTERS: Array<[PeopleFilter, string]> = [
   ["new", "New joiners"],
 ];
 
-const ASK_PROMPTS = ["Who are the experts on billing?", "Who is on my team?", "Who owns the ingest gateway?"];
+const ASK_PROMPTS = [
+  "Who are the experts on billing?",
+  "Who is on my team?",
+  "Who owns the ingest gateway?",
+];
 
 /** People (prototype `directoryPage`): find who owns what and who knows what. */
 export function PeoplePage() {
@@ -57,10 +72,16 @@ export function PeoplePage() {
         description="Find who owns what and who knows what. Expertise comes from what people own and contribute in the Knowledge Hub."
         actions={
           <ConnectedButtonGroup aria-label="View">
-            <ConnectedButton pressed={view === "people"} onClick={() => setParams({}, { replace: true })}>
+            <ConnectedButton
+              pressed={view === "people"}
+              onClick={() => setParams({}, { replace: true })}
+            >
               <PersonIcon aria-hidden /> People
             </ConnectedButton>
-            <ConnectedButton pressed={view === "teams"} onClick={() => setParams({ view: "teams" }, { replace: true })}>
+            <ConnectedButton
+              pressed={view === "teams"}
+              onClick={() => setParams({ view: "teams" }, { replace: true })}
+            >
               <AccountTreeIcon aria-hidden /> Teams
             </ConnectedButton>
           </ConnectedButtonGroup>
@@ -80,7 +101,8 @@ export function PeoplePage() {
             }
           >
             <p className="text-sm text-on-surface-variant">
-              Describe the problem and Context Bot will suggest the right person and the pages they own.
+              Describe the problem and Context Bot will suggest the right person and the pages they
+              own.
             </p>
             <div className="flex flex-col items-start gap-2">
               {ASK_PROMPTS.map((prompt) => (
@@ -99,7 +121,6 @@ export function PeoplePage() {
 
 function DirectoryView() {
   const [params, setParams] = useSearchParams();
-  const searchId = useId();
   const filter = PeopleFilterSchema.catch("all").parse(params.get("filter") ?? "all");
   const [text, setText] = useState(params.get("q") ?? "");
   const q = useDebouncedValue(text.trim(), 250);
@@ -133,26 +154,22 @@ function DirectoryView() {
   return (
     <>
       <div className="flex flex-col gap-3">
-        <form role="search" className="max-w-160" onSubmit={(event) => event.preventDefault()}>
-          <label htmlFor={searchId} className="sr-only">
-            Search people
-          </label>
-          <span className="flex h-13 items-center gap-3 rounded-full bg-card px-4 focus-within:ring-2 focus-within:ring-primary">
-            <SearchIcon className="size-6 shrink-0 text-on-surface-variant" aria-hidden />
-            <input
-              id={searchId}
-              type="search"
-              value={text}
-              onChange={(event) => setText(event.target.value)}
-              placeholder="Search by name, role, team or skill"
-              autoComplete="off"
-              className="h-full min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-on-surface-variant"
-            />
-          </span>
-        </form>
+        <SearchField
+          label="Search people"
+          value={text}
+          onValueChange={setText}
+          placeholder="Search by name, role, team or skill"
+          className="max-w-160"
+        />
         <div role="group" aria-label="Filter people" className="flex flex-wrap items-center gap-2">
           {FILTERS.map(([value, label]) => (
-            <Chip key={value} variant="filter" selected={filter === value} aria-pressed={filter === value} onClick={() => setFilter(value)}>
+            <Chip
+              key={value}
+              variant="filter"
+              selected={filter === value}
+              aria-pressed={filter === value}
+              onClick={() => setFilter(value)}
+            >
               {filter === value ? <CheckIcon aria-hidden /> : null}
               {label}
             </Chip>
@@ -161,16 +178,24 @@ function DirectoryView() {
         </div>
       </div>
       <p className="text-xs text-on-surface-variant" aria-live="polite">
-        {query.data ? `${formatCount(items.length, "person", "people")}${q ? ` matching “${q}”` : ""}` : "Loading people…"}
+        {query.data
+          ? `${formatCount(items.length, "person", "people")}${q ? ` matching “${q}”` : ""}`
+          : "Loading people…"}
       </p>
       {query.isPending ? (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3" aria-busy="true">
+        <div
+          className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3"
+          aria-busy="true"
+        >
           {[0, 1, 2, 3].map((tile) => (
             <Skeleton key={tile} className="h-52 rounded-card" />
           ))}
         </div>
       ) : items.length ? (
-        <ul aria-label="People" className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3">
+        <ul
+          aria-label="People"
+          className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3"
+        >
           {items.map((person) => (
             <li key={person.id} className="flex">
               <PersonCard person={person} />
@@ -178,16 +203,12 @@ function DirectoryView() {
           ))}
         </ul>
       ) : (
-        <div className="flex items-center gap-4 rounded-xl bg-card p-5">
-          <span aria-hidden className="relative grid size-14 shrink-0 place-items-center text-on-surface-variant">
-            <Shape kind="cookie6" className="absolute inset-0 size-full text-surface-container-highest" />
-            <PersonSearchIcon className="relative z-10 size-6" />
-          </span>
-          <div>
-            <b className="text-sm font-medium">{q ? `No one matches “${q}”` : "No one here yet"}</b>
-            <p className="text-xs text-on-surface-variant">Try a skill or system name, or ask Context Bot who knows.</p>
-          </div>
-        </div>
+        <EmptyMini
+          className="rounded-xl bg-card p-5"
+          icon={<PersonSearchIcon />}
+          title={q ? `No one matches “${q}”` : "No one here yet"}
+          description="Try a skill or system name, or ask Context Bot who knows."
+        />
       )}
     </>
   );

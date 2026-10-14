@@ -6,6 +6,12 @@ import {
   Diversity3Icon,
   EditNoteFilledIcon,
   EditNoteIcon,
+  EventAvailableFilledIcon,
+  EventAvailableIcon,
+  HowToRegFilledIcon,
+  HowToRegIcon,
+  LibraryBooksFilledIcon,
+  LibraryBooksIcon,
   HubFilledIcon,
   HubIcon,
   ManageAccountsFilledIcon,
@@ -89,6 +95,31 @@ export const NAV_ITEMS: readonly NavItem[] = [
     activeIcon: Diversity3FilledIcon,
     to: "/team",
     personas: ["manager"],
+  },
+  {
+    id: "onboarding",
+    label: "Onboarding",
+    icon: HowToRegIcon,
+    activeIcon: HowToRegFilledIcon,
+    to: "/onboarding",
+    personas: ["people_ops"],
+  },
+  {
+    id: "probation",
+    label: "Probation reviews",
+    short: "Probation",
+    icon: EventAvailableIcon,
+    activeIcon: EventAvailableFilledIcon,
+    to: "/probation",
+    personas: ["people_ops"],
+  },
+  {
+    id: "templates",
+    label: "Templates",
+    icon: LibraryBooksIcon,
+    activeIcon: LibraryBooksFilledIcon,
+    to: "/templates",
+    personas: ["people_ops"],
   },
   {
     id: "members",
@@ -175,13 +206,25 @@ export function isInActivePaths(item: NavItem, pathname: string): boolean {
   );
 }
 
+/** Rails whose order differs from `NAV_ITEMS`, as in the prototype: People Ops puts People first. */
+const PERSONA_ORDER: Partial<Record<Persona, readonly string[]>> = {
+  people_ops: ["home", "onboarding", "probation", "templates", "people", "knowledge"],
+};
+
 /** The rail for a role and persona (see useViewer). An unknown role or persona hides gated items. */
 export function navItemsFor(role: SystemRole | undefined, persona?: Persona): NavItem[] {
-  return NAV_ITEMS.filter(
+  const items = NAV_ITEMS.filter(
     (item) =>
       (!item.roles || (role !== undefined && item.roles.includes(role))) &&
       (!item.personas || (persona !== undefined && item.personas.includes(persona))),
   );
+  const order = persona ? PERSONA_ORDER[persona] : undefined;
+  if (!order) return items;
+  const rank = (item: NavItem) => {
+    const index = order.indexOf(item.id);
+    return index < 0 ? order.length : index;
+  };
+  return [...items].sort((a, b) => rank(a) - rank(b));
 }
 
 /** The bottom bar holds at most four destinations (M3). */

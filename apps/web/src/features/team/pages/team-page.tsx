@@ -20,7 +20,14 @@ import {
   InfoIcon,
 } from "@/components/ui/icons";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { HOME_ENDPOINTS } from "@/features/home/api/home.api";
 import { homeQuery } from "@/features/home/api/home.queries";
 import { TEAM_ENDPOINTS as E } from "@/features/team/api/team.api";
@@ -38,20 +45,34 @@ const PRIORITY: Record<OnboardingStatus, number> = {
   not_started: 3,
   on_track: 4,
   ahead: 5,
+  ready: 6,
 };
 
-const STRIP: Array<{ statuses: OnboardingStatus[]; label: string; icon: ReactNode; tone: string }> = [
-  { statuses: ["blocked"], label: "Blocked", icon: <BlockIcon />, tone: "text-error" },
-  { statuses: ["at_risk"], label: "At risk", icon: <ErrorFilledIcon />, tone: "text-warning" },
-  { statuses: ["needs_setup", "not_started"], label: "Needs setup", icon: <InfoIcon />, tone: "text-primary" },
-  { statuses: ["on_track", "ahead"], label: "On track", icon: <CheckCircleFilledIcon />, tone: "text-success" },
-];
+const STRIP: Array<{ statuses: OnboardingStatus[]; label: string; icon: ReactNode; tone: string }> =
+  [
+    { statuses: ["blocked"], label: "Blocked", icon: <BlockIcon />, tone: "text-error" },
+    { statuses: ["at_risk"], label: "At risk", icon: <ErrorFilledIcon />, tone: "text-warning" },
+    {
+      statuses: ["needs_setup", "not_started"],
+      label: "Needs setup",
+      icon: <InfoIcon />,
+      tone: "text-primary",
+    },
+    {
+      statuses: ["on_track", "ahead", "ready"],
+      label: "On track",
+      icon: <CheckCircleFilledIcon />,
+      tone: "text-success",
+    },
+  ];
 
 /** Team onboarding (prototype `teamPage`): everyone onboarding, sorted by who needs you most. */
 export function TeamPage() {
   const roster = useQuery(homeQuery("teamOnboarding"));
   const [assigning, setAssigning] = useState<{ id: string; name: string } | null>(null);
-  const people = [...(roster.data?.people ?? [])].sort((a, b) => PRIORITY[a.status] - PRIORITY[b.status]);
+  const people = [...(roster.data?.people ?? [])].sort(
+    (a, b) => PRIORITY[a.status] - PRIORITY[b.status],
+  );
   const first = people[0];
 
   return (
@@ -60,12 +81,17 @@ export function TeamPage() {
         kicker={roster.data ? `${roster.data.team.name} team` : undefined}
         title="Team onboarding"
         description={
-          roster.data ? `${formatCount(people.length, "person", "people")} onboarding. Sorted by who needs you most.` : undefined
+          roster.data
+            ? `${formatCount(people.length, "person", "people")} onboarding. Sorted by who needs you most.`
+            : undefined
         }
         actions={
           first ? (
             <>
-              <Button variant="outline" onClick={() => setAssigning({ id: first.person.id, name: first.person.name })}>
+              <Button
+                variant="outline"
+                onClick={() => setAssigning({ id: first.person.id, name: first.person.name })}
+              >
                 <AssignmentAddIcon aria-hidden /> Assign learning
               </Button>
               <Button nativeButton={false} render={<Link to={checkinPath(first.person.id)} />}>
@@ -78,13 +104,21 @@ export function TeamPage() {
       {roster.isPending ? (
         <Skeleton className="h-64 rounded-card" />
       ) : roster.isError ? (
-        <SectionCard title="Team onboarding" endpoint={HOME_ENDPOINTS.teamOnboarding.path} status={roster} />
+        <SectionCard
+          title="Team onboarding"
+          endpoint={HOME_ENDPOINTS.teamOnboarding.path}
+          status={roster}
+        />
       ) : (
         <>
           <div className="flex items-center justify-end empty:hidden">
             <PreviewDataChip endpoint={HOME_ENDPOINTS.teamOnboarding.path} />
           </div>
-          <div role="group" aria-label="Team status" className="grid grid-cols-2 gap-3 @min-[640px]:grid-cols-4">
+          <div
+            role="group"
+            aria-label="Team status"
+            className="grid grid-cols-2 gap-3 @min-[640px]:grid-cols-4"
+          >
             {STRIP.map((tile) => (
               <div
                 key={tile.label}
@@ -100,7 +134,10 @@ export function TeamPage() {
               </div>
             ))}
           </div>
-          <ul aria-label="People onboarding" className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-3">
+          <ul
+            aria-label="People onboarding"
+            className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-3"
+          >
             {people.map((person) => (
               <li key={person.person.id} className="flex">
                 <MemberCard row={person} />
@@ -110,7 +147,10 @@ export function TeamPage() {
         </>
       )}
       <CheckMatrixCard />
-      <AssignLearningDialog person={assigning} onOpenChange={(open) => (open ? null : setAssigning(null))} />
+      <AssignLearningDialog
+        person={assigning}
+        onOpenChange={(open) => (open ? null : setAssigning(null))}
+      />
     </div>
   );
 }
@@ -124,8 +164,10 @@ function MemberCard({ row }: { row: TeamMemberProgress }) {
       to={memberPath(row.person.id)}
       className={cn(
         "flex w-full flex-col gap-3 rounded-card bg-card p-4.5 text-on-surface no-underline transition-[border-radius,box-shadow] duration-[350ms] ease-spring-fast-spatial outline-none hover:rounded-3xl hover:shadow-elevation-1 focus-visible:ring-3 focus-visible:ring-ring/50",
-        row.status === "blocked" && "shadow-[inset_0_0_0_2px_color-mix(in_srgb,var(--color-error)_60%,transparent)]",
-        row.status === "at_risk" && "shadow-[inset_0_0_0_2px_color-mix(in_srgb,var(--color-warning)_60%,transparent)]",
+        row.status === "blocked" &&
+          "shadow-[inset_0_0_0_2px_color-mix(in_srgb,var(--color-error)_60%,transparent)]",
+        row.status === "at_risk" &&
+          "shadow-[inset_0_0_0_2px_color-mix(in_srgb,var(--color-warning)_60%,transparent)]",
       )}
     >
       <span className="flex items-start gap-3">
@@ -137,18 +179,28 @@ function MemberCard({ row }: { row: TeamMemberProgress }) {
         <OnboardingStatusChip status={row.status} />
       </span>
       <span className="flex justify-between gap-2 text-xs font-medium">
-        <span className="text-on-surface-variant">{started ? `Day ${1 - days} of 90` : `Starts ${formatShortDate(row.startDate)}`}</span>
+        <span className="text-on-surface-variant">
+          {started ? `Day ${1 - days} of 90` : `Starts ${formatShortDate(row.startDate)}`}
+        </span>
         <span>{row.stage ?? "Pre-boarding"}</span>
       </span>
       {started ? (
-        <PlanProgress progress={row.progress} expected={row.expected} status={row.status} label={`${row.person.name} progress`} />
+        <PlanProgress
+          progress={row.progress}
+          expected={row.expected}
+          status={row.status}
+          label={`${row.person.name} progress`}
+        />
       ) : (
         <span className="text-xs text-on-surface-variant">No roadmap yet</span>
       )}
       <span className="flex items-start gap-1.5 rounded-md bg-pane px-2.5 py-2 text-xs [&_svg]:mt-px [&_svg]:size-4 [&_svg]:shrink-0">
         {row.issue && flagged ? (
           <>
-            <ErrorFilledIcon aria-hidden className={row.status === "blocked" ? "text-error" : "text-warning"} />
+            <ErrorFilledIcon
+              aria-hidden
+              className={row.status === "blocked" ? "text-error" : "text-warning"}
+            />
             {row.issue}
           </>
         ) : row.issue && row.status !== "on_track" ? (
@@ -175,7 +227,9 @@ function CheckMatrixCard() {
       title="Knowledge checks by topic"
       endpoint={E.matrix.path}
       status={query}
-      action={<span className="text-xs text-on-surface-variant">Spot topics the team finds hard</span>}
+      action={
+        <span className="text-xs text-on-surface-variant">Spot topics the team finds hard</span>
+      }
     >
       {matrix ? (
         <>
@@ -195,7 +249,10 @@ function CheckMatrixCard() {
                 {matrix.rows.map((row) => (
                   <TableRow key={row.person.id}>
                     <TableCell>
-                      <Link to={memberPath(row.person.id)} className="flex items-center gap-2 text-on-surface no-underline hover:underline">
+                      <Link
+                        to={memberPath(row.person.id)}
+                        className="flex items-center gap-2 text-on-surface no-underline hover:underline"
+                      >
                         <PersonAvatar person={row.person} size="xs" />
                         <b className="text-sm font-medium">{row.person.name}</b>
                       </Link>
@@ -210,7 +267,10 @@ function CheckMatrixCard() {
               </TableBody>
             </Table>
           </div>
-          <div aria-hidden className="flex flex-wrap gap-4 text-xs font-medium text-on-surface-variant">
+          <div
+            aria-hidden
+            className="flex flex-wrap gap-4 text-xs font-medium text-on-surface-variant"
+          >
             {(["pass", "fail", "todo", "na"] as const).map((state) => (
               <span key={state} className="inline-flex items-center gap-1">
                 <CheckMark state={state} size="sm" />
