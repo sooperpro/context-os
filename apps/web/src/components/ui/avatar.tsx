@@ -2,6 +2,8 @@ import { Avatar as AvatarPrimitive } from "@base-ui/react/avatar";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "cn";
 import * as React from "react";
+import { PersonIcon } from "@/components/ui/icons";
+import { initialsOf } from "@/lib/format";
 
 /**
  * Avatar: initials on a tonal container, emphasized brand type. Six tones so a directory does not
@@ -123,7 +125,27 @@ function AvatarGroupCount({ className, ...props }: React.ComponentProps<"div">) 
   );
 }
 
+/**
+ * A person's avatar: initials on a tone derived from their id, so the same person always looks the
+ * same across screens. Use this instead of assembling Avatar + AvatarFallback by hand.
+ */
+function PersonAvatar({
+  person,
+  ...props
+}: Omit<React.ComponentProps<typeof Avatar>, "tone" | "children"> & {
+  person: { id?: string; name: string };
+}) {
+  return (
+    <Avatar tone={avatarToneFor(person.id ?? person.name)} {...props}>
+      <AvatarFallback>
+        {initialsOf(person.name) || <PersonIcon className="size-1/2" />}
+      </AvatarFallback>
+    </Avatar>
+  );
+}
+
 export {
+  PersonAvatar,
   Avatar,
   AvatarImage,
   AvatarFallback,

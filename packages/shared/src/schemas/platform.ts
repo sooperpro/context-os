@@ -260,7 +260,12 @@ export const DriveFileSchema = z.object({
   trashed: z.boolean().nullable().optional(),
   capabilities: z.object({ canDownload: z.boolean().nullable().optional() }).nullable().optional(),
   owners: z
-    .array(z.object({ displayName: z.string().nullable().optional(), emailAddress: z.string().nullable().optional() }))
+    .array(
+      z.object({
+        displayName: z.string().nullable().optional(),
+        emailAddress: z.string().nullable().optional(),
+      }),
+    )
     .nullable()
     .optional(),
   driveId: z.string().nullable().optional(),
@@ -317,7 +322,9 @@ export const TeamSchema = z.object({
 export type Team = z.infer<typeof TeamSchema>;
 export const TeamListSchema = z.object({ items: z.array(TeamSchema) });
 
-export const OrgNameInputSchema = z.object({ name: z.string().trim().min(1, "Enter a name.").max(200) }).strict();
+export const OrgNameInputSchema = z
+  .object({ name: z.string().trim().min(1, "Enter a name.").max(200) })
+  .strict();
 export type OrgNameInput = z.infer<typeof OrgNameInputSchema>;
 export const TeamInputSchema = OrgNameInputSchema.extend({
   departmentId: z.uuid(),
@@ -381,3 +388,20 @@ export type CompanionPreferences = z.infer<typeof CompanionPreferencesSchema>;
 export type FlagInput = z.input<typeof FlagInputSchema>;
 /** `POST /flags` returns the stored flag record. */
 export const FlagRecordSchema = z.object({ id: z.string(), status: z.string() }).passthrough();
+
+/* ---- Audit log (`GET /audit?limit=&offset=`, admins only) -------------------------------- */
+
+export const AuditEntrySchema = z.object({
+  id: z.string(),
+  projectId: z.string().nullable(),
+  actorId: z.string(),
+  actorName: z.string(),
+  /** Dotted verb, e.g. "connector.connect", "user.role_change". */
+  action: z.string(),
+  targetType: z.string(),
+  targetId: z.string(),
+  metadata: z.record(z.string(), z.unknown()).nullable(),
+  createdAt: z.string(),
+});
+export type AuditEntry = z.infer<typeof AuditEntrySchema>;
+export const AuditEntryListSchema = z.object({ items: z.array(AuditEntrySchema) });

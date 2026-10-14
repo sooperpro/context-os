@@ -23,6 +23,8 @@ allowBuilds:
   # Install scripts that are not needed at runtime (no-op echo / version check):
   "@google/genai": false
   protobufjs: false
+  # Copies the mock service worker into public/; apps/web commits that file (msw init) instead.
+  msw: false
 
 minimumReleaseAgeExclude:
   - "@google/genai@2.29.0"

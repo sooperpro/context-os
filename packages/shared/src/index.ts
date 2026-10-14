@@ -4,6 +4,7 @@ export * from "./schemas/common.js";
 export * from "./schemas/context.js";
 export * from "./schemas/feedback.js";
 export * from "./schemas/health.js";
+export * from "./schemas/home.js";
 export * from "./schemas/hub.js";
 export * from "./schemas/job.js";
 export * from "./schemas/project.js";

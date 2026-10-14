@@ -122,11 +122,99 @@ import LocalShippingIcon from "@material-symbols/svg-400/rounded/local_shipping.
 import ConversionPathIcon from "@material-symbols/svg-400/rounded/conversion_path.svg?react";
 import MenuBookIcon from "@material-symbols/svg-400/rounded/menu_book.svg?react";
 import VisibilityIcon from "@material-symbols/svg-400/rounded/visibility.svg?react";
+import CelebrationIcon from "@material-symbols/svg-400/rounded/celebration.svg?react";
+import TrendingUpIcon from "@material-symbols/svg-400/rounded/trending_up.svg?react";
+import ArrowForwardIcon from "@material-symbols/svg-400/rounded/arrow_forward.svg?react";
+import PlayCircleFilledIcon from "@material-symbols/svg-400/rounded/play_circle-fill.svg?react";
+import PlayArrowFilledIcon from "@material-symbols/svg-400/rounded/play_arrow-fill.svg?react";
+import QuizIcon from "@material-symbols/svg-400/rounded/quiz.svg?react";
+import ConstructionIcon from "@material-symbols/svg-400/rounded/construction.svg?react";
+import TerminalIcon from "@material-symbols/svg-400/rounded/terminal.svg?react";
+import CelebrationFilledIcon from "@material-symbols/svg-400/rounded/celebration-fill.svg?react";
+import EventAvailableIcon from "@material-symbols/svg-400/rounded/event_available.svg?react";
+import FactCheckIcon from "@material-symbols/svg-400/rounded/fact_check.svg?react";
+import VerifiedIcon from "@material-symbols/svg-400/rounded/verified.svg?react";
+import CodeIcon from "@material-symbols/svg-400/rounded/code.svg?react";
+import MyLocationIcon from "@material-symbols/svg-400/rounded/my_location.svg?react";
+import EventRepeatIcon from "@material-symbols/svg-400/rounded/event_repeat.svg?react";
+import WavingHandIcon from "@material-symbols/svg-400/rounded/waving_hand.svg?react";
+import CoPresentIcon from "@material-symbols/svg-400/rounded/co_present.svg?react";
+import EditDocumentIcon from "@material-symbols/svg-400/rounded/edit_document.svg?react";
+import EditNoteIcon from "@material-symbols/svg-400/rounded/edit_note.svg?react";
+import AssignmentAddIcon from "@material-symbols/svg-400/rounded/assignment_add.svg?react";
+import LibraryBooksIcon from "@material-symbols/svg-400/rounded/library_books.svg?react";
+import AssignmentLateIcon from "@material-symbols/svg-400/rounded/assignment_late.svg?react";
+import HandshakeIcon from "@material-symbols/svg-400/rounded/handshake.svg?react";
+import SupportAgentIcon from "@material-symbols/svg-400/rounded/support_agent.svg?react";
+import SupervisorAccountIcon from "@material-symbols/svg-400/rounded/supervisor_account.svg?react";
+import PolicyIcon from "@material-symbols/svg-400/rounded/policy.svg?react";
+import MoreVertIcon from "@material-symbols/svg-400/rounded/more_vert.svg?react";
+import SchoolFilledIcon from "@material-symbols/svg-400/rounded/school-fill.svg?react";
+import MoreTimeIcon from "@material-symbols/svg-400/rounded/more_time.svg?react";
+import HourglassEmptyIcon from "@material-symbols/svg-400/rounded/hourglass_empty.svg?react";
+import RadioButtonUncheckedIcon from "@material-symbols/svg-400/rounded/radio_button_unchecked.svg?react";
+import SpaceDashboardIcon from "@material-symbols/svg-400/rounded/space_dashboard.svg?react";
+import SpaceDashboardFilledIcon from "@material-symbols/svg-400/rounded/space_dashboard-fill.svg?react";
+import HomeIcon from "@material-symbols/svg-400/rounded/home.svg?react";
+import HomeFilledIcon from "@material-symbols/svg-400/rounded/home-fill.svg?react";
+import CheckCircleIcon from "@material-symbols/svg-400/rounded/check_circle.svg?react";
+import BlockIcon from "@material-symbols/svg-400/rounded/block.svg?react";
+import ErrorIcon from "@material-symbols/svg-400/rounded/error.svg?react";
+import KeyIcon from "@material-symbols/svg-400/rounded/key.svg?react";
+import HowToRegIcon from "@material-symbols/svg-400/rounded/how_to_reg.svg?react";
+import AutoDeleteIcon from "@material-symbols/svg-400/rounded/auto_delete.svg?react";
+import TagIcon from "@material-symbols/svg-400/rounded/tag.svg?react";
+import ScienceIcon from "@material-symbols/svg-400/rounded/science.svg?react";
+import CodeBlocksIcon from "@material-symbols/svg-400/rounded/code_blocks.svg?react";
 
 export type MaterialIcon = ComponentType<SVGProps<SVGSVGElement>>;
 
 export {
   AddIcon,
+  CelebrationIcon,
+  TrendingUpIcon,
+  ArrowForwardIcon,
+  PlayCircleFilledIcon,
+  PlayArrowFilledIcon,
+  QuizIcon,
+  ConstructionIcon,
+  TerminalIcon,
+  CelebrationFilledIcon,
+  EventAvailableIcon,
+  FactCheckIcon,
+  VerifiedIcon,
+  CodeIcon,
+  MyLocationIcon,
+  EventRepeatIcon,
+  WavingHandIcon,
+  CoPresentIcon,
+  EditDocumentIcon,
+  EditNoteIcon,
+  AssignmentAddIcon,
+  LibraryBooksIcon,
+  AssignmentLateIcon,
+  HandshakeIcon,
+  SupportAgentIcon,
+  SupervisorAccountIcon,
+  PolicyIcon,
+  MoreVertIcon,
+  SchoolFilledIcon,
+  MoreTimeIcon,
+  HourglassEmptyIcon,
+  RadioButtonUncheckedIcon,
+  SpaceDashboardIcon,
+  SpaceDashboardFilledIcon,
+  HomeIcon,
+  HomeFilledIcon,
+  CheckCircleIcon,
+  BlockIcon,
+  ErrorIcon,
+  KeyIcon,
+  HowToRegIcon,
+  AutoDeleteIcon,
+  TagIcon,
+  ScienceIcon,
+  CodeBlocksIcon,
   MenuBookIcon,
   ConversionPathIcon,
   LocalShippingIcon,

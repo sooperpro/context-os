@@ -2,7 +2,13 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Avatar, AvatarFallback, AvatarGroup, AvatarGroupCount } from "@/components/ui/avatar";
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarGroup,
+  AvatarGroupCount,
+  PersonAvatar,
+} from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Banner } from "@/components/ui/banner";
 import {
@@ -33,6 +39,7 @@ import { MetaChip, TypeChip } from "@/components/ui/meta-chip";
 import { OptionList, OptionTile } from "@/components/ui/option-tile";
 import { PillTab, PillTabs } from "@/components/ui/pill-tabs";
 import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress";
+import { ProgressRing } from "@/components/ui/progress-ring";
 import {
   SegmentedItem,
   SegmentedItemBody,
@@ -45,6 +52,7 @@ import {
 import { SHAPE_KINDS, Shape } from "@/components/ui/shape";
 import { StatusChip } from "@/components/ui/status-chip";
 import { Stepper, StepperItem } from "@/components/ui/stepper";
+import { Timeline, TimelineItem } from "@/components/ui/timeline";
 import { Switch } from "@/components/ui/switch";
 import {
   Table,
@@ -103,6 +111,9 @@ import {
   CableIcon,
   CancelIcon,
   CheckIcon,
+  EventAvailableIcon,
+  FlagIcon,
+  ForumIcon,
   ChevronRightIcon,
   DescriptionIcon,
   HelpIcon,
@@ -144,7 +155,13 @@ const STATUS_ICONS = {
 const AVATAR_TONES = ["primary", "ai", "secondary", "warning", "success", "neutral"] as const;
 const PEOPLE = [
   { id: "maya", initials: "MO", name: "Maya Okafor", role: "Product Engineer", progress: 22 },
-  { id: "daniel", initials: "DR", name: "Daniel Reyes", role: "Engineering Manager", progress: 100 },
+  {
+    id: "daniel",
+    initials: "DR",
+    name: "Daniel Reyes",
+    role: "Engineering Manager",
+    progress: 100,
+  },
   { id: "sana", initials: "SI", name: "Sana Iqbal", role: "Staff Engineer", progress: 64 },
 ];
 
@@ -182,8 +199,23 @@ const COLOR_ROLES: Array<{ name: string; bg: string; fg: string }> = [
   { name: "inverse-surface", bg: "bg-inverse-surface", fg: "text-inverse-on-surface" },
 ];
 
-const RADII = ["rounded-xs", "rounded-sm", "rounded-md", "rounded-lg", "rounded-xl", "rounded-2xl", "rounded-3xl", "rounded-4xl", "rounded-full"];
-const ELEVATIONS = ["shadow-elevation-1", "shadow-elevation-2", "shadow-elevation-3", "shadow-elevation-4"];
+const RADII = [
+  "rounded-xs",
+  "rounded-sm",
+  "rounded-md",
+  "rounded-lg",
+  "rounded-xl",
+  "rounded-2xl",
+  "rounded-3xl",
+  "rounded-4xl",
+  "rounded-full",
+];
+const ELEVATIONS = [
+  "shadow-elevation-1",
+  "shadow-elevation-2",
+  "shadow-elevation-3",
+  "shadow-elevation-4",
+];
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -255,10 +287,19 @@ export function UiGalleryPage() {
         <Section title="Expressive shapes">
           <div className="flex flex-wrap gap-3">
             {SHAPE_KINDS.map((kind, index) => (
-              <span key={kind} className="flex flex-col items-center gap-1 text-[10px] text-on-surface-variant">
+              <span
+                key={kind}
+                className="flex flex-col items-center gap-1 text-[10px] text-on-surface-variant"
+              >
                 <Shape
                   kind={kind}
-                  className={["text-primary", "text-ai", "text-secondary-strong", "text-warning", "text-success"][index % 5]!.concat(" size-14")}
+                  className={[
+                    "text-primary",
+                    "text-ai",
+                    "text-secondary-strong",
+                    "text-warning",
+                    "text-success",
+                  ][index % 5]!.concat("size-14")}
                 />
                 {kind}
               </span>
@@ -271,7 +312,10 @@ export function UiGalleryPage() {
             <p className="font-heading text-5xl">Display: How Tessellate makes money</p>
             <p className="font-heading text-3xl">Headline: Project Kestrel</p>
             <p className="text-xl">Title: Choose your workspace</p>
-            <p className="text-base">Body: Each project reconstructs how a piece of work got here, why, and what is true now.</p>
+            <p className="text-base">
+              Body: Each project reconstructs how a piece of work got here, why, and what is true
+              now.
+            </p>
             <p className="text-sm text-muted-foreground">Body small: Updated today · 6 sources</p>
             <p className="font-mono text-sm">Code: src_01HZX8 · pk_test_…</p>
           </div>
@@ -280,14 +324,20 @@ export function UiGalleryPage() {
         <Section title="Shape and elevation">
           <Row label="Corners">
             {RADII.map((r) => (
-              <div key={r} className={`${r} flex size-14 items-center justify-center bg-primary-container text-[10px] text-on-primary-container`}>
+              <div
+                key={r}
+                className={`${r} flex size-14 items-center justify-center bg-primary-container text-[10px] text-on-primary-container`}
+              >
                 {r.replace("rounded-", "")}
               </div>
             ))}
           </Row>
           <Row label="Elevation">
             {ELEVATIONS.map((e) => (
-              <div key={e} className={`${e} flex h-14 w-24 items-center justify-center rounded-lg bg-pane text-[10px]`}>
+              <div
+                key={e}
+                className={`${e} flex h-14 w-24 items-center justify-center rounded-lg bg-pane text-[10px]`}
+              >
                 {e.replace("shadow-elevation-", "level ")}
               </div>
             ))}
@@ -339,7 +389,11 @@ export function UiGalleryPage() {
           <Row label="Connected">
             <ConnectedButtonGroup>
               {(["all", "overdue", "blocked"] as const).map((value) => (
-                <ConnectedButton key={value} pressed={filter === value} onClick={() => setFilter(value)}>
+                <ConnectedButton
+                  key={value}
+                  pressed={filter === value}
+                  onClick={() => setFilter(value)}
+                >
                   {value}
                 </ConnectedButton>
               ))}
@@ -353,11 +407,13 @@ export function UiGalleryPage() {
 
         <Section title="Pill navigation and static chips">
           <PillTabs aria-label="Example sections">
-            {["Overview", "Decisions", "Systems", "People", "Timeline", "Sources"].map((label, index) => (
-              <PillTab key={label} active={index === 0} render={<a href="#pills" />}>
-                {label}
-              </PillTab>
-            ))}
+            {["Overview", "Decisions", "Systems", "People", "Timeline", "Sources"].map(
+              (label, index) => (
+                <PillTab key={label} active={index === 0} render={<a href="#pills" />}>
+                  {label}
+                </PillTab>
+              ),
+            )}
           </PillTabs>
           <Row label="Meta chips">
             <MetaChip>
@@ -442,6 +498,23 @@ export function UiGalleryPage() {
               <AvatarGroupCount>+4</AvatarGroupCount>
             </AvatarGroup>
           </Row>
+          <Row label="Person">
+            {PEOPLE.map((p) => (
+              <PersonAvatar key={p.id} person={{ id: p.id, name: p.name }} />
+            ))}
+          </Row>
+          <Row label="List leads">
+            {(
+              ["secondary", "primary", "neutral", "success", "ai", "warning", "error"] as const
+            ).map((tone) => (
+              <SegmentedItemLead key={tone} tone={tone} title={tone}>
+                <FlagIcon />
+              </SegmentedItemLead>
+            ))}
+            <SegmentedItemLead tone="neutral" size="sm">
+              <FlagIcon />
+            </SegmentedItemLead>
+          </Row>
           <Row label="Switch">
             <Switch checked={notify} onCheckedChange={setNotify} aria-label="Notifications" />
             <Switch defaultChecked size="sm" aria-label="Compact" />
@@ -460,10 +533,48 @@ export function UiGalleryPage() {
             <Progress value={80} tone="ai" aria-label="Context Bot" />
             <Progress value={null} tone="error" aria-label="Indeterminate" />
           </div>
+          <Row label="Ring">
+            <ProgressRing value={0.18} role="img" aria-label="18% complete">
+              <span className="font-heading text-[32px] leading-9 font-semibold">18%</span>
+              <span className="text-xs text-on-surface-variant">Day 9 of 90</span>
+            </ProgressRing>
+            <ProgressRing value={0.64} size={112} tone="success" aria-hidden />
+            <ProgressRing value={0.4} size={64} tone="warning" aria-hidden />
+            <ProgressRing value={1} size={40} aria-hidden />
+          </Row>
+        </Section>
+
+        <Section title="Timeline">
+          <div className="max-w-md rounded-card bg-card p-6">
+            <Timeline>
+              <TimelineItem
+                dateLabel="Fri"
+                date="Oct 16"
+                icon={<ForumIcon />}
+                state="soon"
+                title="Week 2 check-in"
+                detail="With Daniel Reyes"
+              />
+              <TimelineItem
+                dateLabel="Wed"
+                date="Nov 4"
+                icon={<EventAvailableIcon />}
+                title="30-day review"
+                detail="You and your manager"
+              />
+              <TimelineItem
+                dateLabel="Mon"
+                date="Oct 5"
+                icon={<CheckIcon />}
+                state="done"
+                title="Set up your laptop"
+              />
+            </Timeline>
+          </div>
         </Section>
 
         <Section title="Stepper and option tiles">
-          <div className="max-w-xl rounded-xl bg-card p-4 @container">
+          <div className="@container max-w-xl rounded-xl bg-card p-4">
             <Stepper>
               <StepperItem index={1} status="done">
                 Authorize
@@ -490,13 +601,21 @@ export function UiGalleryPage() {
               <OptionTile
                 input={<input type="checkbox" defaultChecked />}
                 title="Engineering shared drive"
-                trailing={<StatusChip tone="neutral" icon={<DescriptionIcon />}>1,204</StatusChip>}
+                trailing={
+                  <StatusChip tone="neutral" icon={<DescriptionIcon />}>
+                    1,204
+                  </StatusChip>
+                }
               />
               <OptionTile
                 input={<input type="checkbox" />}
                 title="Finance"
                 description="Restricted: 3 items need admin consent"
-                trailing={<StatusChip tone="warning" icon={<WarningIcon />}>Restricted</StatusChip>}
+                trailing={
+                  <StatusChip tone="warning" icon={<WarningIcon />}>
+                    Restricted
+                  </StatusChip>
+                }
               />
             </OptionList>
           </div>
@@ -504,13 +623,47 @@ export function UiGalleryPage() {
 
         <Section title="Tiles, banners, logos">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <KpiTile label="Active hires" value="12" delta={<><NorthEastIcon /> +3 this week</>} deltaTone="good" />
-            <KpiTile label="Overdue modules" value="4" delta={<><NorthEastIcon /> +2</>} deltaTone="bad" />
+            <KpiTile
+              label="Active hires"
+              value="12"
+              delta={
+                <>
+                  <NorthEastIcon /> +3 this week
+                </>
+              }
+              deltaTone="good"
+            />
+            <KpiTile
+              label="Overdue modules"
+              value="4"
+              delta={
+                <>
+                  <NorthEastIcon /> +2
+                </>
+              }
+              deltaTone="bad"
+            />
             <KpiTile label="Knowledge gaps" value="7" delta="unchanged" />
             <div className="grid grid-cols-3 gap-2">
               <MiniTile label="Docs" value="1.2k" />
-              <MiniTile label={<><WarningIcon /> Stale</>} value="38" tone="warning" />
-              <MiniTile label={<><CancelIcon /> Failed</>} value="2" tone="error" />
+              <MiniTile
+                label={
+                  <>
+                    <WarningIcon /> Stale
+                  </>
+                }
+                value="38"
+                tone="warning"
+              />
+              <MiniTile
+                label={
+                  <>
+                    <CancelIcon /> Failed
+                  </>
+                }
+                value="2"
+                tone="error"
+              />
             </div>
           </div>
           <div className="space-y-3">
@@ -519,7 +672,11 @@ export function UiGalleryPage() {
               icon={<CancelIcon />}
               title="Jira sync is failing"
               description="Three projects returned 403 since Oct 12. Answers may be out of date."
-              actions={<Button variant="ghost" size="sm">Reconnect</Button>}
+              actions={
+                <Button variant="ghost" size="sm">
+                  Reconnect
+                </Button>
+              }
             />
             <Banner
               tone="info"
@@ -527,16 +684,32 @@ export function UiGalleryPage() {
               title="First sync in progress"
               description="Indexing 1,204 documents from the Engineering drive."
             />
-            <Banner tone="ai" icon={<AiSparkleIcon />} title="Context Bot drafted this from 4 sources" />
+            <Banner
+              tone="ai"
+              icon={<AiSparkleIcon />}
+              title="Context Bot drafted this from 4 sources"
+            />
           </div>
           <Row label="Logo tiles">
-            <LogoTile size="sm"><DemoLogo /></LogoTile>
-            <LogoTile><DemoLogo /></LogoTile>
-            <LogoTile size="lg"><DemoLogo /></LogoTile>
+            <LogoTile size="sm">
+              <DemoLogo />
+            </LogoTile>
+            <LogoTile>
+              <DemoLogo />
+            </LogoTile>
+            <LogoTile size="lg">
+              <DemoLogo />
+            </LogoTile>
             <LogoStack>
-              <LogoTile><DemoLogo /></LogoTile>
-              <LogoTile><DemoLogo /></LogoTile>
-              <LogoTile><DemoLogo /></LogoTile>
+              <LogoTile>
+                <DemoLogo />
+              </LogoTile>
+              <LogoTile>
+                <DemoLogo />
+              </LogoTile>
+              <LogoTile>
+                <DemoLogo />
+              </LogoTile>
             </LogoStack>
           </Row>
         </Section>
@@ -560,7 +733,12 @@ export function UiGalleryPage() {
                     </SegmentedItemMeta>
                   </SegmentedItemBody>
                   <SegmentedItemTrail>
-                    <Progress value={p.progress} flat className="w-24" aria-label={`${p.name} progress`} />
+                    <Progress
+                      value={p.progress}
+                      flat
+                      className="w-24"
+                      aria-label={`${p.name} progress`}
+                    />
                     <ChevronRightIcon className="size-5 text-on-surface-variant" />
                   </SegmentedItemTrail>
                 </SegmentedItem>
@@ -595,15 +773,22 @@ export function UiGalleryPage() {
                   <TableBody>
                     <TableRow>
                       <TableCell className="flex items-center gap-2">
-                        <LogoTile size="sm"><DemoLogo /></LogoTile> Google Drive
+                        <LogoTile size="sm">
+                          <DemoLogo />
+                        </LogoTile>{" "}
+                        Google Drive
                       </TableCell>
                       <TableCell>1,204</TableCell>
                       <TableCell>
-                        <StatusChip tone="success" icon={<CheckIcon />}>Healthy</StatusChip>
+                        <StatusChip tone="success" icon={<CheckIcon />}>
+                          Healthy
+                        </StatusChip>
                       </TableCell>
                       <TableCell>
                         <DropdownMenu>
-                          <DropdownMenuTrigger render={<Button size="icon-xs" variant="ghost" aria-label="Actions" />}>
+                          <DropdownMenuTrigger
+                            render={<Button size="icon-xs" variant="ghost" aria-label="Actions" />}
+                          >
                             <MoreHorizIcon />
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
@@ -624,11 +809,16 @@ export function UiGalleryPage() {
                     </TableRow>
                     <TableRow>
                       <TableCell className="flex items-center gap-2">
-                        <LogoTile size="sm"><DemoLogo /></LogoTile> Jira
+                        <LogoTile size="sm">
+                          <DemoLogo />
+                        </LogoTile>{" "}
+                        Jira
                       </TableCell>
                       <TableCell>312</TableCell>
                       <TableCell>
-                        <StatusChip tone="error" icon={<CancelIcon />}>Error</StatusChip>
+                        <StatusChip tone="error" icon={<CancelIcon />}>
+                          Error
+                        </StatusChip>
                       </TableCell>
                       <TableCell>
                         <Button size="icon-xs" variant="ghost" aria-label="Help">
@@ -662,9 +852,11 @@ export function UiGalleryPage() {
             ))}
           </Row>
           <Row label="State">
-            {(["active", "blocked", "done", "planned", "risk", "open_question"] as const).map((s) => (
-              <StateBadge key={s} state={s} />
-            ))}
+            {(["active", "blocked", "done", "planned", "risk", "open_question"] as const).map(
+              (s) => (
+                <StateBadge key={s} state={s} />
+              ),
+            )}
           </Row>
           <Row label="Source">
             {(["pending", "processing", "ready", "failed"] as const).map((s) => (
@@ -742,7 +934,9 @@ export function UiGalleryPage() {
             <div className="space-y-4">
               <Alert>
                 <AlertTitle>Jira sync is failing</AlertTitle>
-                <AlertDescription>Three projects returned 403. Reconnect to continue.</AlertDescription>
+                <AlertDescription>
+                  Three projects returned 403. Reconnect to continue.
+                </AlertDescription>
               </Alert>
               <Alert variant="destructive">
                 <AlertTitle>Could not get an answer</AlertTitle>
@@ -757,7 +951,9 @@ export function UiGalleryPage() {
               <Empty className="border">
                 <EmptyHeader>
                   <EmptyTitle>Not enough source evidence yet</EmptyTitle>
-                  <EmptyDescription>Add a document or thread to populate this section.</EmptyDescription>
+                  <EmptyDescription>
+                    Add a document or thread to populate this section.
+                  </EmptyDescription>
                 </EmptyHeader>
               </Empty>
             </div>
@@ -784,7 +980,9 @@ export function UiGalleryPage() {
               <SheetContent>
                 <SheetHeader>
                   <SheetTitle>Source</SheetTitle>
-                  <SheetDescription>Side sheets hold evidence and the assistant below 1200px.</SheetDescription>
+                  <SheetDescription>
+                    Side sheets hold evidence and the assistant below 1200px.
+                  </SheetDescription>
                 </SheetHeader>
               </SheetContent>
             </Sheet>

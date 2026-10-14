@@ -6,8 +6,12 @@ import {
   HubIcon,
   GroupFilledIcon,
   GroupIcon,
+  HomeFilledIcon,
+  HomeIcon,
   SettingsFilledIcon,
   SettingsIcon,
+  SpaceDashboardFilledIcon,
+  SpaceDashboardIcon,
   type MaterialIcon,
 } from "@/components/ui/icons";
 
@@ -36,6 +40,25 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: readonly NavItem[] = [
+  {
+    id: "home",
+    label: "Home",
+    icon: HomeIcon,
+    activeIcon: HomeFilledIcon,
+    to: "/",
+    end: true,
+    roles: ["manager", "member", "guest"],
+  },
+  // The prototype labels the admin's Home "Overview".
+  {
+    id: "overview",
+    label: "Overview",
+    icon: SpaceDashboardIcon,
+    activeIcon: SpaceDashboardFilledIcon,
+    to: "/",
+    end: true,
+    roles: ["owner", "admin"],
+  },
   // The prototype has no Projects item: projects are a collection inside the Knowledge Hub.
   {
     id: "knowledge",
@@ -46,8 +69,23 @@ export const NAV_ITEMS: readonly NavItem[] = [
     to: "/knowledge",
     activePaths: ["projects"],
   },
-  { id: "people", label: "People", icon: GroupIcon, activeIcon: GroupFilledIcon, to: "/members", roles: ["owner", "admin", "manager", "member"] },
-  { id: "setup", label: "Workspace setup", short: "Setup", icon: ChecklistIcon, activeIcon: ChecklistFilledIcon, to: "/setup", roles: ["owner", "admin"] },
+  {
+    id: "people",
+    label: "People",
+    icon: GroupIcon,
+    activeIcon: GroupFilledIcon,
+    to: "/members",
+    roles: ["owner", "admin", "manager", "member"],
+  },
+  {
+    id: "setup",
+    label: "Workspace setup",
+    short: "Setup",
+    icon: ChecklistIcon,
+    activeIcon: ChecklistFilledIcon,
+    to: "/setup",
+    roles: ["owner", "admin"],
+  },
 ];
 
 /** Pinned to the bottom of the rail for everyone (prototype `.rail-bottom`); on phones it is in the account menu. */
@@ -61,11 +99,15 @@ export const SETTINGS_ITEM: NavItem = {
 
 /** True when the path is inside one of the item's extra sections (works under any route prefix). */
 export function isInActivePaths(item: NavItem, pathname: string): boolean {
-  return (item.activePaths ?? []).some((section) => new RegExp(`(^|/)${section}(/|$)`).test(pathname));
+  return (item.activePaths ?? []).some((section) =>
+    new RegExp(`(^|/)${section}(/|$)`).test(pathname),
+  );
 }
 
 export function navItemsFor(role: SystemRole | undefined): NavItem[] {
-  return NAV_ITEMS.filter((item) => !item.roles || (role !== undefined && item.roles.includes(role)));
+  return NAV_ITEMS.filter(
+    (item) => !item.roles || (role !== undefined && item.roles.includes(role)),
+  );
 }
 
 /** The bottom bar holds at most four destinations (M3). */

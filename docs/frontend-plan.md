@@ -151,8 +151,39 @@ A pass over every built surface against the prototype's CSS and JS found three g
       three show an empty state; the change is written up in `docs/api-change-requests.md`, with the
       workspace-wide items endpoint that should replace one request per project.
 
+- [x] Home for each role, from the reference: employee (up next, onboarding ring and stages, this week's
+      tasks, milestones, ask band, knowledge updates, team news, your people, contributions), manager
+      (attention, check-ins with an AI prep box, roster against plan, knowledge gaps, team knowledge),
+      People Ops (KPIs, probation reviews, team bars, starters, overdue milestones, templates) and the admin
+      overview (live connectors with a reconnect banner, members and audit log; security, sync runs and AI
+      answers as preview data). `/` opens Home; the rail shows "Home", or "Overview" for admins. In
+      development the View-as menu previews any role's Home with `?view=`. Controls whose screen does not
+      exist yet call `comingSoon()` instead of linking to a missing page.
+
 Not built because nothing backs them yet: rail badges (no unread counts per area), the prototype's
 "Save" on answers and knowledge items, notification categories.
+
+## Building screens before the API exists
+
+The UI is built from the reference first; the backend follows. Fake data never lives in components.
+
+1. **Contract first.** Write the response schema in `packages/shared` and name its endpoint in a comment.
+   That file is what the backend implements.
+2. **Register the endpoint** in the feature's API module (path plus schema, as in
+   `features/home/api/home.api.ts`). Screens call it like any live endpoint.
+3. **Mock it** in `apps/web/src/mocks/` with `mockGet(endpoint)(() => fixture)` and add it to
+   `mocks/endpoints.ts`. The fixture is type-checked against the schema and parsed at runtime, so a mock
+   cannot drift from the contract. Use the shared cast in `mocks/fixtures/people.ts` and dates relative
+   to today from `mocks/fixtures/time.ts`.
+4. **Mark it.** Pass the path as `endpoint` to `SectionCard` (or render `PreviewDataChip`); the card shows
+   "Preview data" while the endpoint is mocked and nothing once it is live or in production.
+5. **Test with the same mocks.** `setupMockApi()` from `src/test/msw.ts` serves them under Node;
+   `src/mocks/endpoints.test.ts` checks every mock against its schema.
+6. **When the endpoint ships,** delete its mock and update the table in `docs/api-change-requests.md`.
+
+The mock layer runs only in development with `VITE_MOCK_API=true` (in `apps/web/.env`). Requests to
+endpoints without a mock go to the real API. Production builds contain neither the mocks nor MSW, and
+the worker script is served by the dev server only (`apps/web/dev-server/`, see `vite.config.ts`).
 
 ## Guardrails
 

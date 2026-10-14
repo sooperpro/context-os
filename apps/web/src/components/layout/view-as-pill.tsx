@@ -10,7 +10,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ArrowDropDownIcon, GroupIcon, VisibilityIcon } from "@/components/ui/icons";
+import { ArrowDropDownIcon, GroupIcon, ScienceIcon, VisibilityIcon } from "@/components/ui/icons";
+import { HOME_VIEW_LABEL, HOME_VIEWS } from "@/features/home/views";
 import { currentWorkspaceQuery } from "@/features/workspace/api/workspace.queries";
 import { ROLE_LABEL } from "@/lib/labels";
 
@@ -54,6 +55,20 @@ export function ViewAsPill() {
             <DropdownMenuItem render={<Link to="/members" />}>
               <GroupIcon /> Manage people and roles
             </DropdownMenuItem>
+          </>
+        ) : null}
+        {import.meta.env.DEV ? (
+          // Development only, like the prototype's role switch: see every role's Home from one account.
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Preview Home as (development)</DropdownMenuLabel>
+              {HOME_VIEWS.map((view) => (
+                <DropdownMenuItem key={view} render={<Link to={`/?view=${view}`} />}>
+                  <ScienceIcon /> {HOME_VIEW_LABEL[view]}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuGroup>
           </>
         ) : null}
       </DropdownMenuContent>

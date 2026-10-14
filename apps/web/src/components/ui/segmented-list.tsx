@@ -39,12 +39,33 @@ function SegmentedItem({
   });
 }
 
-function SegmentedItemLead({ className, ...props }: React.ComponentProps<"span">) {
+const LEAD_TONES = {
+  secondary: "bg-secondary-container text-on-secondary-container",
+  primary: "bg-primary-container text-on-primary-container",
+  neutral: "bg-surface-container-high text-on-surface-variant",
+  success: "bg-success-container text-on-success-container",
+  ai: "bg-ai-container text-on-ai-container",
+  warning: "bg-warning-container text-on-warning-container",
+  error: "bg-error-container text-on-error-container",
+} as const;
+
+/** Leading tile. `tone` follows the prototype's lead-* classes; `sm` is the 32px compact tile. */
+function SegmentedItemLead({
+  className,
+  tone = "secondary",
+  size = "default",
+  ...props
+}: React.ComponentProps<"span"> & { tone?: keyof typeof LEAD_TONES; size?: "default" | "sm" }) {
   return (
     <span
       data-slot="segmented-item-lead"
+      data-tone={tone}
       className={cn(
-        "grid size-10 shrink-0 place-items-center rounded-md bg-secondary-container text-on-secondary-container [&_svg]:size-5",
+        "grid shrink-0 place-items-center",
+        size === "sm"
+          ? "size-8 rounded-[10px] [&_svg]:size-4"
+          : "size-10 rounded-md [&_svg]:size-5",
+        LEAD_TONES[tone],
         className,
       )}
       {...props}

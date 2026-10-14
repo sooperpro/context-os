@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from "react-router";
+import { createBrowserRouter } from "react-router";
 import { RootLayout } from "@/app/root-layout";
 import { RouteErrorBoundary } from "@/components/route-error-boundary";
 import { NotFoundPage } from "@/pages/not-found-page";
@@ -19,68 +19,73 @@ const devRoutes = import.meta.env.DEV
 
 /** The application's routes under the shell, shared by "/" and the development shell preview. */
 const appChildren = [
-      // No Home dashboard yet: the Knowledge Hub is the landing page (relative, so it works under /dev/shell).
-      { index: true, element: <Navigate to="knowledge" replace /> },
+  {
+    index: true,
+    lazy: async () => {
+      const { HomePage } = await import("@/features/home/pages/home-page");
+      return { Component: HomePage };
+    },
+  },
+  {
+    path: "knowledge",
+    lazy: async () => {
+      const { KnowledgeHubPage } = await import("@/features/knowledge/pages/knowledge-hub-page");
+      return { Component: KnowledgeHubPage };
+    },
+  },
+  {
+    path: "members",
+    lazy: async () => {
+      const { MembersPage } = await import("@/features/members/pages/members-page");
+      return { Component: MembersPage };
+    },
+  },
+  {
+    path: "settings",
+    lazy: async () => {
+      const { SettingsPage } = await import("@/features/settings/pages/settings-page");
+      return { Component: SettingsPage };
+    },
+  },
+  {
+    path: "setup",
+    lazy: async () => {
+      const { SetupPage } = await import("@/features/setup/pages/setup-page");
+      return { Component: SetupPage };
+    },
+  },
+  {
+    path: "projects/:projectId",
+    // Project pages are code-split: this chunk loads only when a project is opened.
+    lazy: async () => {
+      const { ProjectLayout } = await import("@/components/layout/project-layout");
+      return { Component: ProjectLayout };
+    },
+    children: [
       {
-        path: "knowledge",
+        index: true,
         lazy: async () => {
-          const { KnowledgeHubPage } = await import("@/features/knowledge/pages/knowledge-hub-page");
-          return { Component: KnowledgeHubPage };
+          const { ProjectHubPage } = await import("@/features/hub/pages/project-hub-page");
+          return { Component: ProjectHubPage };
         },
       },
       {
-        path: "members",
+        path: "ask",
         lazy: async () => {
-          const { MembersPage } = await import("@/features/members/pages/members-page");
-          return { Component: MembersPage };
+          const { AskPage } = await import("@/features/ask/pages/ask-page");
+          return { Component: AskPage };
         },
       },
       {
-        path: "settings",
+        path: "sources",
         lazy: async () => {
-          const { SettingsPage } = await import("@/features/settings/pages/settings-page");
-          return { Component: SettingsPage };
+          const { SourcesPage } = await import("@/features/sources/pages/sources-page");
+          return { Component: SourcesPage };
         },
       },
-      {
-        path: "setup",
-        lazy: async () => {
-          const { SetupPage } = await import("@/features/setup/pages/setup-page");
-          return { Component: SetupPage };
-        },
-      },
-      {
-        path: "projects/:projectId",
-        // Project pages are code-split: this chunk loads only when a project is opened.
-        lazy: async () => {
-          const { ProjectLayout } = await import("@/components/layout/project-layout");
-          return { Component: ProjectLayout };
-        },
-        children: [
-          {
-            index: true,
-            lazy: async () => {
-              const { ProjectHubPage } = await import("@/features/hub/pages/project-hub-page");
-              return { Component: ProjectHubPage };
-            },
-          },
-          {
-            path: "ask",
-            lazy: async () => {
-              const { AskPage } = await import("@/features/ask/pages/ask-page");
-              return { Component: AskPage };
-            },
-          },
-          {
-            path: "sources",
-            lazy: async () => {
-              const { SourcesPage } = await import("@/features/sources/pages/sources-page");
-              return { Component: SourcesPage };
-            },
-          },
-        ],
-      },
-      { path: "*", Component: NotFoundPage },
+    ],
+  },
+  { path: "*", Component: NotFoundPage },
 ];
 
 export const router = createBrowserRouter([
@@ -88,7 +93,14 @@ export const router = createBrowserRouter([
   // Development only: the same shell and pages without a session, for visual checks. The API in
   // development mode needs no token; links inside still point at the real routes.
   ...(import.meta.env.DEV
-    ? [{ path: "/dev/shell", Component: RootLayout, ErrorBoundary: RouteErrorBoundary, children: appChildren }]
+    ? [
+        {
+          path: "/dev/shell",
+          Component: RootLayout,
+          ErrorBoundary: RouteErrorBoundary,
+          children: appChildren,
+        },
+      ]
     : []),
   {
     path: "/",
