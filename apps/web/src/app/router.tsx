@@ -29,6 +29,13 @@ const appChildren = [
         },
       },
       {
+        path: "settings",
+        lazy: async () => {
+          const { SettingsPage } = await import("@/features/settings/pages/settings-page");
+          return { Component: SettingsPage };
+        },
+      },
+      {
         path: "setup",
         lazy: async () => {
           const { SetupPage } = await import("@/features/setup/pages/setup-page");

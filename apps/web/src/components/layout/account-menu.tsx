@@ -1,4 +1,5 @@
 import { useClerk, useOrganizationList, useUser } from "@clerk/react";
+import { Link } from "react-router";
 import type { Theme } from "@/components/theme-context";
 import { Avatar, AvatarFallback, AvatarImage, avatarToneFor } from "@/components/ui/avatar";
 import {
@@ -17,6 +18,8 @@ import {
   LightModeIcon,
   LogoutIcon,
   ManageAccountsIcon,
+  NotificationsIcon,
+  SettingsIcon,
 } from "@/components/ui/icons";
 import { useTheme } from "@/hooks/use-theme";
 import { initialsOf } from "@/lib/format";
@@ -70,8 +73,14 @@ export function AccountMenu() {
           </div>
         </div>
         <DropdownMenuSeparator />
+        <DropdownMenuItem render={<Link to="/settings" />}>
+          <SettingsIcon /> Profile and preferences
+        </DropdownMenuItem>
+        <DropdownMenuItem render={<Link to="/settings?tab=notifications" />}>
+          <NotificationsIcon /> Notifications
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={() => clerk.openUserProfile()}>
-          <ManageAccountsIcon /> Profile and security
+          <ManageAccountsIcon /> Sign-in and security
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuRadioGroup value={theme} onValueChange={(value) => setTheme(value as Theme)}>

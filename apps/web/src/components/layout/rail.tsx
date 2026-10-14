@@ -2,7 +2,7 @@ import { cn } from "cn";
 import { NavLink } from "react-router";
 import { useAssistant } from "@/components/layout/assistant-context";
 import { Brand } from "@/components/layout/brand";
-import type { NavItem } from "@/components/layout/navigation";
+import { SETTINGS_ITEM, type NavItem } from "@/components/layout/navigation";
 import { Button } from "@/components/ui/button";
 import { Fab } from "@/components/ui/fab";
 import { HubFilledIcon, MenuIcon, MenuOpenIcon } from "@/components/ui/icons";
@@ -66,41 +66,54 @@ export function Rail({ items, collapsed, canToggle, onToggle }: RailProps) {
       <ul className={cn("flex flex-col", collapsed ? "gap-2" : "gap-1")}>
         {items.map((item) => (
           <li key={item.id}>
-            <NavLink
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) =>
-                cn(
-                  "group/nav flex items-center gap-3 rounded-full text-sm outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
-                  // One state layer only: the whole row when expanded, the icon pill when collapsed.
-                  collapsed ? "flex-col gap-1 py-1 text-xs" : "h-14 px-4 text-sm font-medium hover:bg-on-surface/8",
-                  isActive ? "text-on-surface" : "text-on-surface-variant",
-                  isActive && !collapsed && "bg-secondary-container text-on-secondary-container",
-                )
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  <span
-                    aria-hidden
-                    className={cn(
-                      "grid place-items-center rounded-full [&_svg]:size-6",
-                      collapsed && "h-8 w-14 transition-colors group-hover/nav:bg-on-surface/8 group-focus-visible/nav:bg-on-surface/10",
-                      collapsed && isActive && "bg-secondary-container text-on-secondary-container",
-                    )}
-                  >
-                    {isActive ? <item.activeIcon /> : <item.icon />}
-                  </span>
-                  <span className={cn("truncate", collapsed && "max-w-21 text-center font-medium")}>
-                    {collapsed ? (item.short ?? item.label) : item.label}
-                  </span>
-                </>
-              )}
-            </NavLink>
+            <RailLink item={item} collapsed={collapsed} />
           </li>
         ))}
       </ul>
 
+      <div className="mt-auto pt-3">
+        <RailLink item={SETTINGS_ITEM} collapsed={collapsed} />
+      </div>
     </nav>
+  );
+}
+
+/** One rail destination: a 56px row when expanded, an icon pill over a short label when collapsed. */
+function RailLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
+  return (
+    <NavLink
+      to={item.to}
+      end={item.end}
+      className={({ isActive }) =>
+        cn(
+          "group/nav flex items-center gap-3 rounded-full text-sm transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+          // One state layer only: the whole row when expanded, the icon pill when collapsed.
+          collapsed
+            ? "flex-col gap-1 py-1 text-xs"
+            : "h-14 px-4 text-sm font-medium hover:bg-on-surface/8",
+          isActive ? "text-on-surface" : "text-on-surface-variant",
+          isActive && !collapsed && "bg-secondary-container text-on-secondary-container",
+        )
+      }
+    >
+      {({ isActive }) => (
+        <>
+          <span
+            aria-hidden
+            className={cn(
+              "grid place-items-center rounded-full [&_svg]:size-6",
+              collapsed &&
+                "h-8 w-14 transition-colors group-hover/nav:bg-on-surface/8 group-focus-visible/nav:bg-on-surface/10",
+              collapsed && isActive && "bg-secondary-container text-on-secondary-container",
+            )}
+          >
+            {isActive ? <item.activeIcon /> : <item.icon />}
+          </span>
+          <span className={cn("truncate", collapsed && "max-w-21 text-center font-medium")}>
+            {collapsed ? (item.short ?? item.label) : item.label}
+          </span>
+        </>
+      )}
+    </NavLink>
   );
 }

@@ -127,6 +127,23 @@ Each screen composes library pieces only. A missing primitive goes into the libr
 - [x] One icon language: every screen, layout and primitive uses Material Symbols from the registry;
       `lucide-react` is removed and lint rejects it (shadcn generates Lucide imports, swap them on add).
 
+### Reference audit (2026-10-14)
+
+A pass over every built surface against the prototype's CSS and JS found three gaps, now closed:
+
+- [x] Base components: filled M3 text fields and selects, 16px menus with 44px items, 28px dialogs, inverse
+      snackbars, 450ms inverse tooltips, borderless 24px cards (`--cx-card-radius`).
+- [x] Context Bot pane: header actions (new conversation, expand to the Ask page, close), context chips,
+      welcome with prompt cards and the trust line, chat bubbles, the morphing loader, answer tools
+      (helpful / not helpful with reasons / copy), the no-answer state with "Report a knowledge gap",
+      error and retry, the 28px composer. Conversations run on the Ask threads API.
+- [x] Settings pinned to the rail bottom and linked from the account menu: profile name and time zone,
+      notification channels and quiet hours, theme, and sign-in through Clerk. Only settings the API
+      stores are offered (no notification categories, language or reduce-motion toggle).
+
+Not built because nothing backs them yet: rail badges (no unread counts per area), the prototype's
+"Save" on answers and knowledge items, notification categories.
+
 ## Guardrails
 
 - **Lint enforces tokens.** `src/components/**` and `src/features/**` may not contain hex, `rgb()`,

@@ -6,6 +6,8 @@ import {
   FolderOpenIcon,
   GroupFilledIcon,
   GroupIcon,
+  SettingsFilledIcon,
+  SettingsIcon,
   type MaterialIcon,
 } from "@/components/ui/icons";
 
@@ -36,6 +38,15 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { id: "people", label: "People", icon: GroupIcon, activeIcon: GroupFilledIcon, to: "/members", roles: ["owner", "admin", "manager", "member"] },
   { id: "setup", label: "Workspace setup", short: "Setup", icon: ChecklistIcon, activeIcon: ChecklistFilledIcon, to: "/setup", roles: ["owner", "admin"] },
 ];
+
+/** Pinned to the bottom of the rail for everyone (prototype `.rail-bottom`); on phones it is in the account menu. */
+export const SETTINGS_ITEM: NavItem = {
+  id: "settings",
+  label: "Settings",
+  icon: SettingsIcon,
+  activeIcon: SettingsFilledIcon,
+  to: "/settings",
+};
 
 export function navItemsFor(role: SystemRole | undefined): NavItem[] {
   return NAV_ITEMS.filter((item) => !item.roles || (role !== undefined && item.roles.includes(role)));
