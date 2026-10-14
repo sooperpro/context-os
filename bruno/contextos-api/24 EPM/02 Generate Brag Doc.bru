@@ -1,0 +1,35 @@
+meta {
+  name: Generate Brag Doc
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/epm/brag-docs/generate
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  { "from": "2026-01-01", "to": "2026-06-30" }
+}
+
+script:pre-request {
+  const value = bru.getEnvVar("enableEpm");
+  if (!value || value === "false") bru.runner.skipRequest();
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Narrative from own verified items only; no ratings, no comparisons.
+}

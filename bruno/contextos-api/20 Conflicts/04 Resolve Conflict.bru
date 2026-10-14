@@ -1,0 +1,35 @@
+meta {
+  name: Resolve Conflict
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/projects/{{projectId}}/conflicts/{{conflictId}}/resolve
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  { "version": {{conflictVersion}}, "outcome": "resolved", "canonicalItemId": "{{contextItemId}}", "rationale": "The newer update is authoritative" }
+}
+
+script:pre-request {
+  const value = bru.getEnvVar("conflictId");
+  if (!value || value === "false") bru.runner.skipRequest();
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Domain owner with access to all members. Canonical confirmed, losers superseded, resolve_conflict RP posted.
+}

@@ -1,0 +1,30 @@
+meta {
+  name: Request Identity Link
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/users/identities/link
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  { "provider": "github", "externalLogin": "octocat" }
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Google returns an OAuth URL (202) or links a connected Drive account; other providers stay suggested until an admin confirms.
+}

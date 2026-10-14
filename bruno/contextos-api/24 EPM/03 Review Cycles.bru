@@ -1,0 +1,29 @@
+meta {
+  name: Review Cycles
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/epm/review-cycles
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+script:pre-request {
+  const value = bru.getEnvVar("enableEpm");
+  if (!value || value === "false") bru.runner.skipRequest();
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Participants see their cycles; cycle admins see completion status only.
+}

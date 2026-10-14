@@ -1,0 +1,24 @@
+meta {
+  name: My Identities
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/users/me/identities
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Own identity links across providers.
+}

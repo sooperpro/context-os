@@ -66,6 +66,13 @@ const EnvSchema = z
       .regex(/^[a-fA-F0-9]{64}$/)
       .optional(),
     MAX_DOCUMENT_BYTES: z.coerce.number().int().positive().max(50_000_000).default(10_000_000),
+    /** Webhook receivers verify provider signatures with these secrets (503 when unset). */
+    SLACK_SIGNING_SECRET: z.string().optional(),
+    GITHUB_WEBHOOK_SECRET: z.string().optional(),
+    JIRA_WEBHOOK_SECRET: z.string().optional(),
+    GOOGLE_WEBHOOK_TOKEN: z.string().optional(),
+    /** Interval for background maintenance sweeps (bounty expiry, nudges, purges). */
+    MAINTENANCE_SWEEP_INTERVAL_MS: z.coerce.number().int().positive().default(60_000),
 
     RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
     /** Max requests per window per client. 0 disables rate limiting. */

@@ -50,6 +50,13 @@
       "when": 1791909913416,
       "tag": "0006_workspace_organization",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1791973293131,
+      "tag": "0007_prd_platform",
+      "breakpoints": true
     }
   ]
 }

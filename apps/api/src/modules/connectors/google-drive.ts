@@ -1,13 +1,21 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
+import type { ConnectorScopesInputSchema, DisconnectModeSchema } from "@contextos/shared";
 import { and, eq, inArray } from "drizzle-orm";
 import { google } from "googleapis";
+import type { z } from "zod";
 import type { Container } from "../../container.js";
 import {
   connectorConnections,
+  connectorScopes,
+  identityLinks,
+  memberships,
   oauthStates,
   projects,
   sourceAccess,
   sourceObjects,
+  users,
+  type ConnectorScopeRow,
+  type JobRow,
 } from "../../db/schema.js";
 import { openCredentials, sealCredentials } from "../../lib/credentials.js";
 import {
@@ -16,14 +24,18 @@ import {
   NotFoundError,
   UpstreamServiceError,
 } from "../../lib/errors.js";
-import type { Actor } from "../../types.js";
 import { parseDocument } from "../../lib/documents.js";
+import type { Actor } from "../../types.js";
+import { requireRole } from "../identity/identity.service.js";
+import { createNotifier } from "../platform/notify.js";
+import { createPlatformStore } from "../platform/store.js";
 
 const FILE_FIELDS =
   "id,name,mimeType,modifiedTime,createdTime,webViewLink,trashed,capabilities(canDownload),owners(displayName,emailAddress),driveId";
 const DOC = "application/vnd.google-apps.document";
 const SHEET = "application/vnd.google-apps.spreadsheet";
 const SLIDE = "application/vnd.google-apps.presentation";
+const FOLDER = "application/vnd.google-apps.folder";
 const ALLOWED = new Set([
   DOC,
   SHEET,
@@ -33,10 +45,19 @@ const ALLOWED = new Set([
   "text/markdown",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
+/** FR-INT-012: manual re-sync is rate-limited to once per 10 minutes per scope. */
+const SYNC_COOLDOWN_MS = 10 * 60_000;
+/** Bounded backfill per run; deeper folders are walked on subsequent runs. */
+const MAX_FILES_PER_RUN = 200;
+const MAX_FOLDER_DEPTH = 3;
 type Connection = typeof connectorConnections.$inferSelect;
+type ScopesInput = z.infer<typeof ConnectorScopesInputSchema>;
+type DisconnectMode = z.infer<typeof DisconnectModeSchema>;
 
 export function createGoogleDriveService(container: Container) {
   const { db, env, identity, services, repos, audit, queue } = container;
+  const store = createPlatformStore(db);
+  const notifier = createNotifier(db);
   const client = () => {
     if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET || !env.CONNECTOR_TOKEN_ENCRYPTION_KEY)
       throw new AppError(
@@ -101,18 +122,54 @@ export function createGoogleDriveService(container: Container) {
     });
     return auth;
   };
-  const safeConnection = (connection: Connection) => ({
-    id: connection.id,
-    provider: connection.provider,
-    status: connection.status,
-    accountId: connection.accountId,
-    scopes: connection.scopes,
-    createdAt: connection.createdAt,
+  const scopesFor = (connectionId: string) =>
+    db.select().from(connectorScopes).where(eq(connectorScopes.connectionId, connectionId)).all();
+  const scopeView = (row: ConnectorScopeRow) => ({
+    id: row.id,
+    projectId: row.projectId,
+    scopeType: row.scopeType,
+    externalId: row.externalId,
+    name: row.name,
+    excluded: row.isExcluded,
+    backfillFrom: row.backfillFrom?.toISOString() ?? null,
+    status: row.status,
+    lastSyncRequestedAt: row.lastSyncRequestedAt?.toISOString() ?? null,
+    lastSyncedAt: row.lastSyncedAt?.toISOString() ?? null,
+    itemCount: row.itemCount,
+    lastError: row.lastError,
   });
+  const safeConnection = (connection: Connection) => {
+    const scopes = scopesFor(connection.id);
+    const synced = scopes.map((row) => row.lastSyncedAt?.getTime() ?? 0);
+    return {
+      id: connection.id,
+      provider: connection.provider,
+      status: connection.status,
+      accountId: connection.accountId,
+      scopes: connection.scopes,
+      createdAt: connection.createdAt,
+      selectedScopes: scopes.map(scopeView),
+      health: {
+        lastSuccessfulSyncAt:
+          synced.length && Math.max(...synced) > 0
+            ? new Date(Math.max(...synced)).toISOString()
+            : null,
+        itemsProcessed: scopes.reduce((sum, row) => sum + row.itemCount, 0),
+        errors: scopes
+          .filter((row) => row.lastError)
+          .map((row) => ({ scopeId: row.id, error: row.lastError })),
+        tokenStatus: connection.status,
+      },
+    };
+  };
   const markReauth = (connection: Connection) => {
     db.update(connectorConnections)
       .set({ status: "needs_reauth" })
       .where(eq(connectorConnections.id, connection.id))
+      .run();
+    db.update(connectorScopes)
+      .set({ status: "needs_reauth" })
+      .where(eq(connectorScopes.connectionId, connection.id))
       .run();
     const imported = db
       .select({ id: sourceObjects.id })
@@ -128,8 +185,46 @@ export function createGoogleDriveService(container: Container) {
           ),
         )
         .run();
+    // FR-INT-011: admins are told when a connector needs re-authorisation.
+    notifier.notifyAdmins(connection.workspaceId, {
+      type: "connector.needs_reauth",
+      category: "system",
+      title: "A Google Drive connection needs re-authorisation",
+      link: "/admin/integrations",
+      batchKey: `connector:${connection.id}`,
+      data: { connectionId: connection.id },
+    });
+    store.emit(connection.workspaceId, "connector.token.degraded", {
+      connectorId: connection.id,
+      provider: "google_drive",
+      reason: "unauthorized",
+    });
   };
-  return {
+  const actorForConnection = (connection: Connection): Actor => {
+    const member = db
+      .select()
+      .from(memberships)
+      .where(
+        and(
+          eq(memberships.workspaceId, connection.workspaceId),
+          eq(memberships.userId, connection.userId),
+        ),
+      )
+      .get();
+    const user = db
+      .select({ name: users.name })
+      .from(users)
+      .where(eq(users.id, connection.userId))
+      .get();
+    return {
+      id: connection.userId,
+      name: user?.name ?? "Connector user",
+      workspaceId: connection.workspaceId,
+      role: member?.role ?? "member",
+    };
+  };
+
+  const service = {
     list(actor: Actor) {
       return db
         .select()
@@ -184,7 +279,8 @@ export function createGoogleDriveService(container: Container) {
         idToken: tokens.id_token,
         audience: env.GOOGLE_CLIENT_ID,
       });
-      const subject = ticket.getPayload()?.sub;
+      const payload = ticket.getPayload();
+      const subject = payload?.sub;
       if (!subject) throw new BadRequestError("Google identity could not be verified");
       identity.requireMember(stored.workspaceId, stored.userId);
       const id = randomUUID();
@@ -208,6 +304,30 @@ export function createGoogleDriveService(container: Container) {
           })
           .returning()
           .get();
+        // OAuth-verified Google identity link (PRD §6.6).
+        db.insert(identityLinks)
+          .values({
+            id: randomUUID(),
+            workspaceId: stored.workspaceId,
+            userId: stored.userId,
+            provider: "google",
+            externalId: subject,
+            email: payload?.email ?? null,
+            status: "confirmed",
+            source: "oauth",
+            linkedAt: new Date(),
+          })
+          .onConflictDoUpdate({
+            target: [identityLinks.workspaceId, identityLinks.userId, identityLinks.provider],
+            set: {
+              externalId: subject,
+              email: payload?.email ?? null,
+              status: "confirmed",
+              source: "oauth",
+              linkedAt: new Date(),
+            },
+          })
+          .run();
         const actor: Actor = {
           id: stored.userId,
           workspaceId: stored.workspaceId,
@@ -237,7 +357,287 @@ export function createGoogleDriveService(container: Container) {
         nextPageToken: response.data.nextPageToken ?? null,
       };
     },
-    async importFile(actor: Actor, connectionId: string, projectId: string, fileId: string) {
+    /** Selectable scopes: shared drives and top-level folders, merged with current selections. */
+    async listScopes(actor: Actor, connectionId: string, pageToken?: string) {
+      const connection = getConnection(actor, connectionId);
+      const drive = google.drive({ version: "v3", auth: authorizedClient(connection) });
+      const [drives, folders] = await Promise.all([
+        drive.drives
+          .list({ pageSize: 50, fields: "drives(id,name)" })
+          .catch(() => ({ data: { drives: [] } })),
+        drive.files.list({
+          pageSize: 100,
+          pageToken,
+          q: `mimeType = '${FOLDER}' and 'root' in parents and trashed = false`,
+          fields: "nextPageToken,files(id,name)",
+          supportsAllDrives: true,
+          includeItemsFromAllDrives: false,
+        }),
+      ]);
+      const selections = scopesFor(connection.id);
+      const describe = (
+        scopeType: "shared_drive" | "folder",
+        externalId: string,
+        name: string,
+      ) => ({
+        scopeType,
+        externalId,
+        name,
+        selections: selections.filter((row) => row.externalId === externalId).map(scopeView),
+      });
+      return {
+        items: [
+          ...(drives.data.drives ?? [])
+            .filter((d) => d.id && d.name)
+            .map((d) => describe("shared_drive", d.id!, d.name!)),
+          ...(folders.data.files ?? [])
+            .filter((f) => f.id && f.name)
+            .map((f) => describe("folder", f.id!, f.name!)),
+        ],
+        nextPageToken: folders.data.nextPageToken ?? null,
+      };
+    },
+    /** Replace the selected scopes for a project (FR-INT-005/013). Owner/admin only. */
+    setScopes(actor: Actor, connectionId: string, input: ScopesInput) {
+      requireRole(actor, "owner", "admin");
+      const connection = getConnection(actor, connectionId, false);
+      identity.requireProject(actor, input.projectId);
+      const rows = db.transaction(() => {
+        const existing = scopesFor(connection.id).filter(
+          (row) => row.projectId === input.projectId,
+        );
+        const keep = new Set(input.scopes.map((scope) => scope.externalId));
+        for (const row of existing)
+          if (!keep.has(row.externalId))
+            db.delete(connectorScopes).where(eq(connectorScopes.id, row.id)).run();
+        for (const scope of input.scopes) {
+          const current = existing.find((row) => row.externalId === scope.externalId);
+          if (current)
+            db.update(connectorScopes)
+              .set({
+                name: scope.name,
+                scopeType: scope.scopeType,
+                isExcluded: scope.excluded,
+                backfillFrom: scope.backfillFrom ? new Date(scope.backfillFrom) : null,
+              })
+              .where(eq(connectorScopes.id, current.id))
+              .run();
+          else
+            db.insert(connectorScopes)
+              .values({
+                id: randomUUID(),
+                workspaceId: actor.workspaceId,
+                connectionId: connection.id,
+                projectId: input.projectId,
+                scopeType: scope.scopeType,
+                externalId: scope.externalId,
+                name: scope.name,
+                isExcluded: scope.excluded,
+                backfillFrom: scope.backfillFrom ? new Date(scope.backfillFrom) : null,
+              })
+              .run();
+        }
+        audit.record({
+          actor,
+          projectId: input.projectId,
+          action: "connector.scopes",
+          targetType: "connector",
+          targetId: connection.id,
+          metadata: { scopes: input.scopes.length },
+        });
+        return scopesFor(connection.id).filter((row) => row.projectId === input.projectId);
+      });
+      return { items: rows.map(scopeView) };
+    },
+    /** Queue a sync for one scope or all selected scopes; cooldown of 10 minutes per scope. */
+    requestSync(actor: Actor, connectionId: string, scopeId?: string) {
+      requireRole(actor, "owner", "admin", "manager");
+      const connection = getConnection(actor, connectionId);
+      const scopes = scopesFor(connection.id).filter(
+        (row) => !row.isExcluded && (!scopeId || row.id === scopeId),
+      );
+      if (scopeId && !scopes.length) throw new NotFoundError("Connector scope");
+      if (!scopes.length)
+        throw new AppError(409, "CONFLICT", "Select at least one scope before syncing");
+      const now = new Date();
+      let queued = 0;
+      for (const scope of scopes) {
+        const recent =
+          scope.lastSyncRequestedAt &&
+          now.getTime() - scope.lastSyncRequestedAt.getTime() < SYNC_COOLDOWN_MS;
+        if (recent) {
+          if (scopeId)
+            throw new AppError(
+              429,
+              "RATE_LIMITED",
+              "This scope was synced less than 10 minutes ago",
+            );
+          continue;
+        }
+        db.update(connectorScopes)
+          .set({
+            lastSyncRequestedAt: now,
+            status: scope.lastSyncedAt ? scope.status : "backfilling",
+          })
+          .where(eq(connectorScopes.id, scope.id))
+          .run();
+        queue.enqueue({
+          projectId: scope.projectId,
+          type: "sync_connector",
+          payload: { connectionId: connection.id, scopeId: scope.id },
+          subject: scope.name,
+          dedupe: true,
+        });
+        queued += 1;
+      }
+      audit.record({
+        actor,
+        action: "connector.sync",
+        targetType: "connector",
+        targetId: connection.id,
+        metadata: { queued, scopeId: scopeId ?? null },
+      });
+      return { queued, items: scopesFor(connection.id).map(scopeView) };
+    },
+    /** Job handler: walk a selected folder/shared drive, import supported files, tombstone removed ones. */
+    async syncScope(job: JobRow) {
+      const scope = db
+        .select()
+        .from(connectorScopes)
+        .where(eq(connectorScopes.id, String(job.payload.scopeId)))
+        .get();
+      if (!scope) return;
+      const connection = db
+        .select()
+        .from(connectorConnections)
+        .where(eq(connectorConnections.id, scope.connectionId))
+        .get();
+      if (connection?.status !== "connected") {
+        db.update(connectorScopes)
+          .set({ status: "needs_reauth", lastError: "Connection is not authorised" })
+          .where(eq(connectorScopes.id, scope.id))
+          .run();
+        return;
+      }
+      const actor = actorForConnection(connection);
+      const drive = google.drive({ version: "v3", auth: authorizedClient(connection) });
+      const seen = new Set<string>();
+      let imported = 0;
+      let failures = 0;
+      try {
+        const walk = async (parentId: string, depth: number) => {
+          let pageToken: string | undefined;
+          do {
+            if (seen.size >= MAX_FILES_PER_RUN) return;
+            const response = await drive.files.list({
+              pageSize: 100,
+              pageToken,
+              q: `'${parentId}' in parents and trashed = false`,
+              fields: `nextPageToken,files(${FILE_FIELDS})`,
+              supportsAllDrives: true,
+              includeItemsFromAllDrives: true,
+              ...(scope.scopeType === "shared_drive"
+                ? { corpora: "drive", driveId: scope.externalId }
+                : {}),
+            });
+            for (const file of response.data.files ?? []) {
+              if (!file.id || !file.mimeType) continue;
+              if (file.mimeType === FOLDER) {
+                if (depth < MAX_FOLDER_DEPTH) await walk(file.id, depth + 1);
+                continue;
+              }
+              if (!ALLOWED.has(file.mimeType) || file.mimeType === SHEET || file.mimeType === SLIDE)
+                continue;
+              if (
+                scope.backfillFrom &&
+                file.modifiedTime &&
+                new Date(file.modifiedTime) < scope.backfillFrom
+              )
+                continue;
+              seen.add(file.id);
+              try {
+                await service.importFile(actor, connection.id, scope.projectId, file.id, scope.id);
+                imported += 1;
+              } catch (error) {
+                failures += 1;
+                const status = (error as { response?: { status?: number } }).response?.status;
+                if (status === 401) throw error;
+              }
+              if (seen.size >= MAX_FILES_PER_RUN) return;
+            }
+            pageToken = response.data.nextPageToken ?? undefined;
+          } while (pageToken);
+        };
+        await walk(scope.externalId, 0);
+        // FR-INT-010: objects that disappeared from the scope are tombstoned and their claims re-evaluated.
+        const project = repos.projects.findByIdUnscoped(scope.projectId);
+        if (project && seen.size < MAX_FILES_PER_RUN) {
+          const stale = db
+            .select()
+            .from(sourceObjects)
+            .where(
+              and(
+                eq(sourceObjects.projectId, scope.projectId),
+                eq(sourceObjects.connectionId, connection.id),
+              ),
+            )
+            .all()
+            .filter(
+              (source) =>
+                source.metadata?.scopeId === scope.id &&
+                source.externalId &&
+                !seen.has(source.externalId),
+            );
+          for (const source of stale) {
+            store.insert({
+              workspaceId: connection.workspaceId,
+              ownerId: "system",
+              kind: "tombstone",
+              projectId: scope.projectId,
+              status: "tombstoned",
+              data: {
+                sourceId: source.id,
+                externalId: source.externalId,
+                title: source.title,
+                scopeId: scope.id,
+              },
+            });
+            services.sources.remove(actor, project, source.id);
+          }
+        }
+        db.update(connectorScopes)
+          .set({
+            status: "live",
+            lastSyncedAt: new Date(),
+            itemCount: seen.size,
+            lastError: failures ? `${failures} files could not be imported` : null,
+            cursor: { lastRunAt: new Date().toISOString(), filesSeen: seen.size, imported },
+          })
+          .where(eq(connectorScopes.id, scope.id))
+          .run();
+      } catch (error) {
+        const status = (error as { response?: { status?: number } }).response?.status;
+        if (status === 401) {
+          markReauth(connection);
+          return;
+        }
+        db.update(connectorScopes)
+          .set({
+            status: "degraded",
+            lastError: error instanceof Error ? error.message : "Sync failed",
+          })
+          .where(eq(connectorScopes.id, scope.id))
+          .run();
+        throw error;
+      }
+    },
+    async importFile(
+      actor: Actor,
+      connectionId: string,
+      projectId: string,
+      fileId: string,
+      scopeId?: string,
+    ) {
       const connection = getConnection(actor, connectionId);
       const project = identity.requireProject(actor, projectId);
       const drive = google.drive({ version: "v3", auth: authorizedClient(connection) });
@@ -292,6 +692,11 @@ export function createGoogleDriveService(container: Container) {
           .get();
         const hash = createHash("sha256").update(content).digest("hex");
         let sourceId: string;
+        const metadata = {
+          mimeType: info.mimeType,
+          driveId: info.driveId ?? null,
+          scopeId: scopeId ?? null,
+        };
         if (existing) {
           sourceId = existing.id;
           if (existing.contentHash !== hash) {
@@ -302,6 +707,11 @@ export function createGoogleDriveService(container: Container) {
                 title: fileName,
                 status: "pending",
                 sourceUpdatedAt: info.modifiedTime ? new Date(info.modifiedTime) : null,
+                metadata: {
+                  ...(existing.metadata ?? {}),
+                  ...metadata,
+                  scopeId: scopeId ?? existing.metadata?.scopeId ?? null,
+                },
               })
               .where(eq(sourceObjects.id, existing.id))
               .run();
@@ -311,7 +721,11 @@ export function createGoogleDriveService(container: Container) {
               payload: { sourceObjectId: existing.id },
               subject: fileName,
             });
-          }
+          } else if (scopeId && existing.metadata?.scopeId !== scopeId)
+            db.update(sourceObjects)
+              .set({ metadata: { ...(existing.metadata ?? {}), scopeId } })
+              .where(eq(sourceObjects.id, existing.id))
+              .run();
         } else {
           const source = services.sources.create(actor, project, {
             kind: "document",
@@ -329,7 +743,7 @@ export function createGoogleDriveService(container: Container) {
               connector: "google_drive",
               externalId: fileId,
               connectionId: connection.id,
-              metadata: { mimeType: info.mimeType, driveId: info.driveId ?? null },
+              metadata,
             })
             .where(eq(sourceObjects.id, source.id))
             .run();
@@ -395,11 +809,13 @@ export function createGoogleDriveService(container: Container) {
         )
         .all();
       for (const source of imported) {
+        // Sources kept after a disconnect have no provider to verify against: they stay hidden.
+        if (!source.connectionId || !source.externalId) continue;
         for (const connection of connections) {
           try {
             const info = (
               await google.drive({ version: "v3", auth: authorizedClient(connection) }).files.get({
-                fileId: source.externalId!,
+                fileId: source.externalId,
                 fields: "id,trashed,capabilities(canDownload)",
                 supportsAllDrives: true,
               })
@@ -422,7 +838,8 @@ export function createGoogleDriveService(container: Container) {
         }
       }
     },
-    async disconnect(actor: Actor, id: string) {
+    /** Disconnect with `purge` (hard delete) or `keep_derived` (claims stay, no updates; §8.12). */
+    async disconnect(actor: Actor, id: string, mode: DisconnectMode = "purge") {
       const connection = getConnection(actor, id, false);
       const token = connection.credentials
         ? openCredentials(
@@ -445,19 +862,31 @@ export function createGoogleDriveService(container: Container) {
           .from(sourceObjects)
           .where(eq(sourceObjects.connectionId, id))
           .all();
-        for (const source of imported) {
-          const project = identity.requireProject(actor, source.projectId);
-          services.sources.remove(actor, project, source.id);
-        }
+        if (mode === "purge")
+          for (const source of imported) {
+            const project = identity.requireProject(actor, source.projectId);
+            services.sources.remove(actor, project, source.id);
+          }
+        else
+          for (const source of imported)
+            db.update(sourceObjects)
+              .set({
+                connectionId: null,
+                metadata: { ...(source.metadata ?? {}), disconnectedAt: new Date().toISOString() },
+              })
+              .where(eq(sourceObjects.id, source.id))
+              .run();
         db.delete(connectorConnections).where(eq(connectorConnections.id, id)).run();
         audit.record({
           actor,
           action: "connector.disconnect",
           targetType: "connector",
           targetId: id,
+          metadata: { mode, sources: imported.length },
         });
       });
     },
     repos,
   };
+  return service;
 }

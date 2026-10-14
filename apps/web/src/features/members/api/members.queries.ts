@@ -1,4 +1,4 @@
-import type { InviteInput, OrgNameInput, TeamInput, TeamUpdateInput, UserUpdate } from "@contextos/shared";
+import type { InviteForm, OrgNameInput, TeamInput, TeamUpdateInput, UserUpdate } from "@contextos/shared";
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { workspaceKeys } from "@/features/workspace/api/workspace.queries";
 import {
@@ -41,7 +41,7 @@ function useInvalidating<TInput, TResult>(
 }
 
 /** Sends a Clerk organization invitation. The API returns 503 until Clerk is configured. */
-export const useInviteMember = () => useInvalidating((input: InviteInput) => inviteMember(input), membersKeys.all);
+export const useInviteMember = () => useInvalidating((input: InviteForm) => inviteMember(input), membersKeys.all);
 /** Role, status, manager or guest expiry. The API protects the last owner and ownership changes. */
 export const useUpdateMember = () =>
   useInvalidating(({ userId, ...input }: UserUpdate & { userId: string }) => updateMember(userId, input), membersKeys.all);

@@ -1,0 +1,35 @@
+meta {
+  name: Bulk Invite
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/users/invite
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "invitations": [
+      { "email": "new.hire@example.com", "role": "member", "isNewHire": true },
+      { "email": "contractor@example.com", "role": "guest" }
+    ]
+  }
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Owner/admin (managers: members in own team). Development mode records invitations locally; Clerk mode delivers them.
+}

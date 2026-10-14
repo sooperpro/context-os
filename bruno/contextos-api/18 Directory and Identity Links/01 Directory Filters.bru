@@ -1,0 +1,24 @@
+meta {
+  name: Directory Filters
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/users?role=owner&limit=20
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Filter by q, role, status, departmentId, teamId. Guests are refused.
+}

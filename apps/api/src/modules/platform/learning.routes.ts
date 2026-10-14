@@ -1,18 +1,29 @@
 import { randomUUID } from "node:crypto";
-import { PathInputSchema, VersionSchema } from "@contextos/shared";
+import { CompanionPreferencesSchema, PathInputSchema, VersionSchema } from "@contextos/shared";
 import { zValidator } from "@hono/zod-validator";
+import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Container } from "../../container.js";
+import { users } from "../../db/schema.js";
 import { AppError, BadRequestError, NotFoundError } from "../../lib/errors.js";
 import { validationHook } from "../../middleware/validation.js";
 import type { Actor, AppEnv } from "../../types.js";
+import {
+  completeAssignmentIfDone,
+  creditCuratorForItem,
+  dependenciesOf,
+  type PathItem,
+} from "./learning.events.js";
+import { createNotifier } from "./notify.js";
+import { awardReputation } from "./reputation.js";
+import { workspaceSettings } from "./settings.js";
 import { createPlatformStore, type PlatformRecord } from "./store.js";
 
 const AssignInput = z
   .object({
     userId: z.string().min(1).max(200),
-    mentorId: z.string().min(1).max(200),
+    mentorId: z.string().min(1).max(200).optional(),
     startDate: z.iso.date(),
   })
   .strict();
@@ -21,6 +32,8 @@ const GenerateInput = z
     projectId: z.uuid(),
     roleFamily: z.string().trim().min(1).max(100),
     title: z.string().trim().min(1).max(200).default("Project onboarding"),
+    /** Target duration in days (30/60/90); due offsets are spread across it. */
+    targetDays: z.number().int().min(7).max(180).default(30),
   })
   .strict();
 const DwellInput = z.object({ version: z.number().int().positive() }).strict();
@@ -55,15 +68,26 @@ const QuizSubmission = z
     answers: z.array(z.number().int().min(0).max(5)).min(3).max(5),
   })
   .strict();
+const RatingInput = z
+  .object({
+    version: z.number().int().positive(),
+    rating: z.number().int().min(1).max(5),
+    comment: z.string().trim().max(2000).default(""),
+  })
+  .strict();
 type PathData = z.infer<typeof PathInputSchema>;
 type Item = PathData["items"][number] & { id: string };
+const QUIZ_PASS_PERCENT = 70;
+const QUIZ_COOLDOWN_MS = 600000;
 
 export function createLearningRoutes(container: Container) {
   const { db, identity, services, audit } = container;
   const store = createPlatformStore(db);
+  const notifier = createNotifier(db);
   const curated = (actor: Actor, projectId: string) =>
     actor.role === "owner" ||
     actor.role === "admin" ||
+    actor.role === "manager" ||
     identity.hasAssignment(actor, "path_curator", projectId);
   const requireCurator = (actor: Actor, projectId: string) => {
     identity.requireProject(actor, projectId);
@@ -71,9 +95,6 @@ export function createLearningRoutes(container: Container) {
       throw new AppError(403, "FORBIDDEN", "Path curator access is required");
   };
   const items = (path: PlatformRecord): Item[] => path.data.items as Item[];
-  const dependencies = (item: Item | PathData["items"][number]) => [
-    ...new Set([...(item.sourceIds ?? []), ...(item.sourceId ? [item.sourceId] : [])]),
-  ];
   const validateItems = (actor: Actor, input: PathData) => {
     identity.requireProject(actor, input.projectId);
     const normalized = input.items.map((item) => ({ ...item, id: item.id ?? randomUUID() }));
@@ -81,13 +102,15 @@ export function createLearningRoutes(container: Container) {
     if (ids.size !== normalized.length) throw new BadRequestError("Item IDs must be unique");
     const complete = new Set<string>();
     for (const item of normalized) {
-      for (const id of dependencies(item)) identity.requireSource(actor, input.projectId, id);
+      for (const id of dependenciesOf(item)) identity.requireSource(actor, input.projectId, id);
       if (item.prerequisites.some((id) => !ids.has(id) || !complete.has(id)))
         throw new BadRequestError(
           "Prerequisites must reference earlier items; cycles are not allowed",
         );
       if (item.verification === "self" && item.required && item.type !== "meet")
         throw new BadRequestError("Required items require independent verification");
+      if (item.verification === "event" && !item.eventTrigger)
+        throw new BadRequestError("Event-verified items need an eventTrigger");
       complete.add(item.id);
     }
     return normalized;
@@ -99,14 +122,15 @@ export function createLearningRoutes(container: Container) {
       data: {
         ...path.data,
         items: items(path).map((item) =>
-          !dependencies(item).every((id) => allowed.has(id))
+          !dependenciesOf(item).every((id) => allowed.has(id))
             ? {
                 id: item.id,
                 type: item.type,
                 title: "Restricted learning resource",
-                objective: "Source access is required",
+                objective: "You need access to this source. Request access in the source tool.",
                 required: false,
                 accessible: false,
+                module: item.module ?? null,
               }
             : { ...item, accessible: true },
         ),
@@ -124,6 +148,11 @@ export function createLearningRoutes(container: Container) {
       throw new NotFoundError("Path assignment");
     return row;
   };
+  const learnerActor = (actor: Actor, row: PlatformRecord): Actor => ({
+    ...actor,
+    id: row.ownerId,
+    role: identity.requireMember(actor.workspaceId, row.ownerId).role,
+  });
   const pathForAssignment = (row: PlatformRecord) =>
     store.get(
       { id: row.ownerId, name: "", workspaceId: row.workspaceId, role: "member" },
@@ -137,13 +166,58 @@ export function createLearningRoutes(container: Container) {
     const path = pathForAssignment(row);
     const item = items(path).find((entry) => entry.id === itemId);
     if (!item) throw new NotFoundError("Learning item");
-    for (const id of dependencies(item)) identity.requireSource(actor, row.projectId!, id);
+    for (const id of dependenciesOf(item)) identity.requireSource(actor, row.projectId!, id);
     return { row, path, item };
   };
   const findProgress = (actor: Actor, assignmentId: string, itemId: string) =>
     store
       .listChildren(actor, "item_progress", assignmentId)
       .find((entry) => entry.data.itemId === itemId);
+  const companionActive = (actor: Actor) =>
+    CompanionPreferencesSchema.parse(
+      db.select().from(users).where(eq(users.id, actor.id)).get()?.preferences.companion ?? {},
+    ).enabled;
+  /** Mark a progress row completed and run the downstream credit/completion checks. */
+  const complete = (
+    actor: Actor,
+    row: PlatformRecord,
+    progress: PlatformRecord,
+    version: number,
+    extra: Record<string, unknown>,
+    item: PathItem,
+  ) => {
+    const updated = store.update(actor, progress, version, {
+      status: "completed",
+      data: {
+        ...progress.data,
+        ...extra,
+        completedAt: new Date().toISOString(),
+        companionActive: companionActive(actor),
+      },
+    });
+    creditCuratorForItem(db, actor, row, item.id);
+    const closed = completeAssignmentIfDone(
+      db,
+      identity,
+      actor,
+      store.get(actor, "path_assignment", row.id),
+    );
+    return { progress: updated, assignmentCompleted: !!closed };
+  };
+  const withStuck = (progress: PlatformRecord, stuckHours: number) => ({
+    ...progress,
+    stuck:
+      progress.status === "in_progress" &&
+      Date.now() - Date.parse(String(progress.data.firstOpenedAt)) > stuckHours * 3600000,
+  });
+  const notifyLearner = (actor: Actor, learnerId: string, title: string, link: string) =>
+    notifier.notify(actor.workspaceId, learnerId, {
+      type: "learning.update",
+      category: "onboarding",
+      title,
+      link,
+    });
+
   return new Hono<AppEnv>()
     .post(
       "/learning/paths/:id/items/:itemId/quiz",
@@ -195,7 +269,7 @@ export function createLearningRoutes(container: Container) {
       const path = store.create(
         actor,
         "learning_path",
-        { ...input, items: validateItems(actor, input) },
+        { ...input, items: validateItems(actor, input), ratingAvg: null, ratingCount: 0 },
         { projectId: input.projectId },
       );
       audit.record({ actor, action: "path.create", targetType: "path", targetId: path.id });
@@ -206,34 +280,88 @@ export function createLearningRoutes(container: Container) {
       const input = c.req.valid("json");
       requireCurator(actor, input.projectId);
       const project = identity.requireProject(actor, input.projectId);
-      const context = services.context
+      const current = services.context
         .listItems(project, undefined, actor)
-        .filter((item) => !["disputed", "superseded", "stale"].includes(item.verification))
-        .slice(0, 20);
-      if (!context.length)
+        .filter((item) => !["disputed", "superseded", "stale"].includes(item.verification));
+      if (!current.length)
         throw new AppError(
           409,
           "CONFLICT",
           "Add and process source evidence before drafting a path",
         );
-      const generated = context.map((item, ordinal) => ({
+      // FR-LRN-001: dependency order overview → context → decisions → current state → first task.
+      const order = [
+        "term",
+        "component",
+        "dependency",
+        "person",
+        "decision",
+        "event",
+        "status_claim",
+      ];
+      const moduleFor = (kind: string) =>
+        kind === "term" || kind === "component" || kind === "dependency"
+          ? "Context"
+          : kind === "person"
+            ? "People"
+            : kind === "decision" || kind === "event"
+              ? "Decisions"
+              : "Current state";
+      const ranked = [...current]
+        .sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind))
+        .slice(0, 20);
+      const generated = ranked.map((item, ordinal) => ({
         id: randomUUID(),
         type: "read" as const,
         title: item.title,
         objective: item.summary,
+        module: moduleFor(item.kind),
         estMinutes: 15,
-        dueOffsetDays: ordinal,
+        dueOffsetDays: Math.round((ordinal / Math.max(1, ranked.length)) * input.targetDays),
         required: true,
         prerequisites: [],
-        verification: "signoff" as const,
+        verification: "engagement" as const,
         sourceId: item.evidence[0]!.sourceObjectId,
         sourceIds: [...new Set(item.evidence.map((ref) => ref.sourceObjectId))],
       }));
+      const people = current.filter((item) => item.kind === "person").slice(0, 3);
+      const meet = people.map((person) => ({
+        id: randomUUID(),
+        type: "meet" as const,
+        title: `Meet ${person.title}`,
+        objective: person.summary,
+        module: "People",
+        estMinutes: 30,
+        dueOffsetDays: Math.round(input.targetDays * 0.3),
+        required: false,
+        prerequisites: [],
+        verification: "self" as const,
+        sourceId: person.evidence[0]!.sourceObjectId,
+        sourceIds: [...new Set(person.evidence.map((ref) => ref.sourceObjectId))],
+      }));
+      const firstTask = {
+        id: randomUUID(),
+        type: "do" as const,
+        title: "First real-work task",
+        objective: "Complete a small, real task agreed with your mentor; sign-off verifies it.",
+        module: "First win",
+        estMinutes: 240,
+        dueOffsetDays: input.targetDays,
+        required: true,
+        prerequisites: [],
+        verification: "signoff" as const,
+      };
       return c.json(
         store.create(
           actor,
           "learning_path",
-          { ...input, items: generated, generationMethod: "evidence_template_v1" },
+          {
+            ...input,
+            items: [...generated, ...meet, firstTask],
+            generationMethod: "evidence_template_v2",
+            ratingAvg: null,
+            ratingCount: 0,
+          },
           { projectId: project.id },
         ),
         201,
@@ -277,7 +405,7 @@ export function createLearningRoutes(container: Container) {
         return c.json(
           store.update(actor, row, version, {
             status: "draft",
-            data: { ...data, items: validateItems(actor, data) },
+            data: { ...row.data, ...data, items: validateItems(actor, data) },
           }),
         );
       },
@@ -318,38 +446,107 @@ export function createLearningRoutes(container: Container) {
         });
         const published = store.update(actor, row, c.req.valid("json").version, {
           status: "published",
-          data: { ...row.data, publishedVersionId: snapshot.id },
+          data: {
+            ...row.data,
+            publishedVersionId: snapshot.id,
+            publishedAt: new Date().toISOString(),
+            publishedBy: actor.id,
+          },
         });
-        store.event(actor, "path.published", { pathId: row.id, versionId: snapshot.id });
+        store.event(actor, "path.published", {
+          pathId: row.id,
+          versionId: snapshot.id,
+          curatorId: row.ownerId,
+        });
+        // Publication by a second curator is the verification step: the author earns path_published.
+        awardReputation(db, actor, row.ownerId, "path_published", row.id);
         return published;
       });
       audit.record({ actor, action: "path.publish", targetType: "path", targetId: row.id });
       return c.json(result);
     })
+    .post("/learning/paths/:id/archive", zValidator("json", VersionSchema, validationHook), (c) => {
+      const actor = c.get("actor");
+      const row = store.get(actor, "learning_path", c.req.param("id"));
+      requireCurator(actor, row.projectId!);
+      if (row.status !== "published")
+        throw new AppError(409, "CONFLICT", "Only published paths can be archived");
+      const updated = store.update(actor, row, c.req.valid("json").version, { status: "archived" });
+      audit.record({ actor, action: "path.archive", targetType: "path", targetId: row.id });
+      return c.json(updated);
+    })
     .post("/learning/paths/:id/assign", zValidator("json", AssignInput, validationHook), (c) => {
       const actor = c.get("actor");
       const path = store.get(actor, "learning_path", c.req.param("id"));
-      requireCurator(actor, path.projectId!);
       const input = c.req.valid("json");
-      identity.requireMember(actor.workspaceId, input.userId);
-      identity.requireMember(actor.workspaceId, input.mentorId);
+      const learnerMember = identity.requireMember(actor.workspaceId, input.userId);
+      // Curators, managers of the learner, and the learner's mentor may assign (PRD §6.4).
+      if (
+        !curated(actor, path.projectId!) &&
+        learnerMember.managerId !== actor.id &&
+        !identity.hasAssignment(actor, "mentor", input.userId)
+      )
+        throw new AppError(403, "FORBIDDEN", "Path curator, manager or mentor rights are required");
+      identity.requireProject(actor, path.projectId!);
+      if (input.mentorId) identity.requireMember(actor.workspaceId, input.mentorId);
       if (input.userId === input.mentorId)
         throw new BadRequestError("Mentor and learner must be different people");
       if (path.status !== "published" || typeof path.data.publishedVersionId !== "string")
         throw new AppError(409, "CONFLICT", "Publish the path before assigning it");
-      const learner = {
-        ...actor,
-        id: input.userId,
-        role: identity.requireMember(actor.workspaceId, input.userId).role,
-      };
+      const learner = { ...actor, id: input.userId, role: learnerMember.role };
       identity.requireProject(learner, path.projectId!);
-      const row = store.create(actor, "path_assignment", input, {
-        projectId: path.projectId!,
-        parentId: path.data.publishedVersionId,
-        ownerId: input.userId,
-        status: "active",
-      });
+      const row = store.create(
+        actor,
+        "path_assignment",
+        {
+          ...input,
+          mentorId: input.mentorId ?? null,
+          assignedBy: actor.id,
+          pathId: path.id,
+          title: path.data.title,
+        },
+        {
+          projectId: path.projectId!,
+          parentId: path.data.publishedVersionId,
+          ownerId: input.userId,
+          status: "active",
+        },
+      );
+      notifyLearner(
+        actor,
+        input.userId,
+        `You were assigned "${String(path.data.title)}"`,
+        `/learning/assignments/${row.id}`,
+      );
       audit.record({ actor, action: "path.assign", targetType: "assignment", targetId: row.id });
+      return c.json(row, 201);
+    })
+    .post("/learning/paths/:id/enrol", (c) => {
+      const actor = c.get("actor");
+      if (actor.role === "guest") throw new AppError(403, "FORBIDDEN", "Guests cannot self-enrol");
+      const path = store.get(actor, "learning_path", c.req.param("id"));
+      identity.requireProject(actor, path.projectId!);
+      if (path.status !== "published" || typeof path.data.publishedVersionId !== "string")
+        throw new NotFoundError("Learning path");
+      const existing = store
+        .listOwned(actor, "path_assignment")
+        .find((row) => row.parentId === path.data.publishedVersionId && row.status === "active");
+      if (existing) return c.json(existing, 200);
+      const row = store.create(
+        actor,
+        "path_assignment",
+        {
+          userId: actor.id,
+          mentorId: null,
+          startDate: new Date().toISOString().slice(0, 10),
+          assignedBy: actor.id,
+          selfEnrolled: true,
+          pathId: path.id,
+          title: path.data.title,
+        },
+        { projectId: path.projectId!, parentId: path.data.publishedVersionId, status: "active" },
+      );
+      audit.record({ actor, action: "path.enrol", targetType: "assignment", targetId: row.id });
       return c.json(row, 201);
     })
     .get("/learning/assignments", (c) =>
@@ -358,31 +555,91 @@ export function createLearningRoutes(container: Container) {
     .get("/learning/assignments/:id/progress", (c) => {
       const actor = c.get("actor");
       const row = assignment(actor, c.req.param("id"));
+      const settings = workspaceSettings(db, actor.workspaceId);
       const progress = store.listChildren(actor, "item_progress", row.id);
+      const path = render(learnerActor(actor, row), pathForAssignment(row));
+      const required = path.data.items.filter((item) => item.required !== false);
+      const done = new Set(
+        progress
+          .filter((entry) => entry.status === "completed")
+          .map((entry) => String(entry.data.itemId)),
+      );
+      const remainingMinutes = path.data.items
+        .filter((item) => !done.has(item.id))
+        .reduce((sum, item) => sum + Number((item as { estMinutes?: number }).estMinutes ?? 0), 0);
+      const upNext = path.data.items.find(
+        (item) =>
+          !done.has(item.id) &&
+          (item as { prerequisites?: string[] }).prerequisites?.every((id) => done.has(id)) !==
+            false,
+      );
       return c.json({
         assignment: row,
-        path: render(
-          {
-            ...actor,
-            id: row.ownerId,
-            role: identity.requireMember(actor.workspaceId, row.ownerId).role,
-          },
-          pathForAssignment(row),
-        ),
+        path,
+        summary: {
+          requiredTotal: required.length,
+          requiredCompleted: required.filter((item) => done.has(item.id)).length,
+          percent: required.length
+            ? Math.round(
+                (required.filter((item) => done.has(item.id)).length / required.length) * 100,
+              )
+            : 0,
+          remainingMinutes,
+          upNextItemId: upNext?.id ?? null,
+        },
         items: progress.map((entry) =>
-          entry.ownerId === actor.id
-            ? entry
-            : {
-                ...entry,
-                data: {
-                  itemId: entry.data.itemId,
-                  firstOpenedAt: entry.data.firstOpenedAt,
-                  completedAt: entry.data.completedAt,
+          withStuck(
+            entry.ownerId === actor.id
+              ? entry
+              : {
+                  ...entry,
+                  data: {
+                    itemId: entry.data.itemId,
+                    firstOpenedAt: entry.data.firstOpenedAt,
+                    completedAt: entry.data.completedAt,
+                    // Managers and mentors see pass/not-yet only (FR-CHK-007).
+                    passed: entry.data.passed ?? null,
+                  },
                 },
-              },
+            settings.policies.nudges.stuckHours,
+          ),
         ),
       });
     })
+    .post(
+      "/learning/assignments/:id/rate",
+      zValidator("json", RatingInput, validationHook),
+      (c) => {
+        const actor = c.get("actor");
+        const row = assignment(actor, c.req.param("id"));
+        if (row.ownerId !== actor.id)
+          throw new AppError(403, "FORBIDDEN", "Only the learner rates a path");
+        if (row.status !== "completed")
+          throw new AppError(409, "CONFLICT", "Complete the path before rating it");
+        if (typeof row.data.rating === "number")
+          throw new AppError(409, "CONFLICT", "Already rated");
+        const input = c.req.valid("json");
+        const updated = store.update(actor, row, input.version, {
+          data: { ...row.data, rating: input.rating, ratingComment: input.comment },
+        });
+        const version = store.find(actor.workspaceId, "path_version", row.parentId!);
+        const path = version?.parentId
+          ? store.find(actor.workspaceId, "learning_path", version.parentId)
+          : undefined;
+        if (path) {
+          const count = Number(path.data.ratingCount ?? 0);
+          const avg = Number(path.data.ratingAvg ?? 0);
+          store.patch(path, {
+            data: {
+              ...path.data,
+              ratingCount: count + 1,
+              ratingAvg: Math.round(((avg * count + input.rating) / (count + 1)) * 100) / 100,
+            },
+          });
+        }
+        return c.json(updated);
+      },
+    )
     .get("/learning/assignments/:assignmentId/items/:itemId/quiz", (c) => {
       const actor = c.get("actor");
       const { path, item } = learnerItem(actor, c.req.param("assignmentId"), c.req.param("itemId"));
@@ -461,7 +718,10 @@ export function createLearningRoutes(container: Container) {
         )
           throw new NotFoundError("Quiz evidence");
         const attempts = Number(progress.data.attempts ?? 0);
-        if (attempts >= 2 && Date.now() - Date.parse(String(progress.data.lastAttemptAt)) < 600000)
+        if (
+          attempts >= 2 &&
+          Date.now() - Date.parse(String(progress.data.lastAttemptAt)) < QUIZ_COOLDOWN_MS
+        )
           throw new AppError(429, "RATE_LIMITED", "Wait ten minutes before another quiz attempt");
         const score = Math.round(
           (100 *
@@ -469,22 +729,48 @@ export function createLearningRoutes(container: Container) {
               .length) /
             quiz.questions.length,
         );
-        const passed = score >= 70;
-        const updated = store.update(actor, progress, input.version, {
-          status: passed ? "completed" : "in_progress",
-          data: {
-            ...progress.data,
+        const passed = score >= QUIZ_PASS_PERCENT;
+        const attemptData = {
+          score,
+          passed,
+          attempts: attempts + 1,
+          lastAttemptAt: new Date().toISOString(),
+        };
+        let updated: PlatformRecord;
+        let assignmentCompleted = false;
+        if (passed) {
+          const result = complete(actor, row, progress, input.version, attemptData, item);
+          updated = result.progress;
+          assignmentCompleted = result.assignmentCompleted;
+          if (attempts === 0)
+            awardReputation(db, actor, actor.id, "quiz_passed_first_try", `${row.id}:${item.id}`);
+          store.event(actor, "checkpoint.quiz.passed", {
+            assignmentId: row.id,
+            itemId: item.id,
+            userId: actor.id,
             score,
-            passed,
-            attempts: attempts + 1,
-            lastAttemptAt: new Date().toISOString(),
-            completedAt: passed ? new Date().toISOString() : null,
-          },
-        });
+          });
+        } else {
+          updated = store.update(actor, progress, input.version, {
+            status: "in_progress",
+            data: { ...progress.data, ...attemptData, completedAt: null },
+          });
+          // After three failures the mentor is nudged; quiz content is never exposed (FR-CHK-003).
+          if (attempts + 1 === 3 && typeof row.data.mentorId === "string")
+            notifier.notify(actor.workspaceId, row.data.mentorId, {
+              type: "quiz.failed_three_times",
+              category: "onboarding",
+              title: `${actor.name} may need help with "${item.title}"`,
+              link: `/learning/assignments/${row.id}`,
+              nudge: true,
+              projectId: row.projectId ?? undefined,
+            });
+        }
         return c.json({
           progress: updated,
           passed,
           score,
+          assignmentCompleted,
           explanations: quiz.questions.map((question) => ({
             claimId: question.claimId,
             text: question.explanation,
@@ -515,6 +801,27 @@ export function createLearningRoutes(container: Container) {
       );
     })
     .post(
+      "/learning/assignments/:assignmentId/items/:itemId/skip",
+      zValidator("json", VersionSchema, validationHook),
+      (c) => {
+        const actor = c.get("actor");
+        const { row, item } = learnerItem(
+          actor,
+          c.req.param("assignmentId"),
+          c.req.param("itemId"),
+        );
+        if (item.required) throw new AppError(403, "FORBIDDEN", "Required items cannot be skipped");
+        const progress = findProgress(actor, row.id, item.id);
+        if (!progress) throw new AppError(409, "CONFLICT", "Start the item first");
+        const updated = store.update(actor, progress, c.req.valid("json").version, {
+          status: "skipped",
+          data: { ...progress.data, skippedAt: new Date().toISOString() },
+        });
+        completeAssignmentIfDone(db, identity, actor, store.get(actor, "path_assignment", row.id));
+        return c.json(updated);
+      },
+    )
+    .post(
       "/learning/assignments/:assignmentId/items/:itemId/dwell",
       zValidator("json", DwellInput, validationHook),
       (c) => {
@@ -534,18 +841,22 @@ export function createLearningRoutes(container: Container) {
         const dwellSeconds =
           Number(progress.data.dwellSeconds) +
           Math.min(15, Math.max(0, (Date.now() - last) / 1000));
+        // FR-CHK-001(a): 60 s or 25% of the estimated read time, whichever is lower.
         const completed = dwellSeconds >= Math.min(60, item.estMinutes * 60 * 0.25);
-        return c.json(
-          store.update(actor, progress, c.req.valid("json").version, {
-            status: completed ? "completed" : "in_progress",
-            data: {
-              ...progress.data,
-              dwellSeconds,
-              lastHeartbeat: new Date().toISOString(),
-              completedAt: completed ? new Date().toISOString() : null,
-            },
-          }),
-        );
+        const heartbeat = { dwellSeconds, lastHeartbeat: new Date().toISOString() };
+        if (!completed)
+          return c.json(
+            store.update(actor, progress, c.req.valid("json").version, {
+              data: { ...progress.data, ...heartbeat },
+            }),
+          );
+        const result = complete(actor, row, progress, c.req.valid("json").version, heartbeat, item);
+        store.event(actor, "checkpoint.dwell.verified", {
+          assignmentId: row.id,
+          itemId: item.id,
+          userId: actor.id,
+        });
+        return c.json(result.progress);
       },
     )
     .post("/learning/assignments/:assignmentId/items/:itemId/signoff/request", (c) => {
@@ -556,12 +867,29 @@ export function createLearningRoutes(container: Container) {
       const progress = findProgress(actor, row.id, item.id);
       if (progress?.status !== "in_progress")
         throw new AppError(409, "CONFLICT", "Start the item first");
-      return c.json(
-        store.update(actor, progress, progress.version, {
-          status: "awaiting_verification",
-          data: { ...progress.data, requestedFrom: row.data.mentorId },
-        }),
-      );
+      const mentorId = typeof row.data.mentorId === "string" ? row.data.mentorId : null;
+      const managerId = identity.requireMember(actor.workspaceId, actor.id).managerId;
+      const requestedFrom = mentorId ?? managerId;
+      if (!requestedFrom)
+        throw new AppError(409, "CONFLICT", "No mentor or manager is available to sign off");
+      const updated = store.update(actor, progress, progress.version, {
+        status: "awaiting_verification",
+        data: {
+          ...progress.data,
+          requestedFrom,
+          signoffRequestedAt: new Date().toISOString(),
+          escalatedTo: null,
+        },
+      });
+      notifier.notify(actor.workspaceId, requestedFrom, {
+        type: "signoff.requested",
+        category: "onboarding",
+        title: `${actor.name} requested sign-off for "${item.title}"`,
+        link: `/learning/signoffs/${progress.id}`,
+        data: { progressId: progress.id, assignmentId: row.id },
+        projectId: row.projectId ?? undefined,
+      });
+      return c.json(updated);
     })
     .post(
       "/learning/signoffs/:id/decide",
@@ -575,15 +903,48 @@ export function createLearningRoutes(container: Container) {
         if (progress.status !== "awaiting_verification")
           throw new AppError(409, "CONFLICT", "No sign-off is pending");
         const input = c.req.valid("json");
-        const result = store.update(actor, progress, input.version, {
-          status: input.approved ? "completed" : "in_progress",
-          data: {
-            ...progress.data,
-            decidedBy: actor.id,
-            note: input.note,
-            completedAt: input.approved ? new Date().toISOString() : null,
-          },
-        });
+        const learner = learnerActor(actor, row);
+        const item = items(pathForAssignment(row)).find(
+          (entry) => entry.id === progress.data.itemId,
+        );
+        let result: PlatformRecord;
+        if (input.approved) {
+          const updated = store.update(actor, progress, input.version, {
+            status: "completed",
+            data: {
+              ...progress.data,
+              decidedBy: actor.id,
+              note: input.note,
+              completedAt: new Date().toISOString(),
+              companionActive: companionActive(learner),
+            },
+          });
+          if (item) creditCuratorForItem(db, learner, row, item.id);
+          completeAssignmentIfDone(
+            db,
+            identity,
+            learner,
+            store.get(actor, "path_assignment", row.id),
+          );
+          store.event(actor, "checkpoint.signoff.approved", {
+            assignmentId: row.id,
+            itemId: progress.data.itemId,
+            approverId: actor.id,
+          });
+          result = updated;
+        } else
+          result = store.update(actor, progress, input.version, {
+            status: "in_progress",
+            data: { ...progress.data, decidedBy: actor.id, note: input.note, completedAt: null },
+          });
+        notifyLearner(
+          actor,
+          row.ownerId,
+          input.approved
+            ? `"${item?.title ?? "Checkpoint"}" was signed off`
+            : `"${item?.title ?? "Checkpoint"}" needs more work`,
+          `/learning/assignments/${row.id}`,
+        );
         audit.record({
           actor,
           action: "checkpoint.signoff",
@@ -610,10 +971,8 @@ export function createLearningRoutes(container: Container) {
         if (progress?.status !== "in_progress")
           throw new AppError(409, "CONFLICT", "Start the item first");
         return c.json(
-          store.update(actor, progress, c.req.valid("json").version, {
-            status: "completed",
-            data: { ...progress.data, completedAt: new Date().toISOString() },
-          }),
+          complete(actor, row, progress, c.req.valid("json").version, { attested: true }, item)
+            .progress,
         );
       },
     );

@@ -1,0 +1,35 @@
+meta {
+  name: Webhook (GitHub)
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/webhooks/github
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  { "action": "closed", "pull_request": { "merged": true, "user": { "login": "octocat", "id": 1 } } }
+}
+
+script:pre-request {
+  const value = bru.getEnvVar("githubWebhookSecret");
+  if (!value || value === "false") bru.runner.skipRequest();
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Public; requires X-Hub-Signature-256 computed with GITHUB_WEBHOOK_SECRET. 503 when unconfigured.
+}

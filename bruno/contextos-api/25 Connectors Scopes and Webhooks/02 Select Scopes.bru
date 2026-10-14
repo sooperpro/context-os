@@ -1,0 +1,35 @@
+meta {
+  name: Select Scopes
+  type: http
+  seq: 2
+}
+
+put {
+  url: {{baseUrl}}/connectors/{{connectionId}}/scopes
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  { "projectId": "{{projectId}}", "scopes": [{ "scopeType": "folder", "externalId": "{{driveFolderId}}", "name": "Specs" }] }
+}
+
+script:pre-request {
+  const value = bru.getEnvVar("driveFolderId");
+  if (!value || value === "false") bru.runner.skipRequest();
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Owner/admin replaces the selected scopes for a project.
+}

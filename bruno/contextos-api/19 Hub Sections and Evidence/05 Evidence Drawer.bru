@@ -1,0 +1,29 @@
+meta {
+  name: Evidence Drawer
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/evidence/{{evidenceId}}
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+script:pre-request {
+  const value = bru.getEnvVar("evidenceId");
+  if (!value || value === "false") bru.runner.skipRequest();
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Evidence quote, span, chunk and neighbouring context. 404 when the source is not accessible.
+}

@@ -1,0 +1,43 @@
+meta {
+  name: Create Flag For Bounty
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/flags
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "projectId": "{{projectId}}",
+    "targetType": "overview",
+    "targetId": "{{projectId}}",
+    "kind": "stale",
+    "comment": "Overview needs a refresh before the pilot review."
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    bru.setEnvVar("bountyFlagId", res.getBody().id);
+    bru.setEnvVar("bountyFlagVersion", res.getBody().version);
+  }
+}
+
+tests {
+  test("Expected response", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+}
+
+docs {
+  Creates a fresh open flag so the next request can convert it into a bounty.
+}

@@ -1,0 +1,29 @@
+meta {
+  name: Footprint
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/epm/footprint
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+script:pre-request {
+  const value = bru.getEnvVar("enableEpm");
+  if (!value || value === "false") bru.runner.skipRequest();
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  403 until the EPM add-on is enabled. Managers may pass userId for a direct report.
+}

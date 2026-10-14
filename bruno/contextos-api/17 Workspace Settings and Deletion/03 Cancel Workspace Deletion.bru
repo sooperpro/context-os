@@ -1,0 +1,24 @@
+meta {
+  name: Cancel Workspace Deletion
+  type: http
+  seq: 3
+}
+
+delete {
+  url: {{baseUrl}}/workspaces/current/deletion
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Owner only. Cancels a scheduled deletion.
+}

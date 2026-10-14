@@ -1,0 +1,39 @@
+meta {
+  name: Update Settings (PRD path)
+  type: http
+  seq: 1
+}
+
+patch {
+  url: {{baseUrl}}/workspaces/current/settings
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "version": {{workspaceVersion}},
+    "gamification": { "enabled": true, "leaderboardsEnabled": true },
+    "rewards": { "enabled": false },
+    "policies": { "probationDefaultDays": 90 }
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 200) bru.setEnvVar("workspaceVersion", res.getBody().version);
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  PATCH /workspaces/current/settings: owner/admin; sections merge deeply; k-anonymity floor is 3. See docs/api-reference.md.
+}

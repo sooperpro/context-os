@@ -10,6 +10,7 @@ import {
   evidence,
   memberships,
   organizationLinks,
+  platformRecords,
   projectMemberships,
   projects,
   questions,
@@ -41,6 +42,57 @@ export function createIdentityService(db: Db, env: Env, devActor: Actor) {
       .from(memberships)
       .where(and(eq(memberships.workspaceId, actor.workspaceId), eq(memberships.userId, actor.id)))
       .get();
+  /** Apply a pending invitation (role, department, team, manager, start date) on first sign-in. */
+  const acceptInvitation = (workspaceId: string, userId: string) => {
+    const email = db
+      .select({ email: users.email })
+      .from(users)
+      .where(eq(users.id, userId))
+      .get()?.email;
+    if (!email) return;
+    const invitation = db
+      .select()
+      .from(platformRecords)
+      .where(
+        and(
+          eq(platformRecords.workspaceId, workspaceId),
+          eq(platformRecords.kind, "invitation"),
+          eq(platformRecords.status, "pending"),
+        ),
+      )
+      .all()
+      .find((row) => row.data.email === email.toLowerCase());
+    if (!invitation) return;
+    const data = invitation.data as {
+      role?: "admin" | "manager" | "member" | "guest";
+      departmentId?: string;
+      teamId?: string;
+      managerId?: string;
+      startDate?: string;
+      isNewHire?: boolean;
+    };
+    db.update(memberships)
+      .set({
+        role: data.role ?? "member",
+        managerId: data.managerId ?? null,
+        organization: {
+          ...(data.departmentId ? { departmentId: data.departmentId } : {}),
+          ...(data.teamId ? { teamId: data.teamId } : {}),
+          ...(data.startDate ? { startDate: data.startDate } : {}),
+          isNewHire: data.isNewHire ?? false,
+        },
+      })
+      .where(and(eq(memberships.workspaceId, workspaceId), eq(memberships.userId, userId)))
+      .run();
+    db.update(platformRecords)
+      .set({
+        status: "accepted",
+        data: { ...invitation.data, acceptedBy: userId, acceptedAt: new Date().toISOString() },
+        updatedAt: new Date(),
+      })
+      .where(eq(platformRecords.id, invitation.id))
+      .run();
+  };
   const service = {
     setSourceVerifier(verify: (actor: Actor) => Promise<void>) {
       refreshSourceAccess = verify;
@@ -114,14 +166,18 @@ export function createIdentityService(db: Db, env: Env, devActor: Actor) {
         });
         link = { organizationId: auth.orgId, workspaceId };
       }
-      db.insert(memberships)
+      const inserted = db
+        .insert(memberships)
         .values({
           workspaceId: link.workspaceId,
           userId: auth.userId,
           role: providerMember.role === "org:admin" ? "admin" : "member",
         })
         .onConflictDoNothing()
-        .run();
+        .returning()
+        .get();
+      // First sign-in after accepting an invitation applies the requested role and org data.
+      if (inserted) acceptInvitation(link.workspaceId, auth.userId);
       const actor: Actor = {
         id: auth.userId,
         name: db.select().from(users).where(eq(users.id, auth.userId)).get()!.name,
@@ -261,6 +317,20 @@ export function createIdentityService(db: Db, env: Env, devActor: Actor) {
         questions: ownQuestions.length,
         lastProcessedAt: dates[0]?.toISOString() ?? null,
       };
+    },
+    requireMemberOptional(workspaceId: string, userId: string) {
+      const row = db
+        .select()
+        .from(memberships)
+        .where(
+          and(
+            eq(memberships.workspaceId, workspaceId),
+            eq(memberships.userId, userId),
+            eq(memberships.status, "active"),
+          ),
+        )
+        .get();
+      return row && (!row.guestExpiresAt || row.guestExpiresAt > new Date()) ? row : undefined;
     },
     requireMember(workspaceId: string, userId: string) {
       const row = db

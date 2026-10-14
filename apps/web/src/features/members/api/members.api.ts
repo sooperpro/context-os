@@ -7,7 +7,7 @@ import {
   TeamSchema,
   WorkspaceMemberListSchema,
   type Department,
-  type InviteInput,
+  type InviteForm,
   type InviteResult,
   type OrgNameInput,
   type Team,
@@ -19,7 +19,7 @@ import {
 import { z } from "zod";
 import { apiRequest } from "@/lib/api-client";
 
-export function inviteMember(input: InviteInput): Promise<InviteResult> {
+export function inviteMember(input: InviteForm): Promise<InviteResult> {
   return apiRequest("/v1/users/invite", { method: "POST", body: input, schema: InviteResultSchema });
 }
 

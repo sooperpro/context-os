@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { InviteInputSchema, type InviteInput } from "@contextos/shared";
+import { InviteFormSchema, type InviteForm } from "@contextos/shared";
 import { useForm } from "react-hook-form";
 import type { z } from "zod";
 import { toast } from "sonner";
@@ -20,7 +20,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { useInviteMember } from "@/features/members/api/members.queries";
 import { ApiClientError } from "@/lib/api-client";
 
-const ROLES: Array<{ value: InviteInput["role"]; title: string; description: string }> = [
+const ROLES: Array<{ value: InviteForm["role"]; title: string; description: string }> = [
   { value: "member", title: "Member", description: "Reads the hub, asks questions, contributes knowledge" },
   { value: "manager", title: "Manager", description: "Also sees direct reports' onboarding and records check-ins" },
   { value: "admin", title: "Admin", description: "Also manages members, connectors and workspace settings" },
@@ -36,16 +36,17 @@ interface InviteMemberDialogProps {
 export function InviteMemberDialog({ open, onOpenChange }: InviteMemberDialogProps) {
   const invite = useInviteMember();
   // Input type allows the role default; the resolver yields the parsed output type.
-  const form = useForm<z.input<typeof InviteInputSchema>, unknown, InviteInput>({
-    resolver: zodResolver(InviteInputSchema),
+  const form = useForm<z.input<typeof InviteFormSchema>, unknown, InviteForm>({
+    resolver: zodResolver(InviteFormSchema),
     defaultValues: { email: "", role: "member" },
   });
   const errors = form.formState.errors;
 
   const onSubmit = form.handleSubmit((values) => {
     invite.mutate(values, {
-      onSuccess: () => {
-        toast.success(`Invitation sent to ${values.email}`);
+      onSuccess: (result) => {
+        if (result.status === "already_member") toast.info(`${values.email} is already a member`);
+        else toast.success(`Invitation sent to ${values.email}`);
         form.reset();
         onOpenChange(false);
       },

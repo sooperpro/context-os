@@ -5,8 +5,9 @@ import type { GeminiClient } from "../../lib/gemini.js";
 import type { Logger } from "../../lib/logger.js";
 import { float32ToBuffer } from "../../lib/retrieval.js";
 import { errorMessage } from "../../lib/text.js";
-import type { ContextService } from "../context/context.service.js";
+import type { ConflictService } from "../context/conflicts.js";
 import type { ContextRepository } from "../context/context.repository.js";
+import type { ContextService } from "../context/context.service.js";
 import { extractContext } from "../context/extraction.js";
 import { EXTRACTION_PROMPT_VERSION } from "../context/extraction.schema.js";
 import type { HubService } from "../hub/hub.service.js";
@@ -15,24 +16,42 @@ import type { SourceRepository } from "../sources/sources.repository.js";
 import type { JobQueue } from "./jobs.queue.js";
 import type { JobHandlers } from "./jobs.worker.js";
 
+/** Late-bound connector sync, registered by the app once provider services exist. */
+export interface ConnectorSyncRegistry {
+  sync?: (job: JobRow) => Promise<void>;
+}
+
 export interface JobHandlerDeps {
   sources: SourceRepository;
   context: ContextService;
   contextRepo: ContextRepository;
+  conflicts: ConflictService;
   hub: HubService;
   projects: ProjectRepository;
   queue: JobQueue;
   gemini: GeminiClient;
   logger: Logger;
+  connectors: ConnectorSyncRegistry;
 }
 
 const ProcessSourcePayload = z.object({ sourceObjectId: z.string() });
 
 export function createJobHandlers(deps: JobHandlerDeps): JobHandlers {
-  const { sources, context, contextRepo, hub, projects, queue, gemini, logger } = deps;
+  const {
+    sources,
+    context,
+    contextRepo,
+    conflicts,
+    hub,
+    projects,
+    queue,
+    gemini,
+    logger,
+    connectors,
+  } = deps;
 
   return {
-    /** chunk → index → embed → extract → verify evidence → mark ready → refresh hub */
+    /** chunk → index → embed → extract → verify evidence → conflicts → mark ready → refresh hub */
     async process_source(job: JobRow): Promise<void> {
       const { sourceObjectId } = ProcessSourcePayload.parse(job.payload);
       const source = sources.findById(sourceObjectId);
@@ -97,6 +116,15 @@ export function createJobHandlers(deps: JobHandlerDeps): JobHandlers {
         }
 
         sources.setStatus(source.id, { status: "ready", error: null, processedAt: new Date() });
+        // 5. Temporal reconciliation: materialise conflicts between incompatible claims (§8.6).
+        const project = projects.findByIdUnscoped(source.projectId);
+        if (project) {
+          try {
+            conflicts.sync(project);
+          } catch (error) {
+            log.warn({ err: error }, "Conflict detection failed; claims remain flagged in views");
+          }
+        }
         projects.touch(source.projectId);
         hub.markStale(source.projectId);
         queue.enqueue({
@@ -119,6 +147,11 @@ export function createJobHandlers(deps: JobHandlerDeps): JobHandlers {
         return;
       }
       await hub.regenerateOverview(project);
+    },
+
+    async sync_connector(job: JobRow): Promise<void> {
+      if (!connectors.sync) throw new Error("Connector sync is not available in this process");
+      await connectors.sync(job);
     },
   };
 }

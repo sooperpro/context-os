@@ -55,7 +55,10 @@ describe("projects", () => {
     );
     expect(unknown.status).toBe(404);
 
-    const malformed = await t.app.request("/api/v1/projects/not-a-uuid/hub");
+    // A well-formed but unknown slug is a 404; an invalid reference is a 400.
+    const unknownSlug = await t.app.request("/api/v1/projects/not-a-uuid/hub");
+    expect(unknownSlug.status).toBe(404);
+    const malformed = await t.app.request("/api/v1/projects/BAD_SLUG!/hub");
     expect(malformed.status).toBe(400);
   });
 

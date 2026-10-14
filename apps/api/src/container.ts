@@ -1,27 +1,32 @@
 import type { Env } from "./config/env.js";
 import type { Db } from "./db/index.js";
+import { assignments, memberships, users } from "./db/schema.js";
 import type { GeminiClient } from "./lib/gemini.js";
 import type { Logger } from "./lib/logger.js";
 import { createAskRepository } from "./modules/ask/ask.repository.js";
 import { createAskService } from "./modules/ask/ask.service.js";
 import { createAuditService } from "./modules/audit/audit.service.js";
+import { createConflictService } from "./modules/context/conflicts.js";
 import { createContextRepository } from "./modules/context/context.repository.js";
 import { createContextService } from "./modules/context/context.service.js";
 import { createFeedbackRepository } from "./modules/feedback/feedback.repository.js";
 import { createFeedbackService } from "./modules/feedback/feedback.service.js";
 import { createHubRepository } from "./modules/hub/hub.repository.js";
 import { createHubService } from "./modules/hub/hub.service.js";
-import { createJobHandlers } from "./modules/jobs/jobs.handlers.js";
+import { createIdentityService } from "./modules/identity/identity.service.js";
+import { createJobHandlers, type ConnectorSyncRegistry } from "./modules/jobs/jobs.handlers.js";
 import { createJobQueue } from "./modules/jobs/jobs.queue.js";
 import { createWorker } from "./modules/jobs/jobs.worker.js";
+import { createBountyService } from "./modules/platform/bounties.js";
+import { createNotifier } from "./modules/platform/notify.js";
+import { createPlatformStore } from "./modules/platform/store.js";
+import { createSweeps } from "./modules/platform/sweeps.js";
 import { createProjectRepository } from "./modules/projects/projects.repository.js";
 import { createProjectService } from "./modules/projects/projects.service.js";
 import { createSourceRepository } from "./modules/sources/sources.repository.js";
 import { createSourceService } from "./modules/sources/sources.service.js";
 import { ensureDefaultWorkspace } from "./modules/workspace/workspace.repository.js";
 import type { Actor } from "./types.js";
-import { memberships, users, assignments } from "./db/schema.js";
-import { createIdentityService } from "./modules/identity/identity.service.js";
 
 export interface ContainerDeps {
   env: Env;
@@ -64,6 +69,8 @@ export function createContainer({ env, db, gemini, logger }: ContainerDeps) {
   const identity = createIdentityService(db, env, devActor);
   const audit = createAuditService(db, logger);
   const queue = createJobQueue(db);
+  const store = createPlatformStore(db);
+  const notifier = createNotifier(db);
 
   const repos = {
     projects: createProjectRepository(db),
@@ -75,8 +82,20 @@ export function createContainer({ env, db, gemini, logger }: ContainerDeps) {
   };
 
   const projects = createProjectService({ repo: repos.projects, audit, identity });
+  const backfilled = projects.backfillSlugs();
+  if (backfilled > 0) logger.info({ backfilled }, "Assigned slugs to legacy projects");
   const context = createContextService({ repo: repos.context, audit, logger, identity });
+  const bounties = createBountyService({ db, identity, store, notifier });
+  const conflicts = createConflictService({
+    db,
+    contextRepo: repos.context,
+    identity,
+    store,
+    notifier,
+    bounties,
+  });
   const hub = createHubService({
+    db,
     repo: repos.hub,
     identity,
     sources: repos.sources,
@@ -99,34 +118,46 @@ export function createContainer({ env, db, gemini, logger }: ContainerDeps) {
   });
   const feedback = createFeedbackService({ repo: repos.feedback, audit });
 
+  const connectors: ConnectorSyncRegistry = {};
   const handlers = createJobHandlers({
     sources: repos.sources,
     context,
     contextRepo: repos.context,
+    conflicts,
     hub,
     projects: repos.projects,
     queue,
     gemini,
     logger,
+    connectors,
   });
+  const sweeps = createSweeps({ db, bounties, logger });
   const worker = createWorker({
     queue,
     handlers,
     logger,
     pollIntervalMs: env.WORKER_POLL_INTERVAL_MS,
+    sweeps,
+    sweepIntervalMs: env.MAINTENANCE_SWEEP_INTERVAL_MS,
   });
 
   return {
     env,
     db,
+    gemini,
+    logger,
     workspace,
     devActor,
     identity,
     audit,
     queue,
     worker,
+    sweeps,
+    connectors,
+    store,
+    notifier,
     repos,
-    services: { projects, sources, context, hub, ask, feedback },
+    services: { projects, sources, context, hub, ask, feedback, bounties, conflicts },
   };
 }
 

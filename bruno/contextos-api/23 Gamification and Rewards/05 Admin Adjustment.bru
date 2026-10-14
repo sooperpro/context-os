@@ -1,0 +1,35 @@
+meta {
+  name: Admin Adjustment
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/gamification/adjustments
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  { "userId": "{{managedUserId}}", "amount": 10, "currency": "rp", "reason": "Pilot seed" }
+}
+
+script:pre-request {
+  const value = bru.getEnvVar("managedUserId");
+  if (!value || value === "false") bru.runner.skipRequest();
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Owner/admin, audited.
+}

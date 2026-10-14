@@ -1,0 +1,24 @@
+meta {
+  name: Promotion Queue
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/promotions/queue
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Own proposals and proposals in projects you own.
+}

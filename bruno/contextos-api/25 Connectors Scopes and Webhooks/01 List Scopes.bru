@@ -1,0 +1,29 @@
+meta {
+  name: List Scopes
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/connectors/{{connectionId}}/scopes
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+script:pre-request {
+  const value = bru.getEnvVar("connectionId");
+  if (!value || value === "false") bru.runner.skipRequest();
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Shared drives and top-level folders with current selections (Google configuration required).
+}

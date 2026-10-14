@@ -1,6 +1,6 @@
 # Backend production readiness and PRD coverage
 
-Updated: 13 October 2026. **Status: not ready for production or complete against the PRD.** The implementation adds real backend workflows and security controls, but a passing local test suite does not demonstrate the PRD's production requirements.
+Updated: 14 October 2026. **Status: every PRD §20 endpoint group is implemented and tested locally; the system is still not certified for production** (infrastructure, live providers and SLOs remain unverified). The implementation adds real backend workflows and security controls, but a passing local test suite does not demonstrate the PRD's production requirements.
 
 ## Confirmed release scope
 
@@ -17,7 +17,13 @@ Phase 1 remains **in progress**, including these backend exit requirements:
 
 Phase 1.5 rewards/kudos/bounties/leaderboards/billing/extension and analytics; Phase 2 EPM/reviews/SCIM; Phase 3 agent/MCP/media/desktop and extra connectors are **deferred**, not current Phase 1 release requirements. Some backend check-in/outcome/preferences foundations already exist from the initial broader request; they do not mean later phases are complete.
 
-## Implemented in this extension
+## Implemented on 14 October 2026 (PRD §20 completion)
+
+- Every endpoint listed in PRD §20 now exists, with the deviations table in [api-reference.md](api-reference.md#28-prd-20-mapping-and-deviations). 86 backend tests pass (24 new) covering settings, directory and invitations, identity links, slugs, hub sections and KHS, evidence, conflicts (open, auto-resolved, disputed, resolved), flags with co-reporters and bounty conversion, bounty rules, Ask feedback and promotion, leaderboards, kudos, clawbacks, rewards redemption, EPM footprints/brag docs/review cycles, learning credit and completion, quiz awards, onboarding health and mentor capacity, companion caps, maintenance sweeps, connector scopes/sync/disconnect modes and webhook signature/trigger matching.
+- Business rules now enforced server-side: §8.1 state machines for flags, bounties, conflicts, plans and review cycles; §8.2 formula with staleness, impact, quality and self-loop multipliers and Appendix C caps; §8.3 AG-1, AG-2, AG-3, AG-4, AG-5 (holds), AG-6 (clawbacks), AG-7, AG-9, AG-10, AG-11; §8.4 tiers with upgrade events; §8.5 leaderboard rules; §8.6 authority-based auto-resolution with canonical sources and dispute; §8.8 transparent health; §8.9 mentor and curator credit; §8.11 continuity checklists and ownership bounties; §8.13 KHS; §8.14 companion caps; §13 in-app notification producers with batching, quiet hours and nudge caps.
+- Still outside this backend: live token streaming, Slack/Jira/GitHub ingestion, email/Slack delivery, semantic reranking, SAML/SCIM, billing, seasonal badge awarding, PostgreSQL/pgvector scale targets and the frontend surfaces for the new areas.
+
+## Implemented in the previous extension (13 October 2026)
 
 - Clerk backend session verification and current organization membership checks; explicit application roles, membership lifecycle/guest expiry, supported assignments and organization invitations.
 - Workspace creation/settings, resumable setup progress, departments and three-level nested teams, tenant-checked employment profiles, reporting-cycle rejection and transactional local offboarding/revocation.
@@ -33,7 +39,15 @@ Phase 1.5 rewards/kudos/bounties/leaderboards/billing/extension and analytics; P
 
 The detailed endpoints and usage are in [backend-api-use-cases.md](backend-api-use-cases.md). Only implemented routes are included in the extended Bruno collection; absent PRD routes are not represented as successful placeholders.
 
-## Local verification result
+## Local verification result (14 October 2026)
+
+Using Node 24 (the shell default of Node 20 segfaults the native SQLite binding; run `nvm use`):
+
+- Backend: **86 tests passed** across 23 files, including the 24 new PRD §20 tests. Shared contracts: 4 passed. Web: typecheck and tests pass with the extended shared schemas.
+- `pnpm check` (lint, typecheck, test, build for every package) and `pnpm format:check` pass.
+- Bruno CLI 4.2.1 against the isolated fixture (`RATE_LIMIT_MAX=0` so a 173-request run is not throttled): **173 requests: 114 passed, 59 skipped; 114/114 assertions passed.** Skipped requests need a second user session, provider configuration or an opt-in flag (`enableRewards`, `enableEpm`, `githubWebhookSecret`); they are not verified successes.
+
+## Local verification result (13 October 2026, superseded)
 
 On 13 October 2026, using Node 24:
 

@@ -18,6 +18,14 @@ script:post-response {
   if (res.getStatus() === 200) bru.setEnvVar("workspaceVersion", res.getBody().version);
 }
 
+script:post-response {
+  if (res.getStatus() === 200) {
+    const body = res.getBody();
+    bru.setEnvVar("workspaceConfirm", body.slug || body.name);
+    bru.setEnvVar("workspaceVersion", body.version);
+  }
+}
+
 tests {
   test("Expected response", function () {
     expect(res.getStatus()).to.equal(200);

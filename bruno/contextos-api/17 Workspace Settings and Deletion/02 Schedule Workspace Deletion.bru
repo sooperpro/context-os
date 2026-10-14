@@ -1,0 +1,30 @@
+meta {
+  name: Schedule Workspace Deletion
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/workspaces/current/deletion
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  { "confirm": "{{workspaceConfirm}}" }
+}
+
+tests {
+  test("Expected response", function () {
+    expect([200, 201, 202, 204]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Owner only. 7-day grace; confirm with the workspace slug (or name). Returns 202.
+}
