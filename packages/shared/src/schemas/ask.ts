@@ -51,3 +51,24 @@ export type Answer = z.infer<typeof AnswerSchema>;
 
 export const AnswerListSchema = listOf(AnswerSchema);
 export type AnswerList = z.infer<typeof AnswerListSchema>;
+
+/* ---- Private Ask conversations (`/ask/threads`) ------------------------------------------ */
+
+export const AskThreadSchema = z.object({
+  id: IdSchema,
+  projectId: IdSchema,
+  /** When set, answers are built from this one source only. */
+  sourceId: IdSchema.nullable(),
+  title: z.string(),
+  createdAt: IsoDateTimeSchema,
+});
+export type AskThread = z.infer<typeof AskThreadSchema>;
+export const AskThreadListSchema = listOf(AskThreadSchema);
+
+/** `GET /ask/threads/:id`: the thread plus the answers the caller may still see. */
+export const AskThreadDetailSchema = AskThreadSchema.extend({ messages: z.array(AnswerSchema) });
+export type AskThreadDetail = z.infer<typeof AskThreadDetailSchema>;
+
+/** Server-sent events from `POST /ask/threads/:id/messages`. */
+export const ThreadStatusEventSchema = z.object({ state: z.enum(["retrieving"]).or(z.string()) });
+export const ThreadErrorEventSchema = z.object({ code: z.string(), message: z.string() });

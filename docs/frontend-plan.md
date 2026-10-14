@@ -95,7 +95,11 @@ appearance API is a Phase 4 polish item.
 3. [x] Google Drive connector flow: authorize from the wizard or the Sources page, browse folders with
        Google page tokens, import one selected file at a time (`features/sources` Drive import dialog on
        top of `features/connectors` queries). Sheets and Slides are listed as not supported, matching the API.
-4. Ask threads with streaming (`POST /ask/threads/:id/messages`, SSE)
+4. [x] Ask as private conversations: thread list per project, create from the first question, delete with
+       confirmation, answers streamed over server-sent events (`lib/sse.ts` reads the stream with the
+       same base URL and session token as `apiRequest`; the API sends status, then one whole cited
+       answer). The Context Bot pane still uses the one-shot Ask endpoint; moving it onto a per-project
+       thread is a small follow-up.
 5. Learning paths and onboarding
 
 Each screen composes library pieces only. A missing primitive goes into the library first.
