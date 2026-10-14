@@ -221,6 +221,10 @@ A pass over every built surface against the prototype's CSS and JS found three g
       while a knowledge check is open. Outside a project it answers about the workspace, with
       citations, sources, people to ask, feedback with reasons, copy, related knowledge and
       follow-ups, plus the honest "no answer" (report a knowledge gap) and "restricted" states.
+- [x] The first-day welcome, from the reference (`/welcome`, full screen): the three people who will
+      help, what ContextOS does, the profile (preferred name, pronouns, location, topics already
+      known, reminder channel) and the first 90 days from the roadmap, ending in the dashboard or the
+      roadmap. Employee Home offers it until it is finished.
 - [x] The rail is gated by persona as well as role, so each "Prototype · view as" persona (Employee,
       Manager, HR, Admin) gets the reference's items as their screens ship.
 

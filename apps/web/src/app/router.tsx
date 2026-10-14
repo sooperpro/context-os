@@ -263,6 +263,11 @@ const appChildren = [
   { path: "*", Component: NotFoundPage },
 ];
 
+const welcomeRoute = async () => {
+  const { WelcomePage } = await import("@/features/welcome/pages/welcome-page");
+  return { Component: WelcomePage };
+};
+
 export const router = createBrowserRouter([
   ...devRoutes,
   // Development only: the same shell and pages without a session, for visual checks. The API in
@@ -277,6 +282,11 @@ export const router = createBrowserRouter([
         },
       ]
     : []),
+  // The first-day welcome is full screen, before the app (prototype `#welcome`).
+  ...(import.meta.env.DEV
+    ? [{ path: "/dev/welcome", ErrorBoundary: RouteErrorBoundary, lazy: welcomeRoute }]
+    : []),
+  { path: "/welcome", ErrorBoundary: RouteErrorBoundary, lazy: welcomeRoute },
   {
     path: "/",
     Component: RootLayout,

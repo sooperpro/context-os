@@ -18,4 +18,5 @@ export * from "./schemas/project.js";
 export * from "./schemas/refs.js";
 export * from "./schemas/saved.js";
 export * from "./schemas/source.js";
+export * from "./schemas/welcome.js";
 export * from "./schemas/platform.js";

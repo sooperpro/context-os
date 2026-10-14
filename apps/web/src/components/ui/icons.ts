@@ -205,6 +205,7 @@ import ShieldPersonIcon from "@material-symbols/svg-400/rounded/shield_person.sv
 import HowToRegFilledIcon from "@material-symbols/svg-400/rounded/how_to_reg-fill.svg?react";
 import EventAvailableFilledIcon from "@material-symbols/svg-400/rounded/event_available-fill.svg?react";
 import LibraryBooksFilledIcon from "@material-symbols/svg-400/rounded/library_books-fill.svg?react";
+import FavoriteIcon from "@material-symbols/svg-400/rounded/favorite.svg?react";
 import LanguageIcon from "@material-symbols/svg-400/rounded/language.svg?react";
 import LinkOffIcon from "@material-symbols/svg-400/rounded/link_off.svg?react";
 import SyncIcon from "@material-symbols/svg-400/rounded/sync.svg?react";
@@ -221,6 +222,7 @@ export type MaterialIcon = ComponentType<SVGProps<SVGSVGElement>>;
 
 export {
   AddIcon,
+  FavoriteIcon,
   LanguageIcon,
   LinkOffIcon,
   SyncIcon,

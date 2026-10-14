@@ -19,6 +19,7 @@ import { OriginIcon } from "@/components/origin-icon";
 import { PreviewDataChip } from "@/components/preview-data-chip";
 import { SectionCard } from "@/components/section-card";
 import { PersonAvatar } from "@/components/ui/avatar";
+import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ConnectedButton, ConnectedButtonGroup } from "@/components/ui/connected-button-group";
@@ -82,11 +83,45 @@ import { ROADMAP_PATH, learningPath } from "@/features/learning/learning-meta";
 import { homeQuery } from "@/features/home/api/home.queries";
 import { comingSoon } from "@/lib/coming-soon";
 import { CONTRIBUTION_KIND_LABEL, KNOWLEDGE_ORIGIN_LABEL } from "@/lib/labels";
-import { daysFromToday, firstName, formatCount, formatDayDate, formatDayDistance, formatLongDate, formatPercent, formatRelativeTime, formatShortDate, formatWeekday, greetingFor, parseDateOnly } from "@/lib/format";
+import {
+  daysFromToday,
+  firstName,
+  formatCount,
+  formatDayDate,
+  formatDayDistance,
+  formatLongDate,
+  formatPercent,
+  formatRelativeTime,
+  formatShortDate,
+  formatWeekday,
+  greetingFor,
+  parseDateOnly,
+} from "@/lib/format";
 import { DotList } from "@/components/ui/dot-list";
 import { formatDateRange } from "./dashboard-meta";
+import { welcomeQuery } from "@/features/welcome/api/welcome.queries";
 
 /** The employee's Home (prototype `employeeHome`): what to do next, how onboarding is going, who to ask. */
+/** Until someone finishes their first-day welcome, Home offers it (prototype sign-in → `#welcome`). */
+function WelcomeBanner() {
+  const welcome = useQuery(welcomeQuery());
+  if (!welcome.data || welcome.data.completedAt) return null;
+  return (
+    <Banner
+      tone="ai"
+      className="mb-3 medium:mb-4"
+      icon={<WavingHandIcon aria-hidden />}
+      title="Welcome! Meet the people who’ll help you and set up your profile"
+      description="Three short steps: who to ask, your profile, and the plan for your first 90 days."
+      actions={
+        <Button variant="ai" nativeButton={false} render={<Link to="/welcome" />}>
+          Get started
+        </Button>
+      }
+    />
+  );
+}
+
 export function EmployeeHome() {
   const me = useQuery(meQuery());
   const onboarding = useQuery(homeQuery("myOnboarding"));
@@ -131,6 +166,7 @@ export function EmployeeHome() {
           </Button>
         }
       />
+      <WelcomeBanner />
       <div className="grid grid-cols-1 gap-3 [grid-template-areas:'hero'_'prog'_'week'_'miles'_'ask'_'news'_'side'] medium:gap-4 @min-[640px]:grid-cols-2 @min-[640px]:[grid-template-areas:'hero_hero'_'prog_miles'_'week_week'_'ask_ask'_'news_news'_'side_side'] @min-[940px]:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)] @min-[940px]:[grid-template-areas:'hero_prog'_'week_miles'_'ask_ask'_'news_side']">
         <NextUpCard query={nextUp} />
         <OnboardingCard query={onboarding} day={day} />
@@ -622,9 +658,7 @@ function MilestonesCard() {
       title="Milestones"
       endpoint={E.milestones.path}
       status={query}
-      action={
-        <ArrowLink to={ROADMAP_PATH} label="See all milestones" />
-      }
+      action={<ArrowLink to={ROADMAP_PATH} label="See all milestones" />}
     >
       {query.data && query.data.items.length > 0 ? (
         <Timeline>
