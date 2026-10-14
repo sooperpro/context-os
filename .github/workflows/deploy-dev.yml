@@ -53,7 +53,7 @@ jobs:
           chmod 600 "$HOME/.ssh/known_hosts"
           cat > "$HOME/.ssh/config" <<EOF
           Host dev-vm
-            HostName localhost
+            HostName 127.0.0.1
             Port $IAP_LOCAL_PORT
             User $VM_USER
             IdentityFile $HOME/.ssh/dev-vm-deploy
@@ -73,12 +73,12 @@ jobs:
           gcloud compute start-iap-tunnel "$VM_INSTANCE" 22 \
             --project "$GCP_PROJECT_ID" \
             --zone "$GCP_ZONE" \
-            --local-host-port="localhost:$IAP_LOCAL_PORT" \
+            --local-host-port="127.0.0.1:$IAP_LOCAL_PORT" \
             --quiet > "$RUNNER_TEMP/iap-tunnel.log" 2>&1 &
           echo "$!" > "$RUNNER_TEMP/iap-tunnel.pid"
 
           for attempt in $(seq 1 30); do
-            if ssh-keyscan -T 5 -t ed25519 -p "$IAP_LOCAL_PORT" localhost \
+            if ssh-keyscan -T 5 -t rsa -p "$IAP_LOCAL_PORT" 127.0.0.1 \
               > "$RUNNER_TEMP/known_hosts.tmp" 2>/dev/null; then
               actual_fingerprint="$(ssh-keygen -lf "$RUNNER_TEMP/known_hosts.tmp" | awk 'NR == 1 {print $2}')"
               if [[ "$actual_fingerprint" != "$DEV_VM_KNOWN_HOST_FINGERPRINT" ]]; then
