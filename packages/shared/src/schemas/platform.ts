@@ -156,3 +156,12 @@ export const PathInputSchema = z
   })
   .strict();
 export const VersionSchema = z.object({ version: z.number().int().positive() });
+
+/** `GET /workspaces/current`: the active workspace, the caller's role in it, and the auth mode. */
+export const CurrentWorkspaceSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  role: SystemRoleSchema,
+  authentication: z.enum(["development", "clerk"]),
+});
+export type CurrentWorkspace = z.infer<typeof CurrentWorkspaceSchema>;

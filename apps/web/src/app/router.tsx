@@ -1,5 +1,5 @@
 import { createBrowserRouter } from "react-router";
-import { AppShell } from "@/components/layout/app-shell";
+import { RootLayout } from "@/app/root-layout";
 import { RouteErrorBoundary } from "@/components/route-error-boundary";
 import { ProjectsPage } from "@/features/projects/pages/projects-page";
 import { NotFoundPage } from "@/pages/not-found-page";
@@ -22,7 +22,7 @@ export const router = createBrowserRouter([
   ...devRoutes,
   {
     path: "/",
-    Component: AppShell,
+    Component: RootLayout,
     ErrorBoundary: RouteErrorBoundary,
     children: [
       { index: true, Component: ProjectsPage },

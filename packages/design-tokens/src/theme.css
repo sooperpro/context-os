@@ -8,6 +8,12 @@
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @theme inline {
+  /* ---- Layout: M3 window size classes (min-width breakpoints) ------------
+     < 600 compact · 600–1199 medium · 1200–1599 expanded · >= 1600 large */
+  --breakpoint-medium: 600px;
+  --breakpoint-expanded: 1200px;
+  --breakpoint-large: 1600px;
+
   /* ---- Type ------------------------------------------------------------ */
   --font-sans: var(--md-ref-typeface-plain);
   --font-heading: var(--md-ref-typeface-brand);

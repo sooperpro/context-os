@@ -63,11 +63,24 @@ Exit: every existing screen renders in both themes with the new tokens; typechec
 Still to do when a screen needs them: wavy circular progress, morphing-shape loader, expressive
 clip-path shapes (cookie, clover, sunny, flower), navigation rail items (Phase 3), search bar (Phase 3).
 
-### Phase 3: app shell
+### Phase 3: app shell (this branch)
 
-Navigation rail (expanded 248px, collapsed 96px), top bar with search, bottom navigation below 600px,
-assistant pane (420px side pane at 1200px and above, modal sheet below, full screen on phones). Navigation
-items come from one config keyed by backend role. Existing pages move inside unchanged.
+- [x] Navigation rail: 248px expanded, 96px collapsed, user preference persisted, forced collapsed below
+      1200px and while Context Bot is open between 1200 and 1599px
+- [x] Top bar (72px): search that hands its text to Context Bot, organization switcher, account; on compact
+      windows the brand moves here and search becomes an icon
+- [x] Bottom navigation below 600px (up to four destinations) with the Ask FAB
+- [x] Context Bot pane: 420px side pane at 1200px and above, modal side sheet below, full screen on phones
+- [x] Context Bot panel (`features/ask`): answers from the current project through the existing Ask API,
+      with confidence, uncertainties and citations; outside a project it says so instead of guessing
+- [x] Navigation from one config (`components/layout/navigation.ts`) gated by the backend role from
+      `GET /workspaces/current`; only shipped screens are listed
+- [x] Keyboard: ⌘J / Ctrl+J toggles Context Bot, `/` focuses search; skip link to content
+- [x] Existing pages moved inside unchanged; shell tests cover landmarks, FAB and keyboard toggle
+
+Window size classes are Tailwind breakpoints from the token package: `medium` 600, `expanded` 1200,
+`large` 1600. Clerk's own components still use Clerk's default styling; theming them through the
+appearance API is a Phase 4 polish item.
 
 ### Phase 4: screens, in order of value
 
