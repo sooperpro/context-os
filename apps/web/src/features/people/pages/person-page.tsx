@@ -1,4 +1,5 @@
 import type { KnowledgeSection, PersonProfile } from "@contextos/shared";
+import { useBotContext } from "@/components/layout/bot-context";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router";
 import { useAssistant } from "@/components/layout/assistant-context";
@@ -24,10 +25,12 @@ import {
   ConversionPathIcon,
   EventIcon,
   GavelIcon,
+  GroupsIcon,
   HubIcon,
   LocalShippingIcon,
   LocationOnIcon,
   MenuBookIcon,
+  PersonIcon,
   RocketLaunchIcon,
   ScheduleIcon,
   type MaterialIcon,
@@ -80,6 +83,17 @@ export function PersonPage() {
 function Profile({ person }: { person: PersonProfile }) {
   const { openAssistant } = useAssistant();
   const first = firstName(person.name);
+  useBotContext(
+    {
+      chips: [
+        { icon: PersonIcon, label: person.name },
+        ...(person.team ? [{ icon: GroupsIcon, label: person.team.name }] : []),
+      ],
+      suggestions: [`What does ${first} work on?`, "Who are the experts on billing?"],
+      intro: `Ask about ${first}’s work and the pages they own.`,
+    },
+    `person:${person.id}`,
+  );
   return (
     <div className="mx-auto flex max-w-360 flex-col gap-4">
       <Breadcrumb>

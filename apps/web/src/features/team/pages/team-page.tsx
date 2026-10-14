@@ -1,4 +1,5 @@
 import type { OnboardingStatus, TeamMemberProgress } from "@contextos/shared";
+import { useBotContext } from "@/components/layout/bot-context";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { useState, type ReactNode } from "react";
@@ -14,9 +15,11 @@ import {
   AssignmentAddIcon,
   BlockIcon,
   CheckCircleFilledIcon,
+  Diversity3Icon,
   EditNoteIcon,
   ErrorFilledIcon,
   EventIcon,
+  FilterAltIcon,
   InfoIcon,
 } from "@/components/ui/icons";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -74,6 +77,19 @@ export function TeamPage() {
     (a, b) => PRIORITY[a.status] - PRIORITY[b.status],
   );
   const first = people[0];
+  useBotContext(
+    {
+      chips: [
+        { icon: Diversity3Icon, label: "Team onboarding" },
+        ...(roster.data ? [{ icon: FilterAltIcon, label: `${roster.data.team.name} team` }] : []),
+      ],
+      suggestions: [
+        "Which topics is my team struggling with?",
+        "Summarize Leah’s onboarding progress",
+      ],
+    },
+    `team:${roster.data?.team.name ?? ""}`,
+  );
 
   return (
     <div className="mx-auto flex max-w-360 flex-col gap-3 medium:gap-4">

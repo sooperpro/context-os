@@ -1,4 +1,5 @@
 import type { ProbationDetail } from "@contextos/shared";
+import { useBotContext } from "@/components/layout/bot-context";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { useId, useState, type ReactNode } from "react";
@@ -33,6 +34,7 @@ import {
   BadgeIcon,
   CheckCircleIcon,
   ErrorIcon,
+  EventAvailableIcon,
   EventIcon,
   FactCheckIcon,
   HourglassEmptyIcon,
@@ -140,6 +142,20 @@ const ACTIVITY_ICON: Record<ProbationDetail["activity"][number]["kind"], ReactNo
 function ReviewView({ review }: { review: ProbationDetail }) {
   const remind = useRemindManagers();
   const first = firstName(review.person.name);
+  useBotContext(
+    {
+      chips: [
+        { icon: EventAvailableIcon, label: `Probation: ${review.person.name}` },
+        { icon: LockIcon, label: "People Ops" },
+      ],
+      suggestions: [
+        `Summarize ${first}’s probation evidence`,
+        "Which probation reviews need action this week?",
+      ],
+      intro: `I can summarize ${first}’s milestones, check-ins and manager feedback.`,
+    },
+    `probation:${review.id}`,
+  );
   const state = REVIEW_STATE[review.state];
   const stateChip = review.decision ? outcomeChip(review.decision) : state;
   const recommendation = recommendationChip({

@@ -1,4 +1,5 @@
 import type { AdminConnector, ConnectorCategory } from "@contextos/shared";
+import { useBotContext } from "@/components/layout/bot-context";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { useEffect, useRef, useState } from "react";
@@ -13,6 +14,8 @@ import { EmptyMini } from "@/components/ui/empty-mini";
 import {
   AddCommentIcon,
   AddLinkIcon,
+  AdminPanelSettingsIcon,
+  CableIcon,
   CheckIcon,
   ErrorIcon,
   SearchOffIcon,
@@ -37,6 +40,19 @@ import { formatRelativeTime } from "@/lib/format";
 
 /** Connectors (prototype `#connectors`): what's connected and healthy, and the catalog to add more. */
 export function ConnectorsPage() {
+  useBotContext(
+    {
+      chips: [
+        { icon: CableIcon, label: "Connectors" },
+        { icon: AdminPanelSettingsIcon, label: "Workspace" },
+      ],
+      suggestions: [
+        "Why is the Jira connector failing?",
+        "Which sources are excluded from answers?",
+      ],
+    },
+    "connectors",
+  );
   const query = useQuery(adminConnectorsQuery());
   const [requesting, setRequesting] = useState(false);
   const [connecting, setConnecting] = useState<AdminConnector | null>(null);

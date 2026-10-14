@@ -17,6 +17,7 @@ import { KIND_ICON, SOURCE_KIND_ICON } from "@/features/hub/components/kind-icon
 import { useSourceDrawer } from "@/features/sources/hooks/use-source-drawer";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { SOURCE_KIND_LABEL } from "@/lib/labels";
+import { CiteButton } from "@/features/ask/components/cite-button";
 
 type Tone = React.ComponentProps<typeof StatusChip>["tone"];
 
@@ -209,15 +210,12 @@ function AnswerText({
         const citation = match ? citationByRef.get(Number(match[1])) : undefined;
         if (!match || !citation) return <Fragment key={index}>{part}</Fragment>;
         return (
-          <button
+          <CiteButton
             key={index}
-            type="button"
-            className="mx-px inline-grid h-4.5 min-w-4.5 place-items-center rounded-xs bg-ai-container px-1 align-text-bottom font-mono text-[11px] font-semibold text-on-ai-container transition-colors outline-none hover:bg-ai hover:text-on-ai focus-visible:ring-3 focus-visible:ring-ring/50"
+            n={citation.ref}
+            title={citation.sourceTitle}
             onClick={() => onCite(citation)}
-            aria-label={`Open source ${citation.ref}: ${citation.sourceTitle}`}
-          >
-            {citation.ref}
-          </button>
+          />
         );
       })}
     </>

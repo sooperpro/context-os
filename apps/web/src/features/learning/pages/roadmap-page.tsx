@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useBotContext } from "@/components/layout/bot-context";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
 import { useAssistant } from "@/components/layout/assistant-context";
@@ -14,9 +15,11 @@ import {
   ConstructionIcon,
   ContactSupportIcon,
   EditCalendarIcon,
+  FilterAltIcon,
   HubIcon,
   LockClockIcon,
   QuizIcon,
+  RouteIcon,
   SchoolIcon,
 } from "@/components/ui/icons";
 import { ProgressRing } from "@/components/ui/progress-ring";
@@ -47,6 +50,21 @@ export function RoadmapPage() {
 
   const current = roadmap?.stages.find((stage) => stage.state === "current") ?? roadmap?.stages[0];
   const stage = roadmap?.stages.find((entry) => entry.id === params.get("stage")) ?? current;
+  useBotContext(
+    {
+      chips: [
+        { icon: RouteIcon, label: "My roadmap" },
+        ...(current ? [{ icon: FilterAltIcon, label: `${current.name} stage` }] : []),
+      ],
+      suggestions: [
+        "What should I focus on this week?",
+        "What happens in Product & systems?",
+        "How is my progress measured?",
+      ],
+      intro: "I can explain anything on your roadmap and help you plan your week.",
+    },
+    `roadmap:${current?.id ?? ""}`,
+  );
   const day = roadmap ? 1 - daysFromToday(roadmap.startDate) : 0;
   const weeks = roadmap?.stages.at(-1)?.weekEnd ?? 12;
   const modules = roadmap?.stages.flatMap((entry) => entry.modules) ?? [];

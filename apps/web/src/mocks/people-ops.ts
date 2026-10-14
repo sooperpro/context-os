@@ -1208,6 +1208,15 @@ const OVERDUE = [
   { id: "od3", personId: people.leah.id, milestone: "2 learning modules", dueIn: -5 },
 ];
 
+/** A probation review by the person's first name, for Context Bot's evidence summaries. */
+export function probationByFirstName(first: string): ProbationDetail | null {
+  const review = reviews.find(
+    (entry) =>
+      reviewContext(entry).person.name.split(" ")[0]?.toLowerCase() === first.toLowerCase(),
+  );
+  return review ? reviewDetail(review) : null;
+}
+
 export function overdueList() {
   return OVERDUE.map((item) => {
     const record = findRecord(item.personId);

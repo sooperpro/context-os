@@ -1,4 +1,5 @@
 import type { KnowledgeGap } from "@contextos/shared";
+import { useBotContext } from "@/components/layout/bot-context";
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { Link, useLocation } from "react-router";
@@ -6,7 +7,14 @@ import { PageColumns, PageMain, PageSide } from "@/components/layout/page-column
 import { PageHeader } from "@/components/layout/page-header";
 import { SectionCard } from "@/components/section-card";
 import { Button } from "@/components/ui/button";
-import { AddIcon, CallSplitIcon, HelpIcon, HistoryIcon, HubIcon } from "@/components/ui/icons";
+import {
+  AddIcon,
+  CallSplitIcon,
+  EditNoteIcon,
+  HelpIcon,
+  HistoryIcon,
+  HubIcon,
+} from "@/components/ui/icons";
 import { MiniTile } from "@/components/ui/kpi-tile";
 import {
   SegmentedItem,
@@ -46,6 +54,14 @@ const HOW_REVIEWS_WORK: Array<{ title: string; text: string }> = [
 
 /** Contributions (prototype `contribPage`): gaps to fill, your contributions with their review state. */
 export function ContributionsPage() {
+  useBotContext(
+    {
+      chips: [{ icon: EditNoteIcon, label: "Your contributions" }],
+      suggestions: ["How do I roll back a Kestrel deploy?", "Who should I ask about Kestrel?"],
+      intro: "I can find sources for a draft and tell you who’s likely to review it.",
+    },
+    "contributions",
+  );
   const contributions = useQuery(myContributionsQuery());
   const gaps = useQuery(myKnowledgeGapsQuery());
   const location = useLocation();

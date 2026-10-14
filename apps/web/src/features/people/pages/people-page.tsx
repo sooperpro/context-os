@@ -1,4 +1,5 @@
 import { PeopleFilterSchema, type PeopleFilter } from "@contextos/shared";
+import { useBotContext } from "@/components/layout/bot-context";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
@@ -14,6 +15,7 @@ import { ConnectedButton, ConnectedButtonGroup } from "@/components/ui/connected
 import {
   AccountTreeIcon,
   CheckIcon,
+  GroupIcon,
   NorthEastIcon,
   PersonIcon,
   PersonSearchIcon,
@@ -55,6 +57,18 @@ const ASK_PROMPTS = [
 
 /** People (prototype `directoryPage`): find who owns what and who knows what. */
 export function PeoplePage() {
+  useBotContext(
+    {
+      chips: [{ icon: GroupIcon, label: "People directory" }],
+      suggestions: [
+        "Who are the experts on billing?",
+        "Who is on the Platform team?",
+        "Who owns the ingest gateway?",
+      ],
+      intro: "I can find the right person for a question and show what they own.",
+    },
+    "people",
+  );
   const [params, setParams] = useSearchParams();
   const view = params.get("view") === "teams" ? "teams" : "people";
   const directory = useQuery(directoryQuery("", "all"));

@@ -1,4 +1,5 @@
 import type { MyLearning } from "@contextos/shared";
+import { useBotContext } from "@/components/layout/bot-context";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
@@ -13,6 +14,7 @@ import {
   GavelIcon,
   HubIcon,
   RocketLaunchIcon,
+  RouteIcon,
   SchoolIcon,
   type MaterialIcon,
 } from "@/components/ui/icons";
@@ -44,12 +46,22 @@ const KIND_ICON: Record<MyLearning["assigned"][number]["kind"], MaterialIcon> = 
 
 /** My learning (prototype `myLearningPage`): for people past onboarding. */
 export function MyLearningPage() {
+  useBotContext(
+    {
+      chips: [{ icon: RouteIcon, label: "My learning" }],
+      suggestions: ["Which topics is my team struggling with?"],
+      intro: "I can suggest courses based on what your team is learning.",
+    },
+    "my-learning",
+  );
   const query = useQuery(myLearningQuery());
   const me = useQuery(meQuery());
   const add = useAddCourse();
   const data = query.data;
   const finished = data?.onboardingFinishedOn
-    ? new Date(`${data.onboardingFinishedOn}T12:00:00`).toLocaleDateString(undefined, { year: "numeric" })
+    ? new Date(`${data.onboardingFinishedOn}T12:00:00`).toLocaleDateString(undefined, {
+        year: "numeric",
+      })
     : null;
 
   return (
@@ -66,7 +78,12 @@ export function MyLearningPage() {
       />
       <PageColumns>
         <PageMain>
-          <SectionCard title="Assigned to you" count={data?.assigned.length} endpoint={E.myLearning.path} status={query}>
+          <SectionCard
+            title="Assigned to you"
+            count={data?.assigned.length}
+            endpoint={E.myLearning.path}
+            status={query}
+          >
             <SegmentedList>
               {(data?.assigned ?? []).map((course) => {
                 const Icon = KIND_ICON[course.kind];
@@ -74,7 +91,10 @@ export function MyLearningPage() {
                 return (
                   <SegmentedItem key={course.id} className="flex-wrap @min-[640px]:flex-nowrap">
                     {started ? (
-                      <span aria-hidden className="relative grid size-11 shrink-0 place-items-center text-primary-foreground">
+                      <span
+                        aria-hidden
+                        className="relative grid size-11 shrink-0 place-items-center text-primary-foreground"
+                      >
                         <Shape kind="cookie7" className="absolute inset-0 size-full text-primary" />
                         <Icon className="relative z-10 size-5" />
                       </span>
@@ -84,7 +104,9 @@ export function MyLearningPage() {
                       </SegmentedItemLead>
                     )}
                     <SegmentedItemBody>
-                      <SegmentedItemTitle className="whitespace-normal">{course.title}</SegmentedItemTitle>
+                      <SegmentedItemTitle className="whitespace-normal">
+                        {course.title}
+                      </SegmentedItemTitle>
                       <SegmentedItemMeta>
                         <DotList
                           parts={[
@@ -104,7 +126,11 @@ export function MyLearningPage() {
                       ) : null}
                     </SegmentedItemBody>
                     <SegmentedItemTrail className="ps-14 @min-[640px]:ps-0">
-                      <Button size="xs" variant={started ? "default" : "secondary"} onClick={() => comingSoon("Courses")}>
+                      <Button
+                        size="xs"
+                        variant={started ? "default" : "secondary"}
+                        onClick={() => comingSoon("Courses")}
+                      >
                         {started ? "Resume" : "Start"}
                       </Button>
                     </SegmentedItemTrail>
@@ -132,7 +158,9 @@ export function MyLearningPage() {
                         <Icon aria-hidden />
                       </SegmentedItemLead>
                       <SegmentedItemBody>
-                        <SegmentedItemTitle className="whitespace-normal">{course.title}</SegmentedItemTitle>
+                        <SegmentedItemTitle className="whitespace-normal">
+                          {course.title}
+                        </SegmentedItemTitle>
                         <span className="text-xs text-on-surface-variant">
                           {course.reason} · {course.minutes} min
                         </span>
@@ -143,7 +171,8 @@ export function MyLearningPage() {
                         disabled={add.isPending}
                         onClick={() =>
                           add.mutate(course.id, {
-                            onSuccess: () => toast.success(`Added “${course.title}” to your learning`),
+                            onSuccess: () =>
+                              toast.success(`Added “${course.title}” to your learning`),
                             onError: () => toast.error("It could not be added. Please try again."),
                           })
                         }
@@ -170,7 +199,10 @@ export function MyLearningPage() {
                   <div className="flex min-w-0 flex-col">
                     <span className="text-sm font-medium">{course.title}</span>
                     <span className="text-xs text-on-surface-variant">
-                      {new Date(`${course.completedOn}T12:00:00`).toLocaleDateString(undefined, { month: "short", year: "numeric" })}
+                      {new Date(`${course.completedOn}T12:00:00`).toLocaleDateString(undefined, {
+                        month: "short",
+                        year: "numeric",
+                      })}
                     </span>
                   </div>
                 </li>

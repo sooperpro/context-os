@@ -1,4 +1,5 @@
 import type { OnboardingRecord, OnboardingStatus, SetupStepId } from "@contextos/shared";
+import { useBotContext } from "@/components/layout/bot-context";
 import { useQuery } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router";
@@ -32,6 +33,7 @@ import {
   EventIcon,
   ForumIcon,
   HandshakeIcon,
+  HowToRegIcon,
   InfoIcon,
   LibraryBooksIcon,
   LockIcon,
@@ -97,6 +99,19 @@ const NOTE: Partial<
 };
 
 function RecordView({ record }: { record: OnboardingRecord }) {
+  useBotContext(
+    {
+      chips: [
+        { icon: HowToRegIcon, label: `Onboarding: ${record.person.name}` },
+        { icon: LockIcon, label: "People Ops" },
+      ],
+      suggestions: [
+        "Which teams have overdue check-ins?",
+        "Which probation reviews need action this week?",
+      ],
+    },
+    `onboarding:${record.id}`,
+  );
   const [changing, setChanging] = useState<AssignmentKind | null>(null);
   const setup = useCompleteSetupStep(record.id);
   const days = daysFromToday(record.startDate);

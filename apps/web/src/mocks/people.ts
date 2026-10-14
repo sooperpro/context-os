@@ -475,6 +475,22 @@ function teams() {
   };
 }
 
+/** A profile's bio and owned pages by first name, for Context Bot's "What does … work on?". */
+export function profileByFirstName(
+  first: string,
+): { person: PersonRef; bio: string; owns: string[] } | null {
+  const key = Object.keys(P).find(
+    (candidate) => P[candidate]?.ref.name.split(" ")[0]?.toLowerCase() === first.toLowerCase(),
+  );
+  const entry = key ? P[key] : undefined;
+  if (!entry) return null;
+  return {
+    person: entry.ref,
+    bio: entry.bio,
+    owns: (entry.owns ?? []).flatMap((id) => OWNED[id]?.title ?? []),
+  };
+}
+
 export const peopleMocks = [
   // Listed before the profile route so "/experts" and "/teams" are not read as person ids.
   mockGet(E.experts)(() => ({

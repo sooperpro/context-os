@@ -1,4 +1,5 @@
 import type { AiSettings, AiSettingsInput, AnswerStrictness } from "@contextos/shared";
+import { useBotContext } from "@/components/layout/bot-context";
 import { useQuery } from "@tanstack/react-query";
 import { useId } from "react";
 import { Link } from "react-router";
@@ -9,7 +10,13 @@ import { PageHeader } from "@/components/layout/page-header";
 import { SectionCard } from "@/components/section-card";
 import { Button } from "@/components/ui/button";
 import { ConnectedButton, ConnectedButtonGroup } from "@/components/ui/connected-button-group";
-import { ArrowForwardIcon, BlockIcon, HelpIcon } from "@/components/ui/icons";
+import {
+  AdminPanelSettingsIcon,
+  ArrowForwardIcon,
+  BlockIcon,
+  HelpIcon,
+  TuneIcon,
+} from "@/components/ui/icons";
 import { MiniTile } from "@/components/ui/kpi-tile";
 import { Label } from "@/components/ui/label";
 import {
@@ -39,6 +46,19 @@ const ROUTE = { "2": "2 times", "3": "3 times", "5": "5 times" } as const;
 
 /** AI settings (prototype `#ai`): how Context Bot answers, cites and handles what it can't answer. */
 export function AiSettingsPage() {
+  useBotContext(
+    {
+      chips: [
+        { icon: TuneIcon, label: "AI settings" },
+        { icon: AdminPanelSettingsIcon, label: "Workspace" },
+      ],
+      suggestions: [
+        "Which sources are excluded from answers?",
+        "Why is the Jira connector failing?",
+      ],
+    },
+    "ai",
+  );
   const query = useQuery(aiSettingsQuery());
   const data = query.data;
   return (

@@ -1,4 +1,5 @@
 import type { SystemRole } from "@contextos/shared";
+import { useBotContext } from "@/components/layout/bot-context";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -10,7 +11,9 @@ import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import {
+  AdminPanelSettingsIcon,
   CheckIcon,
+  ManageAccountsIcon,
   PersonAddIcon,
   SyncAltIcon,
   SyncIcon,
@@ -41,6 +44,16 @@ const ROLE_ORDER: SystemRole[] = ["member", "manager", "admin", "owner", "guest"
  * directory sync and role requests show preview data until the API serves them.
  */
 export function MembersPage() {
+  useBotContext(
+    {
+      chips: [
+        { icon: ManageAccountsIcon, label: "Members & roles" },
+        { icon: AdminPanelSettingsIcon, label: "Workspace" },
+      ],
+      suggestions: ["Who changed access policies this week?"],
+    },
+    "members",
+  );
   const viewer = useViewer();
   const me = useQuery(meQuery());
   const members = useQuery(membersQuery());

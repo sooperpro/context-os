@@ -1,4 +1,5 @@
 import type { CheckResult, KnowledgeCheck } from "@contextos/shared";
+import { useBotContext } from "@/components/layout/bot-context";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { useState } from "react";
@@ -65,6 +66,23 @@ export function CheckPage() {
 function CheckView({ check }: { check: KnowledgeCheck }) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [result, setResult] = useState<CheckResult | null>(null);
+  // No answers while the check is open, so the result shows what was learned (prototype guard).
+  useBotContext(
+    result
+      ? {
+          chips: [{ icon: QuizIcon, label: "Knowledge check results" }],
+          suggestions: ["Explain idempotent consumers simply", "What does dual-write mean here?"],
+          intro: "Ask me about any question in your results.",
+        }
+      : {
+          chips: [{ icon: QuizIcon, label: "Knowledge check in progress" }],
+          suggestions: [],
+          intro:
+            "I’m paused while your knowledge check is open. Submit your answers and I’ll explain any question.",
+          paused: true,
+        },
+    `check:${check.id}:${result ? "done" : "open"}`,
+  );
   const submit = useSubmitCheck(check.id);
   const answered = Object.keys(answers).length;
   const total = check.questions.length;

@@ -1,4 +1,5 @@
 import type { ProbationReview } from "@contextos/shared";
+import { useBotContext } from "@/components/layout/bot-context";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router";
@@ -11,7 +12,13 @@ import { Button } from "@/components/ui/button";
 import { Chip, ChipCount } from "@/components/ui/chip";
 import { DotList } from "@/components/ui/dot-list";
 import { EmptyMini } from "@/components/ui/empty-mini";
-import { CelebrationFilledIcon, CheckIcon, NotificationsIcon } from "@/components/ui/icons";
+import {
+  CelebrationFilledIcon,
+  CheckIcon,
+  EventAvailableIcon,
+  FilterAltIcon,
+  NotificationsIcon,
+} from "@/components/ui/icons";
 import { Progress } from "@/components/ui/progress";
 import { ProgressSteps } from "@/components/ui/progress-steps";
 import {
@@ -63,6 +70,19 @@ const FILTERS: Array<[ReviewFilter, string, (review: ProbationReview) => boolean
 
 /** The probation pipeline (prototype `#probation`): reviews in the next 30 days and their stage. */
 export function ProbationListPage() {
+  useBotContext(
+    {
+      chips: [
+        { icon: EventAvailableIcon, label: "Probation reviews" },
+        { icon: FilterAltIcon, label: "All teams" },
+      ],
+      suggestions: [
+        "Which probation reviews need action this week?",
+        "Which teams have overdue check-ins?",
+      ],
+    },
+    "probation",
+  );
   const query = useQuery(homeQuery("probationReviews", { within: 30 }));
   const remind = useRemindManagers();
   const [filter, setFilter] = useState<ReviewFilter>("all");

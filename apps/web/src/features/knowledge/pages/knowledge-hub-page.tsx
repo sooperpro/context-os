@@ -1,4 +1,5 @@
 import type { ContextItem, ProjectWithStats } from "@contextos/shared";
+import { useBotContext } from "@/components/layout/bot-context";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router";
@@ -21,9 +22,11 @@ import {
   FolderOpenIcon,
   GroupsIcon,
   HubFilledIcon,
+  HubIcon,
+  LockIcon,
   RocketLaunchFilledIcon,
-  type MaterialIcon,
   SearchOffIcon,
+  type MaterialIcon,
 } from "@/components/ui/icons";
 import { TypeChip } from "@/components/ui/meta-chip";
 import {
@@ -83,6 +86,21 @@ export function KnowledgeHubPage() {
   const [query, setQuery] = useState(searchParams.get("q") ?? "");
   const [createOpen, setCreateOpen] = useState(false);
   const { openAssistant } = useAssistant();
+  useBotContext(
+    {
+      chips: [
+        { icon: HubIcon, label: "Knowledge Hub" },
+        { icon: LockIcon, label: "Pages you can access" },
+      ],
+      suggestions: [
+        "What does the Platform team own?",
+        "Why are we moving billing to Kafka?",
+        "What is a shipment event?",
+      ],
+      intro: "I search every page here plus the documents and conversations behind them.",
+    },
+    "knowledge",
+  );
 
   const projects = useQuery(projectsQuery());
   const projectList = projects.data?.items ?? [];

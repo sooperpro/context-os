@@ -1,4 +1,5 @@
 import type { OnboardingTemplate } from "@contextos/shared";
+import { useBotContext } from "@/components/layout/bot-context";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router";
@@ -6,7 +7,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { PreviewDataChip } from "@/components/preview-data-chip";
 import { SectionCard } from "@/components/section-card";
 import { Button } from "@/components/ui/button";
-import { AddIcon, CheckCircleIcon, EditIcon } from "@/components/ui/icons";
+import { AddIcon, CheckCircleIcon, EditIcon, LibraryBooksIcon } from "@/components/ui/icons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusChip } from "@/components/ui/status-chip";
 import { HOME_ENDPOINTS } from "@/features/home/api/home.api";
@@ -17,6 +18,16 @@ import { formatShortDate } from "@/lib/format";
 
 /** Onboarding templates (prototype `#templates`): reusable roadmaps by role. */
 export function TemplatesPage() {
+  useBotContext(
+    {
+      chips: [{ icon: LibraryBooksIcon, label: "Onboarding templates" }],
+      suggestions: [
+        "What changed in the Engineering template v4?",
+        "Which teams have overdue check-ins?",
+      ],
+    },
+    "templates",
+  );
   const query = useQuery(homeQuery("templates"));
   const [creating, setCreating] = useState(false);
   const items = query.data?.items ?? [];

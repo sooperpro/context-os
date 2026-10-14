@@ -1,4 +1,5 @@
 import type { OnboardingFilter, OnboardingRecordSummary } from "@contextos/shared";
+import { useBotContext } from "@/components/layout/bot-context";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router";
@@ -15,6 +16,8 @@ import { EmptyMini } from "@/components/ui/empty-mini";
 import {
   CheckIcon,
   ChevronRightIcon,
+  FilterAltIcon,
+  HowToRegIcon,
   PersonAddIcon,
   PersonSearchIcon,
 } from "@/components/ui/icons";
@@ -54,6 +57,20 @@ const ALL_TEAMS = "all";
 
 /** Onboarding records across the company (prototype `#onboarding`): search, filter, start a new one. */
 export function OnboardingListPage() {
+  useBotContext(
+    {
+      chips: [
+        { icon: HowToRegIcon, label: "Onboarding" },
+        { icon: FilterAltIcon, label: "All teams" },
+      ],
+      suggestions: [
+        "Which teams have overdue check-ins?",
+        "Which probation reviews need action this week?",
+        "What changed in the Engineering template v4?",
+      ],
+    },
+    "onboarding",
+  );
   const [text, setText] = useState("");
   const q = useDebouncedValue(text.trim(), 200);
   const [team, setTeam] = useState(ALL_TEAMS);

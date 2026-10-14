@@ -1,4 +1,5 @@
 import type { AuditEntry } from "@contextos/shared";
+import { useBotContext } from "@/components/layout/bot-context";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "@/components/layout/page-header";
@@ -6,7 +7,13 @@ import { SectionCard } from "@/components/section-card";
 import { Chip } from "@/components/ui/chip";
 import { ConnectedButton, ConnectedButtonGroup } from "@/components/ui/connected-button-group";
 import { DotList } from "@/components/ui/dot-list";
-import { CheckIcon, KeyboardArrowDownIcon, KeyboardArrowUpIcon } from "@/components/ui/icons";
+import {
+  AdminPanelSettingsIcon,
+  CheckIcon,
+  HistoryIcon,
+  KeyboardArrowDownIcon,
+  KeyboardArrowUpIcon,
+} from "@/components/ui/icons";
 import { TypeChip } from "@/components/ui/meta-chip";
 import { SearchField } from "@/components/ui/search-field";
 import { SegmentedItemLead } from "@/components/ui/segmented-list";
@@ -27,6 +34,16 @@ const RANGES = [
  * (docs/api-change-requests.md, item 5), so this sorts and filters the latest page here.
  */
 export function AuditPage() {
+  useBotContext(
+    {
+      chips: [
+        { icon: HistoryIcon, label: "Audit log" },
+        { icon: AdminPanelSettingsIcon, label: "Workspace" },
+      ],
+      suggestions: ["Who changed access policies this week?"],
+    },
+    "audit",
+  );
   const query = useQuery(auditQuery());
   const [text, setText] = useState("");
   const [range, setRange] = useState<number>(7);

@@ -1,4 +1,5 @@
 import type { TemplateDetail, TemplateModule } from "@contextos/shared";
+import { useBotContext } from "@/components/layout/bot-context";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
@@ -23,6 +24,7 @@ import {
   DeleteIcon,
   HistoryIcon,
   InfoIcon,
+  LibraryBooksIcon,
   PublishIcon,
   SaveIcon,
 } from "@/components/ui/icons";
@@ -86,6 +88,16 @@ export function TemplateEditorPage() {
 type Stages = TemplateDetail["stages"];
 
 function Editor({ template }: { template: TemplateDetail }) {
+  useBotContext(
+    {
+      chips: [{ icon: LibraryBooksIcon, label: template.name }],
+      suggestions: [
+        "What changed in the Engineering template v4?",
+        "Which teams have overdue check-ins?",
+      ],
+    },
+    `template:${template.id}`,
+  );
   const [stages, setStages] = useState<Stages>(template.stages);
   const [dirty, setDirty] = useState(false);
   const [adding, setAdding] = useState<{ id: string; name: string } | null>(null);

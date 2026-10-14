@@ -1,3 +1,4 @@
+import { useBotContext } from "@/components/layout/bot-context";
 import {
   BlockerSchema,
   CheckinInputSchema,
@@ -30,7 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { ConnectedButton, ConnectedButtonGroup } from "@/components/ui/connected-button-group";
-import { AddIcon, CheckIcon, HubIcon, LinkIcon } from "@/components/ui/icons";
+import { AddIcon, CheckIcon, EditNoteIcon, HubIcon, LinkIcon } from "@/components/ui/icons";
 import { Label } from "@/components/ui/label";
 import { Loader } from "@/components/ui/loader";
 import { OptionList, OptionTile } from "@/components/ui/option-tile";
@@ -41,14 +42,24 @@ import {
   SegmentedItemTitle,
   SegmentedList,
 } from "@/components/ui/segmented-list";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusChip } from "@/components/ui/status-chip";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { homeQuery } from "@/features/home/api/home.queries";
 import { TEAM_ENDPOINTS as E } from "@/features/team/api/team.api";
-import { checkinPrepQuery, teamMemberQuery, useSaveCheckin } from "@/features/team/api/team.queries";
+import {
+  checkinPrepQuery,
+  teamMemberQuery,
+  useSaveCheckin,
+} from "@/features/team/api/team.queries";
 import { CheckMark } from "@/features/team/components/check-mark";
 import {
   BLOCKER_LABEL,
@@ -84,7 +95,11 @@ export function CheckinPage() {
   if (member.isError) {
     return (
       <div className="mx-auto max-w-360">
-        <SectionCard title="This check-in could not be loaded" endpoint={E.member.path} status={member} />
+        <SectionCard
+          title="This check-in could not be loaded"
+          endpoint={E.member.path}
+          status={member}
+        />
       </div>
     );
   }
@@ -93,17 +108,37 @@ export function CheckinPage() {
   return <CheckinForm key={`${personId}:${type}`} member={member.data} initialType={type} />;
 }
 
-function CheckinForm({ member, initialType }: { member: TeamMemberDetail; initialType: CheckinType }) {
+function CheckinForm({
+  member,
+  initialType,
+}: {
+  member: TeamMemberDetail;
+  initialType: CheckinType;
+}) {
+  useBotContext(
+    {
+      chips: [{ icon: EditNoteIcon, label: `Check-in: ${member.person.name}` }],
+      suggestions:
+        member.person.id === "p-leah"
+          ? ["Summarize Leah’s onboarding progress", "Draft an agenda for Maya’s week 2 check-in"]
+          : ["Draft an agenda for Maya’s week 2 check-in"],
+    },
+    `checkin:${member.person.id}`,
+  );
   const navigate = useNavigate();
   const ids = { person: useId(), notes: useId(), next: useId(), share: useId() };
   const first = firstName(member.person.name);
   const roster = useQuery(homeQuery("teamOnboarding"));
   const [type, setType] = useState<CheckinType>(initialType);
   const prep = useQuery(checkinPrepQuery(member.person.id, type));
-  const [pulse, setPulse] = useState<Pulse>(member.status === "on_track" || member.status === "ahead" ? "on_track" : "concerns");
+  const [pulse, setPulse] = useState<Pulse>(
+    member.status === "on_track" || member.status === "ahead" ? "on_track" : "concerns",
+  );
   const [covered, setCovered] = useState<Set<string>>(new Set());
   const [ratings, setRatings] = useState<Record<string, number>>({});
-  const [blockers, setBlockers] = useState<Set<Blocker>>(new Set(member.status === "blocked" ? ["access"] : []));
+  const [blockers, setBlockers] = useState<Set<Blocker>>(
+    new Set(member.status === "blocked" ? ["access"] : []),
+  );
   const [notes, setNotes] = useState("");
   const [nextSteps, setNextSteps] = useState("");
   const [recommendation, setRecommendation] = useState<"confirm" | "extend" | "discuss">("confirm");
@@ -152,7 +187,9 @@ function CheckinForm({ member, initialType }: { member: TeamMemberDetail; initia
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
-            <BreadcrumbLink render={<Link to={memberPath(member.person.id)} />}>{member.person.name}</BreadcrumbLink>
+            <BreadcrumbLink render={<Link to={memberPath(member.person.id)} />}>
+              {member.person.name}
+            </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
@@ -164,9 +201,12 @@ function CheckinForm({ member, initialType }: { member: TeamMemberDetail; initia
         <div className="flex items-center gap-3.5">
           <PersonAvatar person={member.person} size="md" />
           <div>
-            <h1 className="font-heading text-[28px] leading-9 font-semibold tracking-tight">Check-in with {first}</h1>
+            <h1 className="font-heading text-[28px] leading-9 font-semibold tracking-tight">
+              Check-in with {first}
+            </h1>
             <p className="mt-0.5 flex flex-wrap items-center gap-2 text-sm text-on-surface-variant">
-              {days <= 0 ? `Day ${1 - days}` : `Starts ${formatShortDate(member.startDate)}`} · {member.stage ?? "Pre-boarding"}
+              {days <= 0 ? `Day ${1 - days}` : `Starts ${formatShortDate(member.startDate)}`} ·{" "}
+              {member.stage ?? "Pre-boarding"}
               <OnboardingStatusChip status={member.status} />
             </p>
           </div>
@@ -179,7 +219,9 @@ function CheckinForm({ member, initialType }: { member: TeamMemberDetail; initia
             <Select
               items={peopleItems}
               value={member.person.id}
-              onValueChange={(value) => void navigate(checkinPath(String(value), type === "probation" ? undefined : type))}
+              onValueChange={(value) =>
+                void navigate(checkinPath(String(value), type === "probation" ? undefined : type))
+              }
             >
               <SelectTrigger id={ids.person} className="w-full">
                 <SelectValue />
@@ -198,13 +240,21 @@ function CheckinForm({ member, initialType }: { member: TeamMemberDetail; initia
 
       <PageColumns>
         <PageMain>
-          <form className="contents" aria-label={`Check-in with ${first}`} onSubmit={(event) => event.preventDefault()}>
+          <form
+            className="contents"
+            aria-label={`Check-in with ${first}`}
+            onSubmit={(event) => event.preventDefault()}
+          >
             <Card className="gap-5 px-6">
               <fieldset className="flex flex-col gap-2">
                 <legend className="mb-2 text-sm font-medium">Type</legend>
                 <ConnectedButtonGroup aria-label="Check-in type" className="flex-wrap">
                   {CheckinTypeSchema.options.map((value) => (
-                    <ConnectedButton key={value} pressed={type === value} onClick={() => setType(value)}>
+                    <ConnectedButton
+                      key={value}
+                      pressed={type === value}
+                      onClick={() => setType(value)}
+                    >
                       {CHECKIN_TYPE_LABEL[value]}
                     </ConnectedButton>
                   ))}
@@ -253,7 +303,11 @@ function CheckinForm({ member, initialType }: { member: TeamMemberDetail; initia
                 <legend className="mb-2 text-sm font-medium">How is onboarding going?</legend>
                 <ConnectedButtonGroup aria-label="Overall pulse" className="flex-wrap">
                   {PulseSchema.options.map((value) => (
-                    <ConnectedButton key={value} pressed={pulse === value} onClick={() => setPulse(value)}>
+                    <ConnectedButton
+                      key={value}
+                      pressed={pulse === value}
+                      onClick={() => setPulse(value)}
+                    >
                       {PULSE[value].label}
                     </ConnectedButton>
                   ))}
@@ -279,7 +333,9 @@ function CheckinForm({ member, initialType }: { member: TeamMemberDetail; initia
                             <ConnectedButton
                               key={level}
                               pressed={ratings[area.id] === index}
-                              onClick={() => setRatings((current) => ({ ...current, [area.id]: index }))}
+                              onClick={() =>
+                                setRatings((current) => ({ ...current, [area.id]: index }))
+                              }
                             >
                               {level}
                             </ConnectedButton>
@@ -329,7 +385,12 @@ function CheckinForm({ member, initialType }: { member: TeamMemberDetail; initia
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor={ids.next}>Agreed next steps</Label>
-                <Textarea id={ids.next} rows={3} value={nextSteps} onChange={(event) => setNextSteps(event.target.value)} />
+                <Textarea
+                  id={ids.next}
+                  rows={3}
+                  value={nextSteps}
+                  onChange={(event) => setNextSteps(event.target.value)}
+                />
               </div>
               {type === "probation" ? (
                 <fieldset>
@@ -355,7 +416,10 @@ function CheckinForm({ member, initialType }: { member: TeamMemberDetail; initia
                   </OptionList>
                 </fieldset>
               ) : null}
-              <label htmlFor={ids.share} className="flex cursor-pointer items-center gap-3.5 rounded-lg bg-field px-3.5 py-3">
+              <label
+                htmlFor={ids.share}
+                className="flex cursor-pointer items-center gap-3.5 rounded-lg bg-field px-3.5 py-3"
+              >
                 <span className="flex-1 text-sm">
                   <b className="font-medium">Share with {first}</b>
                   <br />
@@ -369,18 +433,26 @@ function CheckinForm({ member, initialType }: { member: TeamMemberDetail; initia
             <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-surface-container-high px-4 py-3 shadow-elevation-1">
               <span className="text-sm">Saved to {first}’s onboarding record</span>
               <div className="flex flex-wrap gap-2">
-                <Button variant="ghost" nativeButton={false} render={<Link to={memberPath(member.person.id)} />}>
+                <Button
+                  variant="ghost"
+                  nativeButton={false}
+                  render={<Link to={memberPath(member.person.id)} />}
+                >
                   Cancel
                 </Button>
                 <Button onClick={submit} disabled={save.isPending}>
-                  <CheckIcon aria-hidden /> {type === "probation" ? "Save and send recommendation" : "Save check-in"}
+                  <CheckIcon aria-hidden />{" "}
+                  {type === "probation" ? "Save and send recommendation" : "Save check-in"}
                 </Button>
               </div>
             </div>
           </form>
         </PageMain>
         <PageSide>
-          <SectionCard title="Evidence" action={<span className="text-xs text-on-surface-variant">Pulled from ContextOS</span>}>
+          <SectionCard
+            title="Evidence"
+            action={<span className="text-xs text-on-surface-variant">Pulled from ContextOS</span>}
+          >
             {days <= 0 && member.modules.length ? (
               <PlanProgress
                 progress={member.progress}
@@ -408,7 +480,11 @@ function CheckinForm({ member, initialType }: { member: TeamMemberDetail; initia
           {member.checkins[0] ? (
             <SectionCard
               title="Last check-in"
-              action={<span className="text-xs text-on-surface-variant">{formatShortDate(member.checkins[0].on)}</span>}
+              action={
+                <span className="text-xs text-on-surface-variant">
+                  {formatShortDate(member.checkins[0].on)}
+                </span>
+              }
             >
               <p className="text-sm">{member.checkins[0].note}</p>
             </SectionCard>

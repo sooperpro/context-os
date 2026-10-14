@@ -1,4 +1,5 @@
 import type { MemberModuleState, TeamMemberDetail } from "@contextos/shared";
+import { useBotContext } from "@/components/layout/bot-context";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { useState, type ReactNode } from "react";
@@ -34,7 +35,9 @@ import {
   EditNoteIcon,
   ErrorIcon,
   HubIcon,
+  LockIcon,
   PendingIcon,
+  PersonIcon,
   RouteIcon,
   ScheduleIcon,
   UndoIcon,
@@ -108,6 +111,20 @@ function MemberView({ member }: { member: TeamMemberDetail }) {
   const [assigning, setAssigning] = useState<"learning" | "roadmap" | null>(null);
   const person = { id: member.person.id, name: member.person.name };
   const first = firstName(member.person.name);
+  useBotContext(
+    {
+      chips: [
+        { icon: PersonIcon, label: member.person.name },
+        { icon: LockIcon, label: "Visible to you as manager" },
+      ],
+      suggestions:
+        member.person.id === "p-leah"
+          ? ["Summarize Leah’s onboarding progress", "Which topics is my team struggling with?"]
+          : [`What does ${first} work on?`],
+      intro: `I can summarize ${first}’s progress, check-ins and knowledge checks.`,
+    },
+    `member:${member.person.id}`,
+  );
   const days = daysFromToday(member.startDate);
   const started = days <= 0;
   const hasRoadmap = member.modules.length > 0;

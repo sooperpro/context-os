@@ -1,4 +1,5 @@
 import type { NotificationPreferences } from "@contextos/shared";
+import { useBotContext } from "@/components/layout/bot-context";
 import { useClerk } from "@clerk/react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -18,6 +19,7 @@ import {
   LightModeIcon,
   LockIcon,
   LoginIcon,
+  SettingsIcon,
   WarningIcon,
 } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
@@ -65,6 +67,14 @@ const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 const hourLabel = (hour: number) => `${String(hour).padStart(2, "0")}:00`;
 
 export function SettingsPage() {
+  useBotContext(
+    {
+      chips: [{ icon: SettingsIcon, label: "Your settings" }],
+      suggestions: ["How is my progress measured?"],
+      intro: "I can explain what each setting does.",
+    },
+    "settings",
+  );
   const [searchParams] = useSearchParams();
   const requested = searchParams.get("tab");
   const tab: TabId = TABS.some((t) => t.id === requested) ? (requested as TabId) : "profile";

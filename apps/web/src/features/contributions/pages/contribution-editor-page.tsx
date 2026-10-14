@@ -1,3 +1,4 @@
+import { useBotContext } from "@/components/layout/bot-context";
 import {
   CONTRIBUTION_MIN_TITLE,
   CONTRIBUTION_MIN_WORDS,
@@ -37,6 +38,7 @@ import {
   AddLinkIcon,
   CheckCircleFilledIcon,
   CloseIcon,
+  EditIcon,
   HelpIcon,
   HubIcon,
   InfoIcon,
@@ -143,6 +145,19 @@ function EditorForm({ gap, question }: { gap: KnowledgeGap | null; question: str
     drafted: false,
   }));
   const [pickerOpen, setPickerOpen] = useState(false);
+  useBotContext(
+    {
+      chips: [
+        {
+          icon: EditIcon,
+          label: draft.title.trim() ? `Draft: ${draft.title.trim()}` : "New contribution",
+        },
+      ],
+      suggestions: ["How do I roll back a Kestrel deploy?", "Who should I ask about Kestrel?"],
+      intro: "Ask me to find sources or check facts while you write.",
+    },
+    `editor:${draft.title.trim()}`,
+  );
   const update = (patch: Partial<Draft>) => setDraft((current) => ({ ...current, ...patch }));
 
   const debouncedTitle = useDebouncedValue(draft.title.trim());

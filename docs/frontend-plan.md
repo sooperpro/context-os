@@ -216,6 +216,11 @@ A pass over every built surface against the prototype's CSS and JS found three g
       from (evidence quotes that open the source), connected knowledge, owners and experts,
       verification and feedback, Save, Ask and Open in the source. The Knowledge Hub lists saved
       items, and the project overview's "How it connects" is the reference's relationship map.
+- [x] Context Bot follows the page, as in the reference: each screen declares its chips, intro and
+      suggested questions (`useBotContext`), personas get their own defaults, and the bot pauses
+      while a knowledge check is open. Outside a project it answers about the workspace, with
+      citations, sources, people to ask, feedback with reasons, copy, related knowledge and
+      follow-ups, plus the honest "no answer" (report a knowledge gap) and "restricted" states.
 - [x] The rail is gated by persona as well as role, so each "Prototype · view as" persona (Employee,
       Manager, HR, Admin) gets the reference's items as their screens ship.
 

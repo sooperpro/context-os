@@ -1,8 +1,9 @@
-import type { Answer } from "@contextos/shared";
+import type { Answer, AssistantAnswer } from "@contextos/shared";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { useAssistant } from "@/components/layout/assistant-context";
+import { useDeclaredBotContext, type BotPageContext } from "@/components/layout/bot-context";
 import { NAV_ITEMS } from "@/components/layout/navigation";
 import { BotGlyph } from "@/components/ui/bot-glyph";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,8 @@ import {
   EditSquareIcon,
   FilterAltIcon,
   FolderOpenFilledIcon,
+  HomeIcon,
+  PauseIcon,
   LockIcon,
   ManageSearchIcon,
   NorthEastIcon,
@@ -29,19 +32,28 @@ import { SegmentedItem, SegmentedList } from "@/components/ui/segmented-list";
 import { StatusChip } from "@/components/ui/status-chip";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { meQuery } from "@/features/account/api/account.queries";
-import { threadQuery, useCreateThread, useSendThreadMessage } from "@/features/ask/api/threads.queries";
+import { useAskWorkspace } from "@/features/ask/api/assistant.queries";
+import {
+  threadQuery,
+  useCreateThread,
+  useSendThreadMessage,
+} from "@/features/ask/api/threads.queries";
+import { DEFAULT_INTRO, DEFAULT_SCOPE, DEFAULT_SUGGESTIONS } from "@/features/ask/assistant-meta";
 import { AnswerBody } from "@/features/ask/components/answer-card";
+import { WorkspaceAnswer } from "@/features/ask/components/workspace-answer";
 import { useCreateFlag } from "@/features/feedback/api/feedback.queries";
 import { hubQuery } from "@/features/hub/api/hub.queries";
-import { projectsQuery } from "@/features/projects/api/projects.queries";
+import { currentWorkspaceQuery } from "@/features/workspace/api/workspace.queries";
+import { useViewer } from "@/features/workspace/hooks/use-viewer";
 import { ApiClientError } from "@/lib/api-client";
 import { formatCount } from "@/lib/format";
 
 /*
  * Context Bot, the assistant on every page (prototype bot.js). Inside a project it asks through the
  * Ask threads API, so every conversation here is also listed on the project's Ask page; "Expand"
- * opens it there. Answers come only from sources the person can open, and say so when the
- * evidence is thin. Outside a project it offers the projects to ask about instead of guessing.
+ * opens it there. Elsewhere it answers about the workspace (`POST /v1/assistant/ask`). Answers come
+ * only from sources the person can open, and say so when the evidence is thin. Pages tell it what
+ * they show (`useBotContext`): chips, an intro and suggested questions, or a pause during checks.
  */
 
 const PROJECT_PATH = /\/projects\/([^/?#]+)/;
@@ -65,7 +77,12 @@ export function AssistantPanel() {
 
   const me = useQuery(meQuery());
   const hub = useQuery({ ...hubQuery(projectId), enabled: projectId !== "" });
-  const projects = useQuery({ ...projectsQuery(), enabled: projectId === "" });
+  const workspace = useQuery(currentWorkspaceQuery());
+  // Until the role loads, the bot speaks as for everyone: an employee's defaults.
+  const persona = useViewer().persona ?? "employee";
+  const declared = useDeclaredBotContext();
+  const askWorkspace = useAskWorkspace();
+  const [workspaceThread, setWorkspaceThread] = useState<AssistantAnswer[]>([]);
 
   // One live conversation per project; "New conversation" forgets it (it stays on the Ask page).
   const [threadByProject, setThreadByProject] = useState<Record<string, string>>({});
@@ -86,14 +103,35 @@ export function AssistantPanel() {
   const readySources = hub.data?.project.stats.readySources ?? 0;
   const messages = threadId ? (thread.data?.messages ?? []) : [];
   const busy = pending !== null;
+  const inProject = projectId !== "";
 
   const ask = useCallback(
     async (question: string) => {
       const text = question.trim();
-      if (text.length < 3 || !projectId || busy) return;
+      if (text.length < 3 || busy) return;
       setDraft("");
       setFailure(null);
       setPending(text);
+      if (!projectId) {
+        try {
+          const answer = await askWorkspace.mutateAsync({
+            question: text,
+            page: location.pathname,
+          });
+          setWorkspaceThread((current) => [...current, answer]);
+        } catch (error) {
+          setFailure({
+            question: text,
+            message:
+              error instanceof ApiClientError
+                ? error.message
+                : "The answer could not be read. Please try again.",
+          });
+        } finally {
+          setPending(null);
+        }
+        return;
+      }
       try {
         let id = threadByProject[projectId];
         if (!id) {
@@ -106,20 +144,20 @@ export function AssistantPanel() {
         // Server messages are written for people; anything else (network, an unreadable response) is not.
         setFailure({
           question: text,
-          message: error instanceof ApiClientError ? error.message : "The answer could not be read. Please try again.",
+          message:
+            error instanceof ApiClientError
+              ? error.message
+              : "The answer could not be read. Please try again.",
         });
       } finally {
         setPending(null);
       }
     },
-    [projectId, busy, threadByProject, createThread, send],
+    [projectId, busy, threadByProject, createThread, send, askWorkspace, location.pathname],
   );
 
   // Text handed over from the top-bar search: ask it in a project, otherwise prefill the box.
-  useEffect(
-    () => subscribeToQueries((query) => (projectId ? void ask(query) : setDraft(query))),
-    [subscribeToQueries, projectId, ask],
-  );
+  useEffect(() => subscribeToQueries((query) => void ask(query)), [subscribeToQueries, ask]);
 
   useEffect(() => {
     if (open) inputRef.current?.focus();
@@ -135,6 +173,7 @@ export function AssistantPanel() {
   };
 
   const startOver = () => {
+    if (!projectId) setWorkspaceThread([]);
     setThreadByProject(({ [projectId]: _dropped, ...rest }) => rest);
     setFailure(null);
     inputRef.current?.focus();
@@ -157,12 +196,34 @@ export function AssistantPanel() {
       { onSuccess: () => setReported((current) => new Set(current).add(answer.id)) },
     );
 
-  const pageLabel = projectId
-    ? projectName
-    : (NAV_ITEMS.find((item) => (item.end ? location.pathname === item.to : location.pathname.startsWith(item.to)))
-        ?.label ?? "ContextOS");
+  const navItem = NAV_ITEMS.find((item) =>
+    item.end ? location.pathname === item.to : location.pathname.startsWith(item.to),
+  );
+  // What the page told the bot, or the project, or the persona's defaults (prototype `ctxLabel`).
+  const context: Required<Omit<BotPageContext, "paused">> & { paused: boolean } = {
+    chips:
+      declared?.chips ??
+      (inProject
+        ? [
+            { icon: FolderOpenFilledIcon, label: projectName },
+            { icon: FilterAltIcon, label: "Project sources" },
+          ]
+        : [
+            { icon: navItem?.icon ?? HomeIcon, label: navItem?.label ?? "Home" },
+            { icon: FilterAltIcon, label: DEFAULT_SCOPE[persona] },
+          ]),
+    suggestions:
+      declared?.suggestions ?? (inProject ? PROMPTS(projectName) : DEFAULT_SUGGESTIONS[persona]),
+    intro:
+      declared?.intro ??
+      (inProject
+        ? `I can explain ${projectName}'s decisions, current state, people and terms, and point you to the sources.`
+        : DEFAULT_INTRO[persona]),
+    paused: declared?.paused ?? false,
+  };
   const firstName = me.data?.name.split(/\s+/)[0];
-  const showWelcome = messages.length === 0 && !busy && !failure;
+  const conversationLength = inProject ? messages.length : workspaceThread.length;
+  const showWelcome = conversationLength === 0 && !busy && !failure;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -171,7 +232,9 @@ export function AssistantPanel() {
           <BotGlyph size="sm" />
           <div className="min-w-0">
             <h2 className="font-heading text-base leading-6 font-medium">Context Bot</h2>
-            <p className="truncate text-xs text-on-surface-variant">Answers from sources you can access</p>
+            <p className="truncate text-xs text-on-surface-variant">
+              Answers from sources you can access
+            </p>
           </div>
         </div>
         <div className="flex gap-0.5">
@@ -183,7 +246,7 @@ export function AssistantPanel() {
                   size="icon-sm"
                   className="text-on-surface-variant"
                   aria-label="New conversation"
-                  disabled={!threadId && !failure}
+                  disabled={(inProject ? !threadId : workspaceThread.length === 0) && !failure}
                   onClick={startOver}
                 />
               }
@@ -231,14 +294,12 @@ export function AssistantPanel() {
 
       <div className="flex shrink-0 flex-wrap items-center gap-2 px-5 pt-1 pb-3">
         <span className="text-xs font-medium tracking-wide text-on-surface-variant">Context</span>
-        <MetaChip tone="filled">
-          <FolderOpenFilledIcon />
-          <span className="max-w-48 truncate">{pageLabel}</span>
-        </MetaChip>
-        <MetaChip tone="filled">
-          <FilterAltIcon />
-          {projectId ? "Project sources" : "Workspace"}
-        </MetaChip>
+        {context.chips.map((chip) => (
+          <MetaChip key={chip.label} tone="filled">
+            <chip.icon />
+            <span className="max-w-48 truncate">{chip.label}</span>
+          </MetaChip>
+        ))}
       </div>
 
       <ScrollArea className="min-h-0 flex-1">
@@ -248,45 +309,33 @@ export function AssistantPanel() {
               <div className="flex flex-col items-center gap-2.5 px-2 pt-5 pb-2 text-center">
                 <BotGlyph size="xl" spin className="mb-2" />
                 <h3 className="font-heading text-2xl leading-8 font-semibold text-balance">
-                  {firstName ? `Hi ${firstName}, what would you like to understand?` : "What would you like to understand?"}
+                  {firstName
+                    ? `Hi ${firstName}, what would you like to understand?`
+                    : "What would you like to understand?"}
                 </h3>
-                <p className="max-w-[40ch] text-sm text-on-surface-variant">
-                  {projectId
-                    ? `I can explain ${projectName}'s decisions, current state, people and terms, and point you to the sources.`
-                    : "I answer from a project's sources, so pick the project you want to understand."}
-                </p>
+                <p className="max-w-[40ch] text-sm text-on-surface-variant">{context.intro}</p>
               </div>
-              <section className="flex flex-col gap-2.5">
-                <h4 className="text-sm font-medium text-on-surface-variant">
-                  {projectId ? "Suggested for you" : "Your projects"}
-                </h4>
-                <SegmentedList>
-                  {projectId
-                    ? PROMPTS(projectName).map((prompt) => (
-                        <SegmentedItem
-                          key={prompt}
-                          render={<button type="button" onClick={() => void ask(prompt)} />}
-                          className="min-h-0 gap-3 bg-card py-3.5 text-base hover:bg-ai/8 [&>svg]:size-5 [&>svg]:shrink-0 [&>svg]:text-ai"
-                        >
-                          <NorthEastIcon aria-hidden />
-                          <span>{prompt}</span>
-                        </SegmentedItem>
-                      ))
-                    : (projects.data?.items ?? []).slice(0, 6).map((project) => (
-                        <SegmentedItem
-                          key={project.id}
-                          render={<button type="button" onClick={() => void navigate(`/projects/${project.id}`)} />}
-                          className="min-h-0 gap-3 bg-card py-3.5 text-base hover:bg-ai/8 [&>svg]:size-5 [&>svg]:shrink-0 [&>svg]:text-ai"
-                        >
-                          <FolderOpenFilledIcon aria-hidden />
-                          <span className="min-w-0 truncate">{project.name}</span>
-                        </SegmentedItem>
-                      ))}
-                </SegmentedList>
-                {!projectId && projects.data?.items.length === 0 ? (
-                  <p className="text-xs text-on-surface-variant">No projects yet. Create one from Projects.</p>
-                ) : null}
-              </section>
+              {context.paused ? (
+                <p className="flex items-center justify-center gap-1.5 rounded-lg bg-pane px-3 py-2.5 text-sm text-on-surface-variant [&_svg]:size-4">
+                  <PauseIcon aria-hidden /> Paused while your knowledge check is open
+                </p>
+              ) : context.suggestions.length ? (
+                <section className="flex flex-col gap-2.5">
+                  <h4 className="text-sm font-medium text-on-surface-variant">Suggested for you</h4>
+                  <SegmentedList>
+                    {context.suggestions.map((prompt) => (
+                      <SegmentedItem
+                        key={prompt}
+                        render={<button type="button" onClick={() => void ask(prompt)} />}
+                        className="min-h-0 gap-3 bg-card py-3.5 text-start text-base hover:bg-ai/8 [&>svg]:size-5 [&>svg]:shrink-0 [&>svg]:text-ai"
+                      >
+                        <NorthEastIcon aria-hidden />
+                        <span>{prompt}</span>
+                      </SegmentedItem>
+                    ))}
+                  </SegmentedList>
+                </section>
+              ) : null}
               <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-xs text-on-surface-variant [&_svg]:size-4">
                 <LockIcon aria-hidden />
                 Only sources you can access are searched. Restricted content is never shown.
@@ -314,6 +363,21 @@ export function AssistantPanel() {
             </div>
           ))}
 
+          {inProject
+            ? null
+            : workspaceThread.map((answer, index) => (
+                <div key={answer.id} className="flex flex-col gap-5">
+                  <UserBubble text={answer.question} />
+                  <BotMessage>
+                    <WorkspaceAnswer
+                      answer={answer}
+                      last={index === workspaceThread.length - 1}
+                      onAsk={(question) => void ask(question)}
+                    />
+                  </BotMessage>
+                </div>
+              ))}
+
           {pending ? (
             <div className="flex flex-col gap-5">
               <UserBubble text={pending} />
@@ -321,7 +385,9 @@ export function AssistantPanel() {
                 <div className="flex min-h-10 items-center gap-3" role="status">
                   <Loader size="sm" contained label="Context Bot is answering" />
                   <span className="text-sm text-on-surface-variant">
-                    Searching {formatCount(readySources, "source")} you can access…
+                    {inProject
+                      ? `Searching ${formatCount(readySources, "source")} you can access…`
+                      : "Searching the sources you can access…"}
                   </span>
                 </div>
               </BotMessage>
@@ -336,7 +402,9 @@ export function AssistantPanel() {
                   <StatusChip tone="error" icon={<CloudOffIcon />}>
                     Couldn't get an answer
                   </StatusChip>
-                  <p className="text-sm">Something went wrong reaching ContextOS. Your question is saved.</p>
+                  <p className="text-sm">
+                    Something went wrong reaching ContextOS. Your question is saved.
+                  </p>
                   <p className="text-xs text-on-surface-variant">{failure.message}</p>
                   <Button size="xs" variant="secondary" onClick={() => void ask(failure.question)}>
                     <RefreshIcon aria-hidden />
@@ -360,7 +428,7 @@ export function AssistantPanel() {
             ref={inputRef}
             rows={1}
             value={draft}
-            disabled={!projectId}
+            disabled={context.paused}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
@@ -368,7 +436,13 @@ export function AssistantPanel() {
                 void ask(draft);
               }
             }}
-            placeholder={projectId ? `Ask about ${projectName}…` : "Open a project to ask"}
+            placeholder={
+              context.paused
+                ? "Paused during your knowledge check"
+                : inProject
+                  ? `Ask about ${projectName}…`
+                  : `Ask about ${workspace.data?.name ?? "your work"}…`
+            }
             className="field-sizing-content max-h-40 min-h-10 min-w-0 flex-1 resize-none bg-transparent px-2 py-2 text-base text-on-surface outline-none placeholder:text-on-surface-variant disabled:opacity-60"
           />
           <Button
@@ -377,7 +451,7 @@ export function AssistantPanel() {
             size="icon"
             className="mb-0.5 disabled:bg-on-surface/10 disabled:text-on-surface/38 disabled:opacity-100"
             aria-label="Send question"
-            disabled={!projectId || draft.trim().length < 3 || busy}
+            disabled={context.paused || draft.trim().length < 3 || busy}
           >
             <ArrowUpwardIcon />
           </Button>
@@ -419,7 +493,14 @@ interface NoAnswerCardProps {
 }
 
 /** The prototype's honest "no reliable answer" state, with a way to route the gap to owners. */
-function NoAnswerCard({ answer, projectName, readySources, reported, reporting, onReport }: NoAnswerCardProps) {
+function NoAnswerCard({
+  answer,
+  projectName,
+  readySources,
+  reported,
+  reporting,
+  onReport,
+}: NoAnswerCardProps) {
   return (
     <div className="flex flex-col items-start gap-2.5 rounded-xl bg-card p-4">
       <StatusChip tone="warning" icon={<SearchOffIcon />}>

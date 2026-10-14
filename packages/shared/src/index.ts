@@ -1,6 +1,7 @@
 export * from "./schemas/admin.js";
 export * from "./schemas/api.js";
 export * from "./schemas/ask.js";
+export * from "./schemas/assistant.js";
 export * from "./schemas/common.js";
 export * from "./schemas/context.js";
 export * from "./schemas/contributions.js";

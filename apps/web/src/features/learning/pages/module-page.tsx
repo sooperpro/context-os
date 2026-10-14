@@ -1,4 +1,5 @@
 import type { ModuleDetail } from "@contextos/shared";
+import { useBotContext } from "@/components/layout/bot-context";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { useState } from "react";
@@ -23,6 +24,7 @@ import {
   CheckCircleFilledIcon,
   ChevronRightIcon,
   ContactSupportIcon,
+  DescriptionIcon,
   FormatListNumberedIcon,
   HubIcon,
   LockClockIcon,
@@ -32,6 +34,7 @@ import {
   PlayArrowFilledIcon,
   RadioButtonUncheckedIcon,
   ScheduleIcon,
+  SchoolIcon,
   UpdateIcon,
   VerifiedIcon,
 } from "@/components/ui/icons";
@@ -96,6 +99,32 @@ export function ModulePage() {
 }
 
 function ModuleView({ module }: { module: ModuleDetail }) {
+  useBotContext(
+    {
+      chips: [
+        { icon: SchoolIcon, label: `Module: ${module.title}` },
+        ...(module.sources.length
+          ? [
+              {
+                icon: DescriptionIcon,
+                label:
+                  module.sources.length === 1 ? "1 source" : `${module.sources.length} sources`,
+              },
+            ]
+          : []),
+      ],
+      suggestions:
+        module.id === "m4"
+          ? [
+              "Summarize this module in 3 points",
+              "Why are we moving billing to Kafka?",
+              "Who owns pricing decisions?",
+            ]
+          : ["What should I focus on this week?"],
+      intro: `I’m scoped to “${module.title}” and its sources.`,
+    },
+    `module:${module.id}`,
+  );
   const { openAssistant } = useAssistant();
   const [clarifyOpen, setClarifyOpen] = useState(false);
   const Icon = MODULE_KIND[module.kind].icon;

@@ -1,4 +1,5 @@
 import type { AccessConflict, AccessPolicy } from "@contextos/shared";
+import { useBotContext } from "@/components/layout/bot-context";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { useId, useState } from "react";
@@ -10,12 +11,14 @@ import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import {
   AddIcon,
+  AdminPanelSettingsIcon,
   BlockIcon,
   CallSplitIcon,
   CheckCircleFilledIcon,
   EditIcon,
   GroupIcon,
   LockIcon,
+  PolicyIcon,
 } from "@/components/ui/icons";
 import { Label } from "@/components/ui/label";
 import { MetaChip } from "@/components/ui/meta-chip";
@@ -39,6 +42,19 @@ import { POLICY_EFFECT } from "@/features/admin/admin-meta";
  * what one person can reach.
  */
 export function AccessPage() {
+  useBotContext(
+    {
+      chips: [
+        { icon: PolicyIcon, label: "Access policies" },
+        { icon: AdminPanelSettingsIcon, label: "Workspace" },
+      ],
+      suggestions: [
+        "Which sources are excluded from answers?",
+        "Who changed access policies this week?",
+      ],
+    },
+    "access",
+  );
   const query = useQuery(policiesQuery());
   const [editing, setEditing] = useState<{ policy: AccessPolicy | null } | null>(null);
   const [resolving, setResolving] = useState<AccessConflict | null>(null);

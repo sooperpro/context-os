@@ -1,4 +1,5 @@
 import type { Lesson } from "@contextos/shared";
+import { useBotContext } from "@/components/layout/bot-context";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { useRef } from "react";
@@ -15,7 +16,14 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
-import { ArrowForwardIcon, CheckIcon, HighlightIcon, VerifiedIcon } from "@/components/ui/icons";
+import {
+  ArrowForwardIcon,
+  ArticleIcon,
+  CheckIcon,
+  HighlightIcon,
+  SchoolIcon,
+  VerifiedIcon,
+} from "@/components/ui/icons";
 import { Loader } from "@/components/ui/loader";
 import { Progress } from "@/components/ui/progress";
 import { LEARNING_ENDPOINTS as E } from "@/features/learning/api/learning.api";
@@ -60,6 +68,22 @@ export function LessonPage() {
 }
 
 function LessonView({ lesson }: { lesson: Lesson }) {
+  useBotContext(
+    {
+      chips: [
+        { icon: ArticleIcon, label: `Lesson: ${lesson.title}` },
+        { icon: SchoolIcon, label: lesson.module.title },
+      ],
+      suggestions: [
+        "What does dual-write mean here?",
+        "Explain idempotent consumers simply",
+        "Who made this decision?",
+      ],
+      intro:
+        "I’m reading this lesson with you. Ask about anything in it, or select text in the lesson to ask about that passage.",
+    },
+    `lesson:${lesson.id}`,
+  );
   const navigate = useNavigate();
   const articleRef = useRef<HTMLElement>(null);
   const complete = useCompleteLesson();

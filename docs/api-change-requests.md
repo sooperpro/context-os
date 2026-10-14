@@ -22,6 +22,7 @@ shape, then delete the mock.
 | Knowledge Hub                                 | `GET /v1/projects`, `/v1/projects/:id/context-items`, `/v1/users`, `/v1/org/teams`                                                                                                                                                                                                                                                                                                                                                                              | Live. Project category missing, see 1                                                                                                  |
 | Knowledge item page, Saved                    | Live: `GET /v1/projects/:id/hub`, `/v1/projects/:id/context-items`. Mocked: `GET /v1/me/saved`, `PUT /v1/me/saved/:targetId`                                                                                                                                                                                                                                                                                                                                    | Partly mocked, see 12                                                                                                                  |
 | Project hub, Ask, Sources                     | project, hub, context, ask and source routes                                                                                                                                                                                                                                                                                                                                                                                                                    | Live                                                                                                                                   |
+| Context Bot outside a project                 | `POST /v1/assistant/ask`, `/v1/assistant/answers/:id/feedback`, `/v1/assistant/gaps`                                                                                                                                                                                                                                                                                                                                                                            | Mocked, see 13. Inside a project it uses the live Ask threads                                                                          |
 | Settings, Workspace setup                     | identity, workspace, notification and connector routes                                                                                                                                                                                                                                                                                                                                                                                                          | Live                                                                                                                                   |
 | My roadmap, module, lesson, knowledge check   | `GET /v1/me/roadmap`, `/v1/me/modules/:id`, `/v1/me/lessons/:id`, `/v1/me/checks/:id`; `POST /v1/me/lessons/:id/complete`, `/v1/me/checks/:id/attempts`, `/v1/me/learning-ratings`, `/v1/me/learning-requests`                                                                                                                                                                                                                                                  | Mocked. Contracts in `packages/shared/src/schemas/learning.ts`; views over the existing `/learning/*` data, see 7                      |
 | People directory, person profile              | `GET /v1/people?q=&filter=`, `/v1/people/experts`, `/v1/people/teams`, `/v1/people/:id`                                                                                                                                                                                                                                                                                                                                                                         | Mocked. Contracts in `packages/shared/src/schemas/people.ts`; `GET /v1/users` has names and roles only, see 8                          |
@@ -279,3 +280,28 @@ mocked (`apps/web/src/mocks/saved.ts`) and last for the session.
 - Saved knowledge, per person: `GET /v1/me/saved` (newest first) and `PUT /v1/me/saved/:targetId`
   with `{ targetType: "context_item" | "project", projectId, saved }`. Contracts in
   `packages/shared/src/schemas/saved.ts`.
+
+## 13. Context Bot outside a project
+
+**Why.** In the reference, Context Bot answers on every page, not only inside a project: questions
+about the company, the person's roadmap, their team, People Ops records or the workspace, scoped to
+what they can access. Each page tells it what is on screen (chips, an intro, suggested questions), and
+it pauses while a knowledge check is open.
+
+**Today.** Inside a project the panel uses the live Ask threads API. Elsewhere it asks the mocked
+`POST /v1/assistant/ask` (`apps/web/src/mocks/assistant.ts`), which has the reference's answers for
+its suggested questions, builds probation and people answers from the other mocks, refuses pay,
+performance and disciplinary questions, and says "no reliable answer" otherwise. Page context is
+client-side (`useBotContext`).
+
+**Change.** Serve the contracts in `packages/shared/src/schemas/assistant.ts`:
+
+- `POST /v1/assistant/ask` with `{ question, page }`: retrieval across every project and record the
+  person can access, answering with blocks (`[n]` cites `sources[n - 1]`), a confidence label, a
+  note when a source is stale, people to ask, follow-ups and related knowledge. `outcome` is
+  `no_answer` when nothing reliable is in reach (with what was searched and who might know) and
+  `restricted` for pay, performance and disciplinary questions.
+- `POST /v1/assistant/answers/:id/feedback` with `{ helpful, reason }`, feeding the AI settings page's
+  "why answers were rated unhelpful".
+- `POST /v1/assistant/gaps` with `{ question }`: records a knowledge gap and tells its owners.
+- Honour the AI setting "Pause during knowledge checks" on the server too.
