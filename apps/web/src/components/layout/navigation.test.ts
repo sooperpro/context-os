@@ -25,7 +25,7 @@ describe("navigation config", () => {
       persona: Parameters<typeof navItemsFor>[1],
     ) => navItemsFor(role, persona).map((item) => item.id);
     expect(rail("member", "employee")).toEqual(["home", "roadmap", "knowledge", "people", "contributions"]);
-    expect(rail("manager", "manager")).toEqual(["home", "knowledge", "people"]);
+    expect(rail("manager", "manager")).toEqual(["home", "team", "knowledge", "reviews", "people", "learning"]);
     expect(rail("owner", "admin")).toEqual(["overview", "members", "knowledge", "setup"]);
   });
 

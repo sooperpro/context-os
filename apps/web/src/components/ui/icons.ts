@@ -122,6 +122,11 @@ import LocalShippingIcon from "@material-symbols/svg-400/rounded/local_shipping.
 import ConversionPathIcon from "@material-symbols/svg-400/rounded/conversion_path.svg?react";
 import MenuBookIcon from "@material-symbols/svg-400/rounded/menu_book.svg?react";
 import VisibilityIcon from "@material-symbols/svg-400/rounded/visibility.svg?react";
+import UndoIcon from "@material-symbols/svg-400/rounded/undo.svg?react";
+import RemoveIcon from "@material-symbols/svg-400/rounded/remove.svg?react";
+import Diversity3FilledIcon from "@material-symbols/svg-400/rounded/diversity_3-fill.svg?react";
+import RateReviewFilledIcon from "@material-symbols/svg-400/rounded/rate_review-fill.svg?react";
+import RateReviewIcon from "@material-symbols/svg-400/rounded/rate_review.svg?react";
 import ManageAccountsFilledIcon from "@material-symbols/svg-400/rounded/manage_accounts-fill.svg?react";
 import PersonSearchIcon from "@material-symbols/svg-400/rounded/person_search.svg?react";
 import CalendarMonthIcon from "@material-symbols/svg-400/rounded/calendar_month.svg?react";
@@ -198,6 +203,11 @@ export type MaterialIcon = ComponentType<SVGProps<SVGSVGElement>>;
 
 export {
   AddIcon,
+  UndoIcon,
+  RemoveIcon,
+  Diversity3FilledIcon,
+  RateReviewFilledIcon,
+  RateReviewIcon,
   ManageAccountsFilledIcon,
   PersonSearchIcon,
   CalendarMonthIcon,

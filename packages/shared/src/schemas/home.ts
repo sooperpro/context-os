@@ -179,6 +179,8 @@ export const TeamMemberProgressSchema = z.object({
   status: OnboardingStatusSchema,
   /** The next thing on their plan: "Week 2 check-in · Fri". */
   next: z.string().nullable(),
+  /** The most important problem, if any: "2 modules are 5 days overdue". */
+  issue: z.string().nullable(),
 });
 export type TeamMemberProgress = z.infer<typeof TeamMemberProgressSchema>;
 

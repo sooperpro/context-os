@@ -6,6 +6,9 @@ import {
   ContributionResubmitInputSchema,
   ContributionSchema,
   KnowledgeGapListSchema,
+  ReviewDecisionInputSchema,
+  ReviewDecisionSchema,
+  ReviewQueueSchema,
   SourcePickListSchema,
   SuggestedReviewerSchema,
   type Contribution,
@@ -14,6 +17,8 @@ import {
   type ContributionInput,
   type KnowledgeGap,
   type KnowledgeSection,
+  type ReviewDecisionInput,
+  type ReviewQueue,
   type SourcePick,
   type SuggestedReviewer,
 } from "@contextos/shared";
@@ -40,6 +45,8 @@ export const CONTRIBUTION_ENDPOINTS = {
     schema: ContributionSchema,
     input: ContributionResubmitInputSchema,
   },
+  reviews: { path: "/v1/me/reviews", schema: ReviewQueueSchema },
+  decide: { path: "/v1/me/reviews/:id/decision", schema: ReviewDecisionSchema, input: ReviewDecisionInputSchema },
 } as const;
 
 const E = CONTRIBUTION_ENDPOINTS;
@@ -87,5 +94,17 @@ export function resubmitContribution(id: string): Promise<Contribution> {
     method: "POST",
     body: {},
     schema: E.resubmit.schema,
+  });
+}
+
+export function fetchReviewQueue(signal?: AbortSignal): Promise<ReviewQueue> {
+  return apiRequest(E.reviews.path, { schema: E.reviews.schema, signal });
+}
+
+export function decideReview(id: string, input: ReviewDecisionInput) {
+  return apiRequest(E.decide.path.replace(":id", encodeURIComponent(id)), {
+    method: "POST",
+    body: input,
+    schema: E.decide.schema,
   });
 }

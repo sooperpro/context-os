@@ -78,6 +78,41 @@ const appChildren = [
     },
   },
   {
+    path: "team",
+    lazy: async () => {
+      const { TeamPage } = await import("@/features/team/pages/team-page");
+      return { Component: TeamPage };
+    },
+  },
+  {
+    path: "team/:personId",
+    lazy: async () => {
+      const { MemberPage } = await import("@/features/team/pages/member-page");
+      return { Component: MemberPage };
+    },
+  },
+  {
+    path: "team/:personId/check-in",
+    lazy: async () => {
+      const { CheckinPage } = await import("@/features/team/pages/checkin-page");
+      return { Component: CheckinPage };
+    },
+  },
+  {
+    path: "reviews",
+    lazy: async () => {
+      const { ReviewQueuePage } = await import("@/features/contributions/pages/review-queue-page");
+      return { Component: ReviewQueuePage };
+    },
+  },
+  {
+    path: "learning",
+    lazy: async () => {
+      const { MyLearningPage } = await import("@/features/learning/pages/my-learning-page");
+      return { Component: MyLearningPage };
+    },
+  },
+  {
     path: "people",
     lazy: async () => {
       const { PeoplePage } = await import("@/features/people/pages/people-page");

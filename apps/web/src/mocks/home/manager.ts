@@ -1,60 +1,10 @@
 import { HOME_ENDPOINTS as E } from "@/features/home/api/home.api";
 import { mockGet } from "@/mocks/define";
 import { people } from "@/mocks/fixtures/people";
-import { atFromToday, dateFromToday } from "@/mocks/fixtures/time";
+import { atFromToday } from "@/mocks/fixtures/time";
 
 /** Daniel's Platform team, as in the prototype's manager Home. */
 export const managerMocks = [
-  mockGet(E.teamOnboarding)(() => ({
-    team: { id: "team-platform", name: "Platform" },
-    people: [
-      {
-        person: people.maya,
-        startDate: dateFromToday(-8),
-        stage: "Foundations",
-        progress: 0.18,
-        expected: 0.12,
-        status: "on_track",
-        next: "Week 2 check-in · Fri",
-      },
-      {
-        person: people.chloe,
-        startDate: dateFromToday(-21),
-        stage: "Product & systems",
-        progress: 0.21,
-        expected: 0.27,
-        status: "blocked",
-        next: "30-day review",
-      },
-      {
-        person: people.leah,
-        startDate: dateFromToday(-38),
-        stage: "Product & systems",
-        progress: 0.34,
-        expected: 0.45,
-        status: "at_risk",
-        next: "1:1 · Tomorrow",
-      },
-      {
-        person: people.arjun,
-        startDate: dateFromToday(-75),
-        stage: "Ownership",
-        progress: 0.86,
-        expected: 0.82,
-        status: "on_track",
-        next: "Recommendation due in 9 days",
-      },
-      {
-        person: people.jonah,
-        startDate: dateFromToday(5),
-        stage: null,
-        progress: 0,
-        expected: 0,
-        status: "needs_setup",
-        next: "Assign a roadmap",
-      },
-    ],
-  })),
   mockGet(E.attention)(() => ({
     items: [
       {

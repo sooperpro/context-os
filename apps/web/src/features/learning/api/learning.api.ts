@@ -1,4 +1,5 @@
 import {
+  AddCourseInputSchema,
   CheckAttemptInputSchema,
   CheckResultSchema,
   KnowledgeCheckSchema,
@@ -10,6 +11,7 @@ import {
   LessonCompletionSchema,
   LessonSchema,
   ModuleDetailSchema,
+  MyLearningSchema,
   MyRoadmapSchema,
   type CheckAttemptInput,
   type CheckResult,
@@ -20,6 +22,7 @@ import {
   type Lesson,
   type LessonCompletion,
   type ModuleDetail,
+  type MyLearning,
   type MyRoadmap,
 } from "@contextos/shared";
 import { apiRequest } from "@/lib/api-client";
@@ -54,6 +57,8 @@ export const LEARNING_ENDPOINTS = {
     schema: LearningRequestSchema,
     input: LearningRequestInputSchema,
   },
+  myLearning: { path: "/v1/me/learning", schema: MyLearningSchema },
+  addCourse: { path: "/v1/me/learning/:id/add", schema: MyLearningSchema, input: AddCourseInputSchema },
 } as const;
 
 const E = LEARNING_ENDPOINTS;
@@ -86,3 +91,9 @@ export const rateLearning = (input: LearningRatingInput) =>
 
 export const sendLearningRequest = (input: LearningRequestInput): Promise<LearningRequest> =>
   apiRequest(E.request.path, { method: "POST", body: input, schema: E.request.schema });
+
+export const fetchMyLearning = (signal?: AbortSignal): Promise<MyLearning> =>
+  apiRequest(E.myLearning.path, { schema: E.myLearning.schema, signal });
+
+export const addCourse = (id: string): Promise<MyLearning> =>
+  apiRequest(withId(E.addCourse.path, id), { method: "POST", body: {}, schema: E.addCourse.schema });

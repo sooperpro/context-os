@@ -2,10 +2,12 @@ import type { CheckAttemptInput } from "@contextos/shared";
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { homeKeys } from "@/features/home/api/home.queries";
 import {
+  addCourse,
   completeLesson,
   fetchCheck,
   fetchLesson,
   fetchModule,
+  fetchMyLearning,
   fetchRoadmap,
   rateLearning,
   sendLearningRequest,
@@ -18,7 +20,20 @@ export const learningKeys = {
   module: (id: string) => [...learningKeys.all, "module", id] as const,
   lesson: (id: string) => [...learningKeys.all, "lesson", id] as const,
   check: (id: string) => [...learningKeys.all, "check", id] as const,
+  mine: () => [...learningKeys.all, "mine"] as const,
 };
+
+/** "My learning", for people past onboarding. */
+export const myLearningQuery = () =>
+  queryOptions({ queryKey: learningKeys.mine(), queryFn: ({ signal }) => fetchMyLearning(signal) });
+
+export function useAddCourse() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => addCourse(id),
+    onSuccess: (data) => queryClient.setQueryData(learningKeys.mine(), data),
+  });
+}
 
 export const roadmapQuery = () =>
   queryOptions({ queryKey: learningKeys.roadmap(), queryFn: ({ signal }) => fetchRoadmap(signal) });

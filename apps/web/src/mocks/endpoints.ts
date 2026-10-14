@@ -1,6 +1,7 @@
 import { contributionMocks } from "@/mocks/contributions";
 import { learningMocks } from "@/mocks/learning";
 import { peopleMocks } from "@/mocks/people";
+import { teamMocks } from "@/mocks/team";
 import { adminMocks } from "@/mocks/home/admin";
 import { employeeMocks } from "@/mocks/home/employee";
 import { managerMocks } from "@/mocks/home/manager";
@@ -16,6 +17,7 @@ export const mockEndpoints = [
   ...learningMocks,
   ...peopleMocks,
   ...contributionMocks,
+  ...teamMocks,
   ...managerMocks,
   ...peopleOpsMocks,
   ...adminMocks,

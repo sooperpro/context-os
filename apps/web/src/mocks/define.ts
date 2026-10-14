@@ -55,38 +55,29 @@ export function mockGet<S extends z.ZodType>(endpoint: { path: string; schema: S
  * body is validated with the endpoint's input schema, as the API would; an invalid body answers 400
  * with the API's error envelope. The response is parsed with the response schema.
  */
-export function mockPost<S extends z.ZodType, I extends z.ZodType>(endpoint: {
-  path: string;
-  schema: S;
-  input: I;
-}) {
-  return (
-    resolve: (input: z.output<I>, context: ResolverContext) => z.input<S>,
-    status = 200,
-  ): MockEndpoint => ({
-    key: mockKey("POST", endpoint.path),
-    handler: http.post(buildApiUrl(endpoint.path), async ({ request, params }) => {
-      await delay();
-      const text = await request.text();
-      const parsed = endpoint.input.safeParse(text ? JSON.parse(text) : {});
-      if (!parsed.success) {
-        return HttpResponse.json(
-          {
-            error: {
-              code: "VALIDATION_ERROR",
-              message: "The request is not valid.",
-              details: parsed.error.issues,
-            },
-          },
-          { status: 400 },
-        );
-      }
-      try {
-        const body = endpoint.schema.parse(resolve(parsed.data, { request, params })) as JsonBodyType;
-        return HttpResponse.json(body, { status, headers: { "X-ContextOS-Mock": "1" } });
-      } catch (error) {
-        return notFound(error);
-      }
-    }),
-  });
+function mockWrite(method: "post" | "patch") {
+  return <S extends z.ZodType, I extends z.ZodType>(endpoint: { path: string; schema: S; input: I }) =>
+    (resolve: (input: z.output<I>, context: ResolverContext) => z.input<S>, status = 200): MockEndpoint => ({
+      key: mockKey(method.toUpperCase(), endpoint.path),
+      handler: http[method](buildApiUrl(endpoint.path), async ({ request, params }) => {
+        await delay();
+        const text = await request.text();
+        const parsed = endpoint.input.safeParse(text ? JSON.parse(text) : {});
+        if (!parsed.success) {
+          return HttpResponse.json(
+            { error: { code: "VALIDATION_ERROR", message: "The request is not valid.", details: parsed.error.issues } },
+            { status: 400 },
+          );
+        }
+        try {
+          const body = endpoint.schema.parse(resolve(parsed.data, { request, params })) as JsonBodyType;
+          return HttpResponse.json(body, { status, headers: { "X-ContextOS-Mock": "1" } });
+        } catch (error) {
+          return notFound(error);
+        }
+      }),
+    });
 }
+
+export const mockPost = mockWrite("post");
+export const mockPatch = mockWrite("patch");

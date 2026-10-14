@@ -1,8 +1,10 @@
-import type { ContributionInput, KnowledgeSection } from "@contextos/shared";
+import type { ContributionInput, KnowledgeSection, ReviewDecisionInput } from "@contextos/shared";
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   createContribution,
+  decideReview,
   draftContribution,
+  fetchReviewQueue,
   listMyContributions,
   listMyKnowledgeGaps,
   resubmitContribution,
@@ -17,7 +19,20 @@ export const contributionKeys = {
   sources: (query: string) => [...contributionKeys.all, "sources", query] as const,
   reviewer: (section: KnowledgeSection, title: string) =>
     [...contributionKeys.all, "reviewer", section, title] as const,
+  reviews: () => [...contributionKeys.all, "reviews"] as const,
 };
+
+/** Contributions waiting for the caller to review. */
+export const reviewQueueQuery = () =>
+  queryOptions({ queryKey: contributionKeys.reviews(), queryFn: ({ signal }) => fetchReviewQueue(signal) });
+
+export function useDecideReview() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: ReviewDecisionInput }) => decideReview(id, input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: contributionKeys.reviews() }),
+  });
+}
 
 /** The caller's contributions; Home's "Your contributions" card reads the same query. */
 export const myContributionsQuery = () =>

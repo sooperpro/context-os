@@ -11,6 +11,7 @@ import type {
   ModuleKind,
   ModuleLesson,
   ModuleStatus,
+  MyLearning,
   MyRoadmap,
   NextUp,
   PersonRef,
@@ -29,6 +30,27 @@ import { atFromToday, dateFromToday } from "@/mocks/fixtures/time";
  * session: completing a lesson or passing a check moves the roadmap, the module and Home's
  * "Up next" and "Your onboarding" forward, as it would against the API. A reload starts over.
  */
+
+/* ---- My learning (Daniel, long past onboarding) -------------------------------------------------- */
+
+function seedMyLearning(): MyLearning {
+  return {
+    onboardingFinishedOn: "2022-05-06",
+    assigned: [
+      { id: "readiness-reviews", title: "Running readiness reviews", kind: "review", reason: "Assigned by Elena Brooks to all managers", dueOn: dateFromToday(18), lessonCount: 3, lessonsDone: 2, minutes: 45 },
+      { id: "kestrel-managers", title: "Kestrel for managers", kind: "project", reason: "Optional · your team delivers it", dueOn: null, lessonCount: 2, lessonsDone: 0, minutes: 20 },
+    ],
+    suggested: [
+      { id: "decision-records", title: "Writing good decision records", kind: "decisions", reason: "Your team cites decision records in 40% of answers", minutes: 25 },
+      { id: "failed-check-coaching", title: "Coaching through a failed knowledge check", kind: "coaching", reason: "Leah failed the billing check twice", minutes: 15 },
+    ],
+    completed: [
+      { id: "manager-onboarding", title: "People manager onboarding v1", completedOn: "2022-03-18" },
+      { id: "oncall-managers", title: "Platform on-call for managers", completedOn: "2025-06-12" },
+      { id: "customers-refresher", title: "Our customers and what they need (refresher)", completedOn: "2026-09-08" },
+    ],
+  };
+}
 
 /* ---- Fixture ----------------------------------------------------------------------------------- */
 
@@ -449,6 +471,7 @@ let modules = seedModules();
 let history = seedHistory();
 let checksPassed = 1;
 const ratings = new Map<string, LearningRatingValue>();
+let myLearning = seedMyLearning();
 
 /** Restores the fixtures; tests call it so one test's progress never leaks into the next. */
 export function resetLearningMocks(): void {
@@ -456,6 +479,7 @@ export function resetLearningMocks(): void {
   history = seedHistory();
   checksPassed = 1;
   ratings.clear();
+  myLearning = seedMyLearning();
 }
 
 /* ---- Derived views ----------------------------------------------------------------------------- */
@@ -1127,6 +1151,26 @@ function grade(id: string, answers: Array<{ questionId: string; optionId: string
   };
 }
 
+/* ---- For the manager's view of Maya (src/mocks/team.ts) ----------------------------------------- */
+
+/** Maya's current stage and progress, so her manager sees what she sees. */
+export function learnerSnapshot() {
+  const current = STAGES.find((stage) => stageState(stage) === "current") ?? STAGES[0]!;
+  const m4 = modules.find((module) => module.id === "m4");
+  return {
+    stageName: current.name,
+    progress: overallProgress(),
+    modules: stageModules(current.id).map((module) => ({
+      id: module.id,
+      title: module.title,
+      status: module.status,
+      dueOn: module.dueOn,
+      completedOn: module.completedOn,
+    })),
+    m4: { done: m4?.status === "done", result: m4?.result ?? null, dueOn: m4?.dueOn ?? null },
+  };
+}
+
 /* ---- Endpoints ------------------------------------------------------------------------------------ */
 
 const param = (value: string | readonly string[] | undefined) =>
@@ -1157,4 +1201,19 @@ export const learningMocks = [
   // Home reads the same progress, so "Up next" and "Your onboarding" follow the roadmap.
   mockGet(H.nextUp)(() => ({ item: nextUp() })),
   mockGet(H.myOnboarding)(() => myOnboarding()),
+  mockGet(E.myLearning)(() => myLearning),
+  mockPost(E.addCourse)((_input, { params }) => {
+    const id = param(params.id);
+    const course = myLearning.suggested.find((entry) => entry.id === id);
+    if (!course) throw new MockNotFoundError("Course");
+    myLearning = {
+      ...myLearning,
+      suggested: myLearning.suggested.filter((entry) => entry.id !== id),
+      assigned: [
+        ...myLearning.assigned,
+        { id: course.id, title: course.title, kind: course.kind, reason: "Added by you", dueOn: null, lessonCount: 2, lessonsDone: 0, minutes: course.minutes },
+      ],
+    };
+    return myLearning;
+  }),
 ];

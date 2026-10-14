@@ -4,6 +4,7 @@ import { registerPreviewEndpoints } from "@/lib/preview-data";
 import { resetContributionMocks } from "@/mocks/contributions";
 import { mockEndpoints } from "@/mocks/endpoints";
 import { resetLearningMocks } from "@/mocks/learning";
+import { resetTeamMocks } from "@/mocks/team";
 
 /**
  * The development mock layer under Node, for tests. `setupMockApi()` answers the mocked endpoints
@@ -21,6 +22,7 @@ export function setupMockApi(): void {
     mockServer.resetHandlers();
     resetContributionMocks();
     resetLearningMocks();
+    resetTeamMocks();
   });
   afterAll(() => mockServer.close());
 }

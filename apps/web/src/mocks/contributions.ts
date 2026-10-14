@@ -1,4 +1,4 @@
-import type { Contribution, KnowledgeGap, KnowledgeSection, SourcePick } from "@contextos/shared";
+import type { Contribution, KnowledgeGap, KnowledgeSection, ReviewItem, SourcePick } from "@contextos/shared";
 import { CONTRIBUTION_ENDPOINTS as E } from "@/features/contributions/api/contributions.api";
 import { mockGet, mockPost } from "@/mocks/define";
 import { people } from "@/mocks/fixtures/people";
@@ -174,8 +174,46 @@ Roll back if billing totals from the event stream and the nightly export differ 
 ## Verify
 Totals match in the reconciliation sheet and no duplicate invoices appear in the next export.`;
 
+/** Contributions from Daniel's team waiting for his review (the prototype's review queue). */
+const seedReviews = (): ReviewItem[] => [
+  {
+    id: "c5",
+    title: "On-call escalation paths",
+    kind: "article",
+    section: "process",
+    author: people.arjun,
+    submittedAt: atFromToday(-4, 9),
+    before: null,
+    after: [
+      "## Escalation paths",
+      "1. Primary on-call (10 minutes to acknowledge)",
+      "2. Secondary on-call",
+      "3. Engineering manager (Daniel Reyes)",
+      "4. Head of Engineering for customer-facing outages over 1 hour",
+    ],
+    sources: ["On-call handbook: Platform", "PagerDuty schedule export"],
+  },
+  {
+    id: "c4",
+    title: "Ledger service runbook",
+    kind: "edit",
+    section: "system",
+    author: people.leah,
+    submittedAt: atFromToday(-2, 16),
+    before: ["## Restart the ledger service", "Run `make restart` on the ledger host."],
+    after: [
+      "## Restart the ledger service",
+      "Run `kubectl rollout restart deploy/ledger`.",
+      "Check the billing-events lag dashboard before and after.",
+    ],
+    sources: ["tessellate/ledger-service · README", "Incident review, Sep 30"],
+  },
+];
+
 let contributions = seedContributions();
 let gaps = seedGaps();
+let reviews = seedReviews();
+let reviewedRecently = 0;
 
 /** Who reviews what, as the prototype decides it: Kestrel and billing topics and the glossary go to Sana. */
 function reviewerFor(section: KnowledgeSection, title: string) {
@@ -188,6 +226,8 @@ function reviewerFor(section: KnowledgeSection, title: string) {
 export function resetContributionMocks(): void {
   contributions = seedContributions();
   gaps = seedGaps();
+  reviews = seedReviews();
+  reviewedRecently = 0;
 }
 
 export const contributionMocks = [
@@ -248,5 +288,12 @@ export const contributionMocks = [
     };
     contributions = contributions.map((item) => (item.id === updated.id ? updated : item));
     return updated;
+  }),
+  mockGet(E.reviews)(() => ({ items: reviews, reviewedRecently })),
+  mockPost(E.decide)((input, { params }) => {
+    const id = typeof params.id === "string" ? params.id : "";
+    reviews = reviews.filter((item) => item.id !== id);
+    reviewedRecently += 1;
+    return { id, status: input.decision === "approve" ? "published" : "changes_requested" };
   }),
 ];

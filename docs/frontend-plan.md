@@ -180,6 +180,14 @@ A pass over every built surface against the prototype's CSS and JS found three g
       org chart and every team; Ask an expert; profiles with what they own and their reporting line.
       Employee, Manager and HR open People; Admin's rail has "Members & roles" (the live member
       management page) instead, as in the reference. This completes the Employee view.
+- [x] The Manager view, from the reference: Team onboarding (status strip, member cards against plan,
+      knowledge checks by topic), a member page (Context Bot insight with an action, progress, roadmap
+      editing, checks, coming up, check-ins, probation), the check-in form (type, agenda, pulse,
+      readiness, blockers, notes, next steps, probation recommendation, evidence), the review queue
+      (diff, sources, approve or request changes) and My learning. "Assign a learning task" and
+      "Assign a roadmap" dialogs open from Home, the team page and the member page. The rail is the
+      reference's: Home, Team onboarding, Knowledge Hub, Review queue, People, My learning. Home is
+      treated as an orchestrator: it may open other features' dialogs.
 - [x] The rail is gated by persona as well as role, so each "Prototype · view as" persona (Employee,
       Manager, HR, Admin) gets the reference's items as their screens ship.
 

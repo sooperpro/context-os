@@ -1,10 +1,11 @@
 import type { AttentionItem, KnowledgeGap, TeamKnowledge, TeamOnboarding } from "@contextos/shared";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { useAssistant } from "@/components/layout/assistant-context";
 import { PageHeader } from "@/components/layout/page-header";
 import { OnboardingStatusChip } from "@/components/onboarding-status-chip";
+import { PlanProgress, PlanTickNote } from "@/components/plan-progress";
 import { SectionCard } from "@/components/section-card";
 import { PersonAvatar } from "@/components/ui/avatar";
 import { BotGlyph } from "@/components/ui/bot-glyph";
@@ -23,7 +24,6 @@ import {
   ScheduleIcon,
 } from "@/components/ui/icons";
 import { MiniTile } from "@/components/ui/kpi-tile";
-import { Progress } from "@/components/ui/progress";
 import {
   SegmentedItem,
   SegmentedItemBody,
@@ -45,11 +45,14 @@ import {
 import { meQuery } from "@/features/account/api/account.queries";
 import { HOME_ENDPOINTS as E } from "@/features/home/api/home.api";
 import { homeQuery } from "@/features/home/api/home.queries";
+// Home is a dashboard: it opens other features' dialogs, like the setup wizard does.
+import { AssignLearningDialog, AssignRoadmapDialog } from "@/features/team/components/assign-dialogs";
+import { TEAM_PATH, checkinPath, memberPath } from "@/features/team/team-meta";
 import { comingSoon } from "@/lib/coming-soon";
-import { daysFromToday, firstName, formatCount, formatLongDate, formatPercent, formatShortDate, formatTime, formatWeekday, greetingFor } from "@/lib/format";
+import { daysFromToday, firstName, formatCount, formatLongDate, formatShortDate, formatTime, formatWeekday, greetingFor } from "@/lib/format";
 import { DotList } from "@/components/ui/dot-list";
 import { DashboardGrid } from "./dashboard";
-import { ONBOARDING_PROGRESS_TONE, span } from "./dashboard-meta";
+import { span } from "./dashboard-meta";
 
 /** The manager's Home (prototype `managerHome`): who needs attention, upcoming check-ins, the team's plan. */
 export function ManagerHome() {
@@ -57,6 +60,11 @@ export function ManagerHome() {
   const team = useQuery(homeQuery("teamOnboarding"));
   const attention = useQuery(homeQuery("attention"));
   const people = team.data?.people ?? [];
+  const [assigning, setAssigning] = useState<{ kind: "learning" | "roadmap"; person: { id: string; name: string } } | null>(null);
+  // The person who needs a check-in or learning most: blocked or at risk first.
+  const focus =
+    people.find((row) => row.status === "at_risk") ?? people.find((row) => row.status === "blocked") ?? people[0];
+  const openAssign = (kind: "learning" | "roadmap", person: { id: string; name: string }) => setAssigning({ kind, person });
 
   return (
     <div className="mx-auto flex max-w-360 flex-col">
@@ -83,22 +91,36 @@ export function ManagerHome() {
         }
         actions={
           <>
-            <Button variant="outline" onClick={() => comingSoon("Assigning learning")}>
+            <Button
+              variant="outline"
+              disabled={!focus}
+              onClick={() => focus && openAssign("learning", { id: focus.person.id, name: focus.person.name })}
+            >
               <AssignmentAddIcon aria-hidden /> Assign learning
             </Button>
-            <Button onClick={() => comingSoon("Recording check-ins")}>
-              <EditNoteIcon aria-hidden /> Record check-in
-            </Button>
+            {focus ? (
+              <Button nativeButton={false} render={<Link to={checkinPath(focus.person.id)} />}>
+                <EditNoteIcon aria-hidden /> Record check-in
+              </Button>
+            ) : null}
           </>
         }
       />
       <DashboardGrid>
-        <AttentionCard query={attention} />
+        <AttentionCard query={attention} onAssign={openAssign} />
         <CheckinsCard />
         <RosterCard query={team} />
         <KnowledgeGapsCard />
         <TeamKnowledgeCard />
       </DashboardGrid>
+      <AssignLearningDialog
+        person={assigning?.kind === "learning" ? assigning.person : null}
+        onOpenChange={(open) => (open ? null : setAssigning(null))}
+      />
+      <AssignRoadmapDialog
+        person={assigning?.kind === "roadmap" ? assigning.person : null}
+        onOpenChange={(open) => (open ? null : setAssigning(null))}
+      />
     </div>
   );
 }
@@ -115,7 +137,13 @@ const SEVERITY: Record<
   neutral: { tone: "neutral", icon: <ScheduleIcon /> },
 };
 
-function AttentionCard({ query }: { query: UseQueryResult<{ items: AttentionItem[] }> }) {
+function AttentionCard({
+  query,
+  onAssign,
+}: {
+  query: UseQueryResult<{ items: AttentionItem[] }>;
+  onAssign: (kind: "learning" | "roadmap", person: { id: string; name: string }) => void;
+}) {
   const items = query.data?.items ?? [];
   return (
     <SectionCard
@@ -145,16 +173,36 @@ function AttentionCard({ query }: { query: UseQueryResult<{ items: AttentionItem
                   <span className="mt-1.5 text-base font-medium text-on-surface">{item.title}</span>
                   <span className="text-sm text-on-surface-variant">{item.detail}</span>
                   <div className="mt-2.5 flex flex-wrap gap-2">
-                    {item.actions.map((action, index) => (
-                      <Button
-                        key={action.kind}
-                        size="xs"
-                        variant={index === 0 ? "secondary" : "ghost"}
-                        onClick={() => comingSoon(action.label)}
-                      >
-                        {action.label}
-                      </Button>
-                    ))}
+                    {item.actions.map((action, index) => {
+                      const variant = index === 0 ? "secondary" : "ghost";
+                      const person = { id: item.person.id, name: item.person.name };
+                      const to =
+                        action.kind === "review_progress"
+                          ? memberPath(item.person.id)
+                          : action.kind === "start_recommendation"
+                            ? checkinPath(item.person.id, "probation")
+                            : null;
+                      return to ? (
+                        <Button key={action.kind} size="xs" variant={variant} nativeButton={false} render={<Link to={to} />}>
+                          {action.label}
+                        </Button>
+                      ) : (
+                        <Button
+                          key={action.kind}
+                          size="xs"
+                          variant={variant}
+                          onClick={() =>
+                            action.kind === "assign_learning"
+                              ? onAssign("learning", person)
+                              : action.kind === "assign_roadmap"
+                                ? onAssign("roadmap", person)
+                                : comingSoon(action.kind === "message" ? "Messages" : "Escalating requests")
+                          }
+                        >
+                          {action.label}
+                        </Button>
+                      );
+                    })}
                   </div>
                 </SegmentedItemBody>
               </SegmentedItem>
@@ -200,7 +248,9 @@ function CheckinsCard() {
                 </span>
               </div>
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <b className="text-sm font-medium">{checkin.title}</b>
+                <Link to={checkinPath(checkin.person.id)} className="text-sm font-medium text-on-surface hover:underline">
+                  {checkin.title}
+                </Link>
                 <span className="flex flex-wrap items-center gap-x-2 text-xs text-on-surface-variant">
                   <DotList parts={[checkin.person.name, formatTime(checkin.at)]} />
                 </span>
@@ -249,7 +299,7 @@ function RosterCard({ query }: { query: UseQueryResult<TeamOnboarding> }) {
       endpoint={E.teamOnboarding.path}
       status={query}
       action={
-        <Button variant="ghost" onClick={() => comingSoon("The team view")}>
+        <Button variant="ghost" nativeButton={false} render={<Link to={TEAM_PATH} />}>
           Open team view <ArrowForwardIcon aria-hidden />
         </Button>
       }
@@ -280,7 +330,9 @@ function RosterCard({ query }: { query: UseQueryResult<TeamOnboarding> }) {
                         <div className="flex items-center gap-3">
                           <PersonAvatar person={row.person} size="sm" />
                           <span className="flex min-w-0 flex-col">
-                            <b className="text-sm font-medium">{row.person.name}</b>
+                            <Link to={memberPath(row.person.id)} className="text-sm font-medium text-on-surface hover:underline">
+                              {row.person.name}
+                            </Link>
                             <span className="text-xs whitespace-nowrap text-on-surface-variant">
                               <DotList
                                 parts={[
@@ -299,28 +351,13 @@ function RosterCard({ query }: { query: UseQueryResult<TeamOnboarding> }) {
                       </TableCell>
                       <TableCell>
                         {started && (row.progress > 0 || row.expected > 0) ? (
-                          <div className="flex min-w-57 items-center gap-3">
-                            <div className="relative min-w-37 flex-1">
-                              <Progress
-                                flat
-                                tone={ONBOARDING_PROGRESS_TONE[row.status]}
-                                value={Math.round(row.progress * 100)}
-                                aria-label={`${row.person.name} progress`}
-                              />
-                              <span
-                                aria-hidden
-                                title={`Plan: ${formatPercent(row.expected)}`}
-                                className="absolute -top-1 -bottom-1 w-0.5 rounded-full bg-on-surface/75"
-                                style={{ left: `calc(${row.expected} * (100% - 4px))` }}
-                              />
-                            </div>
-                            <span className="text-xs whitespace-nowrap tabular-nums">
-                              <b className="font-medium">{formatPercent(row.progress)}</b>{" "}
-                              <span className="text-on-surface-variant">
-                                / plan {formatPercent(row.expected)}
-                              </span>
-                            </span>
-                          </div>
+                          <PlanProgress
+                            className="min-w-57"
+                            progress={row.progress}
+                            expected={row.expected}
+                            status={row.status}
+                            label={`${row.person.name} progress`}
+                          />
                         ) : (
                           <span className="text-xs text-on-surface-variant">Not started</span>
                         )}
@@ -345,10 +382,7 @@ function RosterCard({ query }: { query: UseQueryResult<TeamOnboarding> }) {
               </TableBody>
             </Table>
           </div>
-          <p className="flex items-center gap-2 text-xs text-on-surface-variant">
-            <span aria-hidden className="h-3.5 w-0.5 rounded-full bg-on-surface/75" />
-            The tick shows where each person is expected to be today.
-          </p>
+          <PlanTickNote />
         </>
       ) : (
         <p className="text-sm text-on-surface-variant">
@@ -497,7 +531,8 @@ function TeamKnowledgeCard() {
                       />
                     </SegmentedItemMeta>
                   </SegmentedItemBody>
-                  <Button size="xs" variant="ghost" onClick={() => comingSoon("The review queue")}>
+                  <Button size="xs" variant="ghost" nativeButton={false}
+                    render={<Link to="/reviews" />}>
                     Review
                   </Button>
                 </SegmentedItem>
