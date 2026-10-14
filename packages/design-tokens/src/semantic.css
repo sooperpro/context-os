@@ -79,6 +79,7 @@
   --pane: var(--cx-pane);
   --card-strong: var(--cx-card-strong);
   --field: var(--cx-field);
+  --logo-tile: var(--cx-logo-tile);
 
   /* Status groups. Status is never color alone: pair with an icon or label. */
   --success: var(--md-sys-color-success);

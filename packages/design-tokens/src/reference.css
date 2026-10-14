@@ -70,6 +70,8 @@
   --cx-card: var(--md-sys-color-surface-container-low);
   --cx-card-strong: var(--md-sys-color-surface-container);
   --cx-field: var(--md-sys-color-surface-container-high);
+  /* Brand logo tiles stay white in both themes: brand marks are designed for it. */
+  --cx-logo-tile: #ffffff;
 
   /* ---- Typography ------------------------------------------------------ */
   --md-ref-typeface-brand: "Google Sans Flex", "Google Sans", system-ui, -apple-system, "Segoe UI", sans-serif;

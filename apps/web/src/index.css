@@ -25,3 +25,25 @@
     cursor: pointer;
   }
 }
+
+/* M3 Expressive wavy progress indicator: a sine-wave mask (amplitude 3, wavelength 40, stroke 4)
+   scrolling over the active color. Falls back to a flat bar when motion is reduced. */
+@utility progress-wave {
+  height: 12px;
+  border-radius: 6px;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='12' viewBox='0 0 40 12'%3E%3Cpath d='M-20 6 Q-10 12 0 6 T20 6 T40 6 T60 6' fill='none' stroke='black' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E")
+    0 0 / 40px 12px repeat-x;
+  animation: progress-wave 1.6s linear infinite;
+  @media (prefers-reduced-motion: reduce) {
+    height: 4px;
+    border-radius: 2px;
+    mask: none;
+    animation: none;
+  }
+}
+
+@keyframes progress-wave {
+  to {
+    mask-position: 40px 0;
+  }
+}

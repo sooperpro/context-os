@@ -48,13 +48,20 @@ roles (`primary-container`, the `surface-container` ladder, `tertiary` as `ai`, 
 
 Exit: every existing screen renders in both themes with the new tokens; typecheck, lint, tests and build pass.
 
-### Phase 2: primitive library
+### Phase 2: primitive library (this branch)
 
-Add from shadcn and restyle: avatar, switch, progress, dropdown menu, table, breadcrumb, button group.
-Hand-build: chip (assist, filter, suggestion, AI prompt), status chip with icon, stepper, KPI tile,
-mini tile, logo tile, banner, FAB, segmented list with option tiles. Add AI, AI tonal, tonal and
-elevated variants to Button; XS to L sizes. Each primitive: gallery entry, variants test, both themes,
-phone width.
+- [x] From shadcn, restyled to the tokens: avatar (6 tones, 6 sizes, expressive shapes), switch (M3 52×32),
+      progress (wavy indicator, stop dot, 5 tones), dropdown menu, table, breadcrumb, button group
+- [x] Hand-built: chip (assist, filter, suggestion, ai, prompt), status chip (icon required), stepper,
+      KPI tile and mini tile, logo tile and stack, banner, FAB, option tiles, segmented list,
+      connected button group
+- [x] Button: filled, tonal (`secondary`), outline, text (`ghost`), elevated, ai, ai-tonal, filled error;
+      sizes xs 32 · sm 36 · default 40 · md 56 · lg 96 and icon squares; corner morph on press
+- [x] Tests for the new primitives (`components/ui/primitives.test.tsx`)
+- [x] Gallery entries for everything, checked in both themes and at phone width
+
+Still to do when a screen needs them: wavy circular progress, morphing-shape loader, expressive
+clip-path shapes (cookie, clover, sunny, flower), navigation rail items (Phase 3), search bar (Phase 3).
 
 ### Phase 3: app shell
 

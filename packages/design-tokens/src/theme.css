@@ -75,6 +75,7 @@
   --color-pane: var(--pane);
   --color-card-strong: var(--card-strong);
   --color-field: var(--field);
+  --color-logo-tile: var(--logo-tile);
 
   --color-success: var(--success);
   --color-on-success: var(--on-success);

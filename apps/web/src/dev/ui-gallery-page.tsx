@@ -1,9 +1,70 @@
+import {
+  AlertTriangleIcon,
+  ArrowUpRightIcon,
+  CableIcon,
+  CheckIcon,
+  ChevronRightIcon,
+  ClockIcon,
+  FileTextIcon,
+  HelpCircleIcon,
+  InfoIcon,
+  MoreHorizontalIcon,
+  PlusIcon,
+  RefreshCwIcon,
+  SparklesIcon,
+  XCircleIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Avatar, AvatarFallback, AvatarGroup, AvatarGroupCount } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Banner } from "@/components/ui/banner";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
+import { ConnectedButton, ConnectedButtonGroup } from "@/components/ui/connected-button-group";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Fab } from "@/components/ui/fab";
+import { KpiTile, MiniTile } from "@/components/ui/kpi-tile";
+import { LogoStack, LogoTile } from "@/components/ui/logo-tile";
+import { OptionList, OptionTile } from "@/components/ui/option-tile";
+import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress";
+import {
+  SegmentedItem,
+  SegmentedItemBody,
+  SegmentedItemLead,
+  SegmentedItemMeta,
+  SegmentedItemTitle,
+  SegmentedItemTrail,
+  SegmentedList,
+} from "@/components/ui/segmented-list";
+import { StatusChip } from "@/components/ui/status-chip";
+import { Stepper, StepperItem } from "@/components/ui/stepper";
+import { Switch } from "@/components/ui/switch";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   Card,
   CardContent,
@@ -54,8 +115,43 @@ import { SourceStatusBadge } from "@/features/sources/components/source-status-b
  * if it exists, import it; if it almost exists, add a variant; only then build new.
  */
 
-const BUTTON_VARIANTS = ["default", "secondary", "outline", "ghost", "destructive", "link"] as const;
-const BUTTON_SIZES = ["xs", "sm", "default"] as const;
+const BUTTON_VARIANTS = [
+  "default",
+  "secondary",
+  "outline",
+  "ghost",
+  "elevated",
+  "ai",
+  "ai-tonal",
+  "destructive",
+  "link",
+] as const;
+const BUTTON_SIZES = ["xs", "sm", "default", "md"] as const;
+const STATUS_TONES = ["success", "warning", "error", "info", "ai", "neutral"] as const;
+const STATUS_ICONS = {
+  success: <CheckIcon />,
+  warning: <AlertTriangleIcon />,
+  error: <XCircleIcon />,
+  info: <InfoIcon />,
+  ai: <SparklesIcon />,
+  neutral: <ClockIcon />,
+} as const;
+const AVATAR_TONES = ["primary", "ai", "secondary", "warning", "success", "neutral"] as const;
+const PEOPLE = [
+  { id: "maya", initials: "MO", name: "Maya Okafor", role: "Product Engineer", progress: 22 },
+  { id: "daniel", initials: "DR", name: "Daniel Reyes", role: "Engineering Manager", progress: 100 },
+  { id: "sana", initials: "SI", name: "Sana Iqbal", role: "Staff Engineer", progress: 64 },
+];
+
+/** Placeholder brand mark for the logo tile demo. Real tiles take the connector's SVG. */
+function DemoLogo() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <circle cx="12" cy="12" r="10" className="fill-primary" />
+      <circle cx="12" cy="12" r="4" className="fill-ai-container" />
+    </svg>
+  );
+}
 const BADGE_VARIANTS = ["default", "secondary", "outline", "ghost", "destructive", "link"] as const;
 
 /* Semantic color roles, as pairs of container + on-container utilities. */
@@ -104,6 +200,8 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 
 export function UiGalleryPage() {
   const [selectValue, setSelectValue] = useState<string | null>("decision");
+  const [filter, setFilter] = useState("all");
+  const [notify, setNotify] = useState(true);
 
   return (
     <div className="min-h-svh bg-shell">
@@ -178,6 +276,309 @@ export function UiGalleryPage() {
               </Button>
             </Row>
           ))}
+          <Row label="icons">
+            <Button size="icon-xs" variant="ghost" aria-label="More">
+              <MoreHorizontalIcon />
+            </Button>
+            <Button size="icon-sm" variant="outline" aria-label="Add">
+              <PlusIcon />
+            </Button>
+            <Button size="icon" variant="secondary" aria-label="Refresh">
+              <RefreshCwIcon />
+            </Button>
+            <Button size="icon-lg" variant="ai-tonal" aria-label="Ask">
+              <SparklesIcon />
+            </Button>
+            <Button size="lg">Start</Button>
+          </Row>
+          <Row label="FAB">
+            <Fab aria-label="Ask Context Bot">
+              <SparklesIcon />
+            </Fab>
+            <Fab floating>
+              <SparklesIcon /> Ask Context Bot
+            </Fab>
+            <Fab variant="primary">
+              <PlusIcon /> New project
+            </Fab>
+          </Row>
+          <Row label="Connected">
+            <ConnectedButtonGroup>
+              {(["all", "overdue", "blocked"] as const).map((value) => (
+                <ConnectedButton key={value} pressed={filter === value} onClick={() => setFilter(value)}>
+                  {value}
+                </ConnectedButton>
+              ))}
+            </ConnectedButtonGroup>
+            <ConnectedButtonGroup size="sm">
+              <ConnectedButton pressed>Week</ConnectedButton>
+              <ConnectedButton>Month</ConnectedButton>
+            </ConnectedButtonGroup>
+          </Row>
+        </Section>
+
+        <Section title="Chips and status">
+          <Row label="Assist">
+            <Chip>
+              <FileTextIcon /> View roadmap
+            </Chip>
+            <Chip>Open source</Chip>
+          </Row>
+          <Row label="Filter">
+            <Chip variant="filter" selected>
+              <CheckIcon /> Platform
+            </Chip>
+            <Chip variant="filter">Billing</Chip>
+            <Chip variant="filter">People Ops</Chip>
+          </Row>
+          <Row label="Suggestion">
+            <Chip variant="suggestion">Who owns the ingest gateway?</Chip>
+            <Chip variant="ai">
+              <SparklesIcon /> Ask about this lesson
+            </Chip>
+          </Row>
+          <Row label="Prompt">
+            <Chip variant="prompt" className="max-w-xs">
+              <SparklesIcon /> Why is billing moving to events, and what breaks if we roll it back?
+            </Chip>
+          </Row>
+          <Row label="Status">
+            {STATUS_TONES.map((tone) => (
+              <StatusChip key={tone} tone={tone} icon={STATUS_ICONS[tone]}>
+                {tone}
+              </StatusChip>
+            ))}
+          </Row>
+        </Section>
+
+        <Section title="Avatars and switch">
+          <Row label="Sizes">
+            {(["xs", "sm", "default", "md", "lg", "xl"] as const).map((size) => (
+              <Avatar key={size} size={size}>
+                <AvatarFallback>MO</AvatarFallback>
+              </Avatar>
+            ))}
+          </Row>
+          <Row label="Tones">
+            {AVATAR_TONES.map((tone) => (
+              <Avatar key={tone} tone={tone}>
+                <AvatarFallback>{tone.slice(0, 2).toUpperCase()}</AvatarFallback>
+              </Avatar>
+            ))}
+            <Avatar shape="squircle" tone="ai" size="md">
+              <AvatarFallback>SQ</AvatarFallback>
+            </Avatar>
+            <Avatar shape="arch" tone="warning" size="md">
+              <AvatarFallback>AR</AvatarFallback>
+            </Avatar>
+          </Row>
+          <Row label="Group">
+            <AvatarGroup>
+              {PEOPLE.map((p) => (
+                <Avatar key={p.id} tone={AVATAR_TONES[PEOPLE.indexOf(p)]}>
+                  <AvatarFallback>{p.initials}</AvatarFallback>
+                </Avatar>
+              ))}
+              <AvatarGroupCount>+4</AvatarGroupCount>
+            </AvatarGroup>
+          </Row>
+          <Row label="Switch">
+            <Switch checked={notify} onCheckedChange={setNotify} aria-label="Notifications" />
+            <Switch defaultChecked size="sm" aria-label="Compact" />
+            <Switch disabled aria-label="Disabled" />
+          </Row>
+        </Section>
+
+        <Section title="Progress">
+          <div className="max-w-xl space-y-4">
+            <Progress value={22} aria-label="Roadmap">
+              <ProgressLabel>Roadmap</ProgressLabel>
+              <ProgressValue />
+            </Progress>
+            <Progress value={64} tone="success" aria-label="Setup" />
+            <Progress value={45} tone="warning" flat aria-label="Flat" />
+            <Progress value={80} tone="ai" aria-label="Context Bot" />
+            <Progress value={null} tone="error" aria-label="Indeterminate" />
+          </div>
+        </Section>
+
+        <Section title="Stepper and option tiles">
+          <div className="max-w-xl rounded-xl bg-card p-4 @container">
+            <Stepper>
+              <StepperItem index={1} status="done">
+                Authorize
+              </StepperItem>
+              <StepperItem index={2} status="current">
+                Choose content
+              </StepperItem>
+              <StepperItem index={3} status="upcoming" connector={false}>
+                Sync settings
+              </StepperItem>
+            </Stepper>
+          </div>
+          <div className="grid max-w-3xl gap-4 sm:grid-cols-2">
+            <OptionList>
+              <OptionTile
+                input={<input type="radio" name="freq" defaultChecked />}
+                title="Every hour"
+                description="Recommended for active sources"
+              />
+              <OptionTile input={<input type="radio" name="freq" />} title="Daily" />
+              <OptionTile input={<input type="radio" name="freq" disabled />} title="Manual only" />
+            </OptionList>
+            <OptionList>
+              <OptionTile
+                input={<input type="checkbox" defaultChecked />}
+                title="Engineering shared drive"
+                trailing={<StatusChip tone="neutral" icon={<FileTextIcon />}>1,204</StatusChip>}
+              />
+              <OptionTile
+                input={<input type="checkbox" />}
+                title="Finance"
+                description="Restricted: 3 items need admin consent"
+                trailing={<StatusChip tone="warning" icon={<AlertTriangleIcon />}>Restricted</StatusChip>}
+              />
+            </OptionList>
+          </div>
+        </Section>
+
+        <Section title="Tiles, banners, logos">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <KpiTile label="Active hires" value="12" delta={<><ArrowUpRightIcon /> +3 this week</>} deltaTone="good" />
+            <KpiTile label="Overdue modules" value="4" delta={<><ArrowUpRightIcon /> +2</>} deltaTone="bad" />
+            <KpiTile label="Knowledge gaps" value="7" delta="unchanged" />
+            <div className="grid grid-cols-3 gap-2">
+              <MiniTile label="Docs" value="1.2k" />
+              <MiniTile label={<><AlertTriangleIcon /> Stale</>} value="38" tone="warning" />
+              <MiniTile label={<><XCircleIcon /> Failed</>} value="2" tone="error" />
+            </div>
+          </div>
+          <div className="space-y-3">
+            <Banner
+              tone="error"
+              icon={<XCircleIcon />}
+              title="Jira sync is failing"
+              description="Three projects returned 403 since Oct 12. Answers may be out of date."
+              actions={<Button variant="ghost" size="sm">Reconnect</Button>}
+            />
+            <Banner
+              tone="info"
+              icon={<RefreshCwIcon />}
+              title="First sync in progress"
+              description="Indexing 1,204 documents from the Engineering drive."
+            />
+            <Banner tone="ai" icon={<SparklesIcon />} title="Context Bot drafted this from 4 sources" />
+          </div>
+          <Row label="Logo tiles">
+            <LogoTile size="sm"><DemoLogo /></LogoTile>
+            <LogoTile><DemoLogo /></LogoTile>
+            <LogoTile size="lg"><DemoLogo /></LogoTile>
+            <LogoStack>
+              <LogoTile><DemoLogo /></LogoTile>
+              <LogoTile><DemoLogo /></LogoTile>
+              <LogoTile><DemoLogo /></LogoTile>
+            </LogoStack>
+          </Row>
+        </Section>
+
+        <Section title="Lists, tables, navigation">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <SegmentedList>
+              {PEOPLE.map((p) => (
+                <SegmentedItem key={p.id} render={<button type="button" />}>
+                  <SegmentedItemLead>
+                    <Avatar size="default" tone={AVATAR_TONES[PEOPLE.indexOf(p)]}>
+                      <AvatarFallback>{p.initials}</AvatarFallback>
+                    </Avatar>
+                  </SegmentedItemLead>
+                  <SegmentedItemBody>
+                    <SegmentedItemTitle>{p.name}</SegmentedItemTitle>
+                    <SegmentedItemMeta>
+                      <span>{p.role}</span>
+                      <span aria-hidden>·</span>
+                      <span>Week 2</span>
+                    </SegmentedItemMeta>
+                  </SegmentedItemBody>
+                  <SegmentedItemTrail>
+                    <Progress value={p.progress} flat className="w-24" aria-label={`${p.name} progress`} />
+                    <ChevronRightIcon className="size-5 text-on-surface-variant" />
+                  </SegmentedItemTrail>
+                </SegmentedItem>
+              ))}
+            </SegmentedList>
+            <div className="space-y-4">
+              <Breadcrumb>
+                <BreadcrumbList>
+                  <BreadcrumbItem>
+                    <BreadcrumbLink href="#">Knowledge Hub</BreadcrumbLink>
+                  </BreadcrumbItem>
+                  <BreadcrumbSeparator />
+                  <BreadcrumbItem>
+                    <BreadcrumbLink href="#">Projects</BreadcrumbLink>
+                  </BreadcrumbItem>
+                  <BreadcrumbSeparator />
+                  <BreadcrumbItem>
+                    <BreadcrumbPage>Project Kestrel</BreadcrumbPage>
+                  </BreadcrumbItem>
+                </BreadcrumbList>
+              </Breadcrumb>
+              <div className="rounded-xl bg-card p-2">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Connector</TableHead>
+                      <TableHead>Items</TableHead>
+                      <TableHead>Health</TableHead>
+                      <TableHead className="w-10" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell className="flex items-center gap-2">
+                        <LogoTile size="sm"><DemoLogo /></LogoTile> Google Drive
+                      </TableCell>
+                      <TableCell>1,204</TableCell>
+                      <TableCell>
+                        <StatusChip tone="success" icon={<CheckIcon />}>Healthy</StatusChip>
+                      </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger render={<Button size="icon-xs" variant="ghost" aria-label="Actions" />}>
+                            <MoreHorizontalIcon />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Google Drive</DropdownMenuLabel>
+                            <DropdownMenuItem>
+                              <RefreshCwIcon /> Sync now
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                              <CableIcon /> Change scope
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem variant="destructive">Disconnect</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="flex items-center gap-2">
+                        <LogoTile size="sm"><DemoLogo /></LogoTile> Jira
+                      </TableCell>
+                      <TableCell>312</TableCell>
+                      <TableCell>
+                        <StatusChip tone="error" icon={<XCircleIcon />}>Error</StatusChip>
+                      </TableCell>
+                      <TableCell>
+                        <Button size="icon-xs" variant="ghost" aria-label="Help">
+                          <HelpCircleIcon />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </div>
         </Section>
 
         <Section title="Badges and status">
