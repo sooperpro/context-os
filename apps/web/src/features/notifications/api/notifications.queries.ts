@@ -1,6 +1,10 @@
 import type { Notification } from "@contextos/shared";
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
-import { listNotifications, markNotificationRead } from "./notifications.api";
+import {
+  listNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+} from "./notifications.api";
 
 export const notificationKeys = {
   all: ["notifications"] as const,
@@ -24,6 +28,18 @@ export function useMarkNotificationRead() {
     onSuccess: (updated) => {
       queryClient.setQueryData<Notification[]>(notificationKeys.all, (current) =>
         (current ?? []).map((item) => (item.id === updated.id ? updated : item)),
+      );
+    },
+  });
+}
+
+export function useMarkAllNotificationsRead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: markAllNotificationsRead,
+    onSuccess: () => {
+      queryClient.setQueryData<Notification[]>(notificationKeys.all, (current) =>
+        (current ?? []).map((item) => ({ ...item, status: "read" })),
       );
     },
   });

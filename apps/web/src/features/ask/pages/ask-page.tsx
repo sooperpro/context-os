@@ -142,7 +142,7 @@ export function AskPage() {
           ) : (
             <div className="space-y-4">
               {activeThread.data.messages.map((answer) => (
-                <AnswerCard key={answer.id} projectId={projectId} answer={answer} />
+                <AnswerCard key={answer.id} answer={answer} />
               ))}
             </div>
           )}

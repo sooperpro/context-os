@@ -17,9 +17,9 @@ switch each mock off once the real endpoint ships.
 
 | What                                                    |  Count | Where                 |
 | ------------------------------------------------------- | -----: | --------------------- |
-| Endpoints the web app fakes with mock data (to build)   | **93** | Section 7, Appendix A |
-| Live API routes the web app already uses                |     52 | Appendix B            |
-| Live API routes the web app doesn't use yet             |     56 | Appendix C            |
+| Endpoints the web app fakes with mock data (to build)   | **84** | Section 7, Appendix A |
+| Live API routes the web app already uses                |     64 | Appendix B            |
+| Live API routes the web app doesn't use yet             |     55 | Appendix C            |
 | Changes needed on live endpoints                        |     10 | Section 5             |
 | Decisions needed before building                        |     11 | Section 6             |
 | Features with no contract yet ("coming soon" in the UI) |     18 | Section 8             |
@@ -29,10 +29,10 @@ mocked except the live `GET /v1/audit`: the web app calls **no endpoint that is 
 mocked**.
 
 **Important for production.** The mock layer exists only in development. A production build doesn't
-contain it, so **the 93 endpoints simply 404 in production today** and the screens built on them show
+contain it, so **the 84 endpoints simply 404 in production today** and the screens built on them show
 their error states. Shipping these endpoints is what makes those screens real.
 
-The 93 endpoints by area:
+The 84 endpoints by area:
 
 | Section | Area                                                               | Endpoints | Mock file(s)                          |
 | ------- | ------------------------------------------------------------------ | --------: | ------------------------------------- |
@@ -40,14 +40,14 @@ The 93 endpoints by area:
 | 7.2     | Employee Home cards                                                |         5 | `home/employee.ts`                    |
 | 7.3     | First-day welcome                                                  |         2 | `welcome.ts`                          |
 | 7.4     | Saved knowledge                                                    |         2 | `saved.ts`                            |
-| 7.5     | Personal settings: Context Bot, connected apps, data export        |         5 | `account.ts`                          |
+| 7.5     | Personal settings: Context Bot preferences and data export         |         3 | `account.ts`                          |
 | 7.6     | Manager: team, member pages, check-ins, assigning, Home cards      |        13 | `team.ts`, `home/manager.ts`          |
-| 7.7     | People directory                                                   |         4 | `people.ts`                           |
+| 7.7     | People directory                                                   |         0 | —                                     |
 | 7.8     | Contributions and the review queue                                 |         9 | `contributions.ts`                    |
 | 7.9     | HR (People Ops): onboarding, probation, templates                  |        19 | `people-ops.ts`, `home/people-ops.ts` |
 | 7.10    | Admin: security, members, connectors, access policies, AI settings |        19 | `admin.ts`, `home/admin.ts`           |
-| 7.11    | Context Bot outside projects                                       |         3 | `assistant.ts`                        |
-|         | **Total**                                                          |    **93** |                                       |
+| 7.11    | Context Bot outside projects                                       |         0 | — (live, `ask/assistant.routes.ts`)   |
+|         | **Total**                                                          |    **84** |                                       |
 
 ## 1. How the web app talks to the API
 
@@ -84,14 +84,14 @@ requestId? } }` (`ApiErrorResponseSchema`). The UI shows `message` to people, so
 | ----------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Switch      | `apps/web/.env` → `VITE_MOCK_API=true`                          | Turns the mock layer on in development. Ignored by production builds.                                                                                                                                                                             |
 | Start-up    | `apps/web/src/main.tsx` → `mocks/browser.ts`                    | Starts an MSW service worker before the app renders. Unmocked requests pass through to the API (`onUnhandledRequest: "bypass"`).                                                                                                                  |
-| Registry    | `apps/web/src/mocks/endpoints.ts`                               | The list of all 93 mocked endpoints. Only endpoints the API doesn't serve belong here.                                                                                                                                                            |
+| Registry    | `apps/web/src/mocks/endpoints.ts`                               | The list of all 84 mocked endpoints. Only endpoints the API doesn't serve belong here.                                                                                                                                                            |
 | Helpers     | `apps/web/src/mocks/define.ts`                                  | `mockGet/mockPost/mockPatch/mockPut(descriptor)(resolver)`. Bodies are validated with the input schema (400 on failure); responses are parsed with the response schema, so a mock can't drift from its contract. `MockNotFoundError` answers 404. |
 | Mock data   | `apps/web/src/mocks/*.ts`, `mocks/home/*.ts`, `mocks/fixtures/` | Fixtures and in-memory state (writes last for the browser session). Dates are relative to today.                                                                                                                                                  |
 | Contracts   | `packages/shared/src/schemas/*.ts`                              | The request and response schemas you implement.                                                                                                                                                                                                   |
 | Descriptors | `apps/web/src/features/*/api/*.api.ts`                          | Each endpoint's `path`, `schema` and `input`, used by both the screens and the mocks.                                                                                                                                                             |
 | Marker      | `components/preview-data-chip.tsx`, `lib/preview-data.ts`       | Cards built on a mocked endpoint show a **"Preview data"** chip. It disappears by itself once the endpoint isn't mocked.                                                                                                                          |
 | Header      | every mock response                                             | `X-ContextOS-Mock: 1`.                                                                                                                                                                                                                            |
-| Console     | browser dev tools                                               | `[mocks] 93 endpoints answered with preview data: [...]` lists exactly what never reached the API.                                                                                                                                                |
+| Console     | browser dev tools                                               | `[mocks] 84 endpoints answered with preview data: [...]` lists exactly what never reached the API.                                                                                                                                                |
 | Tests       | `apps/web/src/test/msw.ts`, `mocks/endpoints.test.ts`           | Tests use the same mocks under Node (`setupMockApi()`), with `onUnhandledRequest: "error"`. `endpoints.test.ts` checks every mock against its schema.                                                                                             |
 
 Mocks that share state (so they must be retired together, see 3.3):
@@ -109,7 +109,7 @@ Mocks that share state (so they must be retired together, see 3.3):
 ### 3.1 All at once
 
 Set `VITE_MOCK_API=false` (or remove it) in `apps/web/.env` and restart the web dev server. Every
-request then goes to the API, so the screens on the 93 endpoints show error states until those
+request then goes to the API, so the screens on the 84 endpoints show error states until those
 endpoints exist. That's the same as production today. Use it to check which screens are fully real.
 
 ### 3.2 One endpoint at a time (the normal way)
@@ -471,8 +471,12 @@ Mock file: `apps/web/src/mocks/saved.ts`. Contract: `saved.ts`. Backlog: item 12
 
 ### 7.5 Personal settings: Context Bot, connected apps, your data
 
-Mock file: `apps/web/src/mocks/account.ts` (5 endpoints). Contract: `account.ts`. Backlog: item 15.
+Mock file: `apps/web/src/mocks/account.ts` (3 endpoints). Contract: `account.ts`. Backlog: item 15.
 Caller only. UI: Settings → Preferences (Context Bot card) and Security (Connected apps, Your data).
+
+Connected apps are live through `GET /v1/connectors` and
+`DELETE /v1/connectors/:id?mode=keep_derived`. The adapter presents connector connections in the
+personal settings card without inventing a second token-revocation API.
 
 #### `GET /v1/me/assistant-preferences` and `PATCH /v1/me/assistant-preferences`
 
@@ -481,15 +485,6 @@ Caller only. UI: Settings → Preferences (Context Bot card) and Security (Conne
 - **Effects:** `showSuggestions` false hides suggested questions in the panel; `openBesideLessons`
   opens Context Bot beside lessons on large screens.
 - **Reuse:** `users.preferences` JSON (beside the existing `companion` preferences).
-
-#### `GET /v1/me/connected-apps`
-
-- **Returns** `ConnectedAppListSchema items[] {id, name, provider, description, connectedAt}` (for
-  example "ContextOS for Slack"). These are apps the person authorised, not workspace data sources.
-
-#### `POST /v1/me/connected-apps/:id/disconnect`
-
-- **Body** `{}`. **Returns** the remaining list. Revoke the app's tokens. 404 for an unknown id.
 
 #### `POST /v1/me/data-export`
 
@@ -652,7 +647,9 @@ submittedAt}}`.
 
 ### 7.7 People directory
 
-Mock file: `apps/web/src/mocks/people.ts` (4, read-only). Contract: `people.ts`. Backlog: item 8.
+The screen now adapts the live `GET /v1/users`, `GET /v1/users/me`, `GET /v1/org/teams` and
+`GET /v1/people/:id` responses. Contract: `people.ts`. Backlog: item 8 is now limited to richer
+profile fields and avoiding per-person profile requests for expertise.
 **Who:** members and managers (and admins); **guests get 403**. The mock treats everyone as Maya.
 Relations (`you`, `manager`, `buddy`, `report`) are relative to the caller.
 
@@ -1247,7 +1244,7 @@ so the two disagree until this section ships.
 
 ### 7.11 Context Bot outside projects
 
-Mock file: `apps/web/src/mocks/assistant.ts` (3 endpoints). Contract: `packages/shared/src/schemas/assistant.ts`.
+Live since the Context Bot integration: `apps/api/src/modules/ask/assistant.routes.ts` serves all three. Contract: `packages/shared/src/schemas/assistant.ts`.
 Backlog: item 13. Inside a project the panel already uses the live Ask threads; these endpoints are
 for every other page.
 
@@ -1347,11 +1344,12 @@ nothing). Each needs a contract first; the frontend will write it in `packages/s
 - [ ] `pnpm check` passes.
 - [ ] `docs/api-change-requests.md` status table and Appendix A updated.
 
-## Appendix A. Every mocked endpoint (93)
+## Appendix A. Every mocked endpoint (84)
 
 Generated from `apps/web/src/mocks/endpoints.ts` and the endpoint descriptors in
 `apps/web/src/features/*/api/*.api.ts`. Schemas are exported from `@contextos/shared`
-(`packages/shared/src/schemas/`). Mock files are under `apps/web/src/mocks/`.
+(`packages/shared/src/schemas/`). Mock files are under `apps/web/src/mocks/`. Row numbers preserve
+the original catalog, so gaps identify endpoints retired from the mock layer.
 
 |   # | Section | Method | Path                                            | Request body                      | Response                       | Mock file            |
 | --: | ------- | ------ | ----------------------------------------------- | --------------------------------- | ------------------------------ | -------------------- |
@@ -1378,8 +1376,6 @@ Generated from `apps/web/src/mocks/endpoints.ts` and the endpoint descriptors in
 |  21 | 7.4     | PUT    | `/v1/me/saved/:id`                              | `SaveInputSchema`                 | `SavedItemSchema` or `null`    | `saved.ts`           |
 |  22 | 7.5     | GET    | `/v1/me/assistant-preferences`                  | —                                 | `AssistantPreferencesSchema`   | `account.ts`         |
 |  23 | 7.5     | PATCH  | `/v1/me/assistant-preferences`                  | `AssistantPreferencesInputSchema` | `AssistantPreferencesSchema`   | `account.ts`         |
-|  24 | 7.5     | GET    | `/v1/me/connected-apps`                         | —                                 | `ConnectedAppListSchema`       | `account.ts`         |
-|  25 | 7.5     | POST   | `/v1/me/connected-apps/:id/disconnect`          | `{}`                              | `ConnectedAppListSchema`       | `account.ts`         |
 |  26 | 7.5     | POST   | `/v1/me/data-export`                            | `{}`                              | `DataExportResultSchema`       | `account.ts`         |
 |  27 | 7.6     | GET    | `/v1/team/attention`                            | —                                 | `AttentionListSchema`          | `home/manager.ts`    |
 |  28 | 7.6     | GET    | `/v1/team/check-matrix`                         | —                                 | `CheckMatrixSchema`            | `team.ts`            |
@@ -1394,10 +1390,6 @@ Generated from `apps/web/src/mocks/endpoints.ts` and the endpoint descriptors in
 |  37 | 7.6     | PATCH  | `/v1/team/members/:id/roadmap`                  | `RoadmapEditInputSchema`          | `TeamMemberDetailSchema`       | `team.ts`            |
 |  38 | 7.6     | POST   | `/v1/team/members/:id/roadmap`                  | `RoadmapAssignmentInputSchema`    | `CreatedSchema`                | `team.ts`            |
 |  39 | 7.6     | GET    | `/v1/team/onboarding`                           | —                                 | `TeamOnboardingSchema`         | `team.ts`            |
-|  40 | 7.7     | GET    | `/v1/people`                                    | —                                 | `PeopleDirectorySchema`        | `people.ts`          |
-|  41 | 7.7     | GET    | `/v1/people/:id`                                | —                                 | `PersonProfileSchema`          | `people.ts`          |
-|  42 | 7.7     | GET    | `/v1/people/experts`                            | —                                 | `ExpertListSchema`             | `people.ts`          |
-|  43 | 7.7     | GET    | `/v1/people/teams`                              | —                                 | `TeamDirectorySchema`          | `people.ts`          |
 |  44 | 7.8     | POST   | `/v1/contributions`                             | `ContributionInputSchema`         | `ContributionSchema`           | `contributions.ts`   |
 |  45 | 7.8     | POST   | `/v1/contributions/:id/resubmit`                | `ContributionResubmitInputSchema` | `ContributionSchema`           | `contributions.ts`   |
 |  46 | 7.8     | POST   | `/v1/contributions/draft`                       | `ContributionDraftInputSchema`    | `ContributionDraftSchema`      | `contributions.ts`   |
@@ -1445,11 +1437,8 @@ Generated from `apps/web/src/mocks/endpoints.ts` and the endpoint descriptors in
 |  88 | 7.10    | POST   | `/v1/admin/role-requests/:id/decision`          | `RoleRequestDecisionInputSchema`  | `RoleRequestDecisionSchema`    | `admin.ts`           |
 |  89 | 7.10    | GET    | `/v1/admin/security`                            | —                                 | `SecurityOverviewSchema`       | `admin.ts`           |
 |  90 | 7.10    | GET    | `/v1/admin/sync-runs`                           | —                                 | `SyncRunListSchema`            | `home/admin.ts`      |
-|  91 | 7.11    | POST   | `/v1/assistant/answers/:id/feedback`            | `AssistantFeedbackInputSchema`    | `AcknowledgedSchema`           | `assistant.ts`       |
-|  92 | 7.11    | POST   | `/v1/assistant/ask`                             | `AssistantAskInputSchema`         | `AssistantAnswerSchema`        | `assistant.ts`       |
-|  93 | 7.11    | POST   | `/v1/assistant/gaps`                            | `KnowledgeGapInputSchema`         | `KnowledgeGapResultSchema`     | `assistant.ts`       |
 
-## Appendix B. Live API routes the web app calls (52)
+## Appendix B. Live API routes the web app calls (64)
 
 These already work. `GET /v1/audit` needs the change in section 5.
 
@@ -1460,15 +1449,26 @@ These already work. `GET /v1/audit` needs the change in section 5.
 | DELETE | `/v1/ask/threads/:id`                                        | `ask/threads.routes.ts`           |
 | GET    | `/v1/ask/threads/:id`                                        | `ask/threads.routes.ts`           |
 | POST   | `/v1/ask/threads/:id/messages`                               | `ask/threads.routes.ts`           |
+| POST   | `/v1/ask/messages/:id/feedback`                              | `ask/messages.routes.ts`          |
+| POST   | `/v1/ask/messages/:id/promote`                               | `ask/messages.routes.ts`          |
+| POST   | `/v1/assistant/ask`                                          | `ask/assistant.routes.ts`         |
+| POST   | `/v1/assistant/answers/:id/feedback`                         | `ask/assistant.routes.ts`         |
+| POST   | `/v1/assistant/gaps`                                         | `ask/assistant.routes.ts`         |
 | GET    | `/v1/audit`                                                  | `identity/identity.routes.ts`     |
 | GET    | `/v1/companion/preferences`                                  | `platform/companion.routes.ts`    |
 | PATCH  | `/v1/companion/preferences`                                  | `platform/companion.routes.ts`    |
 | GET    | `/v1/connectors`                                             | `connectors/connectors.routes.ts` |
+| DELETE | `/v1/connectors/:id`                                         | `connectors/connectors.routes.ts` |
 | GET    | `/v1/connectors/:id/files`                                   | `connectors/connectors.routes.ts` |
+| GET    | `/v1/connectors/:id/scopes`                                  | `connectors/connectors.routes.ts` |
+| PUT    | `/v1/connectors/:id/scopes`                                  | `connectors/connectors.routes.ts` |
+| POST   | `/v1/connectors/:id/sync`                                    | `connectors/connectors.routes.ts` |
 | POST   | `/v1/connectors/:id/import`                                  | `connectors/connectors.routes.ts` |
 | POST   | `/v1/connectors/google-drive/authorize`                      | `connectors/connectors.routes.ts` |
 | POST   | `/v1/flags`                                                  | `platform/knowledge.routes.ts`    |
+| GET    | `/v1/evidence/:id`                                           | `context/evidence.routes.ts`      |
 | GET    | `/v1/notifications`                                          | `platform/companion.routes.ts`    |
+| POST   | `/v1/notifications/read-all`                                 | `platform/companion.routes.ts`    |
 | PATCH  | `/v1/notifications/:id/read`                                 | `platform/companion.routes.ts`    |
 | GET    | `/v1/notifications/preferences`                              | `platform/companion.routes.ts`    |
 | PATCH  | `/v1/notifications/preferences`                              | `platform/companion.routes.ts`    |
@@ -1499,6 +1499,7 @@ These already work. `GET /v1/audit` needs the change in section 5.
 | DELETE | `/v1/projects/:projectId/sources/:sourceId`                  | `sources/sources.routes.ts`       |
 | GET    | `/v1/projects/:projectId/sources/:sourceId`                  | `sources/sources.routes.ts`       |
 | POST   | `/v1/projects/:projectId/sources/:sourceId/reprocess`        | `sources/sources.routes.ts`       |
+| GET    | `/v1/people/:id`                                             | `platform/knowledge.routes.ts`    |
 | GET    | `/v1/users`                                                  | `identity/identity.routes.ts`     |
 | PATCH  | `/v1/users/:id`                                              | `identity/identity.routes.ts`     |
 | POST   | `/v1/users/invite`                                           | `identity/identity.routes.ts`     |
@@ -1508,7 +1509,7 @@ These already work. `GET /v1/audit` needs the change in section 5.
 | GET    | `/v1/workspaces/current/setup`                               | `workspace/workspace.routes.ts`   |
 | PATCH  | `/v1/workspaces/current/setup`                               | `workspace/workspace.routes.ts`   |
 
-## Appendix C. Live API routes the web app does not call yet (56)
+## Appendix C. Live API routes the web app does not call yet (55)
 
 Many hold data the mocked endpoints will be built from (the "Reuse" lines in section 7).
 
@@ -1520,7 +1521,6 @@ Many hold data the mocked endpoints will be built from (the "Reuse" lines in sec
 | GET    | `/v1/companion/context`                                                | `platform/companion.routes.ts`    |
 | POST   | `/v1/companion/interactions`                                           | `platform/companion.routes.ts`    |
 | POST   | `/v1/companion/stuck-help`                                             | `platform/companion.routes.ts`    |
-| DELETE | `/v1/connectors/:id`                                                   | `connectors/connectors.routes.ts` |
 | GET    | `/v1/connectors/google-drive/callback`                                 | `connectors/connectors.routes.ts` |
 | POST   | `/v1/corrections/:id/verify`                                           | `platform/knowledge.routes.ts`    |
 | PATCH  | `/v1/flags/:id`                                                        | `platform/knowledge.routes.ts`    |

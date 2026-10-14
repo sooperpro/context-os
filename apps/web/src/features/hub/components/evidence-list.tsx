@@ -16,7 +16,10 @@ export function EvidenceList({ evidence }: { evidence: Evidence[] }) {
       {evidence.map((item) => (
         <li key={item.id} className="rounded-md bg-pane px-3 py-2 text-sm">
           <blockquote className="flex gap-2">
-            <FormatQuoteIcon className="mt-0.5 size-4 shrink-0 text-on-surface-variant" aria-hidden />
+            <FormatQuoteIcon
+              className="mt-0.5 size-4 shrink-0 text-on-surface-variant"
+              aria-hidden
+            />
             <span className="leading-snug">{item.quote}</span>
           </blockquote>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
@@ -26,7 +29,13 @@ export function EvidenceList({ evidence }: { evidence: Evidence[] }) {
               variant="link"
               size="xs"
               className="h-auto px-0 text-xs"
-              onClick={() => drawer.open({ sourceId: item.sourceObjectId, quote: item.quote })}
+              onClick={() =>
+                drawer.open({
+                  sourceId: item.sourceObjectId,
+                  evidenceId: item.id,
+                  quote: item.quote,
+                })
+              }
             >
               {item.sourceTitle}
             </Button>

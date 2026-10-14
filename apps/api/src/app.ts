@@ -12,6 +12,7 @@ import { projectScope } from "./middleware/project-scope.js";
 import { apiRateLimiter } from "./middleware/rate-limit.js";
 import { requestLogger } from "./middleware/request-logger.js";
 import { createAskRoutes, createQuestionRoutes } from "./modules/ask/ask.routes.js";
+import { createAssistantRoutes } from "./modules/ask/assistant.routes.js";
 import { createMessageRoutes } from "./modules/ask/messages.routes.js";
 import { createThreadRoutes } from "./modules/ask/threads.routes.js";
 import { createConnectorRoutes } from "./modules/connectors/connectors.routes.js";
@@ -151,6 +152,7 @@ export function createApp({ env, container, version = "0.1.0" }: AppDeps) {
     .route("/api/v1", createIdentityLinkRoutes(container, drive))
     .route("/api/v1", createThreadRoutes(container))
     .route("/api/v1", createMessageRoutes(container))
+    .route("/api/v1", createAssistantRoutes(container))
     .route("/api/v1", createKnowledgeRoutes(container))
     .route("/api/v1", createBountyRoutes(container))
     .route("/api/v1", createLearningRoutes(container))

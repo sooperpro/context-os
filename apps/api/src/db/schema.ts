@@ -588,6 +588,11 @@ export const connectorScopes = sqliteTable(
     name: text("name").notNull(),
     isExcluded: integer("is_excluded", { mode: "boolean" }).notNull().default(false),
     backfillFrom: ts("backfill_from"),
+    /** Applied to every source the scope imports; `restricted` mirrors the tool's permissions. */
+    visibility: text("visibility")
+      .$type<"workspace" | "restricted">()
+      .notNull()
+      .default("restricted"),
     cursor: text("cursor", { mode: "json" }).$type<Record<string, unknown>>(),
     status: text("status").notNull().default("selected"),
     lastSyncRequestedAt: ts("last_sync_requested_at"),

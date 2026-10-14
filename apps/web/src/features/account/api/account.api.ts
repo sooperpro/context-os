@@ -10,8 +10,10 @@ import {
   AssistantPreferencesInputSchema,
   AssistantPreferencesSchema,
   ConnectedAppListSchema,
+  ConnectorListSchema,
   DataExportResultSchema,
   type AssistantPreferencesInput,
+  type ConnectedApp,
 } from "@contextos/shared";
 import { apiRequest } from "@/lib/api-client";
 
@@ -51,9 +53,8 @@ export const updateCompanionPreferences = (
     schema: CompanionPreferencesSchema,
   });
 
-/*
- * Not served yet; in development the mock layer answers (src/mocks/account.ts). Contracts:
- * packages/shared/src/schemas/account.ts.
+/* Assistant preferences and personal data export still use the development preview layer.
+ * Connected apps are adapted from the live connector API.
  */
 export const ACCOUNT_ENDPOINTS = {
   assistantPreferences: {
@@ -65,12 +66,8 @@ export const ACCOUNT_ENDPOINTS = {
     schema: AssistantPreferencesSchema,
     input: AssistantPreferencesInputSchema,
   },
-  connectedApps: { path: "/v1/me/connected-apps", schema: ConnectedAppListSchema },
-  disconnectApp: {
-    path: "/v1/me/connected-apps/:id/disconnect",
-    schema: ConnectedAppListSchema,
-    input: z.object({}).strict(),
-  },
+  connectedApps: { path: "/v1/connectors", schema: ConnectedAppListSchema },
+  disconnectApp: { path: "/v1/connectors/:id" },
   dataExport: {
     path: "/v1/me/data-export",
     schema: DataExportResultSchema,
@@ -92,17 +89,33 @@ export const updateAssistantPreferences = (input: AssistantPreferencesInput) =>
   });
 
 export const fetchConnectedApps = (signal?: AbortSignal) =>
-  apiRequest(ACCOUNT_ENDPOINTS.connectedApps.path, {
-    schema: ACCOUNT_ENDPOINTS.connectedApps.schema,
-    signal,
-  });
+  apiRequest(ACCOUNT_ENDPOINTS.connectedApps.path, { schema: ConnectorListSchema, signal }).then(
+    (result) =>
+      ConnectedAppListSchema.parse({
+        items: result.items.map((connection): ConnectedApp => ({
+          id: connection.id,
+          name:
+            connection.provider === "google_drive"
+              ? "Google Drive"
+              : connection.provider.replaceAll("_", " "),
+          provider: connection.provider.replaceAll("_", "-"),
+          description:
+            connection.status === "needs_reauth"
+              ? "Connection needs to be re-authorized"
+              : `Connected as ${connection.accountId ?? "your account"}`,
+          connectedAt: connection.createdAt ?? new Date(0).toISOString(),
+        })),
+      }),
+  );
 
-export const disconnectApp = (id: string) =>
-  apiRequest(ACCOUNT_ENDPOINTS.disconnectApp.path.replace(":id", encodeURIComponent(id)), {
-    method: "POST",
-    body: {},
-    schema: ACCOUNT_ENDPOINTS.disconnectApp.schema,
+export const disconnectApp = async (id: string) => {
+  await apiRequest(ACCOUNT_ENDPOINTS.disconnectApp.path.replace(":id", encodeURIComponent(id)), {
+    method: "DELETE",
+    query: { mode: "keep_derived" },
+    schema: z.undefined(),
   });
+  return fetchConnectedApps();
+};
 
 export const requestDataExport = () =>
   apiRequest(ACCOUNT_ENDPOINTS.dataExport.path, {

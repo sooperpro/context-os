@@ -32,6 +32,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { StatusChip } from "@/components/ui/status-chip";
+import { Switch } from "@/components/ui/switch";
 import {
   CheckIcon,
   ChevronRightIcon,
@@ -84,8 +85,8 @@ export function DriveImportDialog({ projectId, open, onOpenChange }: DriveImport
         <DialogHeader>
           <DialogTitle>Import from Google Drive</DialogTitle>
           <DialogDescription>
-            Pick a document to import into this project. Permission mirroring stays on: only files the
-            connected account can open are shown, and ContextOS never writes to Drive.
+            Pick a document to import into this project. Permission mirroring stays on: only files
+            the connected account can open are shown, and ContextOS never writes to Drive.
           </DialogDescription>
         </DialogHeader>
 
@@ -111,7 +112,8 @@ export function DriveImportDialog({ projectId, open, onOpenChange }: DriveImport
   );
 }
 
-function ConnectPrompt({ stale }: { stale: boolean }) {
+/** Shown when the person has no usable Drive connection; shared with the sync picker. */
+export function ConnectPrompt({ stale }: { stale: boolean }) {
   const queryClient = useQueryClient();
   const authorize = useAuthorizeGoogleDrive();
   return (
@@ -123,7 +125,12 @@ function ConnectPrompt({ stale }: { stale: boolean }) {
         description="Consent opens in a new tab with read-only Drive scope. Come back and check again once Google returns you to ContextOS."
       />
       {authorize.isError ? (
-        <Banner tone="error" icon={<WarningIcon />} title="Google Drive is not available" description={authorize.error.message} />
+        <Banner
+          tone="error"
+          icon={<WarningIcon />}
+          title="Google Drive is not available"
+          description={authorize.error.message}
+        />
       ) : null}
       <div className="flex flex-wrap gap-2">
         <Button
@@ -137,7 +144,12 @@ function ConnectPrompt({ stale }: { stale: boolean }) {
           <OpenInNewIcon aria-hidden />
           Connect Google Drive
         </Button>
-        <Button variant="outline" onClick={() => void queryClient.invalidateQueries({ queryKey: connectorsQuery().queryKey })}>
+        <Button
+          variant="outline"
+          onClick={() =>
+            void queryClient.invalidateQueries({ queryKey: connectorsQuery().queryKey })
+          }
+        >
           <RefreshIcon aria-hidden />
           Check again
         </Button>
@@ -146,13 +158,20 @@ function ConnectPrompt({ stale }: { stale: boolean }) {
   );
 }
 
-function DriveBrowser({ projectId, connection }: { projectId: string; connection: ConnectorConnection }) {
+function DriveBrowser({
+  projectId,
+  connection,
+}: {
+  projectId: string;
+  connection: ConnectorConnection;
+}) {
   const [path, setPath] = useState<Crumb[]>([]);
   const folderId = path.at(-1)?.id;
   const files = useInfiniteQuery(connectorFilesQuery(connection.id, folderId));
   const importFile = useImportDriveFile(projectId);
   const [imported, setImported] = useState<Set<string>>(() => new Set());
   const [importingId, setImportingId] = useState<string | null>(null);
+  const [shareAll, setShareAll] = useState(true);
 
   const items = files.data?.pages.flatMap((page) => page.items) ?? [];
   const folders = items.filter((item) => item.mimeType === DRIVE_FOLDER_MIME && !item.trashed);
@@ -161,7 +180,11 @@ function DriveBrowser({ projectId, connection }: { projectId: string; connection
   const runImport = (file: DriveFile) => {
     setImportingId(file.id);
     importFile.mutate(
-      { connectionId: connection.id, fileId: file.id },
+      {
+        connectionId: connection.id,
+        fileId: file.id,
+        visibility: shareAll ? "workspace" : "restricted",
+      },
       {
         onSuccess: () => {
           setImported((current) => new Set(current).add(file.id));
@@ -192,7 +215,9 @@ function DriveBrowser({ projectId, connection }: { projectId: string; connection
                 <BreadcrumbPage>{crumb.name}</BreadcrumbPage>
               ) : (
                 <BreadcrumbLink
-                  render={<button type="button" onClick={() => setPath(path.slice(0, index + 1))} />}
+                  render={
+                    <button type="button" onClick={() => setPath(path.slice(0, index + 1))} />
+                  }
                 >
                   {crumb.name}
                 </BreadcrumbLink>
@@ -202,11 +227,18 @@ function DriveBrowser({ projectId, connection }: { projectId: string; connection
         </BreadcrumbList>
       </Breadcrumb>
 
+      <SharingSwitch id="drive-import-share" checked={shareAll} onCheckedChange={setShareAll} />
+
       {importFile.isError ? (
-        <Banner tone="error" icon={<WarningIcon />} title="Could not import this file" description={importFile.error.message} />
+        <Banner
+          tone="error"
+          icon={<WarningIcon />}
+          title="Could not import this file"
+          description={importFile.error.message}
+        />
       ) : null}
 
-      <ScrollArea className="min-h-0 flex-1 -mx-1 px-1">
+      <ScrollArea className="-mx-1 min-h-0 flex-1 px-1">
         {files.isPending ? (
           <div className="space-y-1" aria-busy="true">
             {Array.from({ length: 4 }, (_, i) => (
@@ -219,7 +251,11 @@ function DriveBrowser({ projectId, connection }: { projectId: string; connection
             icon={<WarningIcon />}
             title="Could not list this folder"
             description={files.error.message}
-            actions={<Button variant="ghost" size="sm" onClick={() => void files.refetch()}>Retry</Button>}
+            actions={
+              <Button variant="ghost" size="sm" onClick={() => void files.refetch()}>
+                Retry
+              </Button>
+            }
           />
         ) : items.length === 0 ? (
           <p className="py-8 text-center text-sm text-on-surface-variant">This folder is empty.</p>
@@ -228,7 +264,12 @@ function DriveBrowser({ projectId, connection }: { projectId: string; connection
             {folders.map((folder) => (
               <SegmentedItem
                 key={folder.id}
-                render={<button type="button" onClick={() => setPath([...path, { id: folder.id, name: folder.name }])} />}
+                render={
+                  <button
+                    type="button"
+                    onClick={() => setPath([...path, { id: folder.id, name: folder.name }])}
+                  />
+                }
               >
                 <SegmentedItemLead>
                   <FolderIcon />
@@ -243,7 +284,8 @@ function DriveBrowser({ projectId, connection }: { projectId: string; connection
               </SegmentedItem>
             ))}
             {documents.map((file) => {
-              const supported = IMPORTABLE.has(file.mimeType) && file.capabilities?.canDownload !== false;
+              const supported =
+                IMPORTABLE.has(file.mimeType) && file.capabilities?.canDownload !== false;
               const done = imported.has(file.id);
               return (
                 <SegmentedItem key={file.id}>
@@ -253,8 +295,12 @@ function DriveBrowser({ projectId, connection }: { projectId: string; connection
                   <SegmentedItemBody>
                     <SegmentedItemTitle>{file.name}</SegmentedItemTitle>
                     <SegmentedItemMeta>
-                      {file.owners?.[0]?.displayName ? <span>{file.owners[0].displayName}</span> : null}
-                      {file.modifiedTime ? <span>Updated {formatDate(file.modifiedTime)}</span> : null}
+                      {file.owners?.[0]?.displayName ? (
+                        <span>{file.owners[0].displayName}</span>
+                      ) : null}
+                      {file.modifiedTime ? (
+                        <span>Updated {formatDate(file.modifiedTime)}</span>
+                      ) : null}
                     </SegmentedItemMeta>
                   </SegmentedItemBody>
                   <SegmentedItemTrail>
@@ -287,11 +333,45 @@ function DriveBrowser({ projectId, connection }: { projectId: string; connection
       </ScrollArea>
 
       {files.hasNextPage ? (
-        <Button variant="outline" className="self-center" disabled={files.isFetchingNextPage} onClick={() => void files.fetchNextPage()}>
+        <Button
+          variant="outline"
+          className="self-center"
+          disabled={files.isFetchingNextPage}
+          onClick={() => void files.fetchNextPage()}
+        >
           {files.isFetchingNextPage ? <Spinner /> : null}
           Load more
         </Button>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * Who can read what gets imported. On: every member of the workspace, in this project. Off:
+ * permission mirroring, so only people whose own Google account opens the file in Drive, once they
+ * connect it. Shared by the import and sync dialogs.
+ */
+export function SharingSwitch({
+  id,
+  checked,
+  onCheckedChange,
+}: {
+  id: string;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4 rounded-md bg-pane px-3 py-2">
+      <label htmlFor={id} className="flex min-w-0 flex-col gap-0.5">
+        <span className="text-sm font-medium">Share with everyone in the workspace</span>
+        <span className="text-xs text-on-surface-variant">
+          {checked
+            ? "Every member can read these documents in this project."
+            : "Only people whose own Google account can open them in Drive, after they connect it."}
+        </span>
+      </label>
+      <Switch id={id} size="sm" checked={checked} onCheckedChange={onCheckedChange} />
     </div>
   );
 }

@@ -1,9 +1,7 @@
 import { accountMocks } from "@/mocks/account";
 import { adminPageMocks } from "@/mocks/admin";
-import { assistantMocks } from "@/mocks/assistant";
 import { contributionMocks } from "@/mocks/contributions";
 import { learningMocks } from "@/mocks/learning";
-import { peopleMocks } from "@/mocks/people";
 import { peopleOpsPageMocks } from "@/mocks/people-ops";
 import { savedMocks } from "@/mocks/saved";
 import { welcomeMocks } from "@/mocks/welcome";
@@ -21,7 +19,6 @@ import { peopleOpsMocks } from "@/mocks/home/people-ops";
 export const mockEndpoints = [
   ...employeeMocks,
   ...learningMocks,
-  ...peopleMocks,
   ...contributionMocks,
   ...teamMocks,
   ...managerMocks,
@@ -30,7 +27,6 @@ export const mockEndpoints = [
   ...adminMocks,
   ...adminPageMocks,
   ...savedMocks,
-  ...assistantMocks,
   ...welcomeMocks,
   ...accountMocks,
 ];

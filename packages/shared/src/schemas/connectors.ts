@@ -25,6 +25,9 @@ export const ScopeStatusSchema = z.enum([
   "degraded",
   "needs_reauth",
 ]);
+/** Who can read what a scope imports: everyone in the workspace, or only people whose own account opens it in the tool. */
+export const ScopeVisibilitySchema = z.enum(["workspace", "restricted"]);
+export type ScopeVisibility = z.infer<typeof ScopeVisibilitySchema>;
 export const ScopeSelectionSchema = z
   .object({
     scopeType: ScopeTypeSchema,
@@ -32,6 +35,8 @@ export const ScopeSelectionSchema = z
     name: z.string().trim().min(1).max(300),
     excluded: z.boolean().default(false),
     backfillFrom: IsoDateSchema.optional(),
+    /** Defaults to permission mirroring (fail closed); the web app offers workspace sharing explicitly. */
+    visibility: ScopeVisibilitySchema.default("restricted"),
   })
   .strict();
 /** Replace the selected scopes a connection feeds into a project (FR-INT-005). */

@@ -2,7 +2,13 @@ import type { CitedText, ContextItem, Hub } from "@contextos/shared";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { ArrowDropDownIcon, HelpIcon, HistoryIcon, HubFilledIcon, UpdateIcon } from "@/components/ui/icons";
+import {
+  ArrowDropDownIcon,
+  HelpIcon,
+  HistoryIcon,
+  HubFilledIcon,
+  UpdateIcon,
+} from "@/components/ui/icons";
 import { TypeChip } from "@/components/ui/meta-chip";
 import { StatusChip } from "@/components/ui/status-chip";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -185,6 +191,7 @@ function CitedParagraph({
                           onClick={() =>
                             drawer.open({
                               sourceId: evidence.sourceObjectId,
+                              evidenceId: evidence.id,
                               quote: evidence.quote,
                             })
                           }

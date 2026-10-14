@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { IdSchema, IsoDateSchema } from "./common.js";
+import { ScopeStatusSchema, ScopeTypeSchema, ScopeVisibilitySchema } from "./connectors.js";
 
 export const SystemRoleSchema = z.enum(["owner", "admin", "manager", "member", "guest"]);
 export type SystemRole = z.infer<typeof SystemRoleSchema>;
@@ -393,6 +394,44 @@ export type InviteResult = z.infer<typeof InviteResultSchema>;
 
 /* ---- Connectors (`GET /connectors`, `POST /connectors/google-drive/authorize`) ------------ */
 
+/** A folder or shared drive selected to feed a project (`GET/PUT /connectors/:id/scopes`). */
+export const ConnectorScopeSchema = z.object({
+  id: z.string(),
+  projectId: z.string(),
+  scopeType: ScopeTypeSchema,
+  externalId: z.string(),
+  name: z.string(),
+  excluded: z.boolean(),
+  backfillFrom: z.string().nullable(),
+  visibility: ScopeVisibilitySchema,
+  status: ScopeStatusSchema,
+  lastSyncRequestedAt: z.string().nullable(),
+  lastSyncedAt: z.string().nullable(),
+  itemCount: z.number().int().nonnegative(),
+  lastError: z.string().nullable(),
+});
+export type ConnectorScope = z.infer<typeof ConnectorScopeSchema>;
+export const ConnectorScopeListSchema = z.object({ items: z.array(ConnectorScopeSchema) });
+/** A selectable scope in the person's Drive, with the selections already made from it. */
+export const ConnectorScopeOptionSchema = z.object({
+  scopeType: ScopeTypeSchema,
+  externalId: z.string(),
+  name: z.string(),
+  selections: z.array(ConnectorScopeSchema),
+});
+export type ConnectorScopeOption = z.infer<typeof ConnectorScopeOptionSchema>;
+export const ConnectorScopeOptionListSchema = z.object({
+  items: z.array(ConnectorScopeOptionSchema),
+  nextPageToken: z.string().nullable(),
+});
+export type ConnectorScopeOptionList = z.infer<typeof ConnectorScopeOptionListSchema>;
+/** `POST /connectors/:id/sync`: how many scopes were queued (synced ones within 10 minutes are skipped). */
+export const ConnectorSyncResultSchema = z.object({
+  queued: z.number().int().nonnegative(),
+  items: z.array(ConnectorScopeSchema),
+});
+export type ConnectorSyncResult = z.infer<typeof ConnectorSyncResultSchema>;
+
 export const ConnectorConnectionSchema = z.object({
   id: z.string(),
   provider: z.string(),
@@ -400,6 +439,15 @@ export const ConnectorConnectionSchema = z.object({
   accountId: z.string().nullable().optional(),
   scopes: z.array(z.string()).optional(),
   createdAt: z.string().optional(),
+  selectedScopes: z.array(ConnectorScopeSchema).optional(),
+  health: z
+    .object({
+      lastSuccessfulSyncAt: z.string().nullable(),
+      itemsProcessed: z.number().int().nonnegative(),
+      errors: z.array(z.object({ scopeId: z.string(), error: z.string().nullable() })),
+      tokenStatus: z.string(),
+    })
+    .optional(),
 });
 export type ConnectorConnection = z.infer<typeof ConnectorConnectionSchema>;
 export const ConnectorListSchema = z.object({ items: z.array(ConnectorConnectionSchema) });
@@ -441,6 +489,8 @@ export const DriveImportInputSchema = z
   .object({
     projectId: z.uuid(),
     fileId: z.string().regex(/^[a-zA-Z0-9_-]{1,200}$/),
+    /** Omitted: permission mirroring, so only people who can open the file in Drive read it. */
+    visibility: ScopeVisibilitySchema.optional(),
   })
   .strict();
 export type DriveImportInput = z.infer<typeof DriveImportInputSchema>;

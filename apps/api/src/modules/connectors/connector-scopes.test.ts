@@ -6,7 +6,9 @@ import {
   connectorScopes,
   identityLinks,
   jobs,
+  memberships,
   sourceObjects,
+  users,
 } from "../../db/schema.js";
 import { createProject, createTestApp, jsonRequest, type TestApp } from "../../test/helpers.js";
 import { createGoogleDriveService } from "./google-drive.js";
@@ -123,7 +125,12 @@ describe("Google Drive scopes, sync jobs and disconnect modes (mocked provider)"
     const scopes = await json<{
       items: Array<{ scopeType: string; externalId: string; selections: unknown[] }>;
     }>(await t.app.request(`/api/v1/connectors/${connection.id}/scopes`));
-    expect(scopes.items).toEqual([
+    expect(scopes.items[0]).toMatchObject({
+      scopeType: "folder",
+      externalId: "root",
+      name: "My Drive",
+    });
+    expect(scopes.items.slice(1)).toEqual([
       expect.objectContaining({ scopeType: "shared_drive", externalId: "drive-1", selections: [] }),
       expect.objectContaining({ scopeType: "folder", externalId: "folder-1", selections: [] }),
     ]);
@@ -132,7 +139,9 @@ describe("Google Drive scopes, sync jobs and disconnect modes (mocked provider)"
       jsonRequest(
         {
           projectId: project.id,
-          scopes: [{ scopeType: "folder", externalId: "folder-1", name: "Specs" }],
+          scopes: [
+            { scopeType: "folder", externalId: "folder-1", name: "Specs", visibility: "workspace" },
+          ],
         },
         "PUT",
       ),
@@ -166,8 +175,37 @@ describe("Google Drive scopes, sync jobs and disconnect modes (mocked provider)"
       .from(sourceObjects)
       .where(eq(sourceObjects.externalId, "file-1"))
       .get();
-    expect(imported).toMatchObject({ connector: "google_drive", connectionId: connection.id });
+    expect(imported).toMatchObject({
+      connector: "google_drive",
+      connectionId: connection.id,
+      visibility: "workspace",
+    });
     expect(imported?.metadata).toMatchObject({ scopeId: scope?.id });
+    // Workspace visibility: a member with no Drive connection of their own can read the import.
+    t.container.db.insert(users).values({ id: "emp", name: "Employee" }).run();
+    t.container.db
+      .insert(memberships)
+      .values({ workspaceId: t.container.workspace.id, userId: "emp", role: "member" })
+      .run();
+    const employee = {
+      ...t.container.devActor,
+      id: "emp",
+      name: "Employee",
+      role: "member" as const,
+    };
+    expect(t.container.identity.visibleSourceIds(employee, project.id)).toContain(imported!.id);
+    // Switching the scope back to permission mirroring hides it again, without a re-sync.
+    await t.app.request(
+      `/api/v1/connectors/${connection.id}/scopes`,
+      jsonRequest(
+        {
+          projectId: project.id,
+          scopes: [{ scopeType: "folder", externalId: "folder-1", name: "Specs" }],
+        },
+        "PUT",
+      ),
+    );
+    expect(t.container.identity.visibleSourceIds(employee, project.id)).not.toContain(imported!.id);
     const listed = await json<{
       items: Array<{
         selectedScopes: unknown[];

@@ -4,7 +4,7 @@ import { useParams } from "react-router";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { AddIcon, ArticleIcon, CloudDownloadIcon } from "@/components/ui/icons";
+import { AddIcon, ArticleIcon, CloudDownloadIcon, SyncIcon } from "@/components/ui/icons";
 import {
   Empty,
   EmptyDescription,
@@ -16,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { sourcesQuery } from "@/features/sources/api/sources.queries";
 import { AddSourceDialog } from "@/features/sources/components/add-source-dialog";
 import { DriveImportDialog } from "@/features/sources/components/drive-import-dialog";
+import { DriveSyncDialog } from "@/features/sources/components/drive-sync-dialog";
 import { SourceList } from "@/features/sources/components/source-list";
 import { formatCount } from "@/lib/format";
 
@@ -23,6 +24,7 @@ export function SourcesPage() {
   const { projectId = "" } = useParams();
   const [addOpen, setAddOpen] = useState(false);
   const [driveOpen, setDriveOpen] = useState(false);
+  const [syncOpen, setSyncOpen] = useState(false);
   const sources = useQuery(sourcesQuery(projectId));
 
   return (
@@ -38,6 +40,10 @@ export function SourcesPage() {
         description="Everything the hub knows comes from here. Each source keeps its author, dates and link as provenance."
         actions={
           <>
+            <Button variant="outline" onClick={() => setSyncOpen(true)}>
+              <SyncIcon aria-hidden />
+              Sync from Drive
+            </Button>
             <Button variant="outline" onClick={() => setDriveOpen(true)}>
               <CloudDownloadIcon aria-hidden />
               Import from Drive
@@ -93,6 +99,7 @@ export function SourcesPage() {
 
       <AddSourceDialog projectId={projectId} open={addOpen} onOpenChange={setAddOpen} />
       <DriveImportDialog projectId={projectId} open={driveOpen} onOpenChange={setDriveOpen} />
+      <DriveSyncDialog projectId={projectId} open={syncOpen} onOpenChange={setSyncOpen} />
     </div>
   );
 }

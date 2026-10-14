@@ -48,6 +48,16 @@ vi.mock("@clerk/react", () => ({
 }));
 
 function render(route: string) {
+  let connectors = [
+    {
+      id: "drive-1",
+      provider: "google_drive",
+      status: "connected",
+      accountId: "maya@tessellate.io",
+      scopes: ["drive.readonly"],
+      createdAt: "2026-10-06T09:00:00.000Z",
+    },
+  ];
   mockServer.use(
     http.get(buildApiUrl("/v1/workspaces/current"), () =>
       HttpResponse.json({
@@ -67,6 +77,11 @@ function render(route: string) {
         preferences: {},
       }),
     ),
+    http.get(buildApiUrl("/v1/connectors"), () => HttpResponse.json({ items: connectors })),
+    http.delete(buildApiUrl("/v1/connectors/:id"), ({ params }) => {
+      connectors = connectors.filter((connector) => connector.id !== params.id);
+      return new HttpResponse(null, { status: 204 });
+    }),
   );
   renderWithProviders(
     <ThemeProvider>
@@ -87,7 +102,7 @@ describe("Settings · security and preferences", () => {
     await user.click(within(devices.closest("li")!).getByRole("button", { name: "Sign out" }));
     await waitFor(() => expect(revoke).toHaveBeenCalledTimes(1));
 
-    const apps = screen.getByText("ContextOS for Slack").closest("li")!;
+    const apps = screen.getByText("Google Drive").closest("li")!;
     await user.click(within(apps).getByRole("button", { name: "Disconnect" }));
     expect(await screen.findByText("No connected apps.")).toBeInTheDocument();
 

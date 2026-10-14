@@ -1,0 +1,1 @@
+ALTER TABLE `connector_scopes` ADD `visibility` text DEFAULT 'restricted' NOT NULL;

@@ -424,7 +424,7 @@ export function AssistantPanel() {
                     onReport={() => reportGap(answer)}
                   />
                 ) : (
-                  <AnswerBody projectId={projectId} answer={answer} />
+                  <AnswerBody answer={answer} />
                 )}
               </BotMessage>
             </div>

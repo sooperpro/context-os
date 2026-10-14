@@ -132,6 +132,7 @@ export function createGoogleDriveService(container: Container) {
     name: row.name,
     excluded: row.isExcluded,
     backfillFrom: row.backfillFrom?.toISOString() ?? null,
+    visibility: row.visibility,
     status: row.status,
     lastSyncRequestedAt: row.lastSyncRequestedAt?.toISOString() ?? null,
     lastSyncedAt: row.lastSyncedAt?.toISOString() ?? null,
@@ -357,7 +358,7 @@ export function createGoogleDriveService(container: Container) {
         nextPageToken: response.data.nextPageToken ?? null,
       };
     },
-    /** Selectable scopes: shared drives and top-level folders, merged with current selections. */
+    /** Selectable scopes: all of My Drive, shared drives and top-level folders, with current selections. */
     async listScopes(actor: Actor, connectionId: string, pageToken?: string) {
       const connection = getConnection(actor, connectionId);
       const drive = google.drive({ version: "v3", auth: authorizedClient(connection) });
@@ -387,6 +388,8 @@ export function createGoogleDriveService(container: Container) {
       });
       return {
         items: [
+          // Drive's `root` alias: documents kept loose in My Drive have no folder to pick otherwise.
+          describe("folder", "root", "My Drive"),
           ...(drives.data.drives ?? [])
             .filter((d) => d.id && d.name)
             .map((d) => describe("shared_drive", d.id!, d.name!)),
@@ -412,17 +415,35 @@ export function createGoogleDriveService(container: Container) {
             db.delete(connectorScopes).where(eq(connectorScopes.id, row.id)).run();
         for (const scope of input.scopes) {
           const current = existing.find((row) => row.externalId === scope.externalId);
-          if (current)
+          if (current) {
             db.update(connectorScopes)
               .set({
                 name: scope.name,
                 scopeType: scope.scopeType,
                 isExcluded: scope.excluded,
                 backfillFrom: scope.backfillFrom ? new Date(scope.backfillFrom) : null,
+                visibility: scope.visibility,
               })
               .where(eq(connectorScopes.id, current.id))
               .run();
-          else
+            // A changed visibility applies to what the scope already imported, without a re-sync.
+            if (current.visibility !== scope.visibility)
+              for (const source of db
+                .select({ id: sourceObjects.id, metadata: sourceObjects.metadata })
+                .from(sourceObjects)
+                .where(
+                  and(
+                    eq(sourceObjects.projectId, input.projectId),
+                    eq(sourceObjects.connectionId, connection.id),
+                  ),
+                )
+                .all())
+                if (source.metadata?.scopeId === current.id)
+                  db.update(sourceObjects)
+                    .set({ visibility: scope.visibility })
+                    .where(eq(sourceObjects.id, source.id))
+                    .run();
+          } else
             db.insert(connectorScopes)
               .values({
                 id: randomUUID(),
@@ -434,6 +455,7 @@ export function createGoogleDriveService(container: Container) {
                 name: scope.name,
                 isExcluded: scope.excluded,
                 backfillFrom: scope.backfillFrom ? new Date(scope.backfillFrom) : null,
+                visibility: scope.visibility,
               })
               .run();
         }
@@ -556,7 +578,14 @@ export function createGoogleDriveService(container: Container) {
                 continue;
               seen.add(file.id);
               try {
-                await service.importFile(actor, connection.id, scope.projectId, file.id, scope.id);
+                await service.importFile(
+                  actor,
+                  connection.id,
+                  scope.projectId,
+                  file.id,
+                  scope.id,
+                  scope.visibility,
+                );
                 imported += 1;
               } catch (error) {
                 failures += 1;
@@ -637,6 +666,7 @@ export function createGoogleDriveService(container: Container) {
       projectId: string,
       fileId: string,
       scopeId?: string,
+      visibility: "workspace" | "restricted" = "restricted",
     ) {
       const connection = getConnection(actor, connectionId);
       const project = identity.requireProject(actor, projectId);
@@ -699,6 +729,11 @@ export function createGoogleDriveService(container: Container) {
         };
         if (existing) {
           sourceId = existing.id;
+          if (existing.visibility !== visibility)
+            db.update(sourceObjects)
+              .set({ visibility })
+              .where(eq(sourceObjects.id, existing.id))
+              .run();
           if (existing.contentHash !== hash) {
             db.update(sourceObjects)
               .set({
@@ -735,7 +770,7 @@ export function createGoogleDriveService(container: Container) {
             author: info.owners?.[0]?.displayName ?? undefined,
             sourceCreatedAt: info.createdTime ?? undefined,
             sourceUpdatedAt: info.modifiedTime ?? undefined,
-            visibility: "restricted",
+            visibility,
           });
           sourceId = source.id;
           db.update(sourceObjects)

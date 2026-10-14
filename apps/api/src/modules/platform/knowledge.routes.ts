@@ -638,9 +638,20 @@ export function createKnowledgeRoutes(container: Container) {
         name: user.name,
         role: member.role,
         organization: member.organization,
-        assignments: activeAssignments(actor.workspaceId, "domain_owner", []).filter(
-          (row) => row.userId === user.id,
-        ),
+        // Every active ownership, at any scope: the People profile lists project and section
+        // ownership too, so the directory can infer expertise from it.
+        assignments: db
+          .select()
+          .from(assignments)
+          .where(
+            and(
+              eq(assignments.workspaceId, actor.workspaceId),
+              eq(assignments.userId, user.id),
+              eq(assignments.type, "domain_owner"),
+              or(isNull(assignments.expiresAt), gt(assignments.expiresAt, new Date())),
+            ),
+          )
+          .all(),
       });
     });
 }

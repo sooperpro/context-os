@@ -58,6 +58,7 @@ describe("ContextItemCard", () => {
     await userEvent.click(screen.getByRole("button", { name: "ADR-0007" }));
     expect(open).toHaveBeenCalledWith({
       sourceId: decision.evidence[0]?.sourceObjectId,
+      evidenceId: decision.evidence[0]?.id,
       quote: decision.evidence[0]?.quote,
     });
   });

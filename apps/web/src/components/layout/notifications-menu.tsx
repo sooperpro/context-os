@@ -13,6 +13,7 @@ import { DoneAllIcon, NotificationsFilledIcon, NotificationsIcon } from "@/compo
 import {
   isUnread,
   notificationsQuery,
+  useMarkAllNotificationsRead,
   useMarkNotificationRead,
 } from "@/features/notifications/api/notifications.queries";
 import { formatDateTime } from "@/lib/format";
@@ -21,6 +22,7 @@ import { formatDateTime } from "@/lib/format";
 export function NotificationsMenu() {
   const notifications = useQuery(notificationsQuery());
   const markRead = useMarkNotificationRead();
+  const markAllRead = useMarkAllNotificationsRead();
   const items = notifications.data ?? [];
   const unread = items.filter(isUnread);
 
@@ -32,7 +34,9 @@ export function NotificationsMenu() {
             variant="ghost"
             size="icon"
             className="relative text-on-surface-variant"
-            aria-label={unread.length > 0 ? `Notifications, ${unread.length} unread` : "Notifications"}
+            aria-label={
+              unread.length > 0 ? `Notifications, ${unread.length} unread` : "Notifications"
+            }
           />
         }
       >
@@ -43,18 +47,19 @@ export function NotificationsMenu() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80">
         <DropdownMenuGroup>
-        <DropdownMenuLabel className="flex items-center justify-between">
-          Notifications
-          {unread.length > 0 ? (
-            <Button
-              variant="ghost"
-              size="xs"
-              onClick={() => unread.forEach((item) => markRead.mutate(item.id))}
-            >
-              <DoneAllIcon /> Mark all read
-            </Button>
-          ) : null}
-        </DropdownMenuLabel>
+          <DropdownMenuLabel className="flex items-center justify-between">
+            Notifications
+            {unread.length > 0 ? (
+              <Button
+                variant="ghost"
+                size="xs"
+                disabled={markAllRead.isPending}
+                onClick={() => markAllRead.mutate()}
+              >
+                <DoneAllIcon /> Mark all read
+              </Button>
+            ) : null}
+          </DropdownMenuLabel>
         </DropdownMenuGroup>
         {notifications.isError ? (
           <p className="px-2 py-3 text-xs text-on-surface-variant">Could not load notifications.</p>
@@ -67,11 +72,19 @@ export function NotificationsMenu() {
             const title = item.data.title ?? "Notification";
             const content = (
               <span className="flex min-w-0 flex-col gap-0.5">
-                <span className={isUnread(item) ? "font-medium text-on-surface" : "text-on-surface-variant"}>
+                <span
+                  className={
+                    isUnread(item) ? "font-medium text-on-surface" : "text-on-surface-variant"
+                  }
+                >
                   {title}
                 </span>
-                {item.data.body ? <span className="truncate text-xs text-on-surface-variant">{item.data.body}</span> : null}
-                <span className="text-xs text-on-surface-variant">{formatDateTime(item.createdAt)}</span>
+                {item.data.body ? (
+                  <span className="truncate text-xs text-on-surface-variant">{item.data.body}</span>
+                ) : null}
+                <span className="text-xs text-on-surface-variant">
+                  {formatDateTime(item.createdAt)}
+                </span>
               </span>
             );
             return (
@@ -83,7 +96,11 @@ export function NotificationsMenu() {
               >
                 <span
                   aria-hidden
-                  className={isUnread(item) ? "mt-2 size-2 shrink-0 rounded-full bg-primary" : "mt-2 size-2 shrink-0"}
+                  className={
+                    isUnread(item)
+                      ? "mt-2 size-2 shrink-0 rounded-full bg-primary"
+                      : "mt-2 size-2 shrink-0"
+                  }
                 />
                 {content}
               </DropdownMenuItem>
