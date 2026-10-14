@@ -95,6 +95,8 @@ export function AssistantPanel() {
 
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState<string | null>(null);
+  // Said once by a polite live region; the conversation itself is a quiet log (prototype update).
+  const [announcement, setAnnouncement] = useState("");
   const [failure, setFailure] = useState<Failure | null>(null);
   const [reported, setReported] = useState<Set<string>>(() => new Set());
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -113,6 +115,7 @@ export function AssistantPanel() {
       setDraft("");
       setFailure(null);
       setPending(text);
+      setAnnouncement("Context Bot is looking for an answer.");
       if (!projectId) {
         try {
           const answer = await askWorkspace.mutateAsync({
@@ -120,7 +123,9 @@ export function AssistantPanel() {
             page: location.pathname,
           });
           setWorkspaceThread((current) => [...current, answer]);
+          setAnnouncement(announceWorkspace(answer));
         } catch (error) {
+          setAnnouncement(FAILED);
           setFailure({
             question: text,
             message:
@@ -140,8 +145,10 @@ export function AssistantPanel() {
           id = created.id;
           setThreadByProject((current) => ({ ...current, [projectId]: created.id }));
         }
-        await send.mutateAsync({ threadId: id, question: text });
+        const answer = await send.mutateAsync({ threadId: id, question: text });
+        setAnnouncement(announceProject(answer));
       } catch (error) {
+        setAnnouncement(FAILED);
         // Server messages are written for people; anything else (network, an unreadable response) is not.
         setFailure({
           question: text,
@@ -308,7 +315,15 @@ export function AssistantPanel() {
       </div>
 
       <ScrollArea className="min-h-0 flex-1">
-        <div className="flex flex-col gap-5 px-5 pt-1 pb-4" aria-live="polite">
+        <div className="sr-only" aria-live="polite">
+          {announcement}
+        </div>
+        <div
+          className="flex flex-col gap-5 px-5 pt-1 pb-4"
+          role="log"
+          aria-live="off"
+          aria-label="Conversation"
+        >
           {showWelcome ? (
             <>
               <div className="flex flex-col items-center gap-2.5 px-2 pt-5 pb-2 text-center">
@@ -531,4 +546,32 @@ function NoAnswerCard({
       )}
     </div>
   );
+}
+
+/* What the live region says once an answer lands (prototype `announce`), citations left out. */
+
+const FAILED = "Couldn’t get an answer. Use Try again.";
+const NO_ANSWER = "No reliable answer found. Nothing in the sources you can access answers this.";
+const unmark = (text: string) =>
+  text
+    .replace(/\[\d+\]/g, "")
+    .replace(/\*\*/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+const sourcesLine = (count: number) =>
+  count === 1 ? "1 source listed." : `${count} sources listed.`;
+
+function announceProject(answer: Answer): string {
+  if (answer.confidence === "insufficient") return NO_ANSWER;
+  return `Answer: ${unmark(answer.answer)} ${sourcesLine(new Set(answer.citations.map((citation) => citation.sourceObjectId)).size)}`;
+}
+
+function announceWorkspace(answer: AssistantAnswer): string {
+  if (answer.outcome === "restricted")
+    return "Restricted information. This question can’t be answered from ContextOS.";
+  if (answer.outcome === "no_answer") return NO_ANSWER;
+  const text = answer.blocks
+    .map((block) => (block.type === "paragraph" ? block.text : block.items.join(". ")))
+    .join(" ");
+  return `Answer: ${unmark(text)} ${sourcesLine(answer.sources.length)}`;
 }

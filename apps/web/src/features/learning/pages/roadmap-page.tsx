@@ -16,11 +16,11 @@ import {
   ContactSupportIcon,
   EditCalendarIcon,
   FilterAltIcon,
-  HubIcon,
   LockClockIcon,
   QuizIcon,
   RouteIcon,
   SchoolIcon,
+  SmartToyIcon,
 } from "@/components/ui/icons";
 import { ProgressRing } from "@/components/ui/progress-ring";
 import { SegmentedItemLead, SegmentedList } from "@/components/ui/segmented-list";
@@ -99,7 +99,7 @@ export function RoadmapPage() {
               variant="ai-tonal"
               onClick={() => openAssistant("What should I focus on this week?")}
             >
-              <HubIcon aria-hidden /> What should I focus on?
+              <SmartToyIcon aria-hidden /> What should I focus on?
             </Button>
           </>
         }
@@ -235,38 +235,42 @@ export function RoadmapPage() {
                     <ContactSupportIcon aria-hidden /> Request clarification
                   </Button>
                   <Button size="xs" variant="ai-tonal" onClick={() => openAssistant()}>
-                    <HubIcon aria-hidden /> Ask Context Bot
+                    <SmartToyIcon aria-hidden /> Ask Context Bot
                   </Button>
                 </div>
               </SectionCard>
-              <SectionCard title="Completed" count={roadmap.history.length}>
-                {roadmap.history.length ? (
-                  <ol className="flex flex-col divide-y divide-outline-variant/60">
-                    {roadmap.history.map((entry) => {
-                      const Icon = HISTORY_ICON[entry.kind];
-                      return (
-                        <li key={entry.id} className="flex items-start gap-3 py-2.5">
-                          <SegmentedItemLead tone="success" size="sm">
-                            <Icon aria-hidden />
-                          </SegmentedItemLead>
-                          <div className="flex min-w-0 flex-col gap-0.5">
-                            <span className="text-sm font-medium">{entry.title}</span>
-                            <span className="flex flex-wrap items-center gap-x-2 text-xs text-on-surface-variant">
-                              <DotList parts={[entry.result, formatShortDate(entry.completedOn)]} />
-                            </span>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ol>
-                ) : (
-                  <p className="text-sm text-on-surface-variant">
-                    Finished modules and checks show up here.
-                  </p>
-                )}
-              </SectionCard>
             </PageSide>
           </PageColumns>
+          {/* Full width under the stage panel, as a strip of tiles (prototype update, Oct 14). */}
+          <SectionCard title="Completed" count={roadmap.history.length}>
+            {roadmap.history.length ? (
+              <ol className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
+                {roadmap.history.map((entry) => {
+                  const Icon = HISTORY_ICON[entry.kind];
+                  return (
+                    <li
+                      key={entry.id}
+                      className="flex items-center gap-3 rounded-2xl bg-pane px-3.5 py-3"
+                    >
+                      <SegmentedItemLead tone="success" size="sm">
+                        <Icon aria-hidden />
+                      </SegmentedItemLead>
+                      <div className="flex min-w-0 flex-col gap-0.5">
+                        <span className="text-sm font-medium">{entry.title}</span>
+                        <span className="flex flex-wrap items-center gap-x-2 text-xs text-on-surface-variant">
+                          <DotList parts={[entry.result, formatShortDate(entry.completedOn)]} />
+                        </span>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
+            ) : (
+              <p className="text-sm text-on-surface-variant">
+                Finished modules and checks show up here.
+              </p>
+            )}
+          </SectionCard>
         </>
       )}
       <RoadmapChangeDialog

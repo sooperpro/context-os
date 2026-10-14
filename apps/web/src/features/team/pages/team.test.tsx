@@ -2,7 +2,10 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
 import { describe, expect, it, vi } from "vitest";
-import { AssistantContext, type AssistantContextValue } from "@/components/layout/assistant-context";
+import {
+  AssistantContext,
+  type AssistantContextValue,
+} from "@/components/layout/assistant-context";
 import { ReviewQueuePage } from "@/features/contributions/pages/review-queue-page";
 import { MyLearningPage } from "@/features/learning/pages/my-learning-page";
 import { CheckinPage } from "@/features/team/pages/checkin-page";
@@ -18,7 +21,14 @@ setupMockApi();
 function renderAt(route: string) {
   mockServer.use(
     http.get(buildApiUrl("/v1/users/me"), () =>
-      HttpResponse.json({ id: "u2", name: "Daniel Reyes", email: null, role: "manager", workspaceId: "w1", preferences: {} }),
+      HttpResponse.json({
+        id: "u2",
+        name: "Daniel Reyes",
+        email: null,
+        role: "manager",
+        workspaceId: "w1",
+        preferences: {},
+      }),
     ),
   );
   const assistant: AssistantContextValue = {
@@ -52,7 +62,9 @@ describe("Team onboarding", () => {
     expect(cards[1]).toHaveTextContent("Leah Park");
     expect(cards[0]).toHaveAttribute("href", "/team/p-chloe");
     expect(within(cards[1]!).getByText("2 modules are 5 days overdue")).toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "Team status" })).toHaveTextContent("1Blocked1At risk1Needs setup2On track");
+    expect(screen.getByRole("group", { name: "Team status" })).toHaveTextContent(
+      "1Blocked1At risk1Needs setup2On track",
+    );
 
     const matrix = await screen.findByRole("region", { name: "Knowledge checks by topic" });
     expect(within(matrix).getByText("Billing: Failed")).toBeInTheDocument();
@@ -65,15 +77,23 @@ describe("Team onboarding", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "Leah Park" })).toBeInTheDocument();
     const insight = screen.getByRole("region", { name: "Context Bot suggestion" });
     await user.click(within(insight).getByRole("button", { name: "Book a session with Priya" }));
-    const dialog = await screen.findByRole("dialog", { name: "Assign a learning task to Leah Park" });
-    expect(await within(dialog).findByRole("radio", { name: /Billing architecture: deep dive/ })).toBeChecked();
+    const dialog = await screen.findByRole("dialog", { name: "Assign a learning task" });
+    // Anyone on the team can be picked; the page's person comes preselected.
+    expect(await within(dialog).findByRole("combobox", { name: "Person" })).toHaveTextContent(
+      "Leah Park",
+    );
+    expect(
+      await within(dialog).findByRole("radio", { name: /Billing architecture: deep dive/ }),
+    ).toBeChecked();
     await user.click(within(dialog).getByRole("button", { name: "Assign task" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
     const roadmap = screen.getByRole("region", { name: "Roadmap · current stage" });
     expect(await within(roadmap).findByText("Billing architecture: deep dive")).toBeInTheDocument();
     await user.click(within(roadmap).getByRole("button", { name: "Edit roadmap" }));
-    const billingRow = within(roadmap).getByText("Billing architecture and Project Kestrel").closest("[data-slot=segmented-item]")!;
+    const billingRow = within(roadmap)
+      .getByText("Billing architecture and Project Kestrel")
+      .closest("[data-slot=segmented-item]")!;
     await user.click(within(billingRow as HTMLElement).getByRole("button", { name: "+1 week" }));
     await user.click(within(roadmap).getByRole("button", { name: "Save changes" }));
     expect(await within(roadmap).findByText(/\(moved\)/)).toBeInTheDocument();
@@ -83,8 +103,12 @@ describe("Team onboarding", () => {
     const user = userEvent.setup();
     renderAt("/team/p-leah/check-in");
 
-    expect(await screen.findByRole("heading", { level: 1, name: "Check-in with Leah" })).toBeInTheDocument();
-    expect(await screen.findByText("Plan a session with Priya Nair and a retake date")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Check-in with Leah" }),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText("Plan a session with Priya Nair and a retake date"),
+    ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "60-day readiness" }));
     const area = await screen.findByRole("group", { name: "Understands the systems they work on" });
     await user.click(within(area).getByRole("button", { name: "Developing" }));
@@ -103,7 +127,9 @@ describe("Team onboarding", () => {
     expect(await screen.findByRole("radio", { name: /Confirm/ })).toBeChecked();
     await user.click(screen.getByRole("radio", { name: /Extend 30 days/ }));
     await user.click(screen.getByRole("button", { name: "Save and send recommendation" }));
-    expect(await screen.findByRole("heading", { level: 1, name: "Arjun Mehta" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Arjun Mehta" }),
+    ).toBeInTheDocument();
   });
 });
 
@@ -118,7 +144,9 @@ describe("Review queue and My learning", () => {
     expect(screen.getByRole("heading", { name: "On-call escalation paths" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Approve and publish" }));
 
-    expect(await screen.findByRole("heading", { name: "Ledger service runbook" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Ledger service runbook" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("1 reviewed recently")).toBeInTheDocument();
     expect(screen.getByText("Run `make restart` on the ledger host.")).toBeInTheDocument();
   });

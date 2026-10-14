@@ -26,7 +26,6 @@ import {
   ContactSupportIcon,
   DescriptionIcon,
   FormatListNumberedIcon,
-  HubIcon,
   LockClockIcon,
   LockIcon,
   OpenInNewIcon,
@@ -35,6 +34,7 @@ import {
   RadioButtonUncheckedIcon,
   ScheduleIcon,
   SchoolIcon,
+  SmartToyIcon,
   UpdateIcon,
   VerifiedIcon,
 } from "@/components/ui/icons";
@@ -272,7 +272,7 @@ function ModuleView({ module }: { module: ModuleDetail }) {
               variant="ai-tonal"
               onClick={() => openAssistant(module.suggestedQuestion ?? `Summarize ${module.title}`)}
             >
-              <HubIcon aria-hidden /> Ask about this module
+              <SmartToyIcon aria-hidden /> Ask about this module
             </Button>
             <Button variant="ghost" className="text-current" onClick={() => setClarifyOpen(true)}>
               <ContactSupportIcon aria-hidden /> Request clarification

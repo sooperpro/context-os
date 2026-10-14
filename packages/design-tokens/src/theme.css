@@ -44,6 +44,9 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  --color-bar-ok: var(--cx-bar-ok);
+  --color-bar-risk: var(--cx-bar-risk);
+  --color-bar-blocked: var(--cx-bar-blocked);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);

@@ -1,7 +1,7 @@
 import { useEffect, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useAssistant } from "@/components/layout/assistant-context";
-import { HubFilledIcon } from "@/components/ui/icons";
+import { SmartToyFilledIcon } from "@/components/ui/icons";
 
 /**
  * "Select text → Ask Context Bot" (prototype `.sel-ask`): when text inside `containerRef` is
@@ -64,7 +64,7 @@ export function SelectionAsk({ containerRef }: { containerRef: RefObject<HTMLEle
         setSelection(null);
       }}
     >
-      <HubFilledIcon aria-hidden /> Ask Context Bot
+      <SmartToyFilledIcon aria-hidden /> Ask Context Bot
     </button>,
     document.body,
   );

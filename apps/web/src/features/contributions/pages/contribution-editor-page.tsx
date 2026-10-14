@@ -40,11 +40,11 @@ import {
   CloseIcon,
   EditIcon,
   HelpIcon,
-  HubIcon,
   InfoIcon,
   RadioButtonUncheckedIcon,
   SaveIcon,
   SendIcon,
+  SmartToyIcon,
   SyncProblemIcon,
 } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
@@ -357,7 +357,7 @@ function EditorForm({ gap, question }: { gap: KnowledgeGap | null; question: str
                       disabled={draft.drafted || writeDraft.isPending}
                       onClick={draftFromSources}
                     >
-                      <HubIcon aria-hidden />
+                      <SmartToyIcon aria-hidden />
                       {draft.drafted
                         ? "Drafted from sources"
                         : writeDraft.isPending

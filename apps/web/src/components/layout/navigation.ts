@@ -39,6 +39,7 @@ import {
   type MaterialIcon,
 } from "@/components/ui/icons";
 import type { Persona } from "@/features/workspace/viewer";
+import { HIDDEN } from "@/lib/hidden";
 
 /**
  * The one place navigation is defined. The rail, the bottom bar and any future command palette
@@ -262,6 +263,7 @@ const PERSONA_ORDER: Partial<Record<Persona, readonly string[]>> = {
 export function navItemsFor(role: SystemRole | undefined, persona?: Persona): NavItem[] {
   const items = NAV_ITEMS.filter(
     (item) =>
+      !(HIDDEN.contributions && item.id === "contributions") &&
       (!item.roles || (role !== undefined && item.roles.includes(role))) &&
       (!item.personas || (persona !== undefined && item.personas.includes(persona))),
   );

@@ -1,6 +1,8 @@
 import { createBrowserRouter } from "react-router";
 import { RootLayout } from "@/app/root-layout";
+import { RedirectHome } from "@/components/redirect-home";
 import { RouteErrorBoundary } from "@/components/route-error-boundary";
+import { HIDDEN } from "@/lib/hidden";
 import { NotFoundPage } from "@/pages/not-found-page";
 
 /** Development-only routes: the component gallery lives outside the app shell and auth gate. */
@@ -61,22 +63,27 @@ const appChildren = [
       return { Component: CheckPage };
     },
   },
-  {
-    path: "contributions",
-    lazy: async () => {
-      const { ContributionsPage } =
-        await import("@/features/contributions/pages/contributions-page");
-      return { Component: ContributionsPage };
-    },
-  },
-  {
-    path: "contributions/new",
-    lazy: async () => {
-      const { ContributionEditorPage } =
-        await import("@/features/contributions/pages/contribution-editor-page");
-      return { Component: ContributionEditorPage };
-    },
-  },
+  // Soft-hidden for the demo (lib/hidden.ts): the pages stay in the code, their routes go Home.
+  ...(HIDDEN.contributions
+    ? [{ path: "contributions/*", Component: RedirectHome }]
+    : [
+        {
+          path: "contributions",
+          lazy: async () => {
+            const { ContributionsPage } =
+              await import("@/features/contributions/pages/contributions-page");
+            return { Component: ContributionsPage };
+          },
+        },
+        {
+          path: "contributions/new",
+          lazy: async () => {
+            const { ContributionEditorPage } =
+              await import("@/features/contributions/pages/contribution-editor-page");
+            return { Component: ContributionEditorPage };
+          },
+        },
+      ]),
   {
     path: "team",
     lazy: async () => {

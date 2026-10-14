@@ -2,8 +2,9 @@
 
 Status: in progress. Owner: frontend. Started 2026-10-14 on branch `feat/design-foundation`.
 
-The design prototype (Material 3 Expressive, delivered as `Context OS/` with `HANDOFF.md`) is the source of
-truth for layout, behavior and copy. This plan turns it into a production frontend inside the existing
+The design prototype (Material 3 Expressive, delivered as `Context OS/` with `HANDOFF.md`; the Oct 14
+update, `Context OS 2/`, adds `design-system.md`, `design-skill.md` and an accessibility report) is the
+source of truth for layout, behavior and copy. This plan turns it into a production frontend inside the existing
 React 19 / Vite / Tailwind v4 / shadcn (Base UI) / TanStack Query / React Router 8 stack.
 
 ## Architecture: three layers, one dependency direction
@@ -229,6 +230,13 @@ A pass over every built surface against the prototype's CSS and JS found three g
       Context Bot preferences that change the panel and lessons, sign-in and "Where you're signed
       in" from Clerk with sign-out per device, connected apps and a copy of your data. Admins' links
       go to Members & roles, AI settings and Workspace setup.
+- [x] The Oct 14 reference update: Contributions and the employee Home's team updates card are
+      soft-hidden for the Oct 18 demo behind `src/lib/hidden.ts` (routes go Home; flip a flag to bring
+      them back); Context Bot's icon is `smart_toy` everywhere it stands for the bot (the Knowledge Hub
+      keeps `hub`); Assign learning picks anyone on the team; the roadmap's Completed list is a
+      full-width strip; Undo snackbars stay until dismissed; the bot's conversation is a quiet log
+      with one polite announcer; status bars use the new 3:1 colors (`--cx-bar-*` tokens); the Ask
+      band's ⌘J hint is hidden from screen readers; dialogs have no shadow.
 - [x] The rail is gated by persona as well as role, so each "Prototype · view as" persona (Employee,
       Manager, HR, Admin) gets the reference's items as their screens ship.
 

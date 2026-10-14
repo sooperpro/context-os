@@ -3,7 +3,7 @@ import { NavLink, useLocation } from "react-router";
 import { useAssistant } from "@/components/layout/assistant-context";
 import { BOTTOM_NAV_LIMIT, isInActivePaths, type NavItem } from "@/components/layout/navigation";
 import { Fab } from "@/components/ui/fab";
-import { HubFilledIcon } from "@/components/ui/icons";
+import { SmartToyFilledIcon } from "@/components/ui/icons";
 
 /** Compact windows (< 600px): a bottom navigation bar with up to four destinations and the Ask FAB. */
 export function BottomNav({ items }: { items: NavItem[] }) {
@@ -20,7 +20,7 @@ export function BottomNav({ items }: { items: NavItem[] }) {
         onClick={toggleAssistant}
         className="fixed right-4 bottom-24 z-20 medium:hidden"
       >
-        <HubFilledIcon />
+        <SmartToyFilledIcon />
       </Fab>
       <nav
         aria-label="Main"

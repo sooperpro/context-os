@@ -21,11 +21,11 @@ import {
   CloseIcon,
   FolderOpenIcon,
   GroupsIcon,
-  HubFilledIcon,
   HubIcon,
   LockIcon,
   RocketLaunchFilledIcon,
   SearchOffIcon,
+  SmartToyFilledIcon,
   type MaterialIcon,
 } from "@/components/ui/icons";
 import { TypeChip } from "@/components/ui/meta-chip";
@@ -185,7 +185,7 @@ export function KnowledgeHubPage() {
               New project
             </Button>
             <Button variant="ai-tonal" onClick={() => openAssistant()}>
-              <HubFilledIcon aria-hidden />
+              <SmartToyFilledIcon aria-hidden />
               Ask Context Bot
             </Button>
           </>
@@ -409,7 +409,7 @@ function ResultsView({ entries, query, category, loading, onClear, onAsk }: Resu
         <div className="flex flex-wrap gap-2">
           {query ? (
             <Button variant="ai-tonal" onClick={onAsk}>
-              <HubFilledIcon aria-hidden />
+              <SmartToyFilledIcon aria-hidden />
               Ask Context Bot
             </Button>
           ) : null}

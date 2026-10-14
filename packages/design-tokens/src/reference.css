@@ -74,8 +74,10 @@
   --cx-logo-tile: #ffffff;
 
   /* ---- Typography ------------------------------------------------------ */
-  --md-ref-typeface-brand: "Google Sans Flex", "Google Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --md-ref-typeface-plain: "Google Sans Flex", "Google Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --md-ref-typeface-brand:
+    "Google Sans Flex", "Google Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --md-ref-typeface-plain:
+    "Google Sans Flex", "Google Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --md-ref-typeface-code: "Google Sans Code", ui-monospace, "SF Mono", Menlo, monospace;
 
   --md-sys-typescale-display-large: 400 57px/64px var(--md-ref-typeface-brand);
@@ -136,13 +138,115 @@
      Sampled from damped springs: fast/default/slow spatial = ζ .6/.8/.8,
      k 800/380/200; effects = ζ 1, k 3800/1600/800. Spatial springs may
      overshoot; effect springs never do. */
-  --md-sys-motion-spring-fast-spatial: linear(0, 0.041, 0.145, 0.283, 0.435, 0.584, 0.72, 0.836, 0.929, 0.999, 1.047, 1.077, 1.092, 1.095, 1.089, 1.079, 1.065, 1.051, 1.037, 1.024, 1.014, 1.005, 0.999, 0.995, 0.992, 0.991, 0.991, 0.992, 0.993, 0.994, 0.995, 0.997, 1);
+  --md-sys-motion-spring-fast-spatial: linear(
+    0,
+    0.041,
+    0.145,
+    0.283,
+    0.435,
+    0.584,
+    0.72,
+    0.836,
+    0.929,
+    0.999,
+    1.047,
+    1.077,
+    1.092,
+    1.095,
+    1.089,
+    1.079,
+    1.065,
+    1.051,
+    1.037,
+    1.024,
+    1.014,
+    1.005,
+    0.999,
+    0.995,
+    0.992,
+    0.991,
+    0.991,
+    0.992,
+    0.993,
+    0.994,
+    0.995,
+    0.997,
+    1
+  );
   --md-sys-motion-spring-fast-spatial-duration: 350ms;
-  --md-sys-motion-spring-default-spatial: linear(0, 0.027, 0.096, 0.188, 0.291, 0.397, 0.499, 0.593, 0.677, 0.75, 0.811, 0.862, 0.903, 0.936, 0.961, 0.98, 0.994, 1.003, 1.009, 1.013, 1.015, 1.015, 1.015, 1.014, 1.012, 1.011, 1.009, 1.007, 1.006, 1.005, 1.004, 1.003, 1);
+  --md-sys-motion-spring-default-spatial: linear(
+    0,
+    0.027,
+    0.096,
+    0.188,
+    0.291,
+    0.397,
+    0.499,
+    0.593,
+    0.677,
+    0.75,
+    0.811,
+    0.862,
+    0.903,
+    0.936,
+    0.961,
+    0.98,
+    0.994,
+    1.003,
+    1.009,
+    1.013,
+    1.015,
+    1.015,
+    1.015,
+    1.014,
+    1.012,
+    1.011,
+    1.009,
+    1.007,
+    1.006,
+    1.005,
+    1.004,
+    1.003,
+    1
+  );
   --md-sys-motion-spring-default-spatial-duration: 410ms;
   --md-sys-motion-spring-slow-spatial: var(--md-sys-motion-spring-default-spatial);
   --md-sys-motion-spring-slow-spatial-duration: 570ms;
-  --md-sys-motion-spring-fast-effects: linear(0, 0.029, 0.099, 0.188, 0.285, 0.38, 0.47, 0.551, 0.623, 0.686, 0.74, 0.786, 0.824, 0.857, 0.883, 0.905, 0.923, 0.938, 0.95, 0.96, 0.968, 0.974, 0.98, 0.984, 0.987, 0.99, 0.992, 0.993, 0.995, 0.996, 0.997, 0.997, 1);
+  --md-sys-motion-spring-fast-effects: linear(
+    0,
+    0.029,
+    0.099,
+    0.188,
+    0.285,
+    0.38,
+    0.47,
+    0.551,
+    0.623,
+    0.686,
+    0.74,
+    0.786,
+    0.824,
+    0.857,
+    0.883,
+    0.905,
+    0.923,
+    0.938,
+    0.95,
+    0.96,
+    0.968,
+    0.974,
+    0.98,
+    0.984,
+    0.987,
+    0.99,
+    0.992,
+    0.993,
+    0.995,
+    0.996,
+    0.997,
+    0.997,
+    1
+  );
   --md-sys-motion-spring-fast-effects-duration: 140ms;
   --md-sys-motion-spring-default-effects: var(--md-sys-motion-spring-fast-effects);
   --md-sys-motion-spring-default-effects-duration: 210ms;
@@ -157,6 +261,12 @@
   --cx-pane-gap: 12px;
   /* Cards and KPI tiles use 24px corners in the prototype (between M3 large-increased and extra-large). */
   --cx-card-radius: 24px;
+
+  /* ---- Status bars (onboarding by team) -------------------------------- */
+  /* Each segment reaches 3:1 against the card (prototype dashboard.css, Oct 14 update). */
+  --cx-bar-ok: #7887a4;
+  --cx-bar-risk: #bd7a00;
+  --cx-bar-blocked: #ba1a1a;
 }
 
 /* ---- Color: dark ---------------------------------------------------------
@@ -216,6 +326,9 @@
     --md-sys-elevation-2: 0 1px 2px rgb(0 0 0 / 0.5), 0 2px 6px 2px rgb(0 0 0 / 0.3);
     --md-sys-elevation-3: 0 1px 3px rgb(0 0 0 / 0.5), 0 4px 8px 3px rgb(0 0 0 / 0.3);
     --md-sys-elevation-4: 0 2px 3px rgb(0 0 0 / 0.5), 0 6px 10px 4px rgb(0 0 0 / 0.3);
+    --cx-bar-ok: #6e778e;
+    --cx-bar-risk: #ffb95a;
+    --cx-bar-blocked: #ff5449;
   }
 }
 
@@ -272,6 +385,9 @@
   --md-sys-elevation-2: 0 1px 2px rgb(0 0 0 / 0.5), 0 2px 6px 2px rgb(0 0 0 / 0.3);
   --md-sys-elevation-3: 0 1px 3px rgb(0 0 0 / 0.5), 0 4px 8px 3px rgb(0 0 0 / 0.3);
   --md-sys-elevation-4: 0 2px 3px rgb(0 0 0 / 0.5), 0 6px 10px 4px rgb(0 0 0 / 0.3);
+  --cx-bar-ok: #6e778e;
+  --cx-bar-risk: #ffb95a;
+  --cx-bar-blocked: #ff5449;
 }
 
 @media (prefers-reduced-motion: reduce) {

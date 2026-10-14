@@ -21,12 +21,12 @@ import {
   CancelFilledIcon,
   CheckCircleFilledIcon,
   FlagIcon,
-  HubIcon,
   LinkIcon,
   PlayArrowFilledIcon,
   QuizIcon,
   ReplayIcon,
   SendIcon,
+  SmartToyIcon,
 } from "@/components/ui/icons";
 import { Loader } from "@/components/ui/loader";
 import { MetaChip } from "@/components/ui/meta-chip";
@@ -357,7 +357,7 @@ function CheckReview({
             variant="ai-tonal"
             onClick={() => openAssistant(`Explain the answers in “${check.module.title}”`)}
           >
-            <HubIcon aria-hidden /> Ask about a question
+            <SmartToyIcon aria-hidden /> Ask about a question
           </Button>
         }
       >

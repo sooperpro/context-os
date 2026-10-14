@@ -26,13 +26,13 @@ import {
   EventIcon,
   GavelIcon,
   GroupsIcon,
-  HubIcon,
   LocalShippingIcon,
   LocationOnIcon,
   MenuBookIcon,
   PersonIcon,
   RocketLaunchIcon,
   ScheduleIcon,
+  SmartToyIcon,
   type MaterialIcon,
 } from "@/components/ui/icons";
 import { Loader } from "@/components/ui/loader";
@@ -125,7 +125,7 @@ function Profile({ person }: { person: PersonProfile }) {
               <EventIcon aria-hidden /> Book time
             </Button>
             <Button variant="ai-tonal" onClick={() => openAssistant(`What does ${first} work on?`)}>
-              <HubIcon aria-hidden /> What does {first} work on?
+              <SmartToyIcon aria-hidden /> What does {first} work on?
             </Button>
           </>
         }

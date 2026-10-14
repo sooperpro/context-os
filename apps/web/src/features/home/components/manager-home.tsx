@@ -18,10 +18,10 @@ import {
   EditNoteIcon,
   ErrorIcon,
   HelpIcon,
-  HubIcon,
   InfoIcon,
   MoreVertIcon,
   ScheduleIcon,
+  SmartToyIcon,
 } from "@/components/ui/icons";
 import { MiniTile } from "@/components/ui/kpi-tile";
 import {
@@ -46,13 +46,26 @@ import { meQuery } from "@/features/account/api/account.queries";
 import { HOME_ENDPOINTS as E } from "@/features/home/api/home.api";
 import { homeQuery } from "@/features/home/api/home.queries";
 // Home is a dashboard: it opens other features' dialogs, like the setup wizard does.
-import { AssignLearningDialog, AssignRoadmapDialog } from "@/features/team/components/assign-dialogs";
+import {
+  AssignLearningDialog,
+  AssignRoadmapDialog,
+} from "@/features/team/components/assign-dialogs";
 import { TEAM_PATH, checkinPath, memberPath } from "@/features/team/team-meta";
 import { comingSoon } from "@/lib/coming-soon";
-import { daysFromToday, firstName, formatCount, formatLongDate, formatShortDate, formatTime, formatWeekday, greetingFor } from "@/lib/format";
+import {
+  daysFromToday,
+  firstName,
+  formatCount,
+  formatLongDate,
+  formatShortDate,
+  formatTime,
+  formatWeekday,
+  greetingFor,
+} from "@/lib/format";
 import { DotList } from "@/components/ui/dot-list";
 import { DashboardGrid } from "./dashboard";
 import { span } from "./dashboard-meta";
+import { HIDDEN } from "@/lib/hidden";
 
 /** The manager's Home (prototype `managerHome`): who needs attention, upcoming check-ins, the team's plan. */
 export function ManagerHome() {
@@ -60,11 +73,17 @@ export function ManagerHome() {
   const team = useQuery(homeQuery("teamOnboarding"));
   const attention = useQuery(homeQuery("attention"));
   const people = team.data?.people ?? [];
-  const [assigning, setAssigning] = useState<{ kind: "learning" | "roadmap"; person: { id: string; name: string } } | null>(null);
+  const [assigning, setAssigning] = useState<{
+    kind: "learning" | "roadmap";
+    person: { id: string; name: string };
+  } | null>(null);
   // The person who needs a check-in or learning most: blocked or at risk first.
   const focus =
-    people.find((row) => row.status === "at_risk") ?? people.find((row) => row.status === "blocked") ?? people[0];
-  const openAssign = (kind: "learning" | "roadmap", person: { id: string; name: string }) => setAssigning({ kind, person });
+    people.find((row) => row.status === "at_risk") ??
+    people.find((row) => row.status === "blocked") ??
+    people[0];
+  const openAssign = (kind: "learning" | "roadmap", person: { id: string; name: string }) =>
+    setAssigning({ kind, person });
 
   return (
     <div className="mx-auto flex max-w-360 flex-col">
@@ -94,7 +113,9 @@ export function ManagerHome() {
             <Button
               variant="outline"
               disabled={!focus}
-              onClick={() => focus && openAssign("learning", { id: focus.person.id, name: focus.person.name })}
+              onClick={() =>
+                focus && openAssign("learning", { id: focus.person.id, name: focus.person.name })
+              }
             >
               <AssignmentAddIcon aria-hidden /> Assign learning
             </Button>
@@ -183,7 +204,13 @@ function AttentionCard({
                             ? checkinPath(item.person.id, "probation")
                             : null;
                       return to ? (
-                        <Button key={action.kind} size="xs" variant={variant} nativeButton={false} render={<Link to={to} />}>
+                        <Button
+                          key={action.kind}
+                          size="xs"
+                          variant={variant}
+                          nativeButton={false}
+                          render={<Link to={to} />}
+                        >
                           {action.label}
                         </Button>
                       ) : (
@@ -196,7 +223,9 @@ function AttentionCard({
                               ? onAssign("learning", person)
                               : action.kind === "assign_roadmap"
                                 ? onAssign("roadmap", person)
-                                : comingSoon(action.kind === "message" ? "Messages" : "Escalating requests")
+                                : comingSoon(
+                                    action.kind === "message" ? "Messages" : "Escalating requests",
+                                  )
                           }
                         >
                           {action.label}
@@ -248,7 +277,10 @@ function CheckinsCard() {
                 </span>
               </div>
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <Link to={checkinPath(checkin.person.id)} className="text-sm font-medium text-on-surface hover:underline">
+                <Link
+                  to={checkinPath(checkin.person.id)}
+                  className="text-sm font-medium text-on-surface hover:underline"
+                >
                   {checkin.title}
                 </Link>
                 <span className="flex flex-wrap items-center gap-x-2 text-xs text-on-surface-variant">
@@ -279,7 +311,7 @@ function CheckinsCard() {
             variant="ai"
             onClick={() => openAssistant(`Summarize ${next.person.name}’s onboarding progress`)}
           >
-            <HubIcon aria-hidden /> Summarize {firstName(next.person.name)}’s progress
+            <SmartToyIcon aria-hidden /> Summarize {firstName(next.person.name)}’s progress
           </Button>
         </div>
       ) : null}
@@ -330,7 +362,10 @@ function RosterCard({ query }: { query: UseQueryResult<TeamOnboarding> }) {
                         <div className="flex items-center gap-3">
                           <PersonAvatar person={row.person} size="sm" />
                           <span className="flex min-w-0 flex-col">
-                            <Link to={memberPath(row.person.id)} className="text-sm font-medium text-on-surface hover:underline">
+                            <Link
+                              to={memberPath(row.person.id)}
+                              className="text-sm font-medium text-on-surface hover:underline"
+                            >
                               {row.person.name}
                             </Link>
                             <span className="text-xs whitespace-nowrap text-on-surface-variant">
@@ -414,7 +449,7 @@ function KnowledgeGapsCard() {
       endpoint={E.knowledgeGaps.path}
       status={query}
       action={
-        <StatusChip tone="ai" icon={<HubIcon />}>
+        <StatusChip tone="ai" icon={<SmartToyIcon />}>
           From Context Bot
         </StatusChip>
       }
@@ -441,19 +476,21 @@ function KnowledgeGapsCard() {
                 </SegmentedItemBody>
                 <SegmentedItemTrail className="ps-14 @min-[640px]:ps-0">
                   {gap.reason === "no_answer" ? (
-                    // Writing the missing page opens the editor with the question, as in the prototype.
-                    <Button
-                      size="xs"
-                      variant="secondary"
-                      nativeButton={false}
-                      render={
-                        <Link
-                          to={`/contributions/new?question=${encodeURIComponent(gap.question)}`}
-                        />
-                      }
-                    >
-                      {reason.action}
-                    </Button>
+                    HIDDEN.contributions ? null : (
+                      // Writing the missing page opens the editor with the question, as in the prototype.
+                      <Button
+                        size="xs"
+                        variant="secondary"
+                        nativeButton={false}
+                        render={
+                          <Link
+                            to={`/contributions/new?question=${encodeURIComponent(gap.question)}`}
+                          />
+                        }
+                      >
+                        {reason.action}
+                      </Button>
+                    )
                   ) : (
                     <Button size="xs" variant="outline" onClick={() => comingSoon(reason.action)}>
                       {reason.action}
@@ -531,8 +568,12 @@ function TeamKnowledgeCard() {
                       />
                     </SegmentedItemMeta>
                   </SegmentedItemBody>
-                  <Button size="xs" variant="ghost" nativeButton={false}
-                    render={<Link to="/reviews" />}>
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    nativeButton={false}
+                    render={<Link to="/reviews" />}
+                  >
                     Review
                   </Button>
                 </SegmentedItem>

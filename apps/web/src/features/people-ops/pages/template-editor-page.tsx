@@ -58,6 +58,7 @@ import {
   weeksLabel,
 } from "@/features/people-ops/people-ops-meta";
 import { formatCount, formatShortDate } from "@/lib/format";
+import { toastWithUndo } from "@/lib/undo-toast";
 
 /** The template editor (prototype `#templates-<id>`): stages and modules, who it is for, versions. */
 export function TemplateEditorPage() {
@@ -136,17 +137,9 @@ function Editor({ template }: { template: TemplateDetail }) {
     const module = stages.find((stage) => stage.id === stageId)?.modules[index];
     if (!module) return;
     change(stageId, (modules) => modules.filter((_, position) => position !== index));
-    toast(`Removed “${module.title}”`, {
-      action: {
-        label: "Undo",
-        onClick: () =>
-          change(stageId, (modules) => [
-            ...modules.slice(0, index),
-            module,
-            ...modules.slice(index),
-          ]),
-      },
-    });
+    toastWithUndo(`Removed “${module.title}”`, () =>
+      change(stageId, (modules) => [...modules.slice(0, index), module, ...modules.slice(index)]),
+    );
   };
 
   return (

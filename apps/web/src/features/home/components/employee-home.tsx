@@ -39,7 +39,6 @@ import {
   FactCheckIcon,
   FlagIcon,
   ForumIcon,
-  HubIcon,
   LockIcon,
   MyLocationIcon,
   PlayArrowFilledIcon,
@@ -49,6 +48,7 @@ import {
   RouteIcon,
   ScheduleIcon,
   SchoolFilledIcon,
+  SmartToyIcon,
   UpdateIcon,
   VerifiedIcon,
   WavingHandIcon,
@@ -100,6 +100,7 @@ import {
 import { DotList } from "@/components/ui/dot-list";
 import { formatDateRange } from "./dashboard-meta";
 import { welcomeQuery } from "@/features/welcome/api/welcome.queries";
+import { HIDDEN } from "@/lib/hidden";
 
 /** The employee's Home (prototype `employeeHome`): what to do next, how onboarding is going, who to ask. */
 /** Until someone finishes their first-day welcome, Home offers it (prototype sign-in → `#welcome`). */
@@ -173,13 +174,14 @@ export function EmployeeHome() {
         <WeekCard query={tasks} stageName={stage?.name} />
         <MilestonesCard />
         <AskBand className="[grid-area:ask]" prompts={prompts} />
-        <div className="grid gap-3 [grid-area:news] medium:gap-4 @min-[640px]:grid-cols-2 @min-[940px]:grid-cols-1">
+        {/* A stack left with one card (soft-hidden ones, lib/hidden.ts) takes the full width. */}
+        <div className="grid gap-3 [grid-area:news] medium:gap-4 @min-[640px]:grid-cols-2 @min-[940px]:grid-cols-1 [&>:only-child]:col-span-full">
           <KnowledgeUpdatesCard />
-          <TeamActivityCard />
+          {HIDDEN.homeTeamUpdates ? null : <TeamActivityCard />}
         </div>
-        <div className="grid gap-3 [grid-area:side] medium:gap-4 @min-[640px]:grid-cols-2 @min-[940px]:grid-cols-1">
+        <div className="grid gap-3 [grid-area:side] medium:gap-4 @min-[640px]:grid-cols-2 @min-[940px]:grid-cols-1 [&>:only-child]:col-span-full">
           <MyPeopleCard />
-          <ContributionsCard />
+          {HIDDEN.contributions ? null : <ContributionsCard />}
         </div>
       </div>
     </div>
@@ -323,7 +325,7 @@ function NextUpBody({ item, headingId }: { item: NextUp; headingId: string }) {
             variant="ai-tonal"
             onClick={() => openAssistant(item.suggestedQuestion ?? undefined)}
           >
-            <HubIcon aria-hidden /> Ask about this lesson
+            <SmartToyIcon aria-hidden /> Ask about this lesson
           </Button>
         ) : null}
       </div>

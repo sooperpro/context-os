@@ -7,10 +7,10 @@ import {
   DescriptionIcon,
   FolderOpenFilledIcon,
   HistoryIcon,
-  HubFilledIcon,
   LayersIcon,
   LinkIcon,
   RocketLaunchFilledIcon,
+  SmartToyFilledIcon,
   UpdateIcon,
 } from "@/components/ui/icons";
 import { MetaChip, TypeChip } from "@/components/ui/meta-chip";
@@ -28,8 +28,11 @@ export function ProjectHero({ hub }: { hub: Hub }) {
   return (
     <header className="flex flex-col gap-4 rounded-3xl bg-ai-container/55 px-6 py-6 text-on-ai-container @xl:flex-row @xl:items-start @xl:gap-7 @xl:px-8 @xl:py-7">
       <span aria-hidden className="relative grid size-18 shrink-0 place-items-center @xl:size-26">
-        <Shape kind="sunny" className="col-start-1 row-start-1 size-full text-ai motion-safe:animate-[spin_60s_linear_infinite]" />
-        <RocketLaunchFilledIcon className="relative z-10 col-start-1 row-start-1 size-8 text-on-ai @xl:size-12 motion-safe:animate-[spin_60s_linear_infinite_reverse]" />
+        <Shape
+          kind="sunny"
+          className="col-start-1 row-start-1 size-full text-ai motion-safe:animate-[spin_60s_linear_infinite]"
+        />
+        <RocketLaunchFilledIcon className="relative z-10 col-start-1 row-start-1 size-8 text-on-ai motion-safe:animate-[spin_60s_linear_infinite_reverse] @xl:size-12" />
       </span>
       <div className="flex min-w-0 flex-1 flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -46,7 +49,9 @@ export function ProjectHero({ hub }: { hub: Hub }) {
         <h1 className="font-heading text-3xl leading-9 font-semibold text-balance @xl:text-4xl @xl:leading-10">
           {project.name}
         </h1>
-        {project.description ? <p className="max-w-[64ch] text-base">{project.description}</p> : null}
+        {project.description ? (
+          <p className="max-w-[64ch] text-base">{project.description}</p>
+        ) : null}
         <div className="flex flex-wrap gap-1.5">
           <MetaChip>
             <DescriptionIcon />
@@ -72,10 +77,12 @@ export function ProjectHero({ hub }: { hub: Hub }) {
           <Button
             variant="ai-tonal"
             onClick={() =>
-              openAssistant(`Summarize ${project.name}: what it is, what was decided, and what is still open.`)
+              openAssistant(
+                `Summarize ${project.name}: what it is, what was decided, and what is still open.`,
+              )
             }
           >
-            <HubFilledIcon aria-hidden />
+            <SmartToyFilledIcon aria-hidden />
             Ask about {project.name}
           </Button>
           <Button

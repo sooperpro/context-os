@@ -31,7 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { ConnectedButton, ConnectedButtonGroup } from "@/components/ui/connected-button-group";
-import { AddIcon, CheckIcon, EditNoteIcon, HubIcon, LinkIcon } from "@/components/ui/icons";
+import { AddIcon, CheckIcon, EditNoteIcon, LinkIcon, SmartToyIcon } from "@/components/ui/icons";
 import { Label } from "@/components/ui/label";
 import { Loader } from "@/components/ui/loader";
 import { OptionList, OptionTile } from "@/components/ui/option-tile";
@@ -265,7 +265,7 @@ function CheckinForm({
                   <span className="text-sm font-medium">Agenda</span>
                   <span className="flex items-center gap-2">
                     <PreviewDataChip endpoint={E.checkinPrep.path} />
-                    <StatusChip tone="ai" icon={<HubIcon />}>
+                    <StatusChip tone="ai" icon={<SmartToyIcon />}>
                       Suggested from {first}’s progress
                     </StatusChip>
                   </span>

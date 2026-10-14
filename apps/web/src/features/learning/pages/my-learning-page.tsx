@@ -12,10 +12,10 @@ import {
   Diversity3Icon,
   FactCheckIcon,
   GavelIcon,
-  HubIcon,
   RocketLaunchIcon,
   RouteIcon,
   SchoolIcon,
+  SmartToyIcon,
   type MaterialIcon,
 } from "@/components/ui/icons";
 import { Progress } from "@/components/ui/progress";
@@ -143,7 +143,7 @@ export function MyLearningPage() {
             title="Suggested for you"
             endpoint={E.myLearning.path}
             action={
-              <StatusChip tone="ai" icon={<HubIcon />}>
+              <StatusChip tone="ai" icon={<SmartToyIcon />}>
                 From your team’s activity
               </StatusChip>
             }

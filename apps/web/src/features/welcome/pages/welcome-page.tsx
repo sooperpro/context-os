@@ -15,10 +15,10 @@ import {
   CheckCircleIcon,
   CheckIcon,
   FavoriteIcon,
-  HubFilledIcon,
   HubIcon,
   PlayArrowFilledIcon,
   RouteIcon,
+  SmartToyFilledIcon,
   VerifiedIcon,
   WavingHandIcon,
 } from "@/components/ui/icons";
@@ -245,7 +245,7 @@ function StepWelcome({
               false,
             ],
             [
-              HubFilledIcon,
+              SmartToyFilledIcon,
               "Context Bot",
               "Ask anything. Answers cite their sources, and it tells you when it doesn’t know.",
               true,

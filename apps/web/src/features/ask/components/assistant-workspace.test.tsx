@@ -85,7 +85,12 @@ describe("Context Bot outside a project", () => {
     await user.click(screen.getByRole("button", { name: "Why are we moving billing to Kafka?" }));
 
     expect(await screen.findByText("Verified · decision record")).toBeInTheDocument();
-    expect(screen.getByText("Project Kestrel", { exact: false })).toBeInTheDocument();
+    const conversation = screen.getByRole("log", { name: "Conversation" });
+    expect(within(conversation).getByText("Project Kestrel", { exact: false })).toBeInTheDocument();
+    // Screen readers hear the answer once, from the polite announcer, without citation numbers.
+    expect(screen.getByText(/^Answer: In March 2026 the team decided/)).toHaveTextContent(
+      "3 sources listed.",
+    );
     const sources = screen.getByRole("heading", { name: "Sources" }).parentElement!;
     expect(within(sources).getByText("ADR-042: Billing events on Kafka")).toBeInTheDocument();
     expect(
@@ -102,7 +107,9 @@ describe("Context Bot outside a project", () => {
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "What does dual-write mean here?" }));
-    expect(await screen.findByText(/sends each billable action two ways/)).toBeInTheDocument();
+    expect(
+      await within(conversation).findByText(/sends each billable action two ways/),
+    ).toBeInTheDocument();
   });
 
   it("says when nothing answers, names who might know, and reports the gap", async () => {

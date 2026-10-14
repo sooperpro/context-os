@@ -5,7 +5,7 @@ import { Brand } from "@/components/layout/brand";
 import { isInActivePaths, SETTINGS_ITEM, type NavItem } from "@/components/layout/navigation";
 import { Button } from "@/components/ui/button";
 import { Fab } from "@/components/ui/fab";
-import { HubFilledIcon, MenuIcon, MenuOpenIcon } from "@/components/ui/icons";
+import { MenuIcon, MenuOpenIcon, SmartToyFilledIcon } from "@/components/ui/icons";
 
 interface RailProps {
   items: NavItem[];
@@ -59,7 +59,7 @@ export function Rail({ items, collapsed, canToggle, onToggle }: RailProps) {
         onClick={toggleAssistant}
         className={cn("mt-1 mb-4", collapsed ? "w-14 self-center px-0" : "self-start")}
       >
-        <HubFilledIcon />
+        <SmartToyFilledIcon />
         {collapsed ? null : <span>Ask Context Bot</span>}
       </Fab>
 

@@ -206,6 +206,8 @@ import HowToRegFilledIcon from "@material-symbols/svg-400/rounded/how_to_reg-fil
 import EventAvailableFilledIcon from "@material-symbols/svg-400/rounded/event_available-fill.svg?react";
 import LibraryBooksFilledIcon from "@material-symbols/svg-400/rounded/library_books-fill.svg?react";
 import FavoriteIcon from "@material-symbols/svg-400/rounded/favorite.svg?react";
+import SmartToyIcon from "@material-symbols/svg-400/rounded/smart_toy.svg?react";
+import SmartToyFilledIcon from "@material-symbols/svg-400/rounded/smart_toy-fill.svg?react";
 import SmartphoneIcon from "@material-symbols/svg-400/rounded/mobile.svg?react";
 import PasswordIcon from "@material-symbols/svg-400/rounded/password.svg?react";
 import Inventory2Icon from "@material-symbols/svg-400/rounded/inventory_2.svg?react";
@@ -225,6 +227,8 @@ export type MaterialIcon = ComponentType<SVGProps<SVGSVGElement>>;
 
 export {
   AddIcon,
+  SmartToyIcon,
+  SmartToyFilledIcon,
   SmartphoneIcon,
   PasswordIcon,
   Inventory2Icon,

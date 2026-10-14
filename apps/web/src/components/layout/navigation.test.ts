@@ -24,13 +24,8 @@ describe("navigation config", () => {
       role: Parameters<typeof navItemsFor>[0],
       persona: Parameters<typeof navItemsFor>[1],
     ) => navItemsFor(role, persona).map((item) => item.id);
-    expect(rail("member", "employee")).toEqual([
-      "home",
-      "roadmap",
-      "knowledge",
-      "people",
-      "contributions",
-    ]);
+    // Contributions is soft-hidden for the demo (lib/hidden.ts).
+    expect(rail("member", "employee")).toEqual(["home", "roadmap", "knowledge", "people"]);
     expect(rail("manager", "manager")).toEqual([
       "home",
       "team",

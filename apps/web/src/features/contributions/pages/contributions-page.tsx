@@ -13,7 +13,7 @@ import {
   EditNoteIcon,
   HelpIcon,
   HistoryIcon,
-  HubIcon,
+  SmartToyIcon,
 } from "@/components/ui/icons";
 import { MiniTile } from "@/components/ui/kpi-tile";
 import {
@@ -108,7 +108,7 @@ export function ContributionsPage() {
             endpoint={E.gaps.path}
             status={gaps}
             action={
-              <StatusChip tone="ai" icon={<HubIcon />}>
+              <StatusChip tone="ai" icon={<SmartToyIcon />}>
                 Found by Context Bot
               </StatusChip>
             }

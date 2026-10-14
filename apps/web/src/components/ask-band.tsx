@@ -82,7 +82,10 @@ export function AskBand({
           autoComplete="off"
           className="h-full min-w-0 flex-1 bg-transparent text-base text-on-surface outline-none placeholder:text-on-surface-variant"
         />
-        <kbd className="hidden rounded-sm bg-surface-container-high px-1.5 py-0.5 font-sans text-xs text-on-surface-variant medium:inline">
+        <kbd
+          aria-hidden
+          className="hidden rounded-sm bg-surface-container-high px-1.5 py-0.5 font-sans text-xs text-on-surface-variant medium:inline"
+        >
           ⌘J
         </kbd>
         <Button type="submit" variant="ai" size="icon" className="rounded-full" aria-label="Ask">

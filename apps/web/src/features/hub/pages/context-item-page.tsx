@@ -23,9 +23,9 @@ import {
   DifferenceIcon,
   FolderIcon,
   HistoryIcon,
-  HubIcon,
   LinkIcon,
   OpenInNewIcon,
+  SmartToyIcon,
   UpdateIcon,
 } from "@/components/ui/icons";
 import { Loader } from "@/components/ui/loader";
@@ -314,7 +314,7 @@ function ItemView({ item, hub, all }: { item: ContextItem; hub: Hub; all: Contex
               <BookmarkIcon aria-hidden /> {isSaved ? "Saved" : "Save"}
             </Button>
             <Button variant="ai-tonal" onClick={() => openAssistant(`Summarize “${item.title}”`)}>
-              <HubIcon aria-hidden /> Ask about this
+              <SmartToyIcon aria-hidden /> Ask about this
             </Button>
             {firstSource?.sourceUrl ? (
               <Button

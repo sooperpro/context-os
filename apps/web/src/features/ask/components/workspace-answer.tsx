@@ -32,6 +32,7 @@ import { StatusChip } from "@/components/ui/status-chip";
 import { useAnswerFeedback, useReportKnowledgeGap } from "@/features/ask/api/assistant.queries";
 import { CiteButton } from "@/features/ask/components/cite-button";
 import { comingSoon } from "@/lib/coming-soon";
+import { HIDDEN } from "@/lib/hidden";
 
 const REASONS: Array<[NonNullable<AssistantFeedbackInput["reason"]>, string]> = [
   ["incorrect", "Incorrect"],
@@ -407,7 +408,9 @@ function NoAnswerCard({ answer }: { answer: AssistantAnswer }) {
             report.mutate(answer.question, {
               onSuccess: () =>
                 toast.success(
-                  "Added to knowledge gaps. You can write the answer from Contributions.",
+                  HIDDEN.contributions
+                    ? "Added to knowledge gaps."
+                    : "Added to knowledge gaps. You can write the answer from Contributions.",
                 ),
               onError: () => toast.error("The gap could not be reported. Please try again."),
             })

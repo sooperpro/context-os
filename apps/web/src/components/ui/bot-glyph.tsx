@@ -1,6 +1,6 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "cn";
-import { HubFilledIcon } from "@/components/ui/icons";
+import { SmartToyFilledIcon } from "@/components/ui/icons";
 import { Shape } from "@/components/ui/shape";
 
 /**
@@ -20,14 +20,20 @@ const botGlyphVariants = cva("relative grid shrink-0 place-items-center text-on-
   defaultVariants: { size: "default" },
 });
 
-interface BotGlyphProps extends React.ComponentProps<"span">, VariantProps<typeof botGlyphVariants> {
+interface BotGlyphProps
+  extends React.ComponentProps<"span">, VariantProps<typeof botGlyphVariants> {
   /** Slowly rotate the shape (welcome state). Off when motion is reduced. */
   spin?: boolean;
 }
 
 function BotGlyph({ className, size = "default", spin = false, ...props }: BotGlyphProps) {
   return (
-    <span aria-hidden data-slot="bot-glyph" className={cn(botGlyphVariants({ size }), className)} {...props}>
+    <span
+      aria-hidden
+      data-slot="bot-glyph"
+      className={cn(botGlyphVariants({ size }), className)}
+      {...props}
+    >
       <Shape
         kind="cookie9"
         className={cn(
@@ -35,7 +41,7 @@ function BotGlyph({ className, size = "default", spin = false, ...props }: BotGl
           spin && "motion-safe:animate-[spin_40s_linear_infinite]",
         )}
       />
-      <HubFilledIcon data-icon className="relative z-10 col-start-1 row-start-1" />
+      <SmartToyFilledIcon data-icon className="relative z-10 col-start-1 row-start-1" />
     </span>
   );
 }

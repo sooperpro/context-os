@@ -341,9 +341,9 @@ function ReviewsCard() {
 /* ---- Onboarding by team ------------------------------------------------------------------- */
 
 const BAR = {
-  onTrack: { label: "On track", className: "bg-secondary-strong/50" },
-  atRisk: { label: "At risk", className: "bg-warning" },
-  blocked: { label: "Blocked", className: "bg-error" },
+  onTrack: { label: "On track", className: "bg-bar-ok" },
+  atRisk: { label: "At risk", className: "bg-bar-risk" },
+  blocked: { label: "Blocked", className: "bg-bar-blocked" },
 } as const;
 
 function TeamBarsCard({ query }: { query: UseQueryResult<PeopleOpsOverview> }) {

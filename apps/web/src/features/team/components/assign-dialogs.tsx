@@ -11,15 +11,26 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { AddIcon, CheckIcon, HubIcon } from "@/components/ui/icons";
+import { AddIcon, CheckIcon, SmartToyIcon } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { OptionList, OptionTile } from "@/components/ui/option-tile";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusChip } from "@/components/ui/status-chip";
 import { Textarea } from "@/components/ui/textarea";
-import { assignOptionsQuery, useAssignLearning, useAssignRoadmap } from "@/features/team/api/team.queries";
+import { homeQuery } from "@/features/home/api/home.queries";
+import {
+  assignOptionsQuery,
+  useAssignLearning,
+  useAssignRoadmap,
+} from "@/features/team/api/team.queries";
 import { dateInputToIso, firstName } from "@/lib/format";
 
 interface Person {
@@ -50,10 +61,19 @@ export function AssignLearningDialog({ person, onOpenChange }: DialogProps) {
   );
 }
 
-function AssignLearningForm({ person, close }: { person: Person; close: () => void }) {
+/**
+ * Anyone on the manager's team can be picked (prototype update, Oct 14); the button that opened the
+ * dialog preselects the person.
+ */
+function AssignLearningForm({ person: opener, close }: { person: Person; close: () => void }) {
+  const roster = useQuery(homeQuery("teamOnboarding"));
+  const team =
+    roster.data?.people.map((entry) => ({ id: entry.person.id, name: entry.person.name })) ?? [];
+  const [personId, setPersonId] = useState(opener.id);
+  const person = team.find((entry) => entry.id === personId) ?? opener;
   const options = useQuery(assignOptionsQuery(person.id));
   const assign = useAssignLearning(person.id);
-  const ids = { due: useId(), note: useId() };
+  const ids = { person: useId(), due: useId(), note: useId() };
   const items = options.data?.learning.items ?? [];
   const [chosen, setChosen] = useState<string | null>(null);
   const selected = chosen ?? items.find((item) => item.suggested)?.id ?? items[0]?.id ?? null;
@@ -80,9 +100,36 @@ function AssignLearningForm({ person, close }: { person: Person; close: () => vo
       }}
     >
       <DialogHeader>
-        <DialogTitle>Assign a learning task to {person.name}</DialogTitle>
-        {options.data?.learning.reason ? <DialogDescription>{options.data.learning.reason}</DialogDescription> : null}
+        <DialogTitle>Assign a learning task</DialogTitle>
       </DialogHeader>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor={ids.person}>Person</Label>
+        <Select
+          items={Object.fromEntries(
+            (team.length ? team : [opener]).map((entry) => [entry.id, entry.name]),
+          )}
+          value={person.id}
+          onValueChange={(value) => {
+            setPersonId(String(value));
+            setChosen(null);
+          }}
+        >
+          <SelectTrigger id={ids.person} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(team.length ? team : [opener]).map((entry) => (
+              <SelectItem key={entry.id} value={entry.id}>
+                {entry.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <DialogDescription>
+        {options.data?.learning.reason ??
+          `Pick a module, practical task or knowledge check for ${firstName(person.name)}.`}
+      </DialogDescription>
       {options.isPending ? (
         <Skeleton className="h-48 rounded-lg" />
       ) : (
@@ -103,7 +150,7 @@ function AssignLearningForm({ person, close }: { person: Person; close: () => vo
               description={item.detail}
               trailing={
                 item.suggested ? (
-                  <StatusChip tone="ai" icon={<HubIcon />}>
+                  <StatusChip tone="ai" icon={<SmartToyIcon />}>
                     Suggested
                   </StatusChip>
                 ) : null
@@ -114,7 +161,13 @@ function AssignLearningForm({ person, close }: { person: Person; close: () => vo
       )}
       <div className="flex flex-col gap-1.5">
         <Label htmlFor={ids.due}>Due</Label>
-        <Input id={ids.due} type="date" value={due} onChange={(event) => setDue(event.target.value)} className="w-48" />
+        <Input
+          id={ids.due}
+          type="date"
+          value={due}
+          onChange={(event) => setDue(event.target.value)}
+          className="w-48"
+        />
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor={ids.note}>Note to {firstName(person.name)} (optional)</Label>
@@ -157,10 +210,17 @@ function AssignRoadmapForm({ person, close }: { person: Person; close: () => voi
   const [template, setTemplate] = useState<string | null>(null);
   const [addOns, setAddOns] = useState<Set<string> | null>(null);
   const [buddy, setBuddy] = useState<string | null>(null);
-  const chosenTemplate = template ?? roadmap?.templates.find((entry) => entry.matchesRole)?.id ?? roadmap?.templates[0]?.id ?? null;
-  const chosenAddOns = addOns ?? new Set(roadmap?.addOns.filter((entry) => entry.suggested).map((entry) => entry.id));
+  const chosenTemplate =
+    template ??
+    roadmap?.templates.find((entry) => entry.matchesRole)?.id ??
+    roadmap?.templates[0]?.id ??
+    null;
+  const chosenAddOns =
+    addOns ?? new Set(roadmap?.addOns.filter((entry) => entry.suggested).map((entry) => entry.id));
   const chosenBuddy = buddy ?? roadmap?.buddies[0]?.id ?? null;
-  const buddyItems = Object.fromEntries((roadmap?.buddies ?? []).map((entry) => [entry.id, entry.name]));
+  const buddyItems = Object.fromEntries(
+    (roadmap?.buddies ?? []).map((entry) => [entry.id, entry.name]),
+  );
 
   return (
     <form
@@ -168,7 +228,8 @@ function AssignRoadmapForm({ person, close }: { person: Person; close: () => voi
       onSubmit={(event) => {
         event.preventDefault();
         if (!chosenTemplate || !chosenBuddy) return;
-        const buddyName = roadmap?.buddies.find((entry) => entry.id === chosenBuddy)?.name ?? "a buddy";
+        const buddyName =
+          roadmap?.buddies.find((entry) => entry.id === chosenBuddy)?.name ?? "a buddy";
         assign.mutate(
           { templateId: chosenTemplate, addOnIds: [...chosenAddOns], buddyId: chosenBuddy },
           {
@@ -208,7 +269,7 @@ function AssignRoadmapForm({ person, close }: { person: Person; close: () => voi
                   description={`${entry.version} · ${entry.moduleCount} modules · ${entry.weeks} weeks`}
                   trailing={
                     entry.matchesRole ? (
-                      <StatusChip tone="ai" icon={<HubIcon />}>
+                      <StatusChip tone="ai" icon={<SmartToyIcon />}>
                         Matches role
                       </StatusChip>
                     ) : null
@@ -244,7 +305,11 @@ function AssignRoadmapForm({ person, close }: { person: Person; close: () => voi
           </fieldset>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor={buddyId}>Onboarding buddy</Label>
-            <Select items={buddyItems} value={chosenBuddy} onValueChange={(value) => setBuddy(String(value))}>
+            <Select
+              items={buddyItems}
+              value={chosenBuddy}
+              onValueChange={(value) => setBuddy(String(value))}
+            >
               <SelectTrigger id={buddyId} className="w-full">
                 <SelectValue />
               </SelectTrigger>

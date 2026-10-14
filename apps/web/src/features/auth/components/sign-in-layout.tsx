@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Brand } from "@/components/layout/brand";
-import { GroupFilledIcon, HubFilledIcon, RouteIcon } from "@/components/ui/icons";
+import { GroupFilledIcon, RouteIcon, SmartToyFilledIcon } from "@/components/ui/icons";
 import { Shape } from "@/components/ui/shape";
 
 /**
@@ -29,7 +29,8 @@ export function SignInLayout({ title, description, children }: SignInLayoutProps
             Everything you need to know about your company, in one place.
           </h1>
           <p className="text-base">
-            Your onboarding roadmap, the company's knowledge, and answers with sources, from day one.
+            Your onboarding roadmap, the company's knowledge, and answers with sources, from day
+            one.
           </p>
         </div>
       </section>
@@ -54,7 +55,10 @@ export function SignInLayout({ title, description, children }: SignInLayoutProps
 /** Five expressive shapes with three icons: roadmap, Context Bot, people. Slow spins, off when motion is reduced. */
 function BrandArt() {
   return (
-    <div aria-hidden className="relative h-36 w-full max-w-70 self-center lg:h-auto lg:max-h-72 lg:min-h-40 lg:flex-1 lg:max-w-115">
+    <div
+      aria-hidden
+      className="relative h-36 w-full max-w-70 self-center lg:h-auto lg:max-h-72 lg:min-h-40 lg:max-w-115 lg:flex-1"
+    >
       <div className="absolute top-[12%] left-[6%] grid w-[46%] place-items-center">
         <Shape
           kind="cookie9"
@@ -67,7 +71,7 @@ function BrandArt() {
           kind="clover4"
           className="col-start-1 row-start-1 w-full text-ai-container motion-safe:animate-[spin_40s_linear_infinite_reverse]"
         />
-        <HubFilledIcon className="relative z-10 col-start-1 row-start-1 h-auto w-[40%] text-on-ai-container" />
+        <SmartToyFilledIcon className="relative z-10 col-start-1 row-start-1 h-auto w-[40%] text-on-ai-container" />
       </div>
       <div className="absolute right-[14%] bottom-[4%] grid w-[26%] place-items-center">
         <Shape

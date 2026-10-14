@@ -34,12 +34,12 @@ import {
   EditIcon,
   EditNoteIcon,
   ErrorIcon,
-  HubIcon,
   LockIcon,
   PendingIcon,
   PersonIcon,
   RouteIcon,
   ScheduleIcon,
+  SmartToyIcon,
   UndoIcon,
 } from "@/components/ui/icons";
 import { Loader } from "@/components/ui/loader";
@@ -214,7 +214,7 @@ function MemberView({ member }: { member: TeamMemberDetail }) {
               variant="ai-tonal"
               onClick={() => openAssistant(`Summarize ${member.person.name}’s onboarding progress`)}
             >
-              <HubIcon aria-hidden /> Ask about {first}
+              <SmartToyIcon aria-hidden /> Ask about {first}
             </Button>
           </>
         }
