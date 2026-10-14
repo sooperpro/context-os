@@ -77,14 +77,14 @@ jobs:
           echo "$!" > "$RUNNER_TEMP/iap-tunnel.pid"
 
           for attempt in $(seq 1 30); do
-            if ssh dev-vm true >/dev/null 2>&1; then
+            if ssh -vvv -o ConnectTimeout=3 dev-vm true >"$RUNNER_TEMP/ssh-probe.log" 2>&1; then
               exit 0
             fi
             sleep 2
           done
 
           cat "$RUNNER_TEMP/iap-tunnel.log"
-          echo "Could not establish the IAP SSH tunnel."
+          cat "$RUNNER_TEMP/ssh-probe.log" || true; echo "Could not establish the IAP SSH tunnel."
           exit 1
 
       - name: Package the checked-out revision
