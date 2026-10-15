@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import type { Mail } from "../../lib/mailer.js";
 import { memberships, users } from "../../db/schema.js";
 import { createTestApp, type TestApp } from "../../test/helpers.js";
 import { createNotifier } from "./notify.js";
@@ -7,10 +8,10 @@ describe("Notifications: the switches in Settings and quiet hours", () => {
   let t: TestApp;
   afterEach(() => t?.close());
 
-  const person = (notifications: Record<string, unknown>) => {
+  const person = (notifications: Record<string, unknown>, email: string | null = null) => {
     t.container.db
       .insert(users)
-      .values({ id: "maya", name: "Maya", preferences: { notifications } })
+      .values({ id: "maya", name: "Maya", email, preferences: { notifications } })
       .run();
     t.container.db
       .insert(memberships)
@@ -64,5 +65,67 @@ describe("Notifications: the switches in Settings and quiet hours", () => {
     send("onboarding", "Your roadmap is ready");
     send("security", "New sign-in");
     expect(await bell()).toEqual(["New sign-in"]);
+  });
+
+  describe("email delivery", () => {
+    let mails: Mail[] = [];
+    const app = () => {
+      mails = [];
+      t = createTestApp({
+        mailer: {
+          send: (mail) => {
+            mails.push(mail);
+            return Promise.resolve();
+          },
+        },
+      });
+    };
+
+    it("emails people who turned email on, one summary each, once", async () => {
+      app();
+      person({ ...awake, email: true }, "maya@example.test");
+      send("onboarding", "Your roadmap is ready");
+      send("onboarding", "Dan shared notes from your weekly 1:1");
+      // Held a few minutes so notifications close together share one email.
+      expect(await t.container.emailDelivery.deliver()).toBe(0);
+      const soon = new Date(Date.now() + 11 * 60_000);
+      expect(await t.container.emailDelivery.deliver(soon)).toBe(2);
+      expect(mails).toHaveLength(1);
+      expect(mails[0]).toMatchObject({
+        to: "maya@example.test",
+        subject: "2 new notifications in ContextOS",
+      });
+      expect(mails[0]!.text).toContain("Your roadmap is ready");
+      // Nothing is sent twice.
+      expect(await t.container.emailDelivery.deliver(soon)).toBe(0);
+      expect(mails).toHaveLength(1);
+      // Security alerts go straight away.
+      send("security", "New sign-in");
+      expect(await t.container.emailDelivery.deliver()).toBe(1);
+      expect(mails[1]).toMatchObject({ subject: "New sign-in" });
+    });
+
+    it("waits for quiet hours to end, and skips people with email off or no address", async () => {
+      app();
+      person({ ...quietNow, email: true }, "maya@example.test");
+      send("onboarding", "Your roadmap is ready");
+      expect(await t.container.emailDelivery.deliver()).toBe(0);
+      // Once quiet hours are over (and the batching window), it goes out.
+      const later = new Date(Date.now() + 3 * 3_600_000);
+      expect(await t.container.emailDelivery.deliver(later)).toBe(1);
+
+      t.close();
+      app();
+      person({ ...awake, email: false }, "maya@example.test");
+      send("onboarding", "Your roadmap is ready");
+      expect(await t.container.emailDelivery.deliver()).toBe(0);
+
+      t.close();
+      app();
+      person({ ...awake, email: true }, null);
+      send("onboarding", "Your roadmap is ready");
+      expect(await t.container.emailDelivery.deliver()).toBe(0);
+      expect(mails).toEqual([]);
+    });
   });
 });

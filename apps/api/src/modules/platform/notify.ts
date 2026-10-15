@@ -45,9 +45,9 @@ function hourIn(timezone: string | undefined, at: Date): { hour: number; weekday
 }
 
 /**
- * In-app notification producer. Email/Slack delivery is not implemented: the record carries
- * `channels` and `deliverAfter` so a delivery worker can honour quiet hours later. A record whose
- * in-app channel is off is kept for that worker and left out of the bell.
+ * Notification producer. The record carries `channels` and `deliverAfter` (quiet hours):
+ * email-delivery.ts emails the ones with email on; Slack delivery is not built yet. A record whose
+ * in-app channel is off is kept for email and left out of the bell.
  */
 export function createNotifier(db: Db) {
   const deliverAfter = (

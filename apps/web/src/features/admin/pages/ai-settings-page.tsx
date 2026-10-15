@@ -42,7 +42,7 @@ import { ACCESS_PATH, STRICTNESS } from "@/features/admin/admin-meta";
 import { formatPercent } from "@/lib/format";
 
 const STALE = { "1": "1 hour", "2": "2 hours", "6": "6 hours", "24": "24 hours" } as const;
-const ROUTE = { "2": "2 times", "3": "3 times", "5": "5 times" } as const;
+const ROUTE = { "2": "2 people", "3": "3 people", "5": "5 people" } as const;
 
 /** AI settings (prototype `#ai`): how Context Bot answers, cites and handles what it can't answer. */
 export function AiSettingsPage() {
@@ -191,7 +191,9 @@ function Settings({ data }: { data: AiSettings }) {
                 </Select>
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor={ids.route}>Send a question to its owner after it’s asked</Label>
+                <Label htmlFor={ids.route}>
+                  Send an unanswered question to its owners once it’s asked by
+                </Label>
                 <Select
                   items={ROUTE}
                   value={String(data.routeAfterAsks)}

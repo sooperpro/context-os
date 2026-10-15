@@ -36,7 +36,7 @@ export function createMailer(env: Env, logger: Logger): Mailer {
   };
 }
 
-const escapeHtml = (value: string) =>
+export const escapeHtml = (value: string) =>
   value.replace(
     /[&<>"']/g,
     (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!,

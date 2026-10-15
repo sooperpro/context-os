@@ -15,6 +15,7 @@ import { retrievePassages, type RetrievedPassage } from "./retrieval.js";
 import { createVectorIndex } from "./vector-index.js";
 import type { IdentityService } from "../identity/identity.service.js";
 import type { CheckPause } from "../learning/check-pause.js";
+import type { AnswerPolicy } from "./answer-policy.js";
 
 export interface AskServiceDeps {
   repo: AskRepository;
@@ -26,6 +27,8 @@ export interface AskServiceDeps {
   identity: IdentityService;
   /** Refuses while the asker has a knowledge check open. */
   checkPause: Pick<CheckPause, "assertNotPaused">;
+  /** The workspace's AI settings, applied to every answer. */
+  policy: Pick<AnswerPolicy, "settings" | "staleWarnings" | "routeUnanswered">;
 }
 
 const SYSTEM_INSTRUCTION = [
@@ -51,6 +54,7 @@ export function createAskService({
   logger,
   identity,
   checkPause,
+  policy,
 }: AskServiceDeps) {
   const vectors = createVectorIndex(sources);
   const formatPassage = (index: number, passage: RetrievedPassage): string => {
@@ -93,6 +97,9 @@ export function createAskService({
     ): Promise<Answer> {
       checkPause.assertNotPaused(actor);
       const startedAt = performance.now();
+      const ai = policy.settings(actor.workspaceId);
+      // Lenient answers, or citations switched off: a weakly supported answer is kept and labelled.
+      const keepWeak = ai.strictness === "lenient" || !ai.rules.cite_sources;
       // Restricted topics are refused for every role, before anything is searched.
       const restricted = isRestrictedTopic(input.question);
       // Exclude policies keep a source out of answers even for people who may open it.
@@ -168,15 +175,25 @@ export function createAskService({
               "\nYour previous output had unsupported citations. Cite every factual assertion using only provided passage numbers, or report insufficient evidence.",
             temperature: 0,
           });
-        if (!supported(output))
-          output = {
-            answer:
-              "The available evidence does not support a reliably cited answer. Please refine your question or add source evidence.",
-            confidence: "insufficient",
-            uncertainties: [],
-            citations: [],
-            relatedItemRefs: [],
-          };
+        let unverified = false;
+        if (!supported(output)) {
+          if (keepWeak && output.confidence !== "insufficient" && output.answer.trim()) {
+            output = {
+              ...output,
+              confidence: "low",
+              citations: output.citations.filter((citation) => passages[citation.ref - 1]),
+            };
+            unverified = true;
+          } else
+            output = {
+              answer:
+                "The available evidence does not support a reliably cited answer. Please refine your question or add source evidence.",
+              confidence: "insufficient",
+              uncertainties: [],
+              citations: [],
+              relatedItemRefs: [],
+            };
+        }
 
         const citations: Citation[] = [];
         for (const c of output.citations) {
@@ -220,6 +237,30 @@ export function createAskService({
           relatedItems,
           model: gemini.model,
         };
+
+        const citedSources = [...new Set(citations.map((citation) => citation.sourceObjectId))];
+        if (
+          ai.strictness === "strict" &&
+          draft.confidence !== "insufficient" &&
+          citedSources.length < 2
+        ) {
+          draft = insufficientAnswer(
+            project,
+            input.question,
+            "Only one source covers this, and this workspace answers only when two or more sources agree. Add another source that covers it, or ask an admin to relax answer strictness.",
+          );
+          generationSourceIds = [];
+        } else if (draft.confidence !== "insufficient") {
+          const notes = [
+            ...(unverified
+              ? ["Unverified: parts of this answer aren't backed by a cited source."]
+              : ai.strictness === "lenient" && draft.confidence === "low"
+                ? ["Unverified: the sources only weakly support this answer."]
+                : []),
+            ...policy.staleWarnings(project.id, citedSources, ai.staleAfterHours),
+          ];
+          if (notes.length) draft = { ...draft, uncertainties: [...draft.uncertainties, ...notes] };
+        }
       }
 
       const currentSources = new Set(identity.answerableSourceIds(actor, project.id));
@@ -257,6 +298,9 @@ export function createAskService({
           durationMs: Math.round(performance.now() - startedAt),
         },
       });
+      // Asked often enough without an answer: its owners hear about it (AI settings › routing).
+      if (answer.confidence === "insufficient" && !restricted)
+        policy.routeUnanswered(actor, project.id, input.question);
       return answer;
     },
 
