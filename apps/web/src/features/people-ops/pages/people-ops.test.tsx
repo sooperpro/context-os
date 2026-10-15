@@ -152,6 +152,42 @@ describe("Onboarding records", () => {
     expect(screen.getByRole("dialog", { name: "Message about Jonah’s onboarding" })).toBeVisible();
   });
 
+  it("explains why the New onboarding form is empty when the server refuses it", async () => {
+    let refused = true;
+    const user = userEvent.setup();
+    renderAt("/onboarding");
+    mockServer.use(
+      http.get(buildApiUrl("/v1/people-ops/onboarding-options"), () =>
+        refused
+          ? HttpResponse.json(
+              { error: { code: "FORBIDDEN", message: "This operation is not permitted" } },
+              { status: 403 },
+            )
+          : HttpResponse.json({
+              teams: ["Platform"],
+              managers: [{ id: "u1", name: "Daniel Reyes", title: null }],
+              buddies: [],
+              peoplePartners: [],
+              templates: [],
+            }),
+      ),
+    );
+
+    await user.click(await screen.findByRole("button", { name: "New onboarding" }));
+    const dialog = await screen.findByRole("dialog", { name: "New onboarding" });
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Only people with the HR role can start an onboarding.",
+    );
+    expect(within(dialog).queryByRole("textbox", { name: "Full name" })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Create onboarding" })).toBeDisabled();
+
+    // Once the server allows it, trying again shows the form.
+    refused = false;
+    await user.click(within(dialog).getByRole("button", { name: "Try again" }));
+    expect(await within(dialog).findByRole("textbox", { name: "Full name" })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("starts a new onboarding and opens its record", async () => {
     const user = userEvent.setup();
     renderAt("/onboarding");

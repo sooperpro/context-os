@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useId, useState } from "react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
+import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { NotificationsIcon, SyncAltIcon } from "@/components/ui/icons";
+import { NotificationsIcon, SyncAltIcon, WarningIcon } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { OptionList, OptionTile } from "@/components/ui/option-tile";
@@ -89,6 +90,16 @@ function Note({ icon, children }: { icon: React.ReactNode; children: React.React
 /** The server's reason for a refused change ("already has an onboarding record"), else a fallback. */
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof ApiClientError && error.isClientError ? error.message : fallback;
+}
+
+/**
+ * Why the choices (teams, managers, templates) did not load. The server refuses anyone without the
+ * HR role, and "View as HR" only changes what the screens show, not what the server allows.
+ */
+function optionsErrorMessage(error: unknown): string {
+  if (error instanceof ApiClientError && error.status === 403)
+    return "Only people with the HR role can start an onboarding. “View as” changes what you see, not what the server allows.";
+  return errorMessage(error, "Check your connection and try again.");
 }
 
 /** Three weeks out, a sensible first start date. */
@@ -178,7 +189,24 @@ function NewOnboardingForm({ close }: { close: () => void }) {
       <DialogHeader>
         <DialogTitle>New onboarding</DialogTitle>
       </DialogHeader>
-      {!data ? (
+      {options.isError ? (
+        <Banner
+          tone="error"
+          icon={<WarningIcon aria-hidden />}
+          title="The form could not be loaded"
+          description={optionsErrorMessage(options.error)}
+          actions={
+            <Button
+              type="button"
+              size="xs"
+              variant="outline"
+              onClick={() => void options.refetch()}
+            >
+              Try again
+            </Button>
+          }
+        />
+      ) : !data ? (
         <Skeleton className="h-72 rounded-lg" />
       ) : (
         <>
