@@ -4,14 +4,14 @@ import { GroupFilledIcon, RouteIcon, SmartToyFilledIcon } from "@/components/ui/
 import { Shape } from "@/components/ui/shape";
 
 /**
- * Full-screen sign-in and first-day frame, from the prototype: a primary-container brand panel with
- * expressive shapes and the pitch on the left, a card on the right. The sign-in form (or any
- * other content) renders inside the card.
+ * Full-screen sign-in and first-day frame, from the prototype (`.fr-signin`): a primary-container
+ * brand panel with expressive shapes and the pitch on the left, a card on the right. The sign-in
+ * form, the workspace chooser (or any other content) renders inside the card.
  */
 interface SignInLayoutProps {
   /** Card heading, e.g. "Sign in" or "Choose your workspace". */
   title: string;
-  description?: string;
+  description?: ReactNode;
   children: ReactNode;
 }
 
@@ -24,8 +24,8 @@ export function SignInLayout({ title, description, children }: SignInLayoutProps
       >
         <Brand className="self-start text-on-primary-container" />
         <BrandArt />
-        <div className="mt-auto flex max-w-xl flex-col gap-3">
-          <h1 className="font-heading text-2xl leading-tight font-semibold text-balance lg:text-4xl lg:leading-[44px]">
+        <div className="mt-auto flex max-w-130 flex-col gap-3">
+          <h1 className="font-heading text-[26px] leading-[34px] font-[520] text-balance [font-variation-settings:'ROND'_60] lg:text-[36px] lg:leading-11">
             Everything you need to know about your company, in one place.
           </h1>
           <p className="text-base">
@@ -36,16 +36,17 @@ export function SignInLayout({ title, description, children }: SignInLayoutProps
       </section>
 
       <main className="flex flex-col items-center justify-center gap-4 px-4 py-6 lg:overflow-y-auto lg:px-6 lg:py-10">
-        <div className="flex w-full max-w-105 flex-col gap-4 rounded-2xl bg-card p-6 lg:p-8">
-          <div className="space-y-1">
-            <h2 className="font-heading text-2xl font-semibold">{title}</h2>
+        <div className="flex w-full max-w-105 flex-col gap-4 rounded-2xl bg-card px-5 py-6 lg:p-8">
+          <div className="flex flex-col gap-2">
+            <h2 className="font-heading text-[28px] leading-9 font-[520] [font-variation-settings:'ROND'_60]">
+              {title}
+            </h2>
             {description ? <p className="text-sm text-on-surface-variant">{description}</p> : null}
           </div>
           {children}
         </div>
         <p className="max-w-105 text-center text-xs text-on-surface-variant">
-          Protected by your company's single sign-on. ContextOS only shows what your accounts can
-          already open.
+          Sign in with your work account. ContextOS only shows what your accounts can already open.
         </p>
       </main>
     </div>

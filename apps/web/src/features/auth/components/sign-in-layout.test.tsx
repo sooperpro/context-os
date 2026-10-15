@@ -18,7 +18,7 @@ describe("SignInLayout", () => {
     expect(
       screen.getByRole("button", { name: "Continue with Google Workspace" }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/single sign-on/)).toBeInTheDocument();
+    expect(screen.getByText(/only shows what your accounts can already open/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "ContextOS home" })).toBeInTheDocument();
   });
 });
