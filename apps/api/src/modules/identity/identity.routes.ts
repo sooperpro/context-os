@@ -43,7 +43,7 @@ import { resolveSettings, workspaceSettings } from "../platform/settings.js";
 import { createPlatformStore, type PlatformRecord } from "../platform/store.js";
 import { auditRowFor } from "../audit/audit.service.js";
 import { sendInvitationEmail } from "../auth/invitations.js";
-import { organizationFor, requireRole } from "./identity.service.js";
+import { organizationFor, personalProfileOf, requireRole } from "./identity.service.js";
 import { manages } from "../platform/reports.js";
 
 const adminRoles = ["owner", "admin"] as const;
@@ -152,8 +152,11 @@ export function createIdentityRoutes(container: Container) {
     .get("/users/me", (c) => {
       const actor = c.get("actor");
       const membership = identity.requireMember(actor.workspaceId, actor.id);
+      const row = db.select().from(users).where(eq(users.id, actor.id)).get();
+      if (!row) throw new NotFoundError("User");
       return c.json({
-        ...db.select().from(users).where(eq(users.id, actor.id)).get(),
+        ...row,
+        profile: personalProfileOf(row.preferences, membership.organization),
         role: actor.role,
         workspaceId: actor.workspaceId,
         managerId: membership.managerId,
@@ -186,17 +189,64 @@ export function createIdentityRoutes(container: Container) {
     })
     .patch("/users/me", zValidator("json", ProfileUpdateSchema, validationHook), (c) => {
       const actor = c.get("actor");
-      const input = c.req.valid("json");
+      const { name, pronouns, location, bio, skills, avatarShape, ...settings } =
+        c.req.valid("json");
       const row = db.select().from(users).where(eq(users.id, actor.id)).get();
       if (!row) throw new NotFoundError("User");
-      return c.json(
-        db
+      const membership = identity.requireMember(actor.workspaceId, actor.id);
+      // Profile fields join what the first-day welcome stored (preferred name, known topics).
+      const own = Object.fromEntries(
+        Object.entries({
+          pronouns,
+          location,
+          bio,
+          skills: skills?.filter(
+            (skill, index) =>
+              skills.findIndex(
+                (other) => other.toLocaleLowerCase() === skill.toLocaleLowerCase(),
+              ) === index,
+          ),
+        }).filter(([, value]) => value !== undefined),
+      );
+      const { avatarShape: _previousShape, ...withoutShape } = row.preferences;
+      const preferences = {
+        ...(avatarShape === undefined ? row.preferences : withoutShape),
+        ...settings,
+        ...(avatarShape ? { avatarShape } : {}),
+        ...(Object.keys(own).length
+          ? {
+              profile: {
+                ...(typeof row.preferences.profile === "object" ? row.preferences.profile : {}),
+                ...own,
+                updatedAt: new Date().toISOString(),
+              },
+            }
+          : {}),
+      };
+      // The directory shows the workspace's location, so a new one is written there too.
+      const { location: _previousLocation, ...organizationRest } = membership.organization;
+      const organization =
+        location === undefined
+          ? membership.organization
+          : location
+            ? { ...organizationRest, location }
+            : organizationRest;
+      const updated = db.transaction(() => {
+        if (location !== undefined)
+          db.update(memberships)
+            .set({ organization })
+            .where(
+              and(eq(memberships.workspaceId, actor.workspaceId), eq(memberships.userId, actor.id)),
+            )
+            .run();
+        return db
           .update(users)
-          .set({ name: input.name ?? row.name, preferences: { ...row.preferences, ...input } })
+          .set({ name: name ?? row.name, preferences })
           .where(eq(users.id, actor.id))
           .returning()
-          .get(),
-      );
+          .get();
+      });
+      return c.json({ ...updated, profile: personalProfileOf(updated.preferences, organization) });
     })
     .get("/users", zValidator("query", UserDirectoryQuerySchema, validationHook), (c) => {
       const actor = c.get("actor");
@@ -227,7 +277,7 @@ export function createIdentityRoutes(container: Container) {
           if (teamId && organization.teamId !== teamId) return false;
           if (
             needle &&
-            !`${user.name} ${user.email ?? ""} ${typeof organization.jobTitle === "string" ? organization.jobTitle : ""}`
+            !`${user.name} ${user.email ?? ""} ${typeof organization.jobTitle === "string" ? organization.jobTitle : ""} ${personalProfileOf(user.preferences).skills.join(" ")}`
               .toLocaleLowerCase()
               .includes(needle)
           )
@@ -248,6 +298,10 @@ export function createIdentityRoutes(container: Container) {
             managerId: membership.managerId,
             organization: membership.organization,
           }),
+          // What they chose to show the directory (Settings › Profile); bio is on their profile.
+          profile: (({ pronouns, skills, avatarShape }) => ({ pronouns, skills, avatarShape }))(
+            personalProfileOf(user.preferences, membership.organization),
+          ),
           tier:
             settings.gamification.enabled && user.preferences.hideTier !== true
               ? ledgerSummary(db, actor.workspaceId, user.id, settings).tier

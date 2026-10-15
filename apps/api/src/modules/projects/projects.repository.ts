@@ -57,7 +57,7 @@ export function createProjectRepository(db: Db) {
 
     update(
       id: string,
-      patch: Partial<Pick<ProjectRow, "name" | "description" | "slug">>,
+      patch: Partial<Pick<ProjectRow, "name" | "description" | "slug" | "category">>,
     ): ProjectRow | undefined {
       return db
         .update(projects)

@@ -26,6 +26,7 @@ export function toProject(row: ProjectRow): Project {
     name: row.name,
     slug: row.slug,
     description: row.description,
+    category: row.category,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -79,6 +80,7 @@ export function createProjectService({ repo, audit, identity }: ProjectServiceDe
         name: input.name,
         slug: input.slug ?? uniqueSlug(repo, actor.workspaceId, input.name),
         description: input.description?.length ? input.description : null,
+        category: input.category ?? "project",
       });
       audit.record({
         actor,
@@ -91,8 +93,9 @@ export function createProjectService({ repo, audit, identity }: ProjectServiceDe
     },
 
     update(actor: Actor, project: ProjectRow, input: UpdateProjectInput): ProjectWithStats {
-      const patch: Partial<Pick<ProjectRow, "name" | "description" | "slug">> = {};
+      const patch: Partial<Pick<ProjectRow, "name" | "description" | "slug" | "category">> = {};
       if (input.name !== undefined) patch.name = input.name;
+      if (input.category !== undefined) patch.category = input.category;
       if (input.description !== undefined) {
         patch.description = input.description.length ? input.description : null;
       }

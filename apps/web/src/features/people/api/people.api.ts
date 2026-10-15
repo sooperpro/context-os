@@ -1,6 +1,8 @@
 import {
+  AvatarShapeSchema,
   ExpertListSchema,
   PeopleDirectorySchema,
+  PersonalProfileSchema,
   PersonProfileSchema,
   TeamDirectorySchema,
   type DirectoryPerson,
@@ -37,6 +39,14 @@ const MemberSchema = z
     status: z.string(),
     managerId: z.string().nullable().optional(),
     organization: OrganizationSchema.default({}),
+    /** What they show the directory from Settings › Profile. */
+    profile: z
+      .object({
+        pronouns: z.string().default(""),
+        skills: z.array(z.string()).default([]),
+        avatarShape: AvatarShapeSchema.nullable().default(null),
+      })
+      .optional(),
   })
   .passthrough();
 
@@ -65,6 +75,8 @@ const PublicProfileSchema = z.object({
   role: z.string(),
   organization: OrganizationSchema.default({}),
   assignments: z.array(AssignmentSchema).default([]),
+  /** Pronouns, location, bio, skills and avatar shape from their Settings › Profile. */
+  profile: PersonalProfileSchema.optional(),
   /** Only for the person's manager: the API leaves it null for everyone else. */
   onboarding: z.object({ startedOn: z.string(), status: z.string() }).nullable().default(null),
 });
@@ -148,7 +160,7 @@ function toDirectoryPerson(
     location: member.organization.location ?? null,
     timeZone: member.organization.timezone ?? null,
     joinedOn: member.organization.startDate ?? null,
-    skills: [],
+    skills: member.profile?.skills ?? profile?.profile?.skills ?? [],
     expert: Boolean(profile?.assignments.length),
     isNew: isNewMember(member),
     relations: relationsFor(member, viewer),
@@ -373,7 +385,9 @@ export async function fetchPerson(id: string, signal?: AbortSignal): Promise<Per
   });
   return PersonProfileSchema.parse({
     ...toDirectoryPerson(member, teamMap, viewerMember, profile),
-    bio: null,
+    bio: (profile.profile?.bio ?? "") || null,
+    pronouns: (profile.profile?.pronouns ?? "") || null,
+    avatarShape: profile.profile?.avatarShape ?? null,
     manager: manager ? personRef(manager) : null,
     reports: members.items.filter((entry) => entry.managerId === member.id).map(personRef),
     owns,

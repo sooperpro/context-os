@@ -177,7 +177,19 @@ function Profile({ person }: { person: PersonProfile }) {
       <PageColumns>
         <PageMain>
           <SectionCard title="About">
-            {person.bio ? <p className="text-base">{person.bio}</p> : null}
+            {person.bio ? <p className="text-base whitespace-pre-line">{person.bio}</p> : null}
+            {!person.bio && !person.skills.length ? (
+              <p className="text-sm text-on-surface-variant">
+                {person.relations.includes("you") ? (
+                  <>
+                    Add a bio and skills in <Link to="/settings">Settings</Link> so people know what
+                    to ask you about.
+                  </>
+                ) : (
+                  `${first} hasn’t added a bio or skills yet.`
+                )}
+              </p>
+            ) : null}
             {person.skills.length ? (
               <div className="flex flex-wrap gap-1.5">
                 {person.skills.map((skill) => (

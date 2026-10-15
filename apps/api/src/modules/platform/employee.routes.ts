@@ -713,7 +713,8 @@ export function createEmployeeRoutes(container: Container) {
           .set({
             preferences: {
               ...user.preferences,
-              profile: { ...input, updatedAt: now },
+              // Bio and skills from Settings › Profile stay.
+              profile: { ...record(user.preferences.profile), ...input, updatedAt: now },
               // Finishing again keeps the first completion time.
               welcome: { completedAt: str(record(user.preferences.welcome).completedAt) || now },
               // One switch for onboarding reminders: the notification preferences' onboarding category.

@@ -1,4 +1,8 @@
-import type { AssistantPreferencesInput, NotificationPreferences } from "@contextos/shared";
+import {
+  PROFILE_LIMITS,
+  type AssistantPreferencesInput,
+  type NotificationPreferences,
+} from "@contextos/shared";
 import { useBotContext } from "@/components/layout/bot-context";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -8,12 +12,22 @@ import { ConnectorLogo } from "@/components/connector-logo";
 import { PageHeader } from "@/components/layout/page-header";
 import { PreviewDataChip } from "@/components/preview-data-chip";
 import type { Theme } from "@/components/theme-context";
-import { Avatar, AvatarFallback, avatarShapeFor, avatarToneFor } from "@/components/ui/avatar";
+import {
+  AVATAR_SHAPES,
+  Avatar,
+  AvatarFallback,
+  avatarShapeFor,
+  avatarToneFor,
+  type AvatarShape,
+} from "@/components/ui/avatar";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Chip } from "@/components/ui/chip";
 import {
+  AddIcon,
   CheckIcon,
+  CloseIcon,
   ContrastIcon,
   DarkModeIcon,
   DesktopWindowsIcon,
@@ -44,6 +58,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { StatusChip } from "@/components/ui/status-chip";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { ACCOUNT_ENDPOINTS } from "@/features/account/api/account.api";
 import { signOut, signOutDevice, signOutOtherDevices } from "@/features/auth/api/auth.api";
 import { authKeys, devicesQuery, sessionQuery } from "@/features/auth/api/auth.queries";
@@ -62,6 +77,7 @@ import { useTheme } from "@/hooks/use-theme";
 import { formatRelativeTime, initialsOf } from "@/lib/format";
 import { ROLE_LABEL } from "@/lib/labels";
 import { RoleRequestCard } from "@/features/settings/components/role-request-card";
+import { teamsQuery } from "@/features/members/api/members.queries";
 import { useViewer } from "@/features/workspace/hooks/use-viewer";
 
 /*
@@ -182,11 +198,38 @@ export function SettingsPage() {
   );
 }
 
+interface ProfileDraft {
+  name: string;
+  timezone: string;
+  pronouns: string;
+  location: string;
+  bio: string;
+  skills: string[];
+  avatarShape: AvatarShape | null;
+}
+
+const shapeLabel = (shape: AvatarShape) =>
+  shape.replace(
+    /^(\D+)(\d*)$/,
+    (_, word: string, count: string) =>
+      `${word.charAt(0).toUpperCase()}${word.slice(1)}${count ? ` ${count}` : ""}`,
+  );
+
+const sameValue = (a: unknown, b: unknown) =>
+  JSON.stringify(typeof a === "string" ? a.trim() : a) ===
+  JSON.stringify(typeof b === "string" ? b.trim() : b);
+
+/** Role access spec §4.9: pronouns, location, bio, skills and avatar shape are yours to edit. */
 function ProfileTab() {
   const me = useQuery(meQuery());
   const update = useUpdateMe();
-  const [name, setName] = useState<string | null>(null);
-  const [timezone, setTimezone] = useState<string | null>(null);
+  const [draft, setDraft] = useState<Partial<ProfileDraft>>({});
+  const [newSkill, setNewSkill] = useState("");
+  const organization = me.data?.organization ?? {};
+  const jobTitle = typeof organization.jobTitle === "string" ? organization.jobTitle : null;
+  const teamId = typeof organization.teamId === "string" ? organization.teamId : null;
+  const teams = useQuery({ ...teamsQuery(), enabled: teamId !== null });
+  const teamName = teams.data?.find((team) => team.id === teamId)?.name ?? null;
 
   if (me.isPending) return <Skeleton className="h-80 rounded-card" />;
   if (me.isError) {
@@ -200,22 +243,56 @@ function ProfileTab() {
     );
   }
 
-  const currentName = name ?? me.data.name;
-  const currentZone =
-    timezone ?? me.data.preferences.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const dirty =
-    currentName.trim() !== me.data.name ||
-    currentZone !== (me.data.preferences.timezone ?? currentZone);
-  const nameValid = currentName.trim().length > 0;
+  const saved: ProfileDraft = {
+    name: me.data.name,
+    timezone: me.data.preferences.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+    pronouns: me.data.profile?.pronouns ?? "",
+    location: me.data.profile?.location ?? "",
+    bio: me.data.profile?.bio ?? "",
+    skills: me.data.profile?.skills ?? [],
+    avatarShape: me.data.profile?.avatarShape ?? null,
+  };
+  const current: ProfileDraft = { ...saved, ...draft };
+  const set = <K extends keyof ProfileDraft>(key: K, value: ProfileDraft[K]) =>
+    setDraft((previous) => ({ ...previous, [key]: value }));
+  const changed = (key: keyof ProfileDraft) => !sameValue(current[key], saved[key]);
+  const dirty = (Object.keys(saved) as Array<keyof ProfileDraft>).some(changed);
+  const nameValid = current.name.trim().length > 0;
+  const shape = avatarShapeFor(me.data.id, current.avatarShape);
+  const tone = avatarToneFor(me.data.id);
+  const initials = initialsOf(current.name) || "?";
 
+  const skillToAdd = newSkill.trim().slice(0, PROFILE_LIMITS.skill);
+  const canAddSkill =
+    skillToAdd.length > 0 &&
+    current.skills.length < PROFILE_LIMITS.skills &&
+    !current.skills.some((skill) => skill.toLocaleLowerCase() === skillToAdd.toLocaleLowerCase());
+  const addSkill = () => {
+    if (!canAddSkill) return;
+    set("skills", [...current.skills, skillToAdd]);
+    setNewSkill("");
+  };
+
+  const reset = () => {
+    setDraft({});
+    setNewSkill("");
+  };
   const save = () =>
     update.mutate(
-      { name: currentName.trim(), timezone: currentZone },
+      {
+        name: current.name.trim(),
+        timezone: current.timezone,
+        // Only what changed, so an unchanged location doesn't overwrite the HR system's.
+        ...(changed("pronouns") ? { pronouns: current.pronouns.trim() } : {}),
+        ...(changed("location") ? { location: current.location.trim() } : {}),
+        ...(changed("bio") ? { bio: current.bio.trim() } : {}),
+        ...(changed("skills") ? { skills: current.skills } : {}),
+        ...(changed("avatarShape") ? { avatarShape: current.avatarShape } : {}),
+      },
       {
         onSuccess: () => {
           toast.success("Profile saved");
-          setName(null);
-          setTimezone(null);
+          reset();
         },
       },
     );
@@ -229,29 +306,76 @@ function ProfileTab() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
-        <div className="flex items-center gap-4">
-          <Avatar size="xl" tone={avatarToneFor(me.data.id)} shape={avatarShapeFor(me.data.id)}>
-            <AvatarFallback>{initialsOf(currentName) || "?"}</AvatarFallback>
+        <div className="flex flex-wrap items-center gap-4">
+          <Avatar size="xl" tone={tone} shape={shape}>
+            <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>
           <div className="text-sm text-on-surface-variant">
             <p className="font-medium text-on-surface">{ROLE_LABEL[me.data.role]}</p>
             {me.data.email ? <p>{me.data.email}</p> : null}
           </div>
         </div>
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium">Avatar shape</legend>
+          <div className="flex flex-wrap gap-1.5">
+            {AVATAR_SHAPES.map((option) => (
+              <label
+                key={option}
+                className="cursor-pointer rounded-full p-1 transition-colors has-checked:bg-secondary-container has-focus-visible:ring-3 has-focus-visible:ring-ring/50"
+              >
+                <input
+                  type="radio"
+                  name="avatar-shape"
+                  value={option}
+                  className="sr-only"
+                  checked={shape === option}
+                  onChange={() => set("avatarShape", option)}
+                  aria-label={shapeLabel(option)}
+                />
+                <Avatar size="default" tone={tone} shape={option} aria-hidden>
+                  <AvatarFallback>{initials}</AvatarFallback>
+                </Avatar>
+              </label>
+            ))}
+          </div>
+        </fieldset>
         <div className="grid gap-4 @xl:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="settings-name">Name</Label>
             <Input
               id="settings-name"
-              value={currentName}
+              value={current.name}
               aria-invalid={!nameValid}
-              onChange={(event) => setName(event.target.value)}
+              onChange={(event) => set("name", event.target.value)}
             />
             {!nameValid ? <p className="px-4 text-xs text-error">Enter your name.</p> : null}
           </div>
           <div className="space-y-1.5">
+            <Label htmlFor="settings-pronouns">Pronouns</Label>
+            <Input
+              id="settings-pronouns"
+              value={current.pronouns}
+              maxLength={PROFILE_LIMITS.pronouns}
+              placeholder="she/her, he/him, they/them"
+              onChange={(event) => set("pronouns", event.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="settings-location">Location</Label>
+            <Input
+              id="settings-location"
+              value={current.location}
+              maxLength={PROFILE_LIMITS.location}
+              placeholder="City, country"
+              onChange={(event) => set("location", event.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
             <Label htmlFor="settings-timezone">Time zone</Label>
-            <Select value={currentZone} onValueChange={(value) => setTimezone(value)}>
+            <Select
+              value={current.timezone}
+              onValueChange={(value) => set("timezone", value ?? "")}
+            >
               <SelectTrigger id="settings-timezone" className="w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -267,16 +391,92 @@ function ProfileTab() {
               Used for due dates, quiet hours and check-ins.
             </p>
           </div>
+          <div className="space-y-1.5 @xl:col-span-2">
+            <Label htmlFor="settings-bio">Bio</Label>
+            <Textarea
+              id="settings-bio"
+              rows={3}
+              value={current.bio}
+              maxLength={PROFILE_LIMITS.bio}
+              placeholder="What you work on and what people can ask you about."
+              onChange={(event) => set("bio", event.target.value)}
+            />
+            <p className="px-4 text-right text-xs text-on-surface-variant tabular-nums">
+              {current.bio.length}/{PROFILE_LIMITS.bio}
+            </p>
+          </div>
+          <div className="space-y-1.5 @xl:col-span-2">
+            <Label htmlFor="settings-skill">Skills</Label>
+            {current.skills.length ? (
+              <ul aria-label="Your skills" className="flex flex-wrap gap-1.5">
+                {current.skills.map((skill) => (
+                  <li key={skill}>
+                    <Chip
+                      aria-label={`Remove ${skill}`}
+                      onClick={() =>
+                        set(
+                          "skills",
+                          current.skills.filter((entry) => entry !== skill),
+                        )
+                      }
+                    >
+                      {skill}
+                      <CloseIcon aria-hidden className="ms-0 -me-2" />
+                    </Chip>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <div className="flex gap-2">
+              <Input
+                id="settings-skill"
+                value={newSkill}
+                maxLength={PROFILE_LIMITS.skill}
+                placeholder={
+                  current.skills.length >= PROFILE_LIMITS.skills
+                    ? `Up to ${PROFILE_LIMITS.skills} skills`
+                    : "Add a skill, like Kafka or Pricing"
+                }
+                disabled={current.skills.length >= PROFILE_LIMITS.skills}
+                onChange={(event) => setNewSkill(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    addSkill();
+                  }
+                }}
+              />
+              <Button variant="outline" disabled={!canAddSkill} onClick={addSkill}>
+                <AddIcon aria-hidden />
+                Add
+              </Button>
+            </div>
+            <p className="px-4 text-xs text-on-surface-variant">
+              People find you by these in the directory.
+            </p>
+          </div>
         </div>
+        {jobTitle || teamName ? (
+          <dl className="grid gap-4 rounded-lg bg-pane p-4 text-sm @xl:grid-cols-2">
+            {jobTitle ? (
+              <div>
+                <dt className="text-on-surface-variant">Job title</dt>
+                <dd className="font-medium">{jobTitle}</dd>
+              </div>
+            ) : null}
+            {teamName ? (
+              <div>
+                <dt className="text-on-surface-variant">Team</dt>
+                <dd className="font-medium">{teamName}</dd>
+              </div>
+            ) : null}
+            <p className="text-xs text-on-surface-variant @xl:col-span-2">
+              From the HR system. Ask People Ops to change these.
+            </p>
+          </dl>
+        ) : null}
         <div className="flex justify-end gap-2">
-          <Button
-            variant="ghost"
-            disabled={!dirty || update.isPending}
-            onClick={() => {
-              setName(null);
-              setTimezone(null);
-            }}
-          >
+          <Button variant="ghost" disabled={!dirty || update.isPending} onClick={reset}>
             Cancel
           </Button>
           <Button disabled={!dirty || !nameValid || update.isPending} onClick={save}>

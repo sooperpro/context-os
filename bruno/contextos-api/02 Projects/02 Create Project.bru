@@ -18,7 +18,8 @@ headers {
 body:json {
   {
     "name": "Bruno Test Project",
-    "description": "A local project created while testing the ContextOS API."
+    "description": "A local project created while testing the ContextOS API.",
+    "category": "project"
   }
 }
 
@@ -36,6 +37,7 @@ tests {
   test("Creates a project", function () {
     expect(res.getStatus()).to.equal(201);
     expect(res.getBody().id).to.be.a("string");
+    expect(res.getBody().category).to.equal("project");
   });
 }
 

@@ -17,12 +17,14 @@ headers {
 
 body:json {
   {
-    "description": "Updated through the ContextOS Bruno collection."
+    "description": "Updated through the ContextOS Bruno collection.",
+    "category": "process"
   }
 }
 
 tests {
   test("Updates the project", function () {
     expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().category).to.equal("process");
   });
 }

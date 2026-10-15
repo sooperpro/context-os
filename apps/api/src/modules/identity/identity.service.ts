@@ -1,4 +1,10 @@
-import type { AssignmentType, ProjectStats } from "@contextos/shared";
+import {
+  AvatarShapeSchema,
+  PROFILE_LIMITS,
+  type AssignmentType,
+  type PersonalProfile,
+  type ProjectStats,
+} from "@contextos/shared";
 import { and, eq, gt, inArray, isNull, or } from "drizzle-orm";
 import type { Db } from "../../db/index.js";
 import {
@@ -155,6 +161,36 @@ export function organizationFor(
   );
   if (isNewJoiner(member.organization)) visible.isNewHire = true;
   return visible;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+const text = (value: unknown, max: number) =>
+  typeof value === "string" ? value.trim().slice(0, max) : "";
+
+/**
+ * What someone says about themselves: Settings › Profile and the first-day welcome both write
+ * `preferences.profile`; the avatar shape is `preferences.avatarShape`. The workspace's location
+ * (`memberships.organization.location`, what the directory shows) wins over the stored one.
+ */
+export function personalProfileOf(
+  preferences: Record<string, unknown>,
+  organization: Record<string, unknown> = {},
+): PersonalProfile {
+  const stored = isRecord(preferences.profile) ? preferences.profile : {};
+  const skills = Array.isArray(stored.skills) ? stored.skills : [];
+  return {
+    pronouns: text(stored.pronouns, PROFILE_LIMITS.pronouns),
+    location:
+      text(organization.location, PROFILE_LIMITS.location) ||
+      text(stored.location, PROFILE_LIMITS.location),
+    bio: text(stored.bio, PROFILE_LIMITS.bio),
+    skills: skills
+      .map((skill) => text(skill, PROFILE_LIMITS.skill))
+      .filter(Boolean)
+      .slice(0, PROFILE_LIMITS.skills),
+    avatarShape: AvatarShapeSchema.safeParse(preferences.avatarShape).data ?? null,
+  };
 }
 
 export function requireRole(actor: Actor, ...roles: Array<Actor["role"]>): void {

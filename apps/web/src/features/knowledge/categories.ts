@@ -13,8 +13,8 @@ import type { ShapeKind } from "@/components/ui/shape";
 
 /**
  * The Knowledge Hub's collections, exactly as the prototype lists them (CATS): names, order, icons,
- * shapes and descriptions. Company, Products, Projects and Processes are projects by category
- * (the API does not store a category yet, so every project counts as "project" until it does).
+ * shapes and descriptions. Company, Products, Projects and Processes are projects by their stored
+ * category (chosen when the project is created or renamed).
  * Systems, Decisions and Glossary come from the context items extracted from each project.
  */
 export type CategoryId =
@@ -115,6 +115,19 @@ export const CATEGORIES: readonly KnowledgeCategory[] = [
     emptyNote: "Nothing here yet. Terms appear as sources define them.",
   },
 ];
+
+/** The collections a project can be filed under, for the New project and Rename pickers. */
+export const PROJECT_CATEGORY_OPTIONS = CATEGORIES.flatMap((category) =>
+  category.source === "projects"
+    ? [
+        {
+          value: category.projectCategory,
+          label: category.name,
+          description: category.description,
+        },
+      ]
+    : [],
+);
 
 export function categoryById(id: string | null): KnowledgeCategory | undefined {
   return CATEGORIES.find((category) => category.id === id);

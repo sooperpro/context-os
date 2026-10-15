@@ -22,6 +22,16 @@ const session = (authentication: "accounts" | "development") => ({
 async function openMenu(authentication: "accounts" | "development") {
   mockServer.use(
     http.get(buildApiUrl("/v1/session"), () => HttpResponse.json(session(authentication))),
+    http.get(buildApiUrl("/v1/users/me"), () =>
+      HttpResponse.json({
+        id: "u1",
+        name: "Alex Rivera",
+        email: "alex@example.com",
+        role: "member",
+        workspaceId: "w1",
+        preferences: {},
+      }),
+    ),
   );
   renderWithProviders(
     <ThemeProvider>

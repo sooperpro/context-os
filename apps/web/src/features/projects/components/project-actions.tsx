@@ -1,4 +1,4 @@
-import type { ProjectWithStats, SystemRole } from "@contextos/shared";
+import { ProjectCategorySchema, type ProjectWithStats, type SystemRole } from "@contextos/shared";
 import { useId, useState } from "react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
@@ -20,9 +20,21 @@ import {
 import { DeleteIcon, EditIcon, MoreHorizIcon } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { PROJECT_CATEGORY_OPTIONS } from "@/features/knowledge/categories";
 import { useDeleteProject, useUpdateProject } from "@/features/projects/api/projects.queries";
 import { useViewer } from "@/features/workspace/hooks/use-viewer";
+
+const CATEGORY_ITEMS = Object.fromEntries(
+  PROJECT_CATEGORY_OPTIONS.map((option) => [option.value, option.label]),
+);
 
 /** Who may rename and who may delete a project; the API checks the same. */
 const EDITORS: readonly SystemRole[] = ["owner", "admin", "manager"];
@@ -72,15 +84,18 @@ function RenameForm({ project, close }: { project: ProjectWithStats; close: () =
   const update = useUpdateProject(project.id);
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description ?? "");
+  const [category, setCategory] = useState(project.category);
   const changed =
-    name.trim() !== project.name || description.trim() !== (project.description ?? "");
+    name.trim() !== project.name ||
+    description.trim() !== (project.description ?? "") ||
+    category !== project.category;
   return (
     <form
       className="space-y-4"
       onSubmit={(event) => {
         event.preventDefault();
         update.mutate(
-          { name: name.trim(), description: description.trim() },
+          { name: name.trim(), description: description.trim(), category },
           {
             onSuccess: () => {
               toast.success("Project saved");
@@ -92,7 +107,10 @@ function RenameForm({ project, close }: { project: ProjectWithStats; close: () =
     >
       <DialogHeader>
         <DialogTitle>Rename project</DialogTitle>
-        <DialogDescription>Its address and links keep working.</DialogDescription>
+        <DialogDescription>
+          Its address and links keep working. The collection decides where it appears in the
+          Knowledge Hub.
+        </DialogDescription>
       </DialogHeader>
       {update.isError ? <p className="text-sm text-destructive">{update.error.message}</p> : null}
       <div className="space-y-2">
@@ -106,6 +124,25 @@ function RenameForm({ project, close }: { project: ProjectWithStats; close: () =
           value={description}
           onChange={(event) => setDescription(event.target.value)}
         />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor={`${id}-category`}>Collection</Label>
+        <Select
+          items={CATEGORY_ITEMS}
+          value={category}
+          onValueChange={(value) => setCategory(ProjectCategorySchema.parse(value))}
+        >
+          <SelectTrigger id={`${id}-category`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PROJECT_CATEGORY_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <DialogFooter>
         <Button type="button" variant="ghost" onClick={close}>

@@ -12,11 +12,8 @@ export const ProjectSchema = z.object({
   /** URL slug, unique within the workspace. Null only for legacy rows not yet backfilled. */
   slug: z.string().nullable(),
   description: z.string().nullable(),
-  /**
-   * Not stored by the API yet (see docs/api-change-requests.md); absent means "project". Make it
-   * required once the API returns it.
-   */
-  category: ProjectCategorySchema.optional(),
+  /** Stored on every project; older payloads without it read as "project". */
+  category: ProjectCategorySchema.default("project"),
   createdAt: IsoDateTimeSchema,
   updatedAt: IsoDateTimeSchema,
 });
@@ -43,6 +40,8 @@ export const CreateProjectInputSchema = z.object({
   description: z.string().trim().max(2000).optional(),
   /** Optional explicit slug; generated from the name when omitted. */
   slug: SlugSchema.optional(),
+  /** The Knowledge Hub collection it belongs to; "project" when omitted. */
+  category: ProjectCategorySchema.optional(),
 });
 export type CreateProjectInput = z.infer<typeof CreateProjectInputSchema>;
 

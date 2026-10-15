@@ -123,7 +123,7 @@ export function KnowledgeHubPage() {
   const entriesFor = (cat: KnowledgeCategory): Entry[] =>
     cat.source === "projects"
       ? projectList
-          .filter((project) => (project.category ?? "project") === cat.projectCategory)
+          .filter((project) => project.category === cat.projectCategory)
           .map((project) => ({
             type: "project",
             id: project.id,
@@ -382,7 +382,12 @@ export function KnowledgeHubPage() {
         </div>
       )}
 
-      <CreateProjectDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <CreateProjectDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        // Creating from inside a project collection files the new project there.
+        defaultCategory={category?.source === "projects" ? category.projectCategory : undefined}
+      />
     </div>
   );
 }

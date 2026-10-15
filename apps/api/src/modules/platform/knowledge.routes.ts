@@ -7,7 +7,7 @@ import {
 import { zValidator } from "@hono/zod-validator";
 import { and, eq, gt, isNull, or } from "drizzle-orm";
 import { Hono } from "hono";
-import { organizationFor } from "../identity/identity.service.js";
+import { organizationFor, personalProfileOf } from "../identity/identity.service.js";
 import { z } from "zod";
 import type { Container } from "../../container.js";
 import {
@@ -656,6 +656,8 @@ export function createKnowledgeRoutes(container: Container) {
         name: user.name,
         role: member.role,
         organization: organizationFor(actor, member),
+        // Pronouns, location, bio, skills and avatar shape are public (role access spec §2).
+        profile: personalProfileOf(user.preferences, member.organization),
         onboarding,
         // Every active ownership, at any scope: the People profile lists project and section
         // ownership too, so the directory can infer expertise from it.

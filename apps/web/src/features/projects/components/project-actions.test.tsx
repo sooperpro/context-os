@@ -16,6 +16,7 @@ const project = {
   name: "Billing",
   slug: "billing",
   description: null,
+  category: "project",
   createdAt: "2026-10-01T09:00:00.000Z",
   updatedAt: "2026-10-01T09:00:00.000Z",
   stats: { sources: 1, readySources: 1, contextItems: 0, questions: 0, lastProcessedAt: null },
@@ -48,7 +49,25 @@ describe("ProjectActions", () => {
     await user.clear(name);
     await user.type(name, "Billing platform");
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(sent).toEqual([{ name: "Billing platform", description: "" }]));
+    await waitFor(() =>
+      expect(sent).toEqual([{ name: "Billing platform", description: "", category: "project" }]),
+    );
+  });
+
+  it("moves a project to another Knowledge Hub collection", async () => {
+    const sent = asRole("admin");
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Manage Billing" }));
+    await user.click(await screen.findByRole("menuitem", { name: /Rename/ }));
+    const dialog = await screen.findByRole("dialog");
+    const save = within(dialog).getByRole("button", { name: "Save" });
+    expect(save).toBeDisabled();
+    await user.click(within(dialog).getByRole("combobox", { name: "Collection" }));
+    await user.click(await screen.findByRole("option", { name: "Processes" }));
+    await user.click(save);
+    await waitFor(() =>
+      expect(sent).toEqual([{ name: "Billing", description: "", category: "process" }]),
+    );
   });
 
   it("offers delete to admins, and nothing to members", async () => {

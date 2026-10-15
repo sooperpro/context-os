@@ -33,6 +33,7 @@ import {
   type MaterialIcon,
 } from "@/components/ui/icons";
 import { selectWorkspace, signOut } from "@/features/auth/api/auth.api";
+import { meQuery } from "@/features/account/api/account.queries";
 import { authKeys, sessionQuery } from "@/features/auth/api/auth.queries";
 import { useTheme } from "@/hooks/use-theme";
 import { initialsOf } from "@/lib/format";
@@ -75,8 +76,9 @@ export function AccountMenu() {
   const workspaces = session?.workspaces ?? [];
   const activeWorkspaceId = session?.activeWorkspaceId ?? "";
   // Your avatar wears your shape, as on your profile (prototype `.avatar.shape-*`).
+  const me = useQuery({ ...meQuery(), enabled: user !== undefined });
   const tone = avatarToneFor(user?.id ?? "account");
-  const shape = avatarShapeFor(user?.id ?? "account");
+  const shape = avatarShapeFor(user?.id ?? "account", me.data?.profile?.avatarShape);
 
   return (
     <DropdownMenu>

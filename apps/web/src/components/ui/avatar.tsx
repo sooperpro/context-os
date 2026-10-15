@@ -65,9 +65,9 @@ function avatarToneFor(id: string): (typeof AVATAR_TONES)[number] {
   return AVATAR_TONES[hashId(id) % AVATAR_TONES.length] ?? "primary";
 }
 
-/** Stable expressive shape for an id, for identity avatars. */
-function avatarShapeFor(id: string): AvatarShape {
-  return AVATAR_SHAPES[hashId(id) % AVATAR_SHAPES.length] ?? "cookie9";
+/** The shape for identity avatars: the one they picked in Settings, else a stable one for their id. */
+function avatarShapeFor(id: string, chosen?: AvatarShape | null): AvatarShape {
+  return chosen ?? AVATAR_SHAPES[hashId(id) % AVATAR_SHAPES.length] ?? "cookie9";
 }
 
 const maskCache = new Map<AvatarShape, string>();
@@ -212,5 +212,6 @@ export {
   avatarVariants,
   avatarToneFor,
   avatarShapeFor,
+  AVATAR_SHAPES,
   type AvatarShape,
 };

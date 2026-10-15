@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { IdSchema, IsoDateSchema } from "./common.js";
+import { AvatarShapeSchema, PersonalProfileSchema, PROFILE_LIMITS } from "./people.js";
 import {
   ScopeStatusSchema,
   ScopeTypeSchema,
@@ -42,6 +43,16 @@ export const ProfileUpdateSchema = z
     leaderboardOptOut: z.boolean().optional(),
     /** Hide tier and reputation from the public profile. */
     hideTier: z.boolean().optional(),
+    /** What they say about themselves (role access spec §4.9); an empty string clears a field. */
+    pronouns: z.string().trim().max(PROFILE_LIMITS.pronouns).optional(),
+    location: z.string().trim().max(PROFILE_LIMITS.location).optional(),
+    bio: z.string().trim().max(PROFILE_LIMITS.bio).optional(),
+    skills: z
+      .array(z.string().trim().min(1).max(PROFILE_LIMITS.skill))
+      .max(PROFILE_LIMITS.skills)
+      .optional(),
+    /** Null goes back to the shape picked from their id. */
+    avatarShape: AvatarShapeSchema.nullable().optional(),
   })
   .strict();
 export const UserUpdateSchema = z
@@ -658,6 +669,10 @@ export const MeSchema = z.object({
   assignments: z
     .array(z.object({ type: z.string(), scopeType: z.string(), scopeId: z.string() }))
     .optional(),
+  /** Pronouns, location, bio, skills and avatar shape, as Settings › Profile edits them. */
+  profile: PersonalProfileSchema.optional(),
+  /** Job title, team and the rest of their placement, from the HR system (read-only here). */
+  organization: z.record(z.string(), z.unknown()).optional(),
   preferences: z
     .object({
       timezone: z.string().optional(),

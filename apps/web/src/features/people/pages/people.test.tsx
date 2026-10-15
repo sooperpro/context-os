@@ -51,6 +51,7 @@ function renderAt(route: string, viewerId = "p-maya") {
       status: "active",
       managerId: "p-daniel",
       organization: { teamId: teamPlatform, jobTitle: "Staff Engineer", roleFamily: "Eng" },
+      profile: { pronouns: "she/her", skills: ["Kafka", "Go"], avatarShape: "flower" },
     },
     {
       id: "p-leah",
@@ -98,6 +99,16 @@ function renderAt(route: string, viewerId = "p-maya") {
         name: member.name,
         role: member.role,
         organization: member.organization,
+        profile:
+          member.id === "p-sana"
+            ? {
+                pronouns: "she/her",
+                location: "",
+                bio: "I run the ingest gateway.",
+                skills: ["Kafka", "Go"],
+                avatarShape: "flower",
+              }
+            : undefined,
         assignments:
           member.id === "p-sana"
             ? [
@@ -159,6 +170,33 @@ describe("People", () => {
     await user.type(screen.getByRole("searchbox", { name: "Search people" }), "staff engineer");
     expect(await screen.findByText("1 person matching “staff engineer”")).toBeInTheDocument();
     expect(card("Sana Iqbal")).toBeInTheDocument();
+
+    // Skills from Settings › Profile are searchable too.
+    await user.clear(screen.getByRole("searchbox", { name: "Search people" }));
+    await user.type(screen.getByRole("searchbox", { name: "Search people" }), "kafka");
+    expect(await screen.findByText("1 person matching “kafka”")).toBeInTheDocument();
+    expect(within(card("Sana Iqbal")).getByText("Kafka")).toBeInTheDocument();
+  });
+
+  it("shows what people say about themselves: pronouns, bio and skills", async () => {
+    renderAt("/people/p-sana");
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Sana Iqbal" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("she/her")).toBeInTheDocument();
+    const about = screen.getByRole("region", { name: "About" });
+    expect(within(about).getByText("I run the ingest gateway.")).toBeInTheDocument();
+    expect(within(about).getByText("Kafka")).toBeInTheDocument();
+    expect(within(about).getByText("Go")).toBeInTheDocument();
+  });
+
+  it("points you to Settings when your own profile is empty", async () => {
+    renderAt("/people/p-maya");
+    const about = await screen.findByRole("region", { name: "About" });
+    expect(within(about).getByRole("link", { name: "Settings" })).toHaveAttribute(
+      "href",
+      "/settings",
+    );
   });
 
   it("filters to experts, and shows your team and all teams", async () => {
