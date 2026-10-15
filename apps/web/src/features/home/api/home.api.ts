@@ -6,6 +6,7 @@ import {
   KnowledgeGapListSchema,
   KnowledgeUpdateListSchema,
   MilestoneListSchema,
+  MyCheckinsSchema,
   MyOnboardingSchema,
   MyPeopleSchema,
   MyTasksSchema,
@@ -39,6 +40,8 @@ export const HOME_ENDPOINTS = {
   knowledgeUpdates: { path: "/v1/me/knowledge-updates", schema: KnowledgeUpdateListSchema },
   teamActivity: { path: "/v1/me/team-activity", schema: TeamActivityFeedSchema },
   myPeople: { path: "/v1/me/people", schema: MyPeopleSchema },
+  /** Live (platform/team.routes.ts): upcoming check-in dates and notes the manager shared. */
+  myCheckins: { path: "/v1/me/checkins", schema: MyCheckinsSchema },
   teamOnboarding: { path: "/v1/team/onboarding", schema: TeamOnboardingSchema },
   attention: { path: "/v1/team/attention", schema: AttentionListSchema },
   checkins: { path: "/v1/team/checkins", schema: CheckinListSchema },

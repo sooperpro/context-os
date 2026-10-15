@@ -202,6 +202,68 @@ describe("Tutorials: drafted from knowledge, reviewed, published and taken", () 
     expect(MyLearningSchema.parse(await get("/me/learning")).assigned[0]?.lessonsDone).toBe(1);
   });
 
+  it("pauses Context Bot on the server while a knowledge check is open", async () => {
+    t = createTestApp();
+    admin = owner();
+    const { project, id } = await publishedTutorial();
+    const key = `tutorial-${id}`;
+    member("emp", "member");
+    await t.app.request(
+      `/api/v1/tutorials/${id}/assign`,
+      jsonRequest({ userId: "emp", dueOn: day(7) }),
+    );
+    as("emp", "member");
+    const ask = () =>
+      t.app.request(
+        `/api/v1/projects/${project.id}/ask`,
+        jsonRequest({ question: "Why did billing change?" }),
+      );
+
+    // Opening the check pauses every way of asking, not just the panel in the app.
+    const check = KnowledgeCheckSchema.parse(await get(`/me/checks/${key}~check`));
+    const paused = await ask();
+    expect(paused.status).toBe(409);
+    expect(await json<{ error: { message: string } }>(paused)).toMatchObject({
+      error: {
+        message: expect.stringContaining("paused while your knowledge check is open") as unknown,
+      },
+    });
+    const thread = await json<{ id: string }>(
+      await t.app.request("/api/v1/ask/threads", jsonRequest({ projectId: project.id })),
+    );
+    expect(
+      (
+        await t.app.request(
+          `/api/v1/ask/threads/${thread.id}/messages`,
+          jsonRequest({ question: "Why did billing change?" }),
+        )
+      ).status,
+    ).toBe(409);
+
+    // Submitting ends the pause.
+    await t.app.request(
+      `/api/v1/me/checks/${key}~check/attempts`,
+      jsonRequest({
+        answers: check.questions.map((question) => ({ questionId: question.id, optionId: "a" })),
+      }),
+    );
+    expect((await ask()).status).toBe(201);
+
+    // With the workspace's "pause during checks" turned off, opening a check pauses nothing.
+    Object.assign(t.container.devActor, admin);
+    expect(
+      (
+        await t.app.request(
+          "/api/v1/admin/ai-settings",
+          jsonRequest({ rules: { pause_during_checks: false } }, "PATCH"),
+        )
+      ).status,
+    ).toBe(200);
+    as("emp", "member");
+    await get(`/me/checks/${key}~check`);
+    expect((await ask()).status).toBe(201);
+  });
+
   it("assigns a tutorial to someone not onboarding; they take it in My learning", async () => {
     t = createTestApp();
     admin = owner();

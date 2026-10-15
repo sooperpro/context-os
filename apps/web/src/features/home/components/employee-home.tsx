@@ -187,6 +187,7 @@ export function EmployeeHome() {
           {HIDDEN.homeTeamUpdates ? null : <TeamActivityCard />}
         </div>
         <div className="grid gap-3 [grid-area:side] medium:gap-4 @min-[640px]:grid-cols-2 @min-[940px]:grid-cols-1 [&>:only-child]:col-span-full">
+          <CheckinsCard />
           <MyPeopleCard />
           {HIDDEN.contributions ? null : <ContributionsCard />}
         </div>
@@ -893,6 +894,59 @@ function MyPeopleCard() {
       ) : (
         <p className="text-sm text-on-surface-variant">
           Your manager and buddy appear here once they are assigned.
+        </p>
+      )}
+    </SectionCard>
+  );
+}
+
+/* ---- Check-ins ------------------------------------------------------------------------------ */
+
+/** When the next check-ins are, and the notes the manager chose to share (never ratings or pulse). */
+function CheckinsCard() {
+  const query = useQuery(homeQuery("myCheckins"));
+  const upcoming = query.data?.upcoming.slice(0, 3) ?? [];
+  const shared = query.data?.shared.slice(0, 2) ?? [];
+  return (
+    <SectionCard id="checkins" title="Check-ins" endpoint={E.myCheckins.path} status={query}>
+      {upcoming.length || shared.length ? (
+        <div className="flex flex-col gap-4">
+          {upcoming.length ? (
+            <ul className="flex flex-col gap-2" aria-label="Coming up">
+              {upcoming.map((entry) => (
+                <li key={entry.id} className="flex items-center gap-3 text-sm">
+                  <EventIcon className="size-5 shrink-0 text-on-surface-variant" aria-hidden />
+                  <span className="min-w-0 flex-1 truncate">{entry.title}</span>
+                  <span className="shrink-0 text-xs text-on-surface-variant">
+                    {formatWeekday(entry.at)} {formatShortDate(entry.at)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {shared.map((entry) => (
+            <article
+              key={entry.id}
+              className="flex flex-col gap-1 rounded-xl bg-surface-container p-3"
+            >
+              <h3 className="text-sm font-medium">
+                {entry.title} · {formatShortDate(entry.on)}
+              </h3>
+              {entry.by ? (
+                <p className="text-xs text-on-surface-variant">Shared by {entry.by.name}</p>
+              ) : null}
+              {entry.notes ? <p className="text-sm whitespace-pre-line">{entry.notes}</p> : null}
+              {entry.nextSteps ? (
+                <p className="text-sm">
+                  <b className="font-medium">Next steps:</b> {entry.nextSteps}
+                </p>
+              ) : null}
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-on-surface-variant">
+          Your check-ins with your manager appear here once your onboarding starts.
         </p>
       )}
     </SectionCard>

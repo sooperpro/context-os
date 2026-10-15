@@ -12,6 +12,7 @@ setupMockApi();
 const ENG = "33333333-3333-4333-8333-333333333333";
 const OPS = "55555555-5555-4555-8555-555555555555";
 const BILLING = "44444444-4444-4444-8444-444444444444";
+const KESTREL = "66666666-6666-4666-8666-666666666666";
 
 function inviteApi() {
   const posted: unknown[] = [];
@@ -35,6 +36,26 @@ function inviteApi() {
           { id: "u3", name: "Daniel Reyes", role: "manager", status: "active" },
           { id: "u9", name: "Gail Guest", role: "guest", status: "active" },
         ],
+      }),
+    ),
+    http.get(buildApiUrl("/v1/projects"), () =>
+      HttpResponse.json({
+        items: [KESTREL].map((id) => ({
+          id,
+          workspaceId: ENG,
+          name: "Project Kestrel",
+          slug: "kestrel",
+          description: null,
+          createdAt: "2026-10-01T09:00:00.000Z",
+          updatedAt: "2026-10-01T09:00:00.000Z",
+          stats: {
+            sources: 1,
+            readySources: 1,
+            contextItems: 4,
+            questions: 0,
+            lastProcessedAt: null,
+          },
+        })),
       }),
     ),
     http.post(buildApiUrl("/v1/users/invite"), async ({ request }) => {
@@ -104,6 +125,28 @@ describe("InviteMemberDialog", () => {
           managerId: "u3",
           isNewHire: false,
         },
+      ]),
+    );
+  });
+
+  it("asks which projects a guest can see, and sends them", async () => {
+    const posted = inviteApi();
+    const user = userEvent.setup();
+    renderWithProviders(<InviteMemberDialog open onOpenChange={vi.fn()} />);
+
+    await user.type(screen.getByLabelText("Work email"), "ana@partner.test");
+    expect(screen.queryByText("Projects they can see")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("combobox", { name: "Role" }));
+    await user.click(await screen.findByRole("option", { name: "Guest" }));
+    await user.click(await screen.findByRole("checkbox", { name: "Project Kestrel" }));
+    await user.click(screen.getByRole("button", { name: "Send invitation" }));
+    await waitFor(() =>
+      expect(posted).toEqual([
+        expect.objectContaining({
+          email: "ana@partner.test",
+          role: "guest",
+          projectIds: [KESTREL],
+        }),
       ]),
     );
   });

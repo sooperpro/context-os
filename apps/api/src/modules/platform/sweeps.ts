@@ -23,6 +23,7 @@ import {
 import { createNotifier } from "./notify.js";
 import { resolveSettings } from "./settings.js";
 import { createPlatformStore } from "./store.js";
+import { reportsOf } from "./reports.js";
 
 export interface SweepDeps {
   db: Db;
@@ -163,8 +164,8 @@ export function createSweeps({ db, bounties, logger, queue }: SweepDeps) {
             .all();
           const teams = new Map<string, string[]>();
           for (const member of members)
-            if (member.managerId)
-              teams.set(member.managerId, [...(teams.get(member.managerId) ?? []), member.userId]);
+            if (member.managerId && !teams.has(member.managerId))
+              teams.set(member.managerId, reportsOf(db, { id: member.managerId, workspaceId }));
           const workspaceProjects = db
             .select({ id: projects.id })
             .from(projects)

@@ -43,6 +43,7 @@ import {
   type ProgressData,
 } from "./content.js";
 import { generateDraft } from "./tutorial-ai.js";
+import { manages } from "../platform/reports.js";
 
 /*
  * Tutorial Studio (FR-LRN-001/004/005/008/012). A curator asks for a tutorial on a project; a
@@ -430,7 +431,7 @@ export function createTutorialRoutes(container: Container) {
         const member = identity.requireMember(actor.workspaceId, input.userId);
         // Curators, People Ops and the person's manager may assign.
         // Admins, owners and People Ops assign to anyone; managers to their own reports.
-        if (!["owner", "admin", "hr"].includes(actor.role) && member.managerId !== actor.id)
+        if (!["owner", "admin", "hr"].includes(actor.role) && !manages(db, actor, member.userId))
           throw new AppError(
             403,
             "FORBIDDEN",

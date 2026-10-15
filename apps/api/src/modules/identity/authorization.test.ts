@@ -276,6 +276,51 @@ describe("Authorization: role and access checks that must hold", () => {
     expect(await leah()).toEqual({ jobTitle: "Engineer" });
   });
 
+  it("invites a guest into chosen projects, and lets admins change their access", async () => {
+    t = createTestApp();
+    owner = { ...t.container.devActor };
+    const billing = await createProject(t.app, "Billing");
+    const search = await createProject(t.app, "Search");
+    const invite = (body: Record<string, unknown>) =>
+      t.app.request("/api/v1/users/invite", jsonRequest({ email: "ana@partner.test", ...body }));
+    // Only guests are added project by project.
+    expect((await invite({ role: "member", projectIds: [billing.id] })).status).toBe(400);
+    expect((await invite({ role: "guest", projectIds: [billing.id] })).status).toBe(201);
+
+    t.container.db.insert(users).values({ id: "ana", name: "Ana" }).run();
+    expect(t.container.identity.acceptInvitations("ana", "ana@partner.test")).toBe(1);
+    const projectsOf = async () =>
+      (
+        await json<{ items: Array<{ id: string; name: string }> }>(
+          await t.app.request("/api/v1/users/ana/projects"),
+        )
+      ).items.map((row) => row.name);
+    expect(await projectsOf()).toEqual(["Billing"]);
+
+    // Admins add and remove project access later; both are audited.
+    const membership = (projectId: string) => `/api/v1/projects/${projectId}/memberships`;
+    expect(
+      (await t.app.request(membership(search.id), jsonRequest({ userId: "ana" }))).status,
+    ).toBe(201);
+    expect(await projectsOf()).toEqual(["Billing", "Search"]);
+    const remove = () => t.app.request(`${membership(billing.id)}/ana`, { method: "DELETE" });
+    expect((await remove()).status).toBe(204);
+    expect((await remove()).status).toBe(404);
+    expect(await projectsOf()).toEqual(["Search"]);
+    const actions = (
+      await json<{ items: Array<{ action: string }> }>(await t.app.request("/api/v1/audit"))
+    ).items.map((row) => row.action);
+    expect(actions).toEqual(
+      expect.arrayContaining(["project.member.add", "project.member.remove"]),
+    );
+
+    // Nobody else manages it.
+    member("dan", "manager");
+    as("dan", "manager");
+    expect((await t.app.request("/api/v1/users/ana/projects")).status).toBe(403);
+    expect((await remove()).status).toBe(403);
+  });
+
   it("gives invited guests an expiry", () => {
     t = createTestApp();
     owner = { ...t.container.devActor };

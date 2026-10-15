@@ -43,6 +43,7 @@ import {
   type TemplateData,
 } from "./onboarding-records.js";
 import type { PlatformRecord } from "./store.js";
+import { manages } from "./reports.js";
 
 /*
  * People Ops (HR): onboarding records across the company, probation reviews and onboarding
@@ -810,7 +811,7 @@ export function createPeopleOpsRoutes(container: Container) {
           const input = c.req.valid("json");
           const data = view.data;
           // The manager recommends, People Ops decides (Spec decision 2): never the same person.
-          if (data.managerId === actor.id)
+          if (data.managerId === actor.id || (data.personId && manages(db, actor, data.personId)))
             throw new AppError(
               403,
               "FORBIDDEN",
@@ -1177,7 +1178,7 @@ export function createPeopleOpsRoutes(container: Container) {
           const actor = c.get("actor");
           const userId = c.req.param("userId");
           const member = identity.requireMember(actor.workspaceId, userId);
-          if (member.managerId !== actor.id)
+          if (!manages(db, actor, member.userId))
             throw new AppError(
               403,
               "FORBIDDEN",

@@ -322,6 +322,15 @@ const SECTION_BY_KEY: Record<string, KnowledgeSection> = {
   glossary: "glossary",
 };
 
+/** What someone owns: their active domain-owner assignments, from their public profile. */
+export async function fetchOwnership(id: string, signal?: AbortSignal) {
+  const profile = await apiRequest(`/v1/people/${encodeURIComponent(id)}`, {
+    schema: PublicProfileSchema,
+    signal,
+  });
+  return profile.assignments;
+}
+
 export async function fetchPerson(id: string, signal?: AbortSignal): Promise<PersonProfile> {
   const [profile, members, teams, viewer] = await Promise.all([
     apiRequest(`/v1/people/${encodeURIComponent(id)}`, { schema: PublicProfileSchema, signal }),

@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { OptionalSelect } from "@/features/members/components/optional-select";
+import { ProjectPicker } from "@/features/members/components/project-picker";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -100,6 +101,7 @@ function InviteMemberForm({ close }: { close: () => void }) {
       managerId: "",
       startDate: "",
       isNewHire: false,
+      projectIds: [],
     },
   });
   const errors = form.formState.errors;
@@ -188,8 +190,9 @@ function InviteMemberForm({ close }: { close: () => void }) {
                 value={field.value}
                 onValueChange={(next) => {
                   field.onChange(next);
-                  // Guests are not onboarded as new hires.
+                  // Guests are not onboarded as new hires; only guests are added to projects.
                   if (next === "guest") form.setValue("isNewHire", false);
+                  else form.setValue("projectIds", []);
                 }}
               >
                 <SelectTrigger id={`${id}-role`} className="w-full">
@@ -210,6 +213,22 @@ function InviteMemberForm({ close }: { close: () => void }) {
           </p>
         </div>
       </div>
+
+      {role === "guest" ? (
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium">Projects they can see</legend>
+          <p className="text-xs text-on-surface-variant">
+            A guest sees nothing else. You can change this later from their row.
+          </p>
+          <Controller
+            control={form.control}
+            name="projectIds"
+            render={({ field }) => (
+              <ProjectPicker value={field.value ?? []} onChange={field.onChange} />
+            )}
+          />
+        </fieldset>
+      ) : null}
 
       <fieldset className="space-y-3">
         <legend className="text-sm font-medium">Where they fit (optional)</legend>

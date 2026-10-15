@@ -9,9 +9,11 @@ import { askThreads, questions, threadMessages } from "../../db/schema.js";
 import { NotFoundError } from "../../lib/errors.js";
 import { validationHook } from "../../middleware/validation.js";
 import type { Actor, AppEnv } from "../../types.js";
+import { createCheckPause } from "../learning/check-pause.js";
 
 export function createThreadRoutes(container: Container) {
   const { db, identity, services, audit } = container;
+  const checkPause = createCheckPause(db);
   const get = (actor: Actor, id: string) => {
     const row = db
       .select()
@@ -100,6 +102,8 @@ export function createThreadRoutes(container: Container) {
       const thread = get(actor, c.req.param("id"));
       const project = identity.requireProject(actor, thread.projectId);
       const input = c.req.valid("json");
+      // Refused before the stream opens, so the reason reaches the asker instead of a generic error.
+      checkPause.assertNotPaused(actor);
       return streamSSE(c, async (stream) => {
         await stream.writeSSE({ event: "status", data: JSON.stringify({ state: "retrieving" }) });
         try {

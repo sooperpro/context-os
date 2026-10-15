@@ -13,6 +13,7 @@ import { createNotifier } from "./notify.js";
 import { awardReputation } from "./reputation.js";
 import { workspaceSettings } from "./settings.js";
 import { createPlatformStore, type PlatformRecord } from "./store.js";
+import { manages } from "./reports.js";
 
 const MilestoneInputSchema = z.object({
   key: z.string().min(1).max(100),
@@ -99,7 +100,7 @@ export function createOnboardingRoutes(container: Container) {
   const store = createPlatformStore(db);
   const notifier = createNotifier(db);
   const directManager = (actor: Actor, userId: string) =>
-    identity.requireMember(actor.workspaceId, userId).managerId === actor.id;
+    Boolean(identity.requireMember(actor.workspaceId, userId)) && manages(db, actor, userId);
   const visible = (actor: Actor, plan: PlatformRecord) =>
     plan.ownerId === actor.id ||
     directManager(actor, plan.ownerId) ||

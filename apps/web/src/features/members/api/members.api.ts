@@ -1,4 +1,5 @@
 import {
+  type AssignmentInputSchema,
   DepartmentListSchema,
   DepartmentSchema,
   InviteResultSchema,
@@ -24,6 +25,60 @@ export function inviteMember(input: InviteForm): Promise<InviteResult> {
     method: "POST",
     body: input,
     schema: InviteResultSchema,
+  });
+}
+
+const ProjectAccessSchema = z.object({
+  items: z.array(z.object({ id: z.string(), name: z.string() })),
+});
+
+/** The projects someone was added to one by one: what a guest can see. Admins only. */
+export function listProjectAccess(userId: string, signal?: AbortSignal) {
+  return apiRequest(`/v1/users/${encodeURIComponent(userId)}/projects`, {
+    schema: ProjectAccessSchema,
+    signal,
+  });
+}
+
+/** Adds and removes project access to match `projectIds`. */
+export async function setProjectAccess(userId: string, from: string[], projectIds: string[]) {
+  const path = (projectId: string) => `/v1/projects/${encodeURIComponent(projectId)}/memberships`;
+  for (const projectId of projectIds.filter((id) => !from.includes(id)))
+    await apiRequest(path(projectId), { method: "POST", body: { userId }, schema: z.unknown() });
+  for (const projectId of from.filter((id) => !projectIds.includes(id)))
+    await apiRequest(`${path(projectId)}/${encodeURIComponent(userId)}`, {
+      method: "DELETE",
+      schema: z.unknown(),
+    });
+}
+
+const AssignmentRowSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  type: z.string(),
+  scopeType: z.string(),
+  scopeId: z.string(),
+  expiresAt: z.union([z.string(), z.number()]).nullable().optional(),
+});
+export type AssignmentRow = z.infer<typeof AssignmentRowSchema>;
+export type AssignmentInput = z.input<typeof AssignmentInputSchema>;
+
+/** Every responsibility in the workspace: domain owners, mentors, curators. Admins only. */
+export function listAssignments(signal?: AbortSignal) {
+  return apiRequest("/v1/assignments", {
+    schema: z.object({ items: z.array(AssignmentRowSchema) }),
+    signal,
+  });
+}
+
+export function grantAssignment(input: AssignmentInput) {
+  return apiRequest("/v1/assignments", { method: "POST", body: input, schema: z.unknown() });
+}
+
+export function removeAssignment(id: string) {
+  return apiRequest(`/v1/assignments/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    schema: z.unknown(),
   });
 }
 

@@ -226,4 +226,22 @@ export const employeeHomeFixtures = [
       { person: people.elena, relation: "people_partner", note: null },
     ],
   })),
+  mockGet(E.myCheckins)(() => ({
+    upcoming: [
+      { id: "r1:weekly", title: "Weekly 1:1", at: atFromToday(3, 10) },
+      { id: "r1:day_30", title: "30-day review", at: atFromToday(9, 14) },
+    ],
+    shared: [
+      {
+        id: "c1",
+        version: 1,
+        title: "Weekly 1:1",
+        on: dateFromToday(-4),
+        by: people.daniel,
+        notes: "Strong first week. The Kestrel walkthrough landed well.",
+        nextSteps: "Pair with Sana on the billing service.",
+        response: null,
+      },
+    ],
+  })),
 ];

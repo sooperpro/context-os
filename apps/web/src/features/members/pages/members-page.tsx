@@ -35,6 +35,7 @@ import { useViewer } from "@/features/workspace/hooks/use-viewer";
 import { ApiClientError } from "@/lib/api-client";
 import { formatCount, formatTime } from "@/lib/format";
 import { ROLE_LABEL } from "@/lib/labels";
+import { ResponsibilitiesPanel } from "@/features/members/components/responsibilities-panel";
 
 const ROLE_ORDER: SystemRole[] = ["member", "manager", "admin", "owner", "guest"];
 
@@ -123,6 +124,7 @@ export function MembersPage() {
         <TabsList>
           <TabsTrigger value="members">Members</TabsTrigger>
           <TabsTrigger value="org">Departments and teams</TabsTrigger>
+          {canManage ? <TabsTrigger value="responsibilities">Responsibilities</TabsTrigger> : null}
         </TabsList>
 
         <TabsContent value="members" className="flex flex-col gap-3 pt-4 medium:gap-4">
@@ -215,6 +217,12 @@ export function MembersPage() {
         <TabsContent value="org" className="pt-4">
           <OrgStructure canManage={canManage} />
         </TabsContent>
+
+        {canManage ? (
+          <TabsContent value="responsibilities" className="pt-4">
+            <ResponsibilitiesPanel />
+          </TabsContent>
+        ) : null}
       </Tabs>
 
       <InviteMemberDialog open={inviteOpen} onOpenChange={setInviteOpen} />

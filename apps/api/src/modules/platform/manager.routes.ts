@@ -24,6 +24,7 @@ import { createOnboardingRecords } from "./onboarding-records.js";
 import { roadmapData } from "./onboarding-roadmap.js";
 import { workspaceSettings } from "./settings.js";
 import { createPlatformStore, type PlatformRecord } from "./store.js";
+import { reportsOf } from "./reports.js";
 
 const DAY = 86_400_000;
 const isoDay = (date: Date) => date.toISOString().slice(0, 10);
@@ -53,11 +54,6 @@ export function createManagerRoutes(container: Container) {
       .from(memberships)
       .where(and(eq(memberships.workspaceId, workspaceId), eq(memberships.userId, userId)))
       .get()?.managerId ?? null;
-  const directReports = (actor: Actor) =>
-    records
-      .activeMembers(actor.workspaceId)
-      .filter((row) => row.managerId === actor.id)
-      .map((row) => row.userId);
 
   /* ---- Review queue ---------------------------------------------------------------------- */
 
@@ -322,7 +318,7 @@ export function createManagerRoutes(container: Container) {
   /* ---- Team knowledge ---------------------------------------------------------------------- */
 
   const requireReports = (actor: Actor) => {
-    const reports = directReports(actor);
+    const reports = reportsOf(db, actor);
     if (actor.role !== "manager" && !reports.length)
       throw new AppError(403, "FORBIDDEN", "Team views are for managers");
     return reports;

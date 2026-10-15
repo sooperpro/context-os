@@ -11,6 +11,7 @@ import {
   type Checkin,
   type CheckinRecord,
   type CheckinType,
+  type MyCheckins,
   type OnboardingStatus,
   type PersonRef,
   type TeamMemberDetail,
@@ -35,8 +36,8 @@ import {
   type RoadmapData,
   type RoadmapModule,
 } from "./onboarding-roadmap.js";
-import { workspaceSettings } from "./settings.js";
 import type { PlatformRecord } from "./store.js";
+import { reportsOf as sharedReportsOf } from "./reports.js";
 
 const DAY = 86_400_000;
 const PrepQuery = z.object({ type: CheckinTypeSchema.default("weekly") });
@@ -98,21 +99,7 @@ export function createTeamRoutes(container: Container) {
 
   /* ---- Scope ----------------------------------------------------------------------------- */
 
-  const reportsOf = (actor: Actor): string[] => {
-    const members = records.activeMembers(actor.workspaceId);
-    const direct = members.filter((row) => row.managerId === actor.id).map((row) => row.userId);
-    if (!workspaceSettings(db, actor.workspaceId).includeIndirectReports) return direct;
-    const all = new Set(direct);
-    let frontier = direct;
-    while (frontier.length) {
-      const next = members
-        .filter((row) => row.managerId && frontier.includes(row.managerId) && !all.has(row.userId))
-        .map((row) => row.userId);
-      for (const id of next) all.add(id);
-      frontier = next;
-    }
-    return [...all];
-  };
+  const reportsOf = (actor: Actor): string[] => sharedReportsOf(db, actor);
   /** Team views are for people who manage someone (the manager role, or anyone with reports). */
   const requireManager = (actor: Actor) => {
     const reports = reportsOf(actor);
@@ -328,6 +315,54 @@ export function createTeamRoutes(container: Container) {
       upcoming: state.upcoming,
       checkins: state.checkins.map(checkinRecord),
     };
+  };
+
+  /**
+   * When someone's next check-ins are due: a weekly 1:1 a week after the last one (or the start),
+   * the 30- and 60-day reviews until done, and the probation recommendation.
+   */
+  const upcomingFor = (row: PlatformRecord, state: ReturnType<typeof look>, now: string) => {
+    const { view } = state;
+    const items: Array<{ id: string; type: CheckinType; at: string; overdueSince: string | null }> =
+      [];
+    if (!view.started) return items;
+    const done = new Set(
+      state.checkins.map((entry) =>
+        typeof entry.row.data.type === "string" ? entry.row.data.type : "weekly",
+      ),
+    );
+    const lastWeekly = state.checkins.find(
+      (entry) => (entry.row.data.type ?? "weekly") === "weekly",
+    )?.at;
+    let next = addDays((lastWeekly ?? `${view.data.startDate}T00:00:00Z`).slice(0, 10), 7);
+    while (next < now) next = addDays(next, 7);
+    items.push({
+      id: `${row.id}:weekly`,
+      type: "weekly",
+      at: `${next}T09:00:00.000Z`,
+      overdueSince: null,
+    });
+    const reviews: Array<[CheckinType, string]> = [
+      ["day_30", addDays(view.data.startDate, 30)],
+      ["readiness_60", addDays(view.data.startDate, 60)],
+    ];
+    for (const [type, on] of reviews)
+      if (!done.has(type) && on >= addDays(now, -7))
+        items.push({
+          id: `${row.id}:${type}`,
+          type,
+          at: `${on < now ? now : on}T09:00:00.000Z`,
+          overdueSince: on < now ? on : null,
+        });
+    const due = view.review.recommendationDueOn;
+    if (due && !done.has("probation"))
+      items.push({
+        id: `${row.id}:probation`,
+        type: "probation",
+        at: `${due < now ? now : due}T09:00:00.000Z`,
+        overdueSince: due < now ? due : null,
+      });
+    return items;
   };
 
   /* ---- Roadmap writes -------------------------------------------------------------------- */
@@ -614,7 +649,7 @@ export function createTeamRoutes(container: Container) {
             actor.workspaceId,
             data.personId,
             `${actor.name} shared notes from your ${CHECKIN_TITLE[input.type].toLowerCase()}`,
-            "/roadmap",
+            "/#checkins",
             "checkin.published",
           );
         return c.json(checkinRecord({ row: saved, at }), 201);
@@ -999,50 +1034,61 @@ export function createTeamRoutes(container: Container) {
       const items: Checkin[] = [];
       for (const row of teamRecords(actor)) {
         const state = look(row);
-        const { view, person } = state;
-        if (!view.started) continue;
-        const done = new Set(
-          state.checkins.map((entry) =>
-            typeof entry.row.data.type === "string" ? entry.row.data.type : "weekly",
-          ),
-        );
-        // A weekly 1:1 a week after the last one (or the start), rolled forward to today.
-        const lastWeekly = state.checkins.find(
-          (entry) => (entry.row.data.type ?? "weekly") === "weekly",
-        )?.at;
-        let next = addDays((lastWeekly ?? `${view.data.startDate}T00:00:00Z`).slice(0, 10), 7);
-        while (next < now) next = addDays(next, 7);
-        items.push({
-          id: `${row.id}:weekly`,
-          person,
-          title: CHECKIN_TITLE.weekly,
-          at: `${next}T09:00:00.000Z`,
-          note: state.issues[0] ?? null,
-        });
-        const reviews: Array<[CheckinType, string]> = [
-          ["day_30", addDays(view.data.startDate, 30)],
-          ["readiness_60", addDays(view.data.startDate, 60)],
-        ];
-        for (const [type, on] of reviews)
-          if (!done.has(type) && on >= addDays(now, -7))
-            items.push({
-              id: `${row.id}:${type}`,
-              person,
-              title: CHECKIN_TITLE[type],
-              at: `${on < now ? now : on}T09:00:00.000Z`,
-              note: on < now ? `Was due ${shortDate(on)}` : null,
-            });
-        const due = view.review.recommendationDueOn;
-        if (due && !done.has("probation"))
+        for (const entry of upcomingFor(row, state, now))
           items.push({
-            id: `${row.id}:probation`,
-            person,
-            title: CHECKIN_TITLE.probation,
-            at: `${due < now ? now : due}T09:00:00.000Z`,
-            note: due < now ? `Was due ${shortDate(due)}` : "People Ops needs it before the review",
+            id: entry.id,
+            person: state.person,
+            title: CHECKIN_TITLE[entry.type],
+            at: entry.at,
+            note:
+              entry.type === "weekly"
+                ? (state.issues[0] ?? null)
+                : entry.overdueSince
+                  ? `Was due ${shortDate(entry.overdueSince)}`
+                  : entry.type === "probation"
+                    ? "People Ops needs it before the review"
+                    : null,
           });
       }
       items.sort((a, b) => a.at.localeCompare(b.at));
       return c.json({ items: items.slice(0, 8) });
+    })
+    .get("/me/checkins", (c) => {
+      const actor = c.get("actor");
+      const row = records.recordFor(actor, actor.id);
+      const now = today();
+      const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+      const result: MyCheckins = {
+        upcoming: row
+          ? upcomingFor(row, look(row), now).map((entry) => ({
+              id: entry.id,
+              title: CHECKIN_TITLE[entry.type],
+              at: entry.at,
+            }))
+          : [],
+        // Only what the manager shared, and only what was written for the person.
+        shared: records
+          .checkinRows(actor.workspaceId, actor.id, row?.id)
+          .filter((entry) => entry.row.status === "published" && entry.row.ownerId === actor.id)
+          .map(({ row: checkin, at }) => {
+            const type = CheckinTypeSchema.safeParse(checkin.data.type);
+            return {
+              id: checkin.id,
+              version: checkin.version,
+              title: CHECKIN_TITLE[type.success ? type.data : "weekly"],
+              on: at.slice(0, 10),
+              by: records.personRef(actor.workspaceId, text(checkin.data.authorId) || null),
+              notes:
+                text(checkin.data.notes) ||
+                [checkin.data.wentWell, checkin.data.toImprove, checkin.data.supportNeeded]
+                  .map(text)
+                  .filter(Boolean)
+                  .join("\n\n"),
+              nextSteps: text(checkin.data.nextSteps),
+              response: text(checkin.data.employeeResponse) || null,
+            };
+          }),
+      };
+      return c.json(result);
     });
 }

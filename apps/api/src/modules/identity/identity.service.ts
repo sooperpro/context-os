@@ -200,8 +200,23 @@ export function createIdentityService(db: Db, devActor: Actor, auth: Auth | null
         managerId?: string;
         startDate?: string;
         isNewHire?: boolean;
+        projectIds?: string[];
       };
       const role = data.role ?? ("member" as const);
+      // Projects deleted since the invitation was sent are skipped.
+      const projectIds = data.projectIds?.length
+        ? db
+            .select({ id: projects.id })
+            .from(projects)
+            .where(
+              and(
+                eq(projects.workspaceId, invitation.workspaceId),
+                inArray(projects.id, data.projectIds),
+              ),
+            )
+            .all()
+            .map((row) => row.id)
+        : [];
       // Guests always expire (PRD §6.5, at most 180 days): the invitation's date, or 90 days.
       const requested =
         typeof invitation.data.guestExpiresAt === "string"
@@ -234,6 +249,8 @@ export function createIdentityService(db: Db, devActor: Actor, auth: Auth | null
             set: values,
           })
           .run();
+        for (const projectId of projectIds)
+          tx.insert(projectMemberships).values({ projectId, userId }).onConflictDoNothing().run();
         tx.update(platformRecords)
           .set({
             status: "accepted",

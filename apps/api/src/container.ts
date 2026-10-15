@@ -29,6 +29,7 @@ import { createSourceRepository } from "./modules/sources/sources.repository.js"
 import { createSourceService } from "./modules/sources/sources.service.js";
 import { ensureDefaultWorkspace } from "./modules/workspace/workspace.repository.js";
 import type { Actor } from "./types.js";
+import { createCheckPause } from "./modules/learning/check-pause.js";
 
 export interface ContainerDeps {
   env: Env;
@@ -121,6 +122,7 @@ export function createContainer({ env, db, gemini, logger, mailer: mailerDep }: 
     audit,
     logger,
     identity,
+    checkPause: createCheckPause(db),
   });
   const feedback = createFeedbackService({ repo: repos.feedback, audit });
 

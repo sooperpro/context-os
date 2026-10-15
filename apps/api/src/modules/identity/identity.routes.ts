@@ -44,6 +44,7 @@ import { createPlatformStore, type PlatformRecord } from "../platform/store.js";
 import { auditRowFor } from "../audit/audit.service.js";
 import { sendInvitationEmail } from "../auth/invitations.js";
 import { organizationFor, requireRole } from "./identity.service.js";
+import { manages } from "../platform/reports.js";
 
 const adminRoles = ["owner", "admin"] as const;
 const ProjectMemberSchema = z.object({ userId: z.string().min(1).max(200) }).strict();
@@ -480,6 +481,12 @@ export function createIdentityRoutes(container: Container) {
       // Check every row before sending any, so a bad row in a bulk list leaves nothing half-sent.
       for (const invitation of invitations) {
         if (invitation.managerId) identity.requireMember(actor.workspaceId, invitation.managerId);
+        if (invitation.projectIds?.length) {
+          // Only guests are added project by project; everyone else sees the workspace's projects.
+          if (invitation.role !== "guest")
+            throw new BadRequestError("Only guests are invited into specific projects");
+          for (const projectId of invitation.projectIds) identity.requireProject(actor, projectId);
+        }
         if (invitation.departmentId) {
           const department = db
             .select({ id: departments.id })
@@ -590,7 +597,7 @@ export function createIdentityRoutes(container: Container) {
       // Managers grant Mentor/Curator within their own reports only (PRD §6.4).
       if (
         actor.role === "manager" &&
-        (!["mentor", "path_curator"].includes(input.type) || member.managerId !== actor.id)
+        (!["mentor", "path_curator"].includes(input.type) || !manages(db, actor, input.userId))
       )
         throw new AppError(
           403,
@@ -607,8 +614,8 @@ export function createIdentityRoutes(container: Container) {
           throw new AppError(403, "FORBIDDEN", "You can't make yourself someone's mentor");
         if (input.userId === input.scopeId)
           throw new BadRequestError("Someone can't mentor themselves");
-        const learner = identity.requireMember(actor.workspaceId, input.scopeId);
-        if (actor.role === "manager" && learner.managerId !== actor.id)
+        identity.requireMember(actor.workspaceId, input.scopeId);
+        if (actor.role === "manager" && !manages(db, actor, input.scopeId))
           throw new AppError(403, "FORBIDDEN", "Managers assign mentors for their own reports");
       }
       // Managers grant curation of a project, not of the whole workspace.
@@ -677,6 +684,24 @@ export function createIdentityRoutes(container: Container) {
       });
       return c.body(null, 204);
     })
+    .get("/users/:id/projects", (c) => {
+      const actor = c.get("actor");
+      requireRole(actor, ...adminRoles);
+      const userId = c.req.param("id");
+      identity.requireMember(actor.workspaceId, userId);
+      // The projects someone was added to one by one: what a guest can see.
+      return c.json({
+        items: db
+          .select({ id: projects.id, name: projects.name })
+          .from(projectMemberships)
+          .innerJoin(projects, eq(projects.id, projectMemberships.projectId))
+          .where(
+            and(eq(projectMemberships.userId, userId), eq(projects.workspaceId, actor.workspaceId)),
+          )
+          .orderBy(projects.name)
+          .all(),
+      });
+    })
     .post(
       "/projects/:projectId/memberships",
       zValidator("json", ProjectMemberSchema, validationHook),
@@ -685,18 +710,47 @@ export function createIdentityRoutes(container: Container) {
         requireRole(actor, ...adminRoles);
         const projectId = c.req.param("projectId");
         identity.requireProject(actor, projectId);
-        identity.requireMember(actor.workspaceId, c.req.valid("json").userId);
-        return c.json(
-          db
-            .insert(projectMemberships)
-            .values({ projectId, userId: c.req.valid("json").userId })
-            .onConflictDoNothing()
-            .returning()
-            .get() ?? { projectId, userId: c.req.valid("json").userId },
-          201,
-        );
+        const { userId } = c.req.valid("json");
+        identity.requireMember(actor.workspaceId, userId);
+        const added = db
+          .insert(projectMemberships)
+          .values({ projectId, userId })
+          .onConflictDoNothing()
+          .returning()
+          .get();
+        if (added)
+          audit.record({
+            actor,
+            projectId,
+            action: "project.member.add",
+            targetType: "user",
+            targetId: userId,
+          });
+        return c.json(added ?? { projectId, userId }, 201);
       },
     )
+    .delete("/projects/:projectId/memberships/:userId", (c) => {
+      const actor = c.get("actor");
+      requireRole(actor, ...adminRoles);
+      const { projectId, userId } = c.req.param();
+      identity.requireProject(actor, projectId);
+      const removed = db
+        .delete(projectMemberships)
+        .where(
+          and(eq(projectMemberships.projectId, projectId), eq(projectMemberships.userId, userId)),
+        )
+        .returning()
+        .get();
+      if (!removed) throw new NotFoundError("Project membership");
+      audit.record({
+        actor,
+        projectId,
+        action: "project.member.remove",
+        targetType: "user",
+        targetId: userId,
+      });
+      return c.body(null, 204);
+    })
     .post(
       "/projects/:projectId/sources/:sourceId/access",
       zValidator("json", SourceAccessInputSchema, validationHook),

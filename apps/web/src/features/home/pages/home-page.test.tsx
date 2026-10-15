@@ -151,6 +151,14 @@ describe("HomePage", () => {
     await user.click(within(week).getByRole("button", { name: /Done/ }));
     expect(within(week).getByText("Set up your local development environment")).toBeInTheDocument();
 
+    // Check-ins: the next dates, and what the manager chose to share.
+    const checkins = await screen.findByRole("region", { name: "Check-ins" });
+    expect(
+      within(within(checkins).getByRole("list", { name: "Coming up" })).getByText("30-day review"),
+    ).toBeInTheDocument();
+    expect(await within(checkins).findByText(/Strong first week/)).toBeInTheDocument();
+    expect(within(checkins).getByText("Shared by Daniel Reyes")).toBeInTheDocument();
+
     await user.click(screen.getByRole("button", { name: "Ask about this lesson" }));
     expect(assistant.openAssistant).toHaveBeenCalledWith("Why are we moving billing to Kafka?");
 

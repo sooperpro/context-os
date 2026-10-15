@@ -78,6 +78,8 @@ export const InvitationSchema = z
     managerId: z.string().min(1).max(200).optional(),
     startDate: IsoDateSchema.optional(),
     isNewHire: z.boolean().default(false),
+    /** A guest sees only the projects they're added to: these, once they accept. */
+    projectIds: z.array(IdSchema).max(50).optional(),
   })
   .strict();
 /** Single invitation or a bulk list (CSV rows parsed client-side). */
@@ -425,6 +427,12 @@ export const InviteFormSchema = z
     managerId: optionalField(z.string().min(1).max(200)),
     startDate: optionalField(IsoDateSchema),
     isNewHire: z.boolean().default(false),
+    /** A guest's projects; left out when none are chosen. */
+    projectIds: z
+      .array(IdSchema)
+      .max(50)
+      .default([])
+      .transform((ids) => (ids.length ? ids : undefined)),
   })
   .strict()
   .refine((form) => !form.isNewHire || form.startDate, {

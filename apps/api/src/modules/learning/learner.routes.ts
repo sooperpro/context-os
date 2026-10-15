@@ -27,6 +27,7 @@ import { AppError, NotFoundError } from "../../lib/errors.js";
 import { validationHook } from "../../middleware/validation.js";
 import type { Actor, AppEnv } from "../../types.js";
 import { createNotifier } from "../platform/notify.js";
+import { createCheckPause } from "./check-pause.js";
 import { createOnboardingRecords } from "../platform/onboarding-records.js";
 import {
   addDays,
@@ -97,6 +98,7 @@ export function createLearnerRoutes(container: Container) {
   const { store } = learning;
   const records = createOnboardingRecords(container);
   const notifier = createNotifier(db);
+  const checkPause = createCheckPause(db);
 
   /* ---- Resolving modules ------------------------------------------------------------------- */
 
@@ -669,6 +671,7 @@ export function createLearnerRoutes(container: Container) {
           options: question.options,
         })),
       };
+      checkPause.open(actor, body.id);
       return c.json(body);
     })
     .post(
@@ -699,6 +702,8 @@ export function createLearnerRoutes(container: Container) {
           { at: new Date().toISOString(), score, total: review.length, passed },
         ];
         save(actor, resolved, { attempts, passed: passed || Boolean(resolved.data?.passed) });
+        // Submitted: Context Bot can explain the answers now.
+        checkPause.close(actor);
         const after = roadmapModules(actor);
         const inStage = after.filter((entry) => entry.module?.stageId === resolved.stage.id);
         const withChecks = after.filter((entry) => entry.questions.length > 0);

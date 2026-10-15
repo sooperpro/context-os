@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   CheckIcon,
+  FolderIcon,
   MailIcon,
   MoreHorizIcon,
   PauseIcon,
@@ -41,6 +42,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useUpdateMember } from "@/features/members/api/members.queries";
+import { ProjectAccessDialog } from "@/features/members/components/project-access-dialog";
 import { formatRelativeTime } from "@/lib/format";
 import { ROLE_LABEL } from "@/lib/labels";
 
@@ -74,6 +76,7 @@ export function MembersTable({ members, viewer }: MembersTableProps) {
   const [pending, setPending] = useState<{ member: WorkspaceMember; role: SystemRole } | null>(
     null,
   );
+  const [projectsFor, setProjectsFor] = useState<WorkspaceMember | null>(null);
   const canManage = viewer.role === "owner" || viewer.role === "admin";
   const assignable: SystemRole[] =
     viewer.role === "owner"
@@ -192,6 +195,11 @@ export function MembersTable({ members, viewer }: MembersTableProps) {
                           <MoreHorizIcon />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          {member.role === "guest" ? (
+                            <DropdownMenuItem onClick={() => setProjectsFor(member)}>
+                              <FolderIcon /> Projects
+                            </DropdownMenuItem>
+                          ) : null}
                           {member.status === "active" ? (
                             <DropdownMenuItem
                               onClick={() =>
@@ -227,6 +235,10 @@ export function MembersTable({ members, viewer }: MembersTableProps) {
           </TableBody>
         </Table>
       </div>
+      <ProjectAccessDialog
+        member={projectsFor}
+        onOpenChange={(open) => (open ? null : setProjectsFor(null))}
+      />
       <Dialog open={pending !== null} onOpenChange={(open) => (open ? null : setPending(null))}>
         <DialogContent className="sm:max-w-md">
           {pending ? (

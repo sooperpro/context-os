@@ -14,6 +14,7 @@ import { isRestrictedTopic, RESTRICTED_ANSWER } from "./restricted.js";
 import { retrievePassages, type RetrievedPassage } from "./retrieval.js";
 import { createVectorIndex } from "./vector-index.js";
 import type { IdentityService } from "../identity/identity.service.js";
+import type { CheckPause } from "../learning/check-pause.js";
 
 export interface AskServiceDeps {
   repo: AskRepository;
@@ -23,6 +24,8 @@ export interface AskServiceDeps {
   audit: AuditService;
   logger: Logger;
   identity: IdentityService;
+  /** Refuses while the asker has a knowledge check open. */
+  checkPause: Pick<CheckPause, "assertNotPaused">;
 }
 
 const SYSTEM_INSTRUCTION = [
@@ -47,6 +50,7 @@ export function createAskService({
   audit,
   logger,
   identity,
+  checkPause,
 }: AskServiceDeps) {
   const vectors = createVectorIndex(sources);
   const formatPassage = (index: number, passage: RetrievedPassage): string => {
@@ -87,6 +91,7 @@ export function createAskService({
       input: AskInput,
       sourceId?: string,
     ): Promise<Answer> {
+      checkPause.assertNotPaused(actor);
       const startedAt = performance.now();
       // Restricted topics are refused for every role, before anything is searched.
       const restricted = isRestrictedTopic(input.question);

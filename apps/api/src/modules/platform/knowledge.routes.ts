@@ -28,6 +28,7 @@ import { createOnboardingRecords } from "./onboarding-records.js";
 import { awardReputation, BASE_POINTS } from "./reputation.js";
 import { workspaceSettings } from "./settings.js";
 import { createPlatformStore, type PlatformRecord } from "./store.js";
+import { manages } from "./reports.js";
 
 const CorrectionInput = z
   .object({
@@ -640,19 +641,7 @@ export function createKnowledgeRoutes(container: Container) {
       if (!user) throw new NotFoundError("Member");
       // The onboarding card is for the person's manager only (role access spec §4.5); People Ops
       // reads it from their own routes, and admins get no people data.
-      const managedByActor = (() => {
-        if (member.managerId === actor.id) return true;
-        if (!workspaceSettings(db, actor.workspaceId).includeIndirectReports) return false;
-        const seen = new Set<string>([member.userId]);
-        let managerId = member.managerId;
-        while (managerId && !seen.has(managerId)) {
-          if (managerId === actor.id) return true;
-          seen.add(managerId);
-          managerId =
-            identity.requireMemberOptional(actor.workspaceId, managerId)?.managerId ?? null;
-        }
-        return false;
-      })();
+      const managedByActor = manages(db, actor, member.userId);
       let onboarding: { startedOn: string; status: string } | null = null;
       if (managedByActor) {
         const onboardingRecords = createOnboardingRecords(container);
