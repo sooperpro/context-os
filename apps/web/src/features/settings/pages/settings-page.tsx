@@ -1,7 +1,6 @@
 import type { AssistantPreferencesInput, NotificationPreferences } from "@contextos/shared";
 import { useBotContext } from "@/components/layout/bot-context";
-import { useClerk, useSession, useUser } from "@clerk/react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -20,13 +19,13 @@ import {
   DesktopWindowsIcon,
   GroupIcon,
   Inventory2Icon,
+  KeyIcon,
   MailIcon,
   PasswordIcon,
   SmartphoneIcon,
   VerifiedUserIcon,
   LightModeIcon,
-  LockIcon,
-  LoginIcon,
+  LogoutIcon,
   SettingsIcon,
   WarningIcon,
 } from "@/components/ui/icons";
@@ -46,6 +45,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { StatusChip } from "@/components/ui/status-chip";
 import { Switch } from "@/components/ui/switch";
 import { ACCOUNT_ENDPOINTS } from "@/features/account/api/account.api";
+import { signOut, signOutDevice, signOutOtherDevices } from "@/features/auth/api/auth.api";
+import { authKeys, devicesQuery, sessionQuery } from "@/features/auth/api/auth.queries";
 import {
   assistantPreferencesQuery,
   connectedAppsQuery,
@@ -549,157 +550,195 @@ function SecurityTab() {
   );
 }
 
-/** How they sign in, from the identity provider. Changes happen in its own window. */
+const METHOD_LABEL: Record<string, string> = {
+  email: "Email sign-in link",
+  "magic-link": "Email sign-in link",
+  password: "Password",
+  google: "Google",
+  microsoft: "Microsoft",
+  sso: "Company single sign-on",
+  development: "Development sign-in",
+};
+
+/** How they sign in: the methods linked to their account, and how this session signed in. */
 function SignInCard() {
-  const clerk = useClerk();
-  const { user } = useUser();
-  const sso = user?.externalAccounts[0];
-  const email = sso?.emailAddress ?? user?.primaryEmailAddress?.emailAddress;
+  const { data: session } = useQuery(sessionQuery());
+  const out = useMutation({ mutationFn: signOut, onSuccess: () => window.location.assign("/") });
+  if (!session) return <Skeleton className="h-40 rounded-lg" />;
+  const development = session.authentication === "development";
+  const methods = development ? ["development"] : session.linkedMethods;
+  // Google, Microsoft and company SSO ask for their own second step; an email link proves the inbox.
+  const providerSecured =
+    session.signInMethod === "google" ||
+    session.signInMethod === "microsoft" ||
+    session.signInMethod === "sso";
   return (
     <Card>
       <CardHeader>
         <CardTitle>Sign-in</CardTitle>
-        <CardDescription>Managed by your company's identity provider.</CardDescription>
+        <CardDescription>
+          {development
+            ? "This environment runs without sign-in (development mode)."
+            : `Signed in as ${session.user.email ?? session.user.name}. Any of these opens your account.`}
+        </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <ul className="flex flex-col gap-0.5">
-          <li className="flex items-center gap-3 rounded-xs bg-pane px-4 py-3 first:rounded-t-lg last:rounded-b-lg">
-            {sso ? (
-              <ConnectorLogo provider={sso.provider} size="sm" />
-            ) : (
+          {methods.map((method) => (
+            <li
+              key={method}
+              className="flex items-center gap-3 rounded-xs bg-pane px-4 py-3 first:rounded-t-lg last:rounded-b-lg"
+            >
+              {method === "google" || method === "microsoft" ? (
+                <ConnectorLogo provider={method} size="sm" />
+              ) : (
+                <span
+                  aria-hidden
+                  className="grid size-8 place-items-center rounded-md bg-surface-container-high [&_svg]:size-4"
+                >
+                  {method === "sso" ? (
+                    <VerifiedUserIcon />
+                  ) : method === "password" ? (
+                    <KeyIcon />
+                  ) : (
+                    <MailIcon />
+                  )}
+                </span>
+              )}
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="text-sm font-medium">{METHOD_LABEL[method] ?? method}</span>
+                {method === "email" && session.user.email ? (
+                  <span className="truncate text-xs text-on-surface-variant">
+                    {session.user.email}
+                  </span>
+                ) : null}
+              </span>
+              {METHOD_LABEL[method] === METHOD_LABEL[session.signInMethod ?? ""] ? (
+                <StatusChip tone="info" icon={<CheckIcon />}>
+                  This session
+                </StatusChip>
+              ) : null}
+            </li>
+          ))}
+          {development ? null : (
+            <li className="flex items-center gap-3 rounded-xs bg-pane px-4 py-3 first:rounded-t-lg last:rounded-b-lg">
               <span
                 aria-hidden
                 className="grid size-8 place-items-center rounded-md bg-surface-container-high [&_svg]:size-4"
               >
-                <MailIcon />
+                <PasswordIcon />
               </span>
-            )}
-            <span className="flex min-w-0 flex-1 flex-col">
-              <span className="text-sm font-medium">
-                {sso ? `${providerLabel(sso.provider)} single sign-on` : "Email sign-in"}
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="text-sm font-medium">2-step verification</span>
+                <span className="text-xs text-on-surface-variant">
+                  {providerSecured
+                    ? `Set up in your ${METHOD_LABEL[session.signInMethod ?? ""]} account`
+                    : "Email links prove you can open your inbox each time. Use Google, Microsoft or company SSO for 2-step verification."}
+                </span>
               </span>
-              {email ? (
-                <span className="truncate text-xs text-on-surface-variant">{email}</span>
-              ) : null}
-            </span>
-            <StatusChip tone="success" icon={<VerifiedUserIcon />}>
-              Managed by IT
-            </StatusChip>
-          </li>
-          <li className="flex items-center gap-3 rounded-xs bg-pane px-4 py-3 first:rounded-t-lg last:rounded-b-lg">
-            <span
-              aria-hidden
-              className="grid size-8 place-items-center rounded-md bg-surface-container-high [&_svg]:size-4"
-            >
-              <PasswordIcon />
-            </span>
-            <span className="flex min-w-0 flex-1 flex-col">
-              <span className="text-sm font-medium">2-step verification</span>
-              <span className="text-xs text-on-surface-variant">
-                {sso
-                  ? `Set up in your ${providerLabel(sso.provider)} account`
-                  : "Set up in your account"}
-              </span>
-            </span>
-            {user?.twoFactorEnabled || sso ? (
-              <StatusChip tone="success" icon={<CheckIcon />}>
-                On
-              </StatusChip>
-            ) : (
-              <StatusChip tone="neutral" icon={<WarningIcon />}>
-                Off
-              </StatusChip>
-            )}
-          </li>
+              {providerSecured ? (
+                <StatusChip tone="success" icon={<CheckIcon />}>
+                  Managed by provider
+                </StatusChip>
+              ) : (
+                <StatusChip tone="neutral" icon={<WarningIcon />}>
+                  Email link
+                </StatusChip>
+              )}
+            </li>
+          )}
         </ul>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={() => clerk.openUserProfile()}>
-            <LockIcon aria-hidden /> Manage sign-in and security
-          </Button>
-          <Button variant="ghost" onClick={() => void clerk.signOut({ redirectUrl: "/" })}>
-            <LoginIcon aria-hidden /> Sign out
-          </Button>
-        </div>
+        {development ? (
+          <p className="text-sm text-on-surface-variant">
+            Development mode has one built-in user and no sign-in, so there is nothing to sign out
+            of. Set AUTH_MODE=accounts in apps/api/.env to sign in and out with real accounts.
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            <Button variant="ghost" disabled={out.isPending} onClick={() => out.mutate()}>
+              <LogoutIcon aria-hidden /> Sign out
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
 }
 
-function providerLabel(provider: string): string {
-  const name = provider.replace(/^oauth_/, "");
-  return name === "google"
-    ? "Google Workspace"
-    : name.replace(/^\w/, (letter) => letter.toUpperCase());
+/** A readable device from a browser's user agent: "Mac · Chrome", "iPhone · Safari". */
+function describeDevice(userAgent: string | null): { label: string; mobile: boolean } {
+  const ua = userAgent ?? "";
+  const mobile = /iPhone|Android.+Mobile|Mobile Safari/i.test(ua);
+  const os = ua.includes("iPhone")
+    ? "iPhone"
+    : ua.includes("iPad")
+      ? "iPad"
+      : ua.includes("Android")
+        ? "Android"
+        : /Mac OS X|Macintosh/.test(ua)
+          ? "Mac"
+          : ua.includes("Windows")
+            ? "Windows"
+            : ua.includes("Linux")
+              ? "Linux"
+              : null;
+  const browser = ua.includes("Edg/")
+    ? "Edge"
+    : ua.includes("Firefox/")
+      ? "Firefox"
+      : ua.includes("Chrome/")
+        ? "Chrome"
+        : ua.includes("Safari/")
+          ? "Safari"
+          : null;
+  return {
+    label: [os ?? (mobile ? "Phone" : "Computer"), browser].filter(Boolean).join(" · "),
+    mobile,
+  };
 }
 
-/** "Where you're signed in" (prototype): the identity provider's sessions, with sign-out per device. */
+/** "Where you're signed in" (prototype): this person's sessions, with sign-out per device. */
 function SessionsCard() {
-  const { user, isLoaded } = useUser();
-  const { session: current } = useSession();
+  const { data: session } = useQuery(sessionQuery());
+  const devices = useQuery({ ...devicesQuery(), enabled: session?.authentication === "accounts" });
   const queryClient = useQueryClient();
-  const sessions = useQuery({
-    queryKey: ["identity-sessions", user?.id],
-    queryFn: () => user!.getSessions(),
-    enabled: Boolean(user),
+  const refresh = () => queryClient.invalidateQueries({ queryKey: authKeys.devices() });
+  const revokeOne = useMutation({
+    mutationFn: signOutDevice,
+    onSuccess: () => toast.success("Signed out of that device"),
+    onSettled: refresh,
   });
-  const [busy, setBusy] = useState(false);
-  const others = (sessions.data ?? []).filter((entry) => entry.id !== current?.id);
-  const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: ["identity-sessions", user?.id] });
-
-  const revoke = async (targets: typeof others, message: string) => {
-    setBusy(true);
-    try {
-      await Promise.all(targets.map((entry) => entry.revoke()));
-      toast.success(message);
-    } catch {
-      toast.error("Could not sign out. Please try again.");
-    } finally {
-      setBusy(false);
-      void refresh();
-    }
-  };
+  const revokeOthers = useMutation({
+    mutationFn: signOutOtherDevices,
+    onSuccess: () => toast.success("Signed out everywhere else"),
+    onSettled: refresh,
+  });
+  const busy = revokeOne.isPending || revokeOthers.isPending;
+  const others = (devices.data ?? []).filter((entry) => !entry.current);
 
   return (
     <Card>
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
         <CardTitle>Where you're signed in</CardTitle>
         {others.length ? (
-          <Button
-            size="xs"
-            variant="ghost"
-            disabled={busy}
-            onClick={() => void revoke(others, "Signed out everywhere else")}
-          >
+          <Button size="xs" variant="ghost" disabled={busy} onClick={() => revokeOthers.mutate()}>
             Sign out everywhere else
           </Button>
         ) : null}
       </CardHeader>
       <CardContent>
-        {!user ? (
-          isLoaded === false ? (
-            <Skeleton className="h-28 rounded-lg" />
-          ) : (
-            <p className="text-sm text-on-surface-variant">
-              Sign in to see the devices you're signed in on.
-            </p>
-          )
-        ) : sessions.isPending ? (
+        {session?.authentication === "development" ? (
+          <p className="text-sm text-on-surface-variant">
+            Development mode has no sign-in sessions.
+          </p>
+        ) : devices.isPending ? (
           <Skeleton className="h-28 rounded-lg" />
-        ) : sessions.isError ? (
+        ) : devices.isError ? (
           <p className="text-sm text-on-surface-variant">Your sessions could not be loaded.</p>
         ) : (
           <ul className="flex flex-col gap-0.5">
-            {(sessions.data ?? []).map((entry) => {
-              const activity = entry.latestActivity;
-              const device = [
-                activity.deviceType ?? (activity.isMobile ? "Phone" : "Computer"),
-                activity.browserName,
-              ]
-                .filter(Boolean)
-                .join(" · ");
-              const where = [activity.city, activity.country].filter(Boolean).join(", ");
-              const isCurrent = entry.id === current?.id;
+            {devices.data.map((entry) => {
+              const device = describeDevice(entry.userAgent);
               return (
                 <li
                   key={entry.id}
@@ -709,17 +748,20 @@ function SessionsCard() {
                     aria-hidden
                     className="grid size-8 place-items-center rounded-md bg-surface-container-high [&_svg]:size-4"
                   >
-                    {activity.isMobile ? <SmartphoneIcon /> : <DesktopWindowsIcon />}
+                    {device.mobile ? <SmartphoneIcon /> : <DesktopWindowsIcon />}
                   </span>
                   <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="text-sm font-medium">{device}</span>
+                    <span className="text-sm font-medium">{device.label}</span>
                     <span className="text-xs text-on-surface-variant">
-                      {[where, isCurrent ? "This device" : formatRelativeTime(entry.lastActiveAt)]
+                      {[
+                        entry.signInMethod ? METHOD_LABEL[entry.signInMethod] : null,
+                        entry.current ? "This device" : formatRelativeTime(entry.lastActiveAt),
+                      ]
                         .filter(Boolean)
                         .join(" · ")}
                     </span>
                   </span>
-                  {isCurrent ? (
+                  {entry.current ? (
                     <StatusChip tone="info" icon={<CheckIcon />}>
                       This device
                     </StatusChip>
@@ -728,7 +770,7 @@ function SessionsCard() {
                       size="xs"
                       variant="outline"
                       disabled={busy}
-                      onClick={() => void revoke([entry], "Signed out of that device")}
+                      onClick={() => revokeOne.mutate(entry.id)}
                     >
                       Sign out
                     </Button>

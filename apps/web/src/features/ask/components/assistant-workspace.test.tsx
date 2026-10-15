@@ -3,7 +3,7 @@ import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { Route, Routes } from "react-router";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   AssistantContext,
   type AssistantContextValue,
@@ -13,10 +13,13 @@ import { useBotContext } from "@/components/layout/bot-context";
 import { QuizIcon } from "@/components/ui/icons";
 import { AssistantPanel } from "@/features/ask/components/assistant-panel";
 import { buildApiUrl } from "@/lib/api-client";
+import { employeeHandlers } from "@/test/employee-mocks";
 import { mockServer, setupMockApi } from "@/test/msw";
 import { renderWithProviders } from "@/test/utils";
 
 setupMockApi();
+// Context Bot preferences are served by the API; the fixture stands in (tests may override it).
+beforeEach(() => mockServer.use(...employeeHandlers()));
 
 const assistant: AssistantContextValue = {
   open: true,

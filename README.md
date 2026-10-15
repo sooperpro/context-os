@@ -19,24 +19,24 @@ ContextOS reconstructs project context from a team's existing sources: **how the
 
 ### Backend extensions for authenticated users and connected sources
 
-The backend now includes the following additions. Local development defaults to a development actor; production startup requires configured Clerk authentication. Google Drive requires separate OAuth configuration. The complete PRD and production release gates are not yet satisfied; see the coverage document above.
+The backend now includes the following additions. Local development defaults to a development actor; production startup requires real sign-in (`AUTH_MODE=accounts`). Google Drive requires separate OAuth configuration. The complete PRD and production release gates are not yet satisfied; see the coverage document above.
 
-The agreed delivery target is **Phase 1 first**. Later phases and production Clerk/Google account setup are deferred. Phase 1 itself remains in progress; missing connectors, context contracts and operational gates are documented explicitly.
+The agreed delivery target is **Phase 1 first**. Later phases and production Google/Microsoft account setup are deferred. Phase 1 itself remains in progress; missing connectors, context contracts and operational gates are documented explicitly.
 
 | Capability                 | Implementation status                                                                                                                        |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Authentication             | Clerk React sign-in, active organization selection, bearer-token API requests, and organization-to-workspace mapping in Hono                 |
+| Authentication             | Own sign-in (Better Auth in Hono): email links, Google, Microsoft, company SSO (OIDC/SAML); HttpOnly session cookie; workspace selection     |
 | Authorization              | Local memberships, Owner/Admin/Manager/Member/Guest roles, supported scoped assignments, source access and derived-content dependency checks |
 | Google Drive               | Installed official `googleapis` Node client; separate OAuth, file discovery and selected-file import                                         |
 | Document reading           | Google Docs text export; installed `pdfjs-dist` and `mammoth` with bounded parser workers                                                    |
 | Credential/file protection | Node crypto token encryption, bounded in-memory downloads and parser workers; encrypted storage/key rotation remain deployment work          |
-| Access regression testing  | Existing Vitest plus planned Playwright/Clerk browser tests and authenticated Bruno requests                                                 |
+| Access regression testing  | Existing Vitest plus planned Playwright browser tests and authenticated Bruno requests                                                       |
 
 App sign-in and Google Drive authorization are separate. Workspace roles do not grant access to private source files. See the [backend guide](docs/backend-api-use-cases.md) for the implemented roles, scopes, APIs and configuration; the stack extension remains historical planning context.
 
 ## What V0 does
 
-1. **Projects** inside workspaces, with current membership and tenant checks in Clerk mode; local development uses one configured actor. Workspace/org APIs include settings, departments, teams and employment profiles.
+1. **Projects** inside workspaces, with current membership and tenant checks in accounts mode; local development uses one configured actor. Workspace/org APIs include settings, departments, teams and employment profiles.
 2. **Sources** are imported manually or from selected Google Drive files (when configured), with author, dates, link and content hash. Full sync and other connectors remain outstanding.
 3. **Pipeline** (background jobs on SQLite): chunk → FTS5 index → Gemini embeddings → Gemini structured extraction → **verbatim-quote verification** → de-duplication → hub refresh. Jobs retry with backoff; failures are visible in the UI.
 4. **Context model**: decisions, events, status claims, people/ownership, components, dependencies and terms, each with event time / as-of time, verification state (inferred, confirmed, stale, disputed, superseded), confidence and evidence rows pointing at source spans. Status claims about the same subject with different states are flagged as **conflicting**, never auto-resolved.
@@ -83,14 +83,13 @@ App sign-in and Google Drive authorization are separate. Workspace roles do not 
 - **Node.js 24** (>= 22.22 works). With nvm: `nvm install 24 && nvm use` (`.nvmrc` is present). If your nvm default is older, run `nvm use` in each shell or `nvm alias default 24`; pnpm refuses unsupported Node versions (`engineStrict`).
 - **pnpm 12** via Corepack: `corepack enable` (version pinned in `package.json`).
 - A **Gemini API key**: https://aistudio.google.com/apikey
-- A **Clerk application** with Organizations enabled: https://dashboard.clerk.com
 
 ## Getting started
 
 ```bash
 pnpm install
-cp apps/api/.env.example apps/api/.env   # set Gemini + Clerk server credentials
-cp apps/web/.env.example apps/web/.env   # set the Clerk publishable key
+cp apps/api/.env.example apps/api/.env   # set GEMINI_API_KEY (AUTH_MODE=accounts for real sign-in)
+cp apps/web/.env.example apps/web/.env
 pnpm dev
 ```
 
@@ -158,25 +157,27 @@ Request and response shapes live once in `packages/shared/src/schemas` and are v
 
 ### Environment (`apps/api/.env`)
 
-| Variable                                                                                               | Default                        | Notes                                                                           |
-| ------------------------------------------------------------------------------------------------------ | ------------------------------ | ------------------------------------------------------------------------------- |
-| `GEMINI_API_KEY`                                                                                       | required                       |                                                                                 |
-| `GEMINI_MODEL`                                                                                         | `gemini-3.8-flash`             | Extraction, overview synthesis, answers (structured output)                     |
-| `GEMINI_EMBEDDING_MODEL` / `GEMINI_EMBEDDING_DIMENSIONS`                                               | `gemini-embedding-001` / `768` | Retrieval vectors; the pipeline degrades to keyword search if embedding fails   |
-| `DATABASE_URL`                                                                                         | `./data/contextos.db`          | SQLite path, or `:memory:`                                                      |
-| `WORKER_ENABLED` / `WORKER_POLL_INTERVAL_MS`                                                           | `true` / `1000`                | Run the job worker in-process (set `false` for API-only)                        |
-| `WORKSPACE_NAME`, `DEV_ACTOR_ID`, `DEV_ACTOR_NAME`                                                     | defaults                       | Single workspace + development actor until identity is wired                    |
-| `AUTH_MODE`                                                                                            | `development`                  | Set to `clerk` to require authenticated requests                                |
-| `CLERK_PUBLISHABLE_KEY` / `CLERK_SECRET_KEY`                                                           | required in Clerk mode         | Clerk application credentials; keep the secret server-side                      |
-| `PORT` / `HOST`                                                                                        | `3000` / `127.0.0.1`           | Set `HOST=0.0.0.0` explicitly only behind appropriate deployment controls.      |
-| `CORS_ORIGINS`                                                                                         | `http://localhost:5173`        | Comma-separated                                                                 |
-| `LOG_LEVEL`                                                                                            | `info`                         | pino; pretty-printed in development                                             |
-| `RATE_LIMIT_WINDOW_MS` / `RATE_LIMIT_MAX`                                                              | `60000` / `120`                | Per client IP; `0` disables                                                     |
-| `TRUST_PROXY`                                                                                          | `false`                        | Use `X-Forwarded-For` behind a reverse proxy                                    |
-| `SHUTDOWN_TIMEOUT_MS`                                                                                  | `10000`                        | Force exit if connections do not drain                                          |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REDIRECT_URI` / `CONNECTOR_TOKEN_ENCRYPTION_KEY` | unset                          | Google Drive OAuth and AES-GCM token storage; connectors answer `503` until set |
-| `SLACK_SIGNING_SECRET` / `GITHUB_WEBHOOK_SECRET` / `JIRA_WEBHOOK_SECRET` / `GOOGLE_WEBHOOK_TOKEN`      | unset                          | Webhook receivers (`POST /webhooks/:provider`) answer `503` until set           |
-| `MAINTENANCE_SWEEP_INTERVAL_MS`                                                                        | `60000`                        | Background sweeps: bounty expiry, nudges, invitation expiry, scheduled deletion |
+| Variable                                                                                               | Default                        | Notes                                                                                       |
+| ------------------------------------------------------------------------------------------------------ | ------------------------------ | ------------------------------------------------------------------------------------------- |
+| `GEMINI_API_KEY`                                                                                       | required                       |                                                                                             |
+| `GEMINI_MODEL`                                                                                         | `gemini-3.8-flash`             | Extraction, overview synthesis, answers (structured output)                                 |
+| `GEMINI_EMBEDDING_MODEL` / `GEMINI_EMBEDDING_DIMENSIONS`                                               | `gemini-embedding-001` / `768` | Retrieval vectors; the pipeline degrades to keyword search if embedding fails               |
+| `DATABASE_URL`                                                                                         | `./data/contextos.db`          | SQLite path, or `:memory:`                                                                  |
+| `WORKER_ENABLED` / `WORKER_POLL_INTERVAL_MS`                                                           | `true` / `1000`                | Run the job worker in-process (set `false` for API-only)                                    |
+| `WORKSPACE_NAME`, `DEV_ACTOR_ID`, `DEV_ACTOR_NAME`                                                     | defaults                       | Single workspace + development actor until identity is wired                                |
+| `AUTH_MODE`                                                                                            | `development`                  | `accounts`: real sign-in (email link, Google, Microsoft, company SSO) with our own sessions |
+| `AUTH_SECRET` / `AUTH_URL`                                                                             | required / first CORS origin   | Session signing secret (32+ chars); public app origin for sign-in links and callbacks       |
+| `SMTP_URL` / `EMAIL_FROM`                                                                              | required in production         | Sign-in links and invitations; without SMTP they are logged locally                         |
+| `MICROSOFT_CLIENT_ID` / `MICROSOFT_CLIENT_SECRET` / `MICROSOFT_TENANT_ID`                              | optional / `common`            | "Continue with Microsoft"; Google sign-in reuses `GOOGLE_CLIENT_ID`/`SECRET`                |
+| `PORT` / `HOST`                                                                                        | `3000` / `127.0.0.1`           | Set `HOST=0.0.0.0` explicitly only behind appropriate deployment controls.                  |
+| `CORS_ORIGINS`                                                                                         | `http://localhost:5173`        | Comma-separated                                                                             |
+| `LOG_LEVEL`                                                                                            | `info`                         | pino; pretty-printed in development                                                         |
+| `RATE_LIMIT_WINDOW_MS` / `RATE_LIMIT_MAX`                                                              | `60000` / `120`                | Per client IP; `0` disables                                                                 |
+| `TRUST_PROXY`                                                                                          | `false`                        | Use `X-Forwarded-For` behind a reverse proxy                                                |
+| `SHUTDOWN_TIMEOUT_MS`                                                                                  | `10000`                        | Force exit if connections do not drain                                                      |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REDIRECT_URI` / `CONNECTOR_TOKEN_ENCRYPTION_KEY` | unset                          | Google Drive OAuth and AES-GCM token storage; connectors answer `503` until set             |
+| `SLACK_SIGNING_SECRET` / `GITHUB_WEBHOOK_SECRET` / `JIRA_WEBHOOK_SECRET` / `GOOGLE_WEBHOOK_TOKEN`      | unset                          | Webhook receivers (`POST /webhooks/:provider`) answer `503` until set                       |
+| `MAINTENANCE_SWEEP_INTERVAL_MS`                                                                        | `60000`                        | Background sweeps: bounty expiry, nudges, invitation expiry, scheduled deletion             |
 
 ### How the pipeline works
 
@@ -205,8 +206,7 @@ API tests build the full app on an in-memory SQLite database with migrations app
 ## Docker
 
 ```bash
-cp apps/api/.env.example apps/api/.env   # set Gemini + Clerk server credentials
-cp .env.example .env                     # set the Clerk publishable key for the web image
+cp apps/api/.env.example apps/api/.env   # set Gemini, AUTH_SECRET and SMTP_URL (production needs accounts mode)
 docker compose up --build
 ```
 

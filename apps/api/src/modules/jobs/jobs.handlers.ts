@@ -16,9 +16,12 @@ import type { SourceRepository } from "../sources/sources.repository.js";
 import type { JobQueue } from "./jobs.queue.js";
 import type { JobHandlers } from "./jobs.worker.js";
 
-/** Late-bound connector sync, registered by the app once provider services exist. */
+/** Late-bound connector jobs, registered by the app once provider services exist. */
 export interface ConnectorSyncRegistry {
   sync?: (job: JobRow) => Promise<void>;
+  importFile?: (job: JobRow) => Promise<void>;
+  refreshAccess?: (job: JobRow) => Promise<void>;
+  generateTutorial?: (job: JobRow) => Promise<void>;
 }
 
 export interface JobHandlerDeps {
@@ -32,7 +35,16 @@ export interface JobHandlerDeps {
   gemini: GeminiClient;
   logger: Logger;
   connectors: ConnectorSyncRegistry;
+  /** Sections of a long source the AI reads for the Knowledge Hub (EXTRACTION_MAX_WINDOWS). */
+  extractionSections?: number;
 }
+
+/** Chunks embedded per group; a failed group loses only its own vectors. */
+const EMBED_GROUP = 256;
+/** Groups embedded at the same time within one source. */
+const EMBED_PARALLEL = 2;
+/** After bulk processing, the project overview refreshes at most this often. */
+const BULK_HUB_DELAY_MS = 2 * 60_000;
 
 const ProcessSourcePayload = z.object({ sourceObjectId: z.string() });
 
@@ -48,6 +60,7 @@ export function createJobHandlers(deps: JobHandlerDeps): JobHandlers {
     gemini,
     logger,
     connectors,
+    extractionSections = 1,
   } = deps;
 
   return {
@@ -78,20 +91,32 @@ export function createJobHandlers(deps: JobHandlerDeps): JobHandlers {
           })),
         );
 
-        // 3. Embeddings are best-effort: retrieval degrades to keyword search without them.
-        try {
-          const vectors = await gemini.embed(
-            chunks.map((c) => c.content),
-            "RETRIEVAL_DOCUMENT",
+        // 3. Embeddings are best-effort: retrieval degrades to keyword search without them. Large
+        //    sources embed in groups, two at a time; a failed group only loses its own vectors.
+        const groups: Array<typeof chunks> = [];
+        for (let start = 0; start < chunks.length; start += EMBED_GROUP)
+          groups.push(chunks.slice(start, start + EMBED_GROUP));
+        let failedGroups = 0;
+        for (let start = 0; start < groups.length; start += EMBED_PARALLEL)
+          await Promise.all(
+            groups.slice(start, start + EMBED_PARALLEL).map(async (group) => {
+              try {
+                const vectors = await gemini.embed(
+                  group.map((c) => c.content),
+                  "RETRIEVAL_DOCUMENT",
+                );
+                vectors.forEach((vector, i) => {
+                  const chunk = group[i];
+                  if (chunk && vector.length > 0)
+                    sources.setChunkEmbedding(chunk.id, float32ToBuffer(vector));
+                });
+              } catch (error) {
+                failedGroups += 1;
+                log.warn({ err: error }, "Embedding failed; continuing without these vectors");
+              }
+            }),
           );
-          vectors.forEach((vector, i) => {
-            const chunk = chunks[i];
-            if (chunk && vector.length > 0)
-              sources.setChunkEmbedding(chunk.id, float32ToBuffer(vector));
-          });
-        } catch (error) {
-          log.warn({ err: error }, "Embedding failed; continuing without vectors");
-        }
+        if (failedGroups) log.warn({ failedGroups, groups: groups.length }, "Some vectors missing");
 
         // 4. Structured extraction with verified evidence.
         const run = contextRepo.startRun({
@@ -103,7 +128,9 @@ export function createJobHandlers(deps: JobHandlerDeps): JobHandlers {
           status: "running",
         });
         try {
-          const output = await extractContext({ gemini }, source);
+          const output = await extractContext({ gemini }, source, {
+            maxSections: extractionSections,
+          });
           const stats = context.persistExtraction({ source, chunks, output, runId: run.id });
           contextRepo.finishRun(run.id, {
             status: "done",
@@ -127,12 +154,15 @@ export function createJobHandlers(deps: JobHandlerDeps): JobHandlers {
         }
         projects.touch(source.projectId);
         hub.markStale(source.projectId);
+        // One overview refresh per project at a time; during a bulk import, at most every 2 minutes.
         queue.enqueue({
           projectId: source.projectId,
           type: "refresh_hub",
           payload: {},
           subject: null,
           dedupe: true,
+          concurrencyKey: `hub:${source.projectId}`,
+          runAfter: job.priority < 0 ? new Date(Date.now() + BULK_HUB_DELAY_MS) : undefined,
         });
       } catch (error) {
         sources.setStatus(source.id, { status: "failed", error: errorMessage(error) });
@@ -152,6 +182,24 @@ export function createJobHandlers(deps: JobHandlerDeps): JobHandlers {
     async sync_connector(job: JobRow): Promise<void> {
       if (!connectors.sync) throw new Error("Connector sync is not available in this process");
       await connectors.sync(job);
+    },
+
+    async import_drive_file(job: JobRow): Promise<void> {
+      if (!connectors.importFile)
+        throw new Error("Connector import is not available in this process");
+      await connectors.importFile(job);
+    },
+
+    async generate_tutorial(job: JobRow): Promise<void> {
+      if (!connectors.generateTutorial)
+        throw new Error("Tutorial drafting is not available in this process");
+      await connectors.generateTutorial(job);
+    },
+
+    async refresh_access(job: JobRow): Promise<void> {
+      if (!connectors.refreshAccess)
+        throw new Error("Connector access refresh is not available in this process");
+      await connectors.refreshAccess(job);
     },
   };
 }

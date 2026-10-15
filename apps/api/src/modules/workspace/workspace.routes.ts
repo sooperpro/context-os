@@ -15,7 +15,6 @@ import {
   connectorConnections,
   departments,
   memberships,
-  organizationLinks,
   platformRecords,
   projects,
   sourceObjects,
@@ -210,7 +209,7 @@ export function createWorkspaceRoutes(container: Container) {
 
   return (
     new Hono<AppEnv>()
-      .post("/workspaces", zValidator("json", WorkspaceCreateSchema, validationHook), async (c) => {
+      .post("/workspaces", zValidator("json", WorkspaceCreateSchema, validationHook), (c) => {
         const actor = c.get("actor");
         const input = c.req.valid("json");
         // Selecting a region is not a claim that this single-region server can host it.
@@ -228,48 +227,33 @@ export function createWorkspaceRoutes(container: Container) {
             .get()
         )
           throw new AppError(409, "CONFLICT", "Workspace slug is already taken");
-        const organization = identity.clerk
-          ? await identity.clerk.organizations.createOrganization({
-              name: input.name,
-              slug: input.slug,
-              createdBy: actor.id,
-            })
-          : null;
-        try {
-          const row = db.transaction(() => {
-            const created = db
-              .insert(workspaces)
-              .values({ id: randomUUID(), ...input })
-              .returning()
-              .get();
-            db.insert(memberships)
-              .values({ workspaceId: created.id, userId: actor.id, role: "owner" })
-              .run();
-            if (organization)
-              db.insert(organizationLinks)
-                .values({ organizationId: organization.id, workspaceId: created.id })
-                .run();
-            audit.record({
-              actor: { ...actor, workspaceId: created.id, role: "owner" },
-              action: "workspace.create",
-              targetType: "workspace",
-              targetId: created.id,
-            });
-            return created;
+        const row = db.transaction(() => {
+          const created = db
+            .insert(workspaces)
+            .values({ id: randomUUID(), ...input })
+            .returning()
+            .get();
+          db.insert(memberships)
+            .values({ workspaceId: created.id, userId: actor.id, role: "owner" })
+            .run();
+          audit.record({
+            actor: { ...actor, workspaceId: created.id, role: "owner" },
+            action: "workspace.create",
+            targetType: "workspace",
+            targetId: created.id,
           });
-          return c.json(
-            {
-              ...row,
-              organizationId: organization?.id ?? null,
-              primaryDomainVerified: false,
-              authentication: container.env.AUTH_MODE,
-            },
-            201,
-          );
-        } catch (error) {
-          if (organization) await identity.clerk?.organizations.deleteOrganization(organization.id);
-          throw error;
-        }
+          return created;
+        });
+        // The creator continues in the new workspace.
+        if (actor.sessionId) identity.setActiveWorkspace(actor.sessionId, row.id);
+        return c.json(
+          {
+            ...row,
+            primaryDomainVerified: false,
+            authentication: container.env.AUTH_MODE,
+          },
+          201,
+        );
       })
       .patch(
         "/workspaces/current",

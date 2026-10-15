@@ -125,7 +125,8 @@ export function createSearchRoutes(container: Container) {
           if (
             bounty.projectId &&
             accessible.has(bounty.projectId) &&
-            matches(String(bounty.data.title), String(bounty.data.description))
+            matches(String(bounty.data.title), String(bounty.data.description)) &&
+            services.bounties.visibleTo(actor, bounty)
           )
             results.push({
               type: "bounty",

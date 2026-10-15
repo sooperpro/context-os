@@ -121,6 +121,14 @@ export const employeeMocks = [
       },
     ],
   })),
+];
+
+/**
+ * The API serves knowledge updates, team news and the people to know first
+ * (apps/api/src/modules/platform/employee.routes.ts), so these are not in the development mock layer.
+ * They stay as fixtures for screen tests: src/test/employee-mocks.ts.
+ */
+export const employeeHomeFixtures = [
   mockGet(E.knowledgeUpdates)(() => ({
     items: [
       {

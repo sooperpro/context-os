@@ -5,7 +5,7 @@ import { NotFoundError } from "../../lib/errors.js";
 import type { Actor } from "../../types.js";
 import type { AuditService } from "../audit/audit.service.js";
 import type { ContextService } from "../context/context.service.js";
-import type { JobQueue } from "../jobs/jobs.queue.js";
+import { JOB_PRIORITY, type JobQueue } from "../jobs/jobs.queue.js";
 import type { SourceRepository } from "./sources.repository.js";
 import { sourceAccess } from "../../db/schema.js";
 import type { Db } from "../../db/index.js";
@@ -42,12 +42,19 @@ export function toSourceObject(row: SourceObjectRow, chunkCount: number): Source
 }
 
 export function createSourceService({ repo, context, queue, audit, db }: SourceServiceDeps) {
-  const enqueueProcessing = (source: SourceObjectRow) =>
+  /** One processing job per source at a time; a newer request waits for the running one. */
+  const enqueueProcessing = (
+    source: SourceObjectRow,
+    priority: number = JOB_PRIORITY.interactive,
+  ) =>
     queue.enqueue({
       projectId: source.projectId,
       type: "process_source",
       payload: { sourceObjectId: source.id },
       subject: source.title,
+      dedupe: true,
+      priority,
+      concurrencyKey: `source:${source.id}`,
     });
 
   return {
@@ -63,7 +70,13 @@ export function createSourceService({ repo, context, queue, audit, db }: SourceS
       return { ...toSourceObject(row, chunkCount), content: row.content };
     },
 
-    create(actor: Actor, project: ProjectRow, input: CreateSourceInput): SourceObject {
+    /** `priority`: bulk imports (a Drive sync) process after one-off uploads. */
+    create(
+      actor: Actor,
+      project: ProjectRow,
+      input: CreateSourceInput,
+      { priority }: { priority?: number } = {},
+    ): SourceObject {
       return db.transaction(() => {
         const row = repo.insert({
           id: randomUUID(),
@@ -82,7 +95,7 @@ export function createSourceService({ repo, context, queue, audit, db }: SourceS
           visibility: input.visibility ?? "restricted",
         });
         db.insert(sourceAccess).values({ sourceId: row.id, userId: actor.id }).run();
-        enqueueProcessing(row);
+        enqueueProcessing(row, priority);
         audit.record({
           actor,
           projectId: project.id,
@@ -128,6 +141,7 @@ export function createSourceService({ repo, context, queue, audit, db }: SourceS
           payload: {},
           subject: project.name,
           dedupe: true,
+          concurrencyKey: `hub:${project.id}`,
         });
         audit.record({
           actor,

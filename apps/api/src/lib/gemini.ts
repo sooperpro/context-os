@@ -40,7 +40,8 @@ export interface GeminiClientOptions {
 }
 
 const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
-const EMBED_BATCH_SIZE = 16;
+/** Texts per embedding request (the API accepts up to 100). */
+const EMBED_BATCH_SIZE = 50;
 
 export function createGeminiClient({
   apiKey,

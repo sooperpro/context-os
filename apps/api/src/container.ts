@@ -3,9 +3,11 @@ import type { Db } from "./db/index.js";
 import { assignments, memberships, users } from "./db/schema.js";
 import type { GeminiClient } from "./lib/gemini.js";
 import type { Logger } from "./lib/logger.js";
+import { createMailer, type Mailer } from "./lib/mailer.js";
 import { createAskRepository } from "./modules/ask/ask.repository.js";
 import { createAskService } from "./modules/ask/ask.service.js";
 import { createAuditService } from "./modules/audit/audit.service.js";
+import { createAuth } from "./modules/auth/auth.js";
 import { createConflictService } from "./modules/context/conflicts.js";
 import { createContextRepository } from "./modules/context/context.repository.js";
 import { createContextService } from "./modules/context/context.service.js";
@@ -33,6 +35,8 @@ export interface ContainerDeps {
   db: Db;
   gemini: GeminiClient;
   logger: Logger;
+  /** Outgoing email; defaults to SMTP (or the log, without SMTP_URL). */
+  mailer?: Mailer;
 }
 
 /**
@@ -40,7 +44,7 @@ export interface ContainerDeps {
  * from the given infrastructure. Pure function of its inputs, so tests can
  * build a container on an in-memory database with a fake model.
  */
-export function createContainer({ env, db, gemini, logger }: ContainerDeps) {
+export function createContainer({ env, db, gemini, logger, mailer: mailerDep }: ContainerDeps) {
   const workspace = ensureDefaultWorkspace(db, env.WORKSPACE_NAME);
   const devActor: Actor = {
     id: env.DEV_ACTOR_ID,
@@ -66,7 +70,9 @@ export function createContainer({ env, db, gemini, logger }: ContainerDeps) {
       .onConflictDoNothing()
       .run();
   }
-  const identity = createIdentityService(db, env, devActor);
+  const mailer = mailerDep ?? createMailer(env, logger);
+  const auth = env.AUTH_MODE === "accounts" ? createAuth({ env, db, mailer, logger }) : null;
+  const identity = createIdentityService(db, devActor, auth);
   const audit = createAuditService(db, logger);
   const queue = createJobQueue(db);
   const store = createPlatformStore(db);
@@ -130,6 +136,7 @@ export function createContainer({ env, db, gemini, logger }: ContainerDeps) {
     gemini,
     logger,
     connectors,
+    extractionSections: env.EXTRACTION_MAX_WINDOWS,
   });
   const sweeps = createSweeps({ db, bounties, logger, queue });
   const worker = createWorker({
@@ -137,6 +144,7 @@ export function createContainer({ env, db, gemini, logger }: ContainerDeps) {
     handlers,
     logger,
     pollIntervalMs: env.WORKER_POLL_INTERVAL_MS,
+    concurrency: env.WORKER_CONCURRENCY,
     sweeps,
     sweepIntervalMs: env.MAINTENANCE_SWEEP_INTERVAL_MS,
   });
@@ -148,6 +156,7 @@ export function createContainer({ env, db, gemini, logger }: ContainerDeps) {
     logger,
     workspace,
     devActor,
+    mailer,
     identity,
     audit,
     queue,

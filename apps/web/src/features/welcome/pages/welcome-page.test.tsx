@@ -1,13 +1,17 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { WelcomePage } from "@/features/welcome/pages/welcome-page";
 import { buildApiUrl } from "@/lib/api-client";
-import { setupMockApi } from "@/test/msw";
+import { employeeHandlers } from "@/test/employee-mocks";
+import { learnerHandlers } from "@/test/learning-mocks";
+import { mockServer, setupMockApi } from "@/test/msw";
 import { renderWithProviders } from "@/test/utils";
 
 setupMockApi();
+// The API serves the welcome; its fixture stands in for it.
+beforeEach(() => mockServer.use(...employeeHandlers(), ...learnerHandlers()));
 
 describe("First-day welcome", () => {
   it("introduces the people, saves the profile and opens the roadmap", async () => {

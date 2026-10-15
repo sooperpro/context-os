@@ -2,8 +2,19 @@ import { Worker } from "node:worker_threads";
 import { z } from "zod";
 import { BadRequestError } from "./errors.js";
 
+export interface ParseLimits {
+  /** Hard deadline for one document. */
+  timeoutMs?: number;
+  /** Heap for the parser thread; large PDFs need more than small ones. */
+  memoryMb?: number;
+}
+
 /** Parse untrusted binary documents outside the HTTP event loop, with a hard deadline. */
-export async function parseDocument(bytes: Buffer, mimeType: string): Promise<string> {
+export async function parseDocument(
+  bytes: Buffer,
+  mimeType: string,
+  { timeoutMs = 30_000, memoryMb = 128 }: ParseLimits = {},
+): Promise<string> {
   if (mimeType !== "application/pdf" && !mimeType.includes("wordprocessingml"))
     return bytes.toString("utf8");
   const extension = import.meta.url.endsWith(".ts") ? "ts" : "js";
@@ -12,14 +23,18 @@ export async function parseDocument(bytes: Buffer, mimeType: string): Promise<st
     let settled = false;
     const worker = new Worker(url, {
       workerData: { mimeType, bytes: new Uint8Array(bytes) },
-      resourceLimits: { maxOldGenerationSizeMb: 128, maxYoungGenerationSizeMb: 32 },
+      resourceLimits: { maxOldGenerationSizeMb: memoryMb, maxYoungGenerationSizeMb: 32 },
       execArgv: extension === "ts" ? ["--import", "tsx"] : [],
     });
     const timer = setTimeout(() => {
       settled = true;
       void worker.terminate();
-      reject(new BadRequestError("Document parsing exceeded the 30-second limit"));
-    }, 30000);
+      reject(
+        new BadRequestError(
+          `Document parsing exceeded the ${Math.round(timeoutMs / 1000)}-second limit`,
+        ),
+      );
+    }, timeoutMs);
     worker.once("message", (message: unknown) => {
       clearTimeout(timer);
       void worker.terminate();

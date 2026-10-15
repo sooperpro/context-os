@@ -17,6 +17,7 @@ import {
   projects,
   questions,
   sourceObjects,
+  ssoProviders,
   workspaces,
 } from "../../db/schema.js";
 import { AppError, NotFoundError } from "../../lib/errors.js";
@@ -265,22 +266,33 @@ export function createAdminOverviewRoutes(container: Container) {
       const requests = store
         .listWhere(actor.workspaceId, "role_request", { status: "open" }, 200)
         .map((row) => String(row.data.role));
-      const lastSync = directorySyncRuns(container, actor.workspaceId, 1)[0];
+      const ssoProvider = db
+        .select()
+        .from(ssoProviders)
+        .where(eq(ssoProviders.organizationId, actor.workspaceId))
+        .all()
+        .sort((a, b) => Number(b.domainVerified) - Number(a.domainVerified))[0];
+      const ssoEnforced =
+        db
+          .select({ ssoEnforced: workspaces.ssoEnforced })
+          .from(workspaces)
+          .where(eq(workspaces.id, actor.workspaceId))
+          .get()?.ssoEnforced ?? false;
       const roleName = (role: string) =>
         role === "hr" ? "HR" : role.charAt(0).toUpperCase() + role.slice(1);
       const items: SecurityCheck[] = [
-        env.AUTH_MODE === "clerk"
-          ? { id: "sso", value: "Clerk sign-in · required", state: "ok" }
-          : { id: "sso", value: "Development sign-in · not for production", state: "attention" },
-        env.AUTH_MODE === "clerk"
-          ? {
-              id: "scim",
-              value: lastSync
-                ? `Clerk directory · last run ${lastSync.createdAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`
-                : "Clerk directory · not synced yet",
-              state: lastSync ? "ok" : "attention",
-            }
-          : { id: "scim", value: "Not configured", state: "off" },
+        env.AUTH_MODE !== "accounts"
+          ? { id: "sso", value: "Development sign-in · not for production", state: "attention" }
+          : ssoProvider
+            ? {
+                id: "sso",
+                value: ssoProvider.domainVerified
+                  ? `Company SSO · ${ssoProvider.domain}${ssoEnforced ? " · required" : ""}`
+                  : `Company SSO · verify ${ssoProvider.domain}`,
+                state: ssoProvider.domainVerified ? "ok" : "attention",
+              }
+            : { id: "sso", value: "Email link and Google/Microsoft sign-in", state: "attention" },
+        { id: "scim", value: "Not configured", state: "off" },
         {
           id: "access_policies",
           value: [
@@ -370,7 +382,10 @@ export function createAdminOverviewRoutes(container: Container) {
         .filter((run) => run.createdAt >= since)
         .map((run): SyncRun => ({
           id: run.id,
-          connector: `Directory · ${typeof run.data.provider === "string" ? run.data.provider : "Clerk"}`,
+          connector:
+            typeof run.data.provider === "string"
+              ? `Directory · ${run.data.provider}`
+              : "Directory",
           startedAt: run.createdAt.toISOString(),
           ok: true,
           detail: `${Number(run.data.created ?? 0)} added, ${Number(run.data.updated ?? 0)} updated, ${Number(run.data.deactivated ?? 0)} deactivated`,

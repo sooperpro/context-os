@@ -1,12 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { useBotContext } from "@/components/layout/bot-context";
 import { useState } from "react";
-import { useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { useAssistant } from "@/components/layout/assistant-context";
 import { PageColumns, PageMain, PageSide } from "@/components/layout/page-columns";
 import { PageHeader } from "@/components/layout/page-header";
 import { OnboardingStatusChip } from "@/components/onboarding-status-chip";
 import { SectionCard } from "@/components/section-card";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { ApiClientError } from "@/lib/api-client";
 import { PersonAvatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { DotList } from "@/components/ui/dot-list";
@@ -105,7 +107,21 @@ export function RoadmapPage() {
         }
       />
       {!roadmap ? (
-        query.isError ? (
+        query.error instanceof ApiClientError && query.error.status === 404 ? (
+          // Not onboarding: nothing is wrong, there's just no plan.
+          <Empty className="rounded-card bg-card py-12">
+            <EmptyHeader>
+              <EmptyTitle>You don't have an onboarding roadmap</EmptyTitle>
+              <EmptyDescription>
+                Roadmaps are for people onboarding. Tutorials assigned to you, and ones you can add,
+                are in My learning.
+              </EmptyDescription>
+            </EmptyHeader>
+            <Button nativeButton={false} render={<Link to="/learning" />}>
+              Open My learning
+            </Button>
+          </Empty>
+        ) : query.isError ? (
           <SectionCard title="My roadmap" endpoint={E.roadmap.path} status={query} />
         ) : (
           <div className="flex flex-col gap-4" aria-busy="true" aria-label="Loading your roadmap">

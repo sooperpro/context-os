@@ -5,6 +5,10 @@ export const ApiErrorCodeSchema = z.enum([
   "BAD_REQUEST",
   "UNAUTHENTICATED",
   "FORBIDDEN",
+  /** Signed in, but the session has no workspace chosen (or lost access to it). */
+  "WORKSPACE_REQUIRED",
+  /** The workspace enforces company SSO and this session signed in another way. */
+  "SSO_REQUIRED",
   "CONFLICT",
   "NOT_CONFIGURED",
   "VALIDATION_ERROR",

@@ -15,7 +15,7 @@ const specs = {
   excluded: false,
   backfillFrom: null,
   visibility: "restricted",
-  frequency: "hourly",
+  frequency: "2d",
   status: "live",
   lastSyncRequestedAt: "2026-10-14T09:00:00.000Z",
   lastSyncedAt: "2026-10-14T09:01:00.000Z",

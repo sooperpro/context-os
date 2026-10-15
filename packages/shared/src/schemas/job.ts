@@ -1,7 +1,17 @@
 import { z } from "zod";
 import { IdSchema, IsoDateTimeSchema, listOf } from "./common.js";
 
-export const JobTypeSchema = z.enum(["process_source", "refresh_hub", "sync_connector"]);
+export const JobTypeSchema = z.enum([
+  "process_source",
+  "refresh_hub",
+  "sync_connector",
+  /** One Drive file found by a scope sync: download, store as text, queue processing. */
+  "import_drive_file",
+  /** Work out who may read a scope's files (Drive sharing), in the background. */
+  "refresh_access",
+  /** Draft a tutorial's lessons and knowledge check from a project's knowledge. */
+  "generate_tutorial",
+]);
 export type JobType = z.infer<typeof JobTypeSchema>;
 
 export const JobStatusSchema = z.enum(["queued", "running", "done", "failed"]);

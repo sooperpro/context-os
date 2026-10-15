@@ -1,7 +1,7 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   AssistantContext,
   type AssistantContextValue,
@@ -10,10 +10,14 @@ import { CheckPage } from "@/features/learning/pages/check-page";
 import { LessonPage } from "@/features/learning/pages/lesson-page";
 import { ModulePage } from "@/features/learning/pages/module-page";
 import { RoadmapPage } from "@/features/learning/pages/roadmap-page";
-import { setupMockApi } from "@/test/msw";
+import { employeeHandlers } from "@/test/employee-mocks";
+import { learnerHandlers } from "@/test/learning-mocks";
+import { mockServer, setupMockApi } from "@/test/msw";
 import { renderWithProviders } from "@/test/utils";
 
 setupMockApi();
+// The API serves these screens; the fixtures stand in for it.
+beforeEach(() => mockServer.use(...learnerHandlers(), ...employeeHandlers()));
 
 function renderAt(route: string) {
   const assistant: AssistantContextValue = {

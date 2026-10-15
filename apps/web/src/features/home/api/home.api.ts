@@ -26,15 +26,17 @@ import { apiRequest } from "@/lib/api-client";
 
 /**
  * Every endpoint the Home dashboards read, with the shared schema of its response. The manager's,
- * People Ops' and admin's are served by the API; the employee's mostly are not yet, so in development
- * the mock layer answers them (see src/mocks) and the cards show a "Preview data" chip. The
- * contracts live in packages/shared/src/schemas/home.ts.
+ * People Ops' and admin's are served by the API, as are the employee's knowledge updates, team news
+ * and people to know (apps/api/src/modules/platform/employee.routes.ts). The employee's other cards
+ * are not yet, so in development the mock layer answers them (see src/mocks) and the cards show a
+ * "Preview data" chip. The contracts live in packages/shared/src/schemas/home.ts.
  */
 export const HOME_ENDPOINTS = {
   myOnboarding: { path: "/v1/me/onboarding", schema: MyOnboardingSchema },
   nextUp: { path: "/v1/me/next-up", schema: NextUpResponseSchema },
   myTasks: { path: "/v1/me/tasks", schema: MyTasksSchema },
   milestones: { path: "/v1/me/milestones", schema: MilestoneListSchema },
+  /** Live (platform/employee.routes.ts), as are `teamActivity` and `myPeople`. */
   knowledgeUpdates: { path: "/v1/me/knowledge-updates", schema: KnowledgeUpdateListSchema },
   teamActivity: { path: "/v1/me/team-activity", schema: TeamActivityFeedSchema },
   myPeople: { path: "/v1/me/people", schema: MyPeopleSchema },

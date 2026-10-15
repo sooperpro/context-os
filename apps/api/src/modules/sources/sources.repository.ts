@@ -78,9 +78,21 @@ export function createSourceRepository(db: Db) {
       db.delete(sourceChunks).where(eq(sourceChunks.sourceObjectId, sourceObjectId)).run();
     },
 
+    /** Inserted in batches: a very long document has thousands of chunks. */
     insertChunks(rows: Array<typeof sourceChunks.$inferInsert>): SourceChunkRow[] {
       if (rows.length === 0) return [];
-      return db.insert(sourceChunks).values(rows).returning().all();
+      return db.transaction(() => {
+        const inserted: SourceChunkRow[] = [];
+        for (let start = 0; start < rows.length; start += 500)
+          inserted.push(
+            ...db
+              .insert(sourceChunks)
+              .values(rows.slice(start, start + 500))
+              .returning()
+              .all(),
+          );
+        return inserted;
+      });
     },
 
     setChunkEmbedding(chunkId: string, embedding: Buffer): void {
@@ -96,14 +108,42 @@ export function createSourceRepository(db: Db) {
         .all();
     },
 
-    /** Embedded chunks of *ready* sources, for brute-force vector scoring (pilot scale). */
+    /**
+     * Changes whenever the set of searchable vectors in a project changes (a source becomes ready,
+     * is re-processed or removed), so an in-memory index knows when to reload.
+     */
+    embeddingSignature(projectId: string): string {
+      const row = db
+        .select({
+          total: count(),
+          top: sql<number | null>`max(${sourceChunks}.rowid)`,
+          sum: sql<number | null>`total(${sourceChunks}.rowid)`,
+        })
+        .from(sourceChunks)
+        .innerJoin(sourceObjects, eq(sourceObjects.id, sourceChunks.sourceObjectId))
+        .where(
+          and(
+            eq(sourceChunks.projectId, projectId),
+            eq(sourceObjects.status, "ready"),
+            isNotNull(sourceChunks.embedding),
+          ),
+        )
+        .get();
+      return `${row?.total ?? 0}:${row?.top ?? 0}:${row?.sum ?? 0}`;
+    },
+
+    /** Embedded chunks of *ready* sources, for vector scoring. */
     listEmbeddedChunks(
       projectId: string,
       sourceIds?: string[],
-    ): Array<Pick<SourceChunkRow, "id" | "embedding">> {
+    ): Array<Pick<SourceChunkRow, "id" | "embedding" | "sourceObjectId">> {
       if (sourceIds?.length === 0) return [];
       return db
-        .select({ id: sourceChunks.id, embedding: sourceChunks.embedding })
+        .select({
+          id: sourceChunks.id,
+          embedding: sourceChunks.embedding,
+          sourceObjectId: sourceChunks.sourceObjectId,
+        })
         .from(sourceChunks)
         .innerJoin(sourceObjects, eq(sourceObjects.id, sourceChunks.sourceObjectId))
         .where(

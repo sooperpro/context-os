@@ -92,7 +92,15 @@ export function NotificationsMenu() {
                 key={item.id}
                 className="items-start gap-3 py-2"
                 onClick={() => isUnread(item) && markRead.mutate(item.id)}
-                render={item.data.link ? <Link to={item.data.link} /> : undefined}
+                render={
+                  !item.data.link ? undefined : item.data.link.startsWith("/api/") ? (
+                    // A file from the API (a data export): a real download, not an app route.
+                    // The session cookie goes along, as the API is on this origin.
+                    <a href={item.data.link} download />
+                  ) : (
+                    <Link to={item.data.link} />
+                  )
+                }
               >
                 <span
                   aria-hidden

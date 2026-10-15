@@ -41,11 +41,13 @@ describe("navigation config", () => {
       "templates",
       "people",
       "knowledge",
+      "tutorials",
     ]);
     // The HR pages need the HR role, not just the persona.
     expect(rail("member", "people_ops")).toEqual(["home", "people", "knowledge"]);
     expect(rail("owner", "admin")).toEqual([
       "overview",
+      "tutorials",
       "members",
       "connectors",
       "access",

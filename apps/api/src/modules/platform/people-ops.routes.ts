@@ -89,6 +89,31 @@ export function createPeopleOpsRoutes(container: Container) {
   const within = (fallback: number) =>
     z.object({ within: z.coerce.number().int().min(1).max(365).default(fallback) });
 
+  /**
+   * People Ops sets managers, but not themselves (they'd then recommend and decide the same
+   * probation), and never in a loop (someone managing their own manager).
+   */
+  const checkManager = (actor: Actor, managerId: string, personId: string | null) => {
+    if (managerId === actor.id)
+      throw new BadRequestError("Choose the person's manager, not yourself");
+    if (!personId) return;
+    if (managerId === personId) throw new BadRequestError("Someone can't manage themselves");
+    const seen = new Set<string>();
+    for (let current: string | null = managerId; current && !seen.has(current);) {
+      seen.add(current);
+      if (current === personId)
+        throw new BadRequestError("That would make them manage their own manager");
+      current =
+        db
+          .select({ managerId: memberships.managerId })
+          .from(memberships)
+          .where(
+            and(eq(memberships.workspaceId, actor.workspaceId), eq(memberships.userId, current)),
+          )
+          .get()?.managerId ?? null;
+    }
+  };
+
   return (
     new Hono<AppEnv>()
       .use("/people-ops/*", async (c, next) => {
@@ -319,6 +344,7 @@ export function createPeopleOpsRoutes(container: Container) {
           const actor = c.get("actor");
           const input = c.req.valid("json");
           requirePerson(actor.workspaceId, input.managerId, "The manager");
+          checkManager(actor, input.managerId, null);
           if (input.buddyId) requirePerson(actor.workspaceId, input.buddyId, "The buddy");
           if (input.templateId) requirePublishedTemplate(actor, input.templateId);
           const email = input.email?.toLowerCase() ?? null;
@@ -414,6 +440,7 @@ export function createPeopleOpsRoutes(container: Container) {
           const next: OnboardingData = { ...data, setup: { ...data.setup } };
           if (input.managerId) {
             requirePerson(actor.workspaceId, input.managerId, "The manager");
+            checkManager(actor, input.managerId, data.personId);
             next.managerId = input.managerId;
             // The person's account follows: their manager is the new one.
             if (data.personId)
@@ -547,6 +574,13 @@ export function createPeopleOpsRoutes(container: Container) {
             );
           const input = c.req.valid("json");
           const data = view.data;
+          // The manager recommends, People Ops decides (Spec decision 2): never the same person.
+          if (data.managerId === actor.id)
+            throw new AppError(
+              403,
+              "FORBIDDEN",
+              "You're this person's manager: another People Ops member records the decision",
+            );
           const extension = input.outcome === "extend" ? `${input.extensionDays} days` : null;
           const decision: Decision = {
             outcome: input.outcome === "confirm" ? "confirmed" : "extended",

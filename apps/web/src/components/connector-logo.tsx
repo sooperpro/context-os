@@ -14,6 +14,7 @@ const LOGO: Record<string, string> = {
   "google-drive": "google-icon",
   google: "google-icon",
   google_drive: "google-icon",
+  microsoft: "microsoft",
   onedrive: "microsoft-onedrive",
   dropbox: "dropbox",
   box: "box",

@@ -7,6 +7,7 @@ import {
 import { zValidator } from "@hono/zod-validator";
 import { and, eq, gt, isNull, or } from "drizzle-orm";
 import { Hono } from "hono";
+import { organizationFor } from "../identity/identity.service.js";
 import { z } from "zod";
 import type { Container } from "../../container.js";
 import {
@@ -466,6 +467,9 @@ export function createKnowledgeRoutes(container: Container) {
         throw new AppError(403, "FORBIDDEN", "You cannot verify your own correction");
       if (row.status !== "pending")
         throw new AppError(409, "CONFLICT", "Correction is no longer pending");
+      // Guests don't verify knowledge (PRD §6.4).
+      if (actor.role === "guest")
+        throw new AppError(403, "FORBIDDEN", "Guests can't verify corrections");
       const flag = store.get(actor, "flag", row.parentId!);
       requireFlagAccess(actor, flag);
       const domainOwner = identity.hasAssignment(actor, "domain_owner", row.projectId!);
@@ -662,7 +666,7 @@ export function createKnowledgeRoutes(container: Container) {
         id: user.id,
         name: user.name,
         role: member.role,
-        organization: member.organization,
+        organization: organizationFor(actor, member),
         onboarding,
         // Every active ownership, at any scope: the People profile lists project and section
         // ownership too, so the directory can infer expertise from it.

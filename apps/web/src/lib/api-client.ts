@@ -21,20 +21,6 @@ export class ApiClientError extends Error {
 }
 
 type QueryValue = string | number | boolean | null | undefined;
-type AccessTokenProvider = () => Promise<string | null>;
-
-let accessTokenProvider: AccessTokenProvider | undefined;
-
-/** Connects the framework-agnostic API client to the active auth session. */
-export function setApiAccessTokenProvider(provider?: AccessTokenProvider): void {
-  accessTokenProvider = provider;
-}
-
-/** The Authorization header for the active session, when there is one. */
-export async function apiAuthHeaders(): Promise<Record<string, string>> {
-  const accessToken = await accessTokenProvider?.();
-  return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
-}
 
 /** Throw the server's error envelope (or a generic error) for a non-2xx response. */
 export async function throwApiError(response: Response): Promise<never> {
@@ -44,7 +30,11 @@ export async function throwApiError(response: Response): Promise<never> {
     const { code, message, details, requestId } = parsed.data.error;
     throw new ApiClientError(response.status, code, message, details, requestId);
   }
-  throw new ApiClientError(response.status, "HTTP_ERROR", `Request failed with status ${response.status}`);
+  throw new ApiClientError(
+    response.status,
+    "HTTP_ERROR",
+    `Request failed with status ${response.status}`,
+  );
 }
 
 export interface ApiRequestOptions<TResponse> {
@@ -79,9 +69,9 @@ export async function apiRequest<TResponse>(
 ): Promise<TResponse> {
   const response = await fetch(buildApiUrl(path, query), {
     method,
+    // The session is an HttpOnly cookie on this origin (`/api` is proxied same-origin).
     headers: {
       Accept: "application/json",
-      ...(await apiAuthHeaders()),
       ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,

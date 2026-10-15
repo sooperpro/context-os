@@ -1,6 +1,19 @@
 import { randomUUID } from "node:crypto";
 import type { Job, JobStatus, JobType, SyncStatus } from "@contextos/shared";
-import { and, asc, count, desc, eq, lt, lte, max } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  max,
+  notInArray,
+  or,
+} from "drizzle-orm";
 import type { Db } from "../../db/index.js";
 import { jobs, type JobRow } from "../../db/schema.js";
 
@@ -9,12 +22,22 @@ export interface EnqueueParams {
   type: JobType;
   payload: Record<string, unknown>;
   subject?: string | null;
-  /** Skip when an identical queued job (same type and payload) already exists for the project. */
+  /**
+   * Skip when an equivalent job is already queued: the same type and `concurrencyKey` when one is
+   * given (an indexed lookup), otherwise the same type and payload for the project.
+   */
   dedupe?: boolean;
   maxAttempts?: number;
   /** Delay execution until this time (defaults to now). */
   runAfter?: Date;
+  /** Higher runs first (default 0). Bulk imports use negative values so one-off work isn't stuck. */
+  priority?: number;
+  /** Jobs with the same key never run at the same time, even with several workers. */
+  concurrencyKey?: string;
 }
+
+/** Priorities used across the app: listing a folder is quick; bulk imports wait their turn. */
+export const JOB_PRIORITY = { sync: 10, interactive: 0, bulk: -10 } as const;
 
 const iso = (d: Date | null) => (d ? d.toISOString() : null);
 
@@ -39,7 +62,20 @@ export function toJob(row: JobRow): Job {
 export function createJobQueue(db: Db) {
   return {
     enqueue(params: EnqueueParams): JobRow {
-      if (params.dedupe) {
+      if (params.dedupe && params.concurrencyKey) {
+        const existing = db
+          .select()
+          .from(jobs)
+          .where(
+            and(
+              eq(jobs.concurrencyKey, params.concurrencyKey),
+              eq(jobs.status, "queued"),
+              eq(jobs.type, params.type),
+            ),
+          )
+          .get();
+        if (existing) return existing;
+      } else if (params.dedupe) {
         const existing = db
           .select()
           .from(jobs)
@@ -66,19 +102,34 @@ export function createJobQueue(db: Db) {
           attempts: 0,
           maxAttempts: params.maxAttempts ?? 3,
           runAfter: params.runAfter ?? new Date(),
+          priority: params.priority ?? 0,
+          concurrencyKey: params.concurrencyKey ?? null,
         })
         .returning()
         .get();
     },
 
-    /** Atomically claim the next runnable job (status queued → running). */
+    /**
+     * Atomically claim the next runnable job (status queued → running): highest priority first, then
+     * oldest, skipping any whose concurrency key is held by a running job.
+     */
     claimNext(now = new Date()): JobRow | undefined {
       return db.transaction((tx) => {
+        const busy = tx
+          .select({ key: jobs.concurrencyKey })
+          .from(jobs)
+          .where(and(eq(jobs.status, "running"), isNotNull(jobs.concurrencyKey)));
         const next = tx
           .select()
           .from(jobs)
-          .where(and(eq(jobs.status, "queued"), lte(jobs.runAfter, now)))
-          .orderBy(asc(jobs.createdAt))
+          .where(
+            and(
+              eq(jobs.status, "queued"),
+              lte(jobs.runAfter, now),
+              or(isNull(jobs.concurrencyKey), notInArray(jobs.concurrencyKey, busy)),
+            ),
+          )
+          .orderBy(desc(jobs.priority), asc(jobs.createdAt))
           .limit(1)
           .get();
         if (!next) return undefined;

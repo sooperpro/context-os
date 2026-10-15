@@ -11,8 +11,10 @@ only.
    The current VM address is ephemeral and may change if the instance is stopped.
 2. In GoDaddy DNS for `sooper.pro`, add an A record named `dev.contextos` pointing to that address.
    Leave the apex and `www` records in place; they currently point to Vercel.
-3. In Clerk, allow `https://dev.contextos.sooper.pro` as an authorized frontend origin and verify
-   the dev instance's sign-in URLs. Use the matching dev publishable and secret keys.
+3. Sign-in runs in the API (no external auth service). For "Continue with Google", add
+   `https://dev.contextos.sooper.pro/api/v1/auth/callback/google` to the same OAuth client below;
+   for Microsoft, register `https://dev.contextos.sooper.pro/api/v1/auth/callback/microsoft` on the
+   Entra ID app. Configure an SMTP account for sign-in links and invitations.
 4. In the Google Cloud Console, open the OAuth 2.0 **Web application** client used by this
    deployment and add this exact Authorized redirect URI:
 
@@ -22,6 +24,7 @@ only.
 
    Do not add a trailing slash. It must be the same value as `GOOGLE_REDIRECT_URI`; Google rejects
    an otherwise-valid authorization request when the two differ.
+
 5. Install Docker Engine and the Docker Compose plugin on the Ubuntu VM.
 
 ## Deploy manually
@@ -29,12 +32,12 @@ only.
 Check out the intended Git branch on the VM, then provide the deployment environment without
 committing or uploading secrets to Git:
 
-- `apps/api/.env`: `GEMINI_API_KEY`, Clerk publishable and secret keys, `AUTH_MODE=clerk`, plus any
-  Google Drive connector credentials needed for dev.
-- `.env`: `VITE_CLERK_PUBLISHABLE_KEY` matching the Clerk dev instance.
+- `apps/api/.env`: `GEMINI_API_KEY`, `AUTH_MODE=accounts`, `AUTH_SECRET` (`openssl rand -base64 48`),
+  `AUTH_URL=https://dev.contextos.sooper.pro`, `SMTP_URL` and `EMAIL_FROM`, plus any Google Drive /
+  Microsoft credentials needed for dev.
 
-Set `NODE_ENV=production` in `apps/api/.env`; the API rejects production startup without Clerk
-authentication and HTTPS origins. Restrict the env files to the deployment account (`chmod 600`).
+Set `NODE_ENV=production` in `apps/api/.env`; the API rejects production startup without
+`AUTH_MODE=accounts`, SMTP and HTTPS origins. Restrict the env files to the deployment account (`chmod 600`).
 
 From the repository root, run:
 

@@ -8,6 +8,7 @@ import {
   reciprocalRankFusion,
 } from "../../lib/retrieval.js";
 import type { SourceRepository } from "../sources/sources.repository.js";
+import type { VectorIndex } from "./vector-index.js";
 
 export interface RetrievedPassage {
   chunkId: string;
@@ -20,6 +21,8 @@ export interface RetrievalDeps {
   sources: SourceRepository;
   gemini: GeminiClient;
   logger: Logger;
+  /** In-memory vectors; without it (or for a project too large to cache) vectors come from the DB. */
+  vectors?: VectorIndex;
 }
 
 export interface RetrievalOptions {
@@ -33,7 +36,7 @@ export interface RetrievalOptions {
  * reciprocal rank fusion. Degrades to keyword-only when embeddings fail.
  */
 export async function retrievePassages(
-  { sources, gemini, logger }: RetrievalDeps,
+  { sources, gemini, logger, vectors }: RetrievalDeps,
   projectId: string,
   question: string,
   { limit = 8, candidates = 20, sourceIds }: RetrievalOptions = {},
@@ -51,26 +54,34 @@ export async function retrievePassages(
     }
   }
 
-  const embedded = sources.listEmbeddedChunks(projectId, sourceIds);
-  if (embedded.length > 0) {
+  if (sourceIds?.length !== 0)
     try {
       const [queryVector] = await gemini.embed([question], "RETRIEVAL_QUERY");
       if (queryVector && queryVector.length > 0) {
-        const query = Float32Array.from(queryVector);
-        const scored = embedded
-          .filter((row): row is { id: string; embedding: Buffer } => row.embedding !== null)
-          .map((row) => ({
-            id: row.id,
-            score: cosineSimilarity(query, bufferToFloat32(row.embedding)),
-          }))
-          .sort((a, b) => b.score - a.score)
-          .slice(0, candidates);
-        rankings.push(scored.map((s) => s.id));
+        const cached = vectors?.search(
+          projectId,
+          queryVector,
+          candidates,
+          sourceIds ? new Set(sourceIds) : undefined,
+        );
+        if (cached) rankings.push(cached);
+        else {
+          const query = Float32Array.from(queryVector);
+          const scored = sources
+            .listEmbeddedChunks(projectId, sourceIds)
+            .filter((row): row is typeof row & { embedding: Buffer } => row.embedding !== null)
+            .map((row) => ({
+              id: row.id,
+              score: cosineSimilarity(query, bufferToFloat32(row.embedding)),
+            }))
+            .sort((a, b) => b.score - a.score)
+            .slice(0, candidates);
+          if (scored.length) rankings.push(scored.map((s) => s.id));
+        }
       }
     } catch (error) {
       logger.warn({ err: error }, "Embedding the question failed; using keyword results only");
     }
-  }
 
   const fused = reciprocalRankFusion(rankings).slice(0, limit);
   const rows = sources.getChunksWithSources(fused);

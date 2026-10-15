@@ -1,51 +1,21 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { ThemeProvider } from "@/components/theme-provider";
 import { SettingsPage } from "@/features/settings/pages/settings-page";
 import { buildApiUrl } from "@/lib/api-client";
+import { employeeHandlers } from "@/test/employee-mocks";
 import { mockServer, setupMockApi } from "@/test/msw";
 import { renderWithProviders } from "@/test/utils";
 
 setupMockApi();
 
-const revoke = vi.fn(() => Promise.resolve());
-const activity = (isMobile: boolean, browserName: string, city: string) => ({
-  id: browserName,
-  isMobile,
-  browserName,
-  city,
-  country: "UK",
-});
-
-vi.mock("@clerk/react", () => ({
-  useClerk: () => ({ openUserProfile: vi.fn(), signOut: vi.fn() }),
-  useSession: () => ({ session: { id: "s1" } }),
-  useUser: () => ({
-    user: {
-      id: "user_1",
-      externalAccounts: [{ provider: "google", emailAddress: "maya@tessellate.io" }],
-      primaryEmailAddress: { emailAddress: "maya@tessellate.io" },
-      twoFactorEnabled: false,
-      getSessions: () =>
-        Promise.resolve([
-          {
-            id: "s1",
-            lastActiveAt: new Date(),
-            latestActivity: activity(false, "Chrome", "London"),
-            revoke,
-          },
-          {
-            id: "s2",
-            lastActiveAt: new Date(Date.now() - 7_200_000),
-            latestActivity: activity(true, "Safari", "London"),
-            revoke,
-          },
-        ]),
-    },
-  }),
-}));
+const revoked: string[] = [];
+const MAC_CHROME =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36";
+const IPHONE_SAFARI =
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
 
 function render(route: string) {
   let connectors = [
@@ -58,7 +28,47 @@ function render(route: string) {
       createdAt: "2026-10-06T09:00:00.000Z",
     },
   ];
+  let devices = [
+    {
+      id: "s1",
+      userAgent: MAC_CHROME,
+      ipAddress: null,
+      signInMethod: "google",
+      createdAt: "2026-10-15T08:00:00.000Z",
+      lastActiveAt: new Date().toISOString(),
+      current: true,
+    },
+    {
+      id: "s2",
+      userAgent: IPHONE_SAFARI,
+      ipAddress: null,
+      signInMethod: "magic-link",
+      createdAt: "2026-10-14T08:00:00.000Z",
+      lastActiveAt: new Date(Date.now() - 7_200_000).toISOString(),
+      current: false,
+    },
+  ];
   mockServer.use(
+    // Context Bot preferences and the data export are served by the API; fixtures stand in.
+    ...employeeHandlers(),
+    http.get(buildApiUrl("/v1/session"), () =>
+      HttpResponse.json({
+        authentication: "accounts",
+        user: { id: "u1", name: "Maya Okafor", email: "maya@tessellate.io", image: null },
+        signInMethod: "google",
+        linkedMethods: ["email", "google"],
+        activeWorkspaceId: "w1",
+        workspaces: [
+          { id: "w1", name: "Tessellate", slug: "tessellate", role: "member", ssoRequired: false },
+        ],
+      }),
+    ),
+    http.get(buildApiUrl("/v1/session/devices"), () => HttpResponse.json({ items: devices })),
+    http.delete(buildApiUrl("/v1/session/devices/:id"), ({ params }) => {
+      revoked.push(String(params.id));
+      devices = devices.filter((device) => device.id !== params.id);
+      return new HttpResponse(null, { status: 204 });
+    }),
     http.get(buildApiUrl("/v1/workspaces/current"), () =>
       HttpResponse.json({
         id: "w1",
@@ -92,15 +102,21 @@ function render(route: string) {
 }
 
 describe("Settings · security and preferences", () => {
-  it("shows sign-in and devices from the identity provider, and signs out another device", async () => {
+  it("shows sign-in methods and devices, and signs out another device", async () => {
     const user = userEvent.setup();
     render("/settings?tab=security");
 
-    expect(await screen.findByText("Google Workspace single sign-on")).toBeInTheDocument();
-    const devices = await screen.findByText("Phone · Safari");
-    expect(screen.getByText("Computer · Chrome")).toBeInTheDocument();
-    await user.click(within(devices.closest("li")!).getByRole("button", { name: "Sign out" }));
-    await waitFor(() => expect(revoke).toHaveBeenCalledTimes(1));
+    expect(
+      await screen.findByText("Signed in as maya@tessellate.io. Any of these opens your account."),
+    ).toBeInTheDocument();
+    const google = screen.getByText("Google").closest("li")!;
+    expect(within(google).getByText("This session")).toBeInTheDocument();
+    expect(screen.getByText("Managed by provider")).toBeInTheDocument();
+    const phone = await screen.findByText("iPhone · Safari");
+    expect(screen.getByText("Mac · Chrome")).toBeInTheDocument();
+    await user.click(within(phone.closest("li")!).getByRole("button", { name: "Sign out" }));
+    await waitFor(() => expect(revoked).toEqual(["s2"]));
+    await waitFor(() => expect(screen.queryByText("iPhone · Safari")).not.toBeInTheDocument());
 
     const apps = screen.getByText("Google Drive").closest("li")!;
     await user.click(within(apps).getByRole("button", { name: "Disconnect" }));

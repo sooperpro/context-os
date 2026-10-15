@@ -47,15 +47,30 @@ const EnvSchema = z
     /** Run the background job worker inside this process. */
     WORKER_ENABLED: booleanString.default(true),
     WORKER_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(1000),
+    /** Background jobs run at once (Drive downloads, AI processing). */
+    WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(4),
 
     /** Default workspace for the explicit local-only development actor. */
     WORKSPACE_NAME: z.string().min(1).default("Default workspace"),
     DEV_ACTOR_ID: z.string().min(1).default("dev-user"),
     DEV_ACTOR_NAME: z.string().min(1).default("Developer"),
-    AUTH_MODE: z.enum(["development", "clerk"]).default("development"),
-    CLERK_PUBLISHABLE_KEY: z.string().optional(),
-    CLERK_SECRET_KEY: z.string().optional(),
-    CLERK_WEBHOOK_SIGNING_SECRET: z.string().optional(),
+    /** `accounts`: real sign-in (magic link, Google, Microsoft, company SSO) with our own sessions. */
+    AUTH_MODE: z.enum(["development", "accounts"]).default("development"),
+    /** Signs session cookies and verification tokens. At least 32 random characters. */
+    AUTH_SECRET: z.string().min(32).optional(),
+    /**
+     * Public origin people open the app at (the web origin; `/api` is proxied on it). Sign-in links
+     * and OAuth/SSO callbacks are built from it. Defaults to the first CORS origin.
+     */
+    AUTH_URL: z.url().optional(),
+    /** Sign in with Microsoft (Entra ID). Tenant `common` accepts work and personal accounts. */
+    MICROSOFT_CLIENT_ID: z.string().optional(),
+    MICROSOFT_CLIENT_SECRET: z.string().optional(),
+    MICROSOFT_TENANT_ID: z.string().min(1).default("common"),
+    /** Outgoing email (sign-in links, invitations), e.g. `smtps://user:pass@smtp.example.com:465`. */
+    SMTP_URL: z.url().optional(),
+    EMAIL_FROM: z.string().min(3).default("ContextOS <no-reply@localhost>"),
+    /** Google OAuth client: Drive connector, and "Continue with Google" sign-in. */
     GOOGLE_CLIENT_ID: z.string().optional(),
     GOOGLE_CLIENT_SECRET: z.string().optional(),
     GOOGLE_REDIRECT_URI: z
@@ -65,7 +80,19 @@ const EnvSchema = z
       .string()
       .regex(/^[a-fA-F0-9]{64}$/)
       .optional(),
-    MAX_DOCUMENT_BYTES: z.coerce.number().int().positive().max(50_000_000).default(10_000_000),
+    MAX_DOCUMENT_BYTES: z.coerce.number().int().positive().max(200_000_000).default(50_000_000),
+    /**
+     * Text kept per document (~1,000 pages). Longer documents keep this much, marked truncated;
+     * all of it is searchable in chat.
+     */
+    MAX_SOURCE_TEXT_CHARS: z.coerce.number().int().positive().default(2_000_000),
+    /** Parsing a PDF or Word file runs in a worker thread with these limits. */
+    DOCUMENT_PARSE_TIMEOUT_MS: z.coerce.number().int().positive().default(120_000),
+    DOCUMENT_PARSE_MEMORY_MB: z.coerce.number().int().min(64).default(512),
+    /** Files one Drive folder or shared drive may sync; more are reported, not imported. */
+    DRIVE_MAX_FILES_PER_SCOPE: z.coerce.number().int().positive().default(20_000),
+    /** Sections of ~120k characters the AI reads per document for the Knowledge Hub. */
+    EXTRACTION_MAX_WINDOWS: z.coerce.number().int().min(1).max(20).default(4),
     /** Webhook receivers verify provider signatures with these secrets (503 when unset). */
     SLACK_SIGNING_SECRET: z.string().optional(),
     GITHUB_WEBHOOK_SECRET: z.string().optional(),
@@ -100,18 +127,25 @@ const EnvSchema = z
         path: ["CORS_ORIGINS"],
         message: "At least one exact HTTP(S) browser origin is required",
       });
-    if (value.NODE_ENV === "production" && value.AUTH_MODE !== "clerk") {
+    if (value.NODE_ENV === "production" && value.AUTH_MODE !== "accounts") {
       ctx.addIssue({
         code: "custom",
         path: ["AUTH_MODE"],
-        message: "Production requires Clerk authentication",
+        message: "Production requires AUTH_MODE=accounts",
       });
     }
-    if (value.AUTH_MODE === "clerk" && (!value.CLERK_PUBLISHABLE_KEY || !value.CLERK_SECRET_KEY)) {
+    if (value.AUTH_MODE === "accounts" && !value.AUTH_SECRET) {
       ctx.addIssue({
         code: "custom",
-        path: ["CLERK_SECRET_KEY"],
-        message: "Clerk publishable and secret keys are required",
+        path: ["AUTH_SECRET"],
+        message: "AUTH_SECRET (32+ random characters) is required for sign-in",
+      });
+    }
+    if (value.NODE_ENV === "production" && value.AUTH_MODE === "accounts" && !value.SMTP_URL) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["SMTP_URL"],
+        message: "Production sign-in sends email: SMTP_URL is required",
       });
     }
     if (

@@ -18,7 +18,6 @@ import { Label } from "@/components/ui/label";
 import { OptionList, OptionTile } from "@/components/ui/option-tile";
 import { Spinner } from "@/components/ui/spinner";
 import { useInviteMember } from "@/features/members/api/members.queries";
-import { ApiClientError } from "@/lib/api-client";
 
 const ROLES: Array<{ value: InviteForm["role"]; title: string; description: string }> = [
   {
@@ -48,7 +47,7 @@ interface InviteMemberDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-/** Sends a Clerk organization invitation. The requested application role is applied after acceptance. */
+/** Emails an invitation. The requested role applies when they sign in with that address. */
 export function InviteMemberDialog({ open, onOpenChange }: InviteMemberDialogProps) {
   const invite = useInviteMember();
   // Input type allows the role default; the resolver yields the parsed output type.
@@ -62,14 +61,16 @@ export function InviteMemberDialog({ open, onOpenChange }: InviteMemberDialogPro
     invite.mutate(values, {
       onSuccess: (result) => {
         if (result.status === "already_member") toast.info(`${values.email} is already a member`);
+        else if (result.delivery === "local")
+          toast.success(`Invitation recorded for ${values.email}`, {
+            description: "This environment doesn't send email (development mode).",
+          });
         else toast.success(`Invitation sent to ${values.email}`);
         form.reset();
         onOpenChange(false);
       },
     });
   });
-
-  const notConfigured = invite.error instanceof ApiClientError && invite.error.status === 503;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -78,18 +79,12 @@ export function InviteMemberDialog({ open, onOpenChange }: InviteMemberDialogPro
           <DialogHeader>
             <DialogTitle>Invite a teammate</DialogTitle>
             <DialogDescription>
-              They get an email to join this organization. Their role in ContextOS applies once they
-              accept.
+              They get an email to join this workspace. Their role applies when they sign in with
+              that address.
             </DialogDescription>
           </DialogHeader>
 
-          {notConfigured ? (
-            <Banner
-              tone="warning"
-              title="Invitations need Clerk"
-              description="This environment runs with the local development actor. Set AUTH_MODE=clerk on the API to deliver invitations."
-            />
-          ) : invite.isError ? (
+          {invite.isError ? (
             <Banner
               tone="error"
               title="Could not send the invitation"

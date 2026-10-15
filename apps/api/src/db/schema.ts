@@ -38,6 +38,8 @@ export const workspaces = sqliteTable("workspaces", {
     .notNull()
     .default({}),
   version: integer("version").notNull().default(1),
+  /** Members must sign in through the workspace's company SSO (owners keep a fallback). */
+  ssoEnforced: integer("sso_enforced", { mode: "boolean" }).notNull().default(false),
   createdAt: ts("created_at").notNull().$defaultFn(now),
 });
 
@@ -266,12 +268,18 @@ export const jobs = sqliteTable(
     startedAt: ts("started_at"),
     finishedAt: ts("finished_at"),
     lastError: text("last_error"),
+    /** Higher runs first: one-off work (an upload, a sync listing) goes ahead of bulk imports. */
+    priority: integer("priority").notNull().default(0),
+    /** Jobs sharing a key never run at the same time (one source, one scope, one project's hub). */
+    concurrencyKey: text("concurrency_key"),
     createdAt: ts("created_at").notNull().$defaultFn(now),
     updatedAt: ts("updated_at").notNull().$defaultFn(now),
   },
   (t) => [
     index("jobs_status_run_after_idx").on(t.status, t.runAfter),
     index("jobs_project_status_idx").on(t.projectId, t.status),
+    index("jobs_claim_idx").on(t.status, t.priority, t.createdAt),
+    index("jobs_key_idx").on(t.concurrencyKey, t.status),
   ],
 );
 
@@ -373,12 +381,93 @@ export const teams = sqliteTable(
     uniqueIndex("teams_workspace_department_name_uq").on(t.workspaceId, t.departmentId, t.name),
   ],
 );
-export const organizationLinks = sqliteTable("organization_links", {
-  organizationId: text("organization_id").primaryKey(),
-  workspaceId: text("workspace_id")
-    .notNull()
-    .references(() => workspaces.id, { onDelete: "cascade" }),
+/*
+ * Sign-in (Better Auth). Property names are Better Auth's field names; ids are shared with `users`,
+ * which holds the application profile. Workspaces, memberships, roles and invitations stay in the
+ * application tables above: these hold only identity, sessions and linked sign-in methods.
+ */
+export const authUsers = sqliteTable("auth_users", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  emailVerified: integer("email_verified", { mode: "boolean" }).notNull().default(false),
+  image: text("image"),
+  createdAt: ts("created_at").notNull().$defaultFn(now),
+  updatedAt: ts("updated_at").notNull().$defaultFn(now),
 });
+export const authSessions = sqliteTable(
+  "auth_sessions",
+  {
+    id: text("id").primaryKey(),
+    token: text("token").notNull().unique(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUsers.id, { onDelete: "cascade" }),
+    expiresAt: ts("expires_at").notNull(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    /** Workspace the session is acting in; checked against active membership on every request. */
+    activeWorkspaceId: text("active_workspace_id"),
+    /** How the session signed in: `magic-link`, `social:<provider>` or `sso:<providerId>`. */
+    authMethod: text("auth_method"),
+    createdAt: ts("created_at").notNull().$defaultFn(now),
+    updatedAt: ts("updated_at").notNull().$defaultFn(now),
+  },
+  (t) => [index("auth_sessions_user_idx").on(t.userId)],
+);
+export const authAccounts = sqliteTable(
+  "auth_accounts",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUsers.id, { onDelete: "cascade" }),
+    accountId: text("account_id").notNull(),
+    providerId: text("provider_id").notNull(),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    idToken: text("id_token"),
+    accessTokenExpiresAt: ts("access_token_expires_at"),
+    refreshTokenExpiresAt: ts("refresh_token_expires_at"),
+    scope: text("scope"),
+    password: text("password"),
+    createdAt: ts("created_at").notNull().$defaultFn(now),
+    updatedAt: ts("updated_at").notNull().$defaultFn(now),
+  },
+  (t) => [index("auth_accounts_user_idx").on(t.userId)],
+);
+export const authVerifications = sqliteTable(
+  "auth_verifications",
+  {
+    id: text("id").primaryKey(),
+    identifier: text("identifier").notNull(),
+    value: text("value").notNull(),
+    expiresAt: ts("expires_at").notNull(),
+    createdAt: ts("created_at").notNull().$defaultFn(now),
+    updatedAt: ts("updated_at").notNull().$defaultFn(now),
+  },
+  (t) => [index("auth_verifications_identifier_idx").on(t.identifier)],
+);
+/** Company SSO (OIDC or SAML). `organizationId` is the owning workspace. */
+export const ssoProviders = sqliteTable(
+  "sso_providers",
+  {
+    id: text("id").primaryKey(),
+    providerId: text("provider_id").notNull().unique(),
+    issuer: text("issuer").notNull(),
+    domain: text("domain").notNull(),
+    oidcConfig: text("oidc_config"),
+    samlConfig: text("saml_config"),
+    userId: text("user_id").references(() => authUsers.id, { onDelete: "set null" }),
+    organizationId: text("organization_id").references(() => workspaces.id, {
+      onDelete: "cascade",
+    }),
+    domainVerified: integer("domain_verified", { mode: "boolean" }).notNull().default(false),
+    /** DNS TXT value the workspace publishes to prove it owns `domain`. */
+    verificationToken: text("verification_token"),
+  },
+  (t) => [index("sso_providers_organization_idx").on(t.organizationId)],
+);
 export const assignments = sqliteTable(
   "assignments",
   {
@@ -594,10 +683,7 @@ export const connectorScopes = sqliteTable(
       .notNull()
       .default("restricted"),
     /** Scheduled re-sync (FR-INT-007 polling fallback); the maintenance sweep queues it when due. */
-    syncFrequency: text("sync_frequency")
-      .$type<"15m" | "hourly" | "daily">()
-      .notNull()
-      .default("hourly"),
+    syncFrequency: text("sync_frequency").$type<"2d" | "manual">().notNull().default("2d"),
     cursor: text("cursor", { mode: "json" }).$type<Record<string, unknown>>(),
     status: text("status").notNull().default("selected"),
     lastSyncRequestedAt: ts("last_sync_requested_at"),

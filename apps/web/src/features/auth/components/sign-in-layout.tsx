@@ -4,9 +4,9 @@ import { GroupFilledIcon, RouteIcon, SmartToyFilledIcon } from "@/components/ui/
 import { Shape } from "@/components/ui/shape";
 
 /**
- * Full-screen sign-in frame, from the prototype (`.fr-signin`): a primary-container brand panel with
- * expressive shapes and the pitch on the left, a card on the right. The sign-in and sign-up forms,
- * the Google return and Clerk's workspace chooser render inside the card.
+ * Full-screen sign-in and first-day frame, from the prototype (`.fr-signin`): a primary-container
+ * brand panel with expressive shapes and the pitch on the left, a card on the right. The sign-in
+ * form, the workspace chooser (or any other content) renders inside the card.
  */
 interface SignInLayoutProps {
   /** Card heading, e.g. "Sign in" or "Choose your workspace". */

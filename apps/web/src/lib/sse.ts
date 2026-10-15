@@ -1,4 +1,4 @@
-import { apiAuthHeaders, buildApiUrl, throwApiError } from "@/lib/api-client";
+import { buildApiUrl, throwApiError } from "@/lib/api-client";
 
 export interface ServerEvent {
   event: string;
@@ -59,7 +59,7 @@ interface StreamOptions {
 }
 
 /**
- * Open a server-sent event stream against the API with the same base URL and session token as
+ * Open a server-sent event stream against the API with the same base URL and session cookie as
  * `apiRequest`. Non-2xx responses throw the server's error envelope before any event is read.
  */
 export async function* streamServerEvents(
@@ -70,7 +70,6 @@ export async function* streamServerEvents(
     method,
     headers: {
       Accept: "text/event-stream",
-      ...(await apiAuthHeaders()),
       ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,

@@ -22,6 +22,7 @@ const project = (
   id,
   ...(category ? { category } : {}),
   workspaceId: "99999999-9999-4999-8999-999999999999",
+  slug: null,
   name,
   description: `${name} description`,
   createdAt: "2026-10-01T00:00:00.000Z",

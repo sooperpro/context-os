@@ -62,10 +62,16 @@ export const CONNECTOR_STATE: Record<
   available: { tone: "neutral", icon: LinkOffIcon, short: "Not connected", long: "Not connected" },
 };
 
+/** Sync schedule choices; syncing always runs in the background, never on a page load. */
 export const SYNC_FREQUENCY: Record<SyncFrequency, string> = {
-  "15m": "Every 15 min",
-  hourly: "Hourly",
-  daily: "Daily",
+  "2d": "Every 2 days",
+  manual: "Manual only",
+};
+
+/** The schedule in a sentence: "syncs every 2 days". */
+export const SYNC_PHRASE: Record<SyncFrequency, string> = {
+  "2d": "syncs every 2 days",
+  manual: "syncs when you press Sync now",
 };
 
 /* ---- Access policies ----------------------------------------------------------------------- */

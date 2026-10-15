@@ -14,6 +14,12 @@ import type { Logger } from "../../lib/logger.js";
 import type { JobQueue } from "../jobs/jobs.queue.js";
 import type { BountyService } from "./bounties.js";
 import { addBusinessDays, businessDaysBetween } from "./health.js";
+import {
+  accessJob,
+  scopeSyncJob,
+  syncFrequencyOf,
+  type ScopeCursor,
+} from "../connectors/google-drive.js";
 import { createNotifier } from "./notify.js";
 import { resolveSettings } from "./settings.js";
 import { createPlatformStore } from "./store.js";
@@ -38,11 +44,18 @@ export interface SweepReport {
   flagsEscalated: number;
   workspacesPurged: number;
   connectorSyncsQueued: number;
+  accessRefreshesQueued: number;
   weeklyDigests: number;
 }
 
-/** How long after the last requested sync a scope is due again (FR-INT-007 polling fallback). */
-const SYNC_INTERVAL_MS = { "15m": 15 * 60_000, hourly: 3_600_000, daily: 86_400_000 } as const;
+/**
+ * Background schedule for connected folders (FR-INT-007 polling fallback). Files re-sync every two
+ * days unless the folder is manual-only; who may read restricted files is refreshed more often, as
+ * that's what keeps access close to Drive's sharing. Both are metadata listings plus work for what
+ * changed, never run on a page load.
+ */
+const SYNC_INTERVAL_MS = { "2d": 2 * 86_400_000, manual: null } as const;
+const ACCESS_REFRESH_MS = 6 * 3_600_000;
 
 const OWNERSHIP_BOUNTY_RP = 30;
 const OWNERSHIP_GRACE_DAYS = 7;
@@ -71,6 +84,7 @@ export function createSweeps({ db, bounties, logger, queue }: SweepDeps) {
         flagsEscalated: 0,
         workspacesPurged: 0,
         connectorSyncsQueued: 0,
+        accessRefreshesQueued: 0,
         weeklyDigests: 0,
       };
       // Selected connector scopes re-sync on their schedule while their account is connected.
@@ -89,24 +103,30 @@ export function createSweeps({ db, bounties, logger, queue }: SweepDeps) {
             ),
           )
           .all()) {
-          if (scope.status === "needs_reauth") continue;
+          if (scope.status === "needs_reauth" || connection.status !== "connected") continue;
+          const interval = SYNC_INTERVAL_MS[syncFrequencyOf(scope)];
           const last = scope.lastSyncRequestedAt?.getTime() ?? 0;
-          if (now.getTime() - last < SYNC_INTERVAL_MS[scope.syncFrequency]) continue;
-          db.update(connectorScopes)
-            .set({
-              lastSyncRequestedAt: now,
-              status: scope.lastSyncedAt ? scope.status : "backfilling",
-            })
-            .where(eq(connectorScopes.id, scope.id))
-            .run();
-          queue.enqueue({
-            projectId: scope.projectId,
-            type: "sync_connector",
-            payload: { connectionId: connection.id, scopeId: scope.id },
-            subject: scope.name,
-            dedupe: true,
-          });
-          report.connectorSyncsQueued += 1;
+          if (interval !== null && now.getTime() - last >= interval) {
+            db.update(connectorScopes)
+              .set({
+                lastSyncRequestedAt: now,
+                status: scope.lastSyncedAt ? scope.status : "backfilling",
+              })
+              .where(eq(connectorScopes.id, scope.id))
+              .run();
+            queue.enqueue(scopeSyncJob(scope));
+            report.connectorSyncsQueued += 1;
+            continue; // The sync queues its own access refresh.
+          }
+          const accessSyncedAt = (scope.cursor as ScopeCursor | null)?.accessSyncedAt;
+          if (
+            scope.visibility === "restricted" &&
+            scope.lastSyncedAt &&
+            now.getTime() - (accessSyncedAt ? Date.parse(accessSyncedAt) : 0) >= ACCESS_REFRESH_MS
+          ) {
+            queue.enqueue(accessJob(scope));
+            report.accessRefreshesQueued += 1;
+          }
         }
       for (const workspace of db.select().from(workspaces).all()) {
         const settings = resolveSettings(workspace.settings);

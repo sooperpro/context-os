@@ -49,7 +49,7 @@ function useInvalidating<TInput, TResult>(
   });
 }
 
-/** Sends a Clerk organization invitation. The API returns 503 until Clerk is configured. */
+/** Emails an invitation; development mode records it without sending. */
 export const useInviteMember = () =>
   useInvalidating((input: InviteForm) => inviteMember(input), membersKeys.all);
 /** Role, status, manager or guest expiry. The API protects the last owner and ownership changes. */

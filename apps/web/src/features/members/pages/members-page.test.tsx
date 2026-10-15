@@ -39,7 +39,7 @@ function liveApi(role = "owner") {
       HttpResponse.json({
         seats: { used: 3, total: 450 },
         directorySync: {
-          provider: "Clerk",
+          provider: "ContextOS sign-in",
           enabled: true,
           lastRunAt: "2026-10-14T08:00:00.000Z",
         },
@@ -128,7 +128,7 @@ describe("MembersPage", () => {
     ).toBeDisabled();
     expect(within(table).getByRole("combobox", { name: "Role for Maya Okafor" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Invite people" })).toBeInTheDocument();
-    expect(await screen.findByText(/Synced from Clerk at/)).toBeInTheDocument();
+    expect(await screen.findByText(/Synced from ContextOS sign-in at/)).toBeInTheDocument();
   });
 
   it("asks before making someone an admin, then changes the role", async () => {

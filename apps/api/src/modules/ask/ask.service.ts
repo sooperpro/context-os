@@ -12,6 +12,7 @@ import { AnswerOutputSchema } from "./answer.schema.js";
 import type { AskRepository } from "./ask.repository.js";
 import { isRestrictedTopic, RESTRICTED_ANSWER } from "./restricted.js";
 import { retrievePassages, type RetrievedPassage } from "./retrieval.js";
+import { createVectorIndex } from "./vector-index.js";
 import type { IdentityService } from "../identity/identity.service.js";
 
 export interface AskServiceDeps {
@@ -47,6 +48,7 @@ export function createAskService({
   logger,
   identity,
 }: AskServiceDeps) {
+  const vectors = createVectorIndex(sources);
   const formatPassage = (index: number, passage: RetrievedPassage): string => {
     const s = passage.source;
     const meta = [
@@ -92,7 +94,7 @@ export function createAskService({
       const answerable = new Set(identity.answerableSourceIds(actor, project.id));
       const passages = restricted
         ? []
-        : await retrievePassages({ sources, gemini, logger }, project.id, input.question, {
+        : await retrievePassages({ sources, gemini, logger, vectors }, project.id, input.question, {
             sourceIds: [...answerable].filter((id) => !sourceId || id === sourceId),
           });
 
@@ -215,7 +217,6 @@ export function createAskService({
         };
       }
 
-      await identity.refreshSourceAccess(actor);
       const currentSources = new Set(identity.answerableSourceIds(actor, project.id));
       if (!generationSourceIds.every((sourceId) => currentSources.has(sourceId))) {
         draft = insufficientAnswer(

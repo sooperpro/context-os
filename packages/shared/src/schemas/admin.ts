@@ -167,6 +167,8 @@ export const AdminConnectorScopeSchema = z.object({
   itemCount: Count,
   lastSyncedAt: IsoDateTimeSchema.nullable(),
   lastError: z.string().nullable(),
+  /** What the last sync left out and why: "8 Sheets or Slides skipped · 2 over 50 MB". */
+  note: z.string().nullable().optional(),
   frequency: SyncFrequencySchema,
   visibility: ScopeVisibilitySchema,
 });

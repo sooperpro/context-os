@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Container } from "../../container.js";
-import { users } from "../../db/schema.js";
+import { assignments, users } from "../../db/schema.js";
 import { AppError, BadRequestError, NotFoundError } from "../../lib/errors.js";
 import { validationHook } from "../../middleware/validation.js";
 import type { Actor, AppEnv } from "../../types.js";
@@ -140,9 +140,10 @@ export function createLearningRoutes(container: Container) {
   const assignment = (actor: Actor, id: string) => {
     const row = store.get(actor, "path_assignment", id);
     identity.requireProject(actor, row.projectId!);
+    // The learner, their manager, and their mentor while the mentor assignment is live.
     if (
       row.ownerId !== actor.id &&
-      row.data.mentorId !== actor.id &&
+      !(row.data.mentorId === actor.id && identity.hasAssignment(actor, "mentor", row.ownerId)) &&
       identity.requireMember(actor.workspaceId, row.ownerId).managerId !== actor.id
     )
       throw new NotFoundError("Path assignment");
@@ -280,9 +281,13 @@ export function createLearningRoutes(container: Container) {
       const input = c.req.valid("json");
       requireCurator(actor, input.projectId);
       const project = identity.requireProject(actor, input.projectId);
+      // A path is read by people other than its curator: it only draws on knowledge whose every
+      // source the curator may use (exclude policies included), like answers and tutorials.
+      const answerable = new Set(identity.answerableSourceIds(actor, project.id));
       const current = services.context
         .listItems(project, undefined, actor)
-        .filter((item) => !["disputed", "superseded", "stale"].includes(item.verification));
+        .filter((item) => !["disputed", "superseded", "stale"].includes(item.verification))
+        .filter((item) => item.evidence.every((entry) => answerable.has(entry.sourceObjectId)));
       if (!current.length)
         throw new AppError(
           409,
@@ -480,15 +485,48 @@ export function createLearningRoutes(container: Container) {
       const path = store.get(actor, "learning_path", c.req.param("id"));
       const input = c.req.valid("json");
       const learnerMember = identity.requireMember(actor.workspaceId, input.userId);
-      // Curators, managers of the learner, and the learner's mentor may assign (PRD §6.4).
+      // Owners and admins, the learner's manager, and their mentor may assign (PRD §6.4: "Assign
+      // path to a person: Manager, own reports; Member, as Mentor"). Curating a path isn't enough.
       if (
-        !curated(actor, path.projectId!) &&
+        !["owner", "admin"].includes(actor.role) &&
         learnerMember.managerId !== actor.id &&
         !identity.hasAssignment(actor, "mentor", input.userId)
       )
-        throw new AppError(403, "FORBIDDEN", "Path curator, manager or mentor rights are required");
+        throw new AppError(
+          403,
+          "FORBIDDEN",
+          "Manager or mentor rights over this person are required",
+        );
       identity.requireProject(actor, path.projectId!);
-      if (input.mentorId) identity.requireMember(actor.workspaceId, input.mentorId);
+      if (input.mentorId) {
+        // The mentor follows this learner's progress (people data). Naming one grants that for this
+        // learner, but only for someone who could grant it anyway (owners, admins, the learner's
+        // manager), and never yourself; anyone else must name an already-assigned mentor.
+        const mentor = identity.requireMember(actor.workspaceId, input.mentorId);
+        const assigned = identity.hasAssignment(
+          { ...actor, id: input.mentorId, role: mentor.role },
+          "mentor",
+          input.userId,
+        );
+        if (!assigned) {
+          if (input.mentorId === actor.id)
+            throw new AppError(403, "FORBIDDEN", "You can't name yourself as their mentor");
+          if (!["owner", "admin"].includes(actor.role) && learnerMember.managerId !== actor.id)
+            throw new BadRequestError("Name someone who is assigned as this person's mentor");
+          if (mentor.role === "guest") throw new BadRequestError("Guests can't mentor");
+          db.insert(assignments)
+            .values({
+              id: randomUUID(),
+              workspaceId: actor.workspaceId,
+              userId: input.mentorId,
+              type: "mentor",
+              scopeType: "user",
+              scopeId: input.userId,
+              expiresAt: null,
+            })
+            .run();
+        }
+      }
       if (input.userId === input.mentorId)
         throw new BadRequestError("Mentor and learner must be different people");
       if (path.status !== "published" || typeof path.data.publishedVersionId !== "string")
@@ -557,7 +595,8 @@ export function createLearningRoutes(container: Container) {
       const row = assignment(actor, c.req.param("id"));
       const settings = workspaceSettings(db, actor.workspaceId);
       const progress = store.listChildren(actor, "item_progress", row.id);
-      const path = render(learnerActor(actor, row), pathForAssignment(row));
+      // Rendered with the viewer's own access: a manager or mentor sees only what they may open.
+      const path = render(actor, pathForAssignment(row));
       const required = path.data.items.filter((item) => item.required !== false);
       const done = new Set(
         progress

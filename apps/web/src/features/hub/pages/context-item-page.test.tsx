@@ -92,6 +92,7 @@ function liveProject() {
         project: {
           id: PROJECT,
           workspaceId: "99999999-9999-4999-8999-999999999999",
+          slug: null,
           name: "Project Kestrel",
           description: null,
           createdAt: at,
@@ -126,6 +127,7 @@ function liveProject() {
           {
             id: PROJECT,
             workspaceId: "99999999-9999-4999-8999-999999999999",
+            slug: null,
             name: "Project Kestrel",
             description: null,
             createdAt: at,
@@ -207,6 +209,21 @@ describe("Knowledge item page", () => {
 
   it("saves an item and lists it under Saved in the Knowledge Hub", async () => {
     liveProject();
+    const saved: Array<{
+      targetType: string;
+      targetId: string;
+      projectId: string;
+      savedAt: string;
+    }> = [];
+    mockServer.use(
+      http.get(buildApiUrl("/v1/me/saved"), () => HttpResponse.json({ items: saved })),
+      http.put(buildApiUrl("/v1/me/saved/:id"), async ({ params, request }) => {
+        const input = (await request.json()) as { targetType: string; projectId: string };
+        const entry = { ...input, targetId: String(params.id), savedAt: at };
+        saved.unshift(entry);
+        return HttpResponse.json(entry);
+      }),
+    );
     const user = userEvent.setup();
     renderAt(`/projects/${PROJECT}/items/${ids.ledger}`);
 

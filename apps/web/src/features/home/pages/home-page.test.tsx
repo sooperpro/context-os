@@ -10,7 +10,9 @@ import {
 import { HomePage } from "@/features/home/pages/home-page";
 import { getPreviewPersona, setPreviewPersona } from "@/features/workspace/viewer";
 import { buildApiUrl } from "@/lib/api-client";
+import { employeeHandlers } from "@/test/employee-mocks";
 import { mockServer, setupMockApi } from "@/test/msw";
+import { learnerHandlers } from "@/test/learning-mocks";
 import { managerHandlers } from "@/test/manager-mocks";
 import { peopleOpsHandlers } from "@/test/people-ops-mocks";
 import { renderWithProviders } from "@/test/utils";
@@ -22,9 +24,12 @@ const api = (path: string) => buildApiUrl(path);
 /** The live endpoints Home reads; the rest come from the mock layer. */
 function live({ role = "member", connectors = [] as object[], audit = [] as object[] } = {}) {
   mockServer.use(
-    // HR and manager Home's endpoints are live too; these fixtures stand in for the API.
+    // HR and manager Home's endpoints are live too, as are some of the employee's; these fixtures
+    // stand in for the API.
     ...peopleOpsHandlers(),
     ...managerHandlers(),
+    ...employeeHandlers(),
+    ...learnerHandlers(),
     http.get(api("/v1/workspaces/current"), () =>
       HttpResponse.json({ id: "w1", name: "Tessellate", role, authentication: "development" }),
     ),
@@ -76,7 +81,7 @@ function live({ role = "member", connectors = [] as object[], audit = [] as obje
     http.get(api("/v1/admin/security"), () =>
       HttpResponse.json({
         items: [
-          { id: "sso", value: "Clerk sign-in · required", state: "ok" },
+          { id: "sso", value: "Company SSO · tessellate.io · required", state: "ok" },
           { id: "scim", value: "Not configured", state: "off" },
         ],
       }),
@@ -125,7 +130,7 @@ function renderHome(route = "/") {
 
 describe("HomePage", () => {
   afterEach(() => setPreviewPersona(null));
-  it("shows a member the employee Home, with preview data marked", async () => {
+  it("shows a member the employee Home from live data", async () => {
     live({ role: "member" });
     const assistant = renderHome();
 
@@ -136,7 +141,8 @@ describe("HomePage", () => {
     expect(
       await screen.findByRole("img", { name: /Onboarding 18% complete, day 9 of 90/ }),
     ).toBeInTheDocument();
-    expect((await screen.findAllByText("Preview data")).length).toBeGreaterThan(3);
+    // Everything on it is served by the API now: nothing is marked as preview data.
+    expect(screen.queryByText("Preview data")).not.toBeInTheDocument();
 
     const week = screen.getByRole("region", { name: "This week" });
     const user = userEvent.setup();
@@ -290,7 +296,7 @@ describe("HomePage", () => {
     expect(within(sync).queryByText("Preview data")).not.toBeInTheDocument();
     expect(
       await within(screen.getByRole("region", { name: "Access & security" })).findByText(
-        "Clerk sign-in · required",
+        "Company SSO · tessellate.io · required",
       ),
     ).toBeInTheDocument();
   });

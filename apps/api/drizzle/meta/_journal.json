@@ -71,6 +71,34 @@
       "when": 1791996305760,
       "tag": "0009_connector_scope_schedule",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1792058504963,
+      "tag": "0010_sync_scale",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1792059377611,
+      "tag": "0011_normalize_sync_frequency",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1792061327744,
+      "tag": "0012_better_auth",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1792061396812,
+      "tag": "0013_drop_clerk_organization_links",
+      "breakpoints": true
     }
   ]
 }

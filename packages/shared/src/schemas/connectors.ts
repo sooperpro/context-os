@@ -25,8 +25,11 @@ export const ScopeStatusSchema = z.enum([
   "degraded",
   "needs_reauth",
 ]);
-/** How often a selected scope re-syncs on its own (manual "Sync now" is always available). */
-export const SyncFrequencySchema = z.enum(["15m", "hourly", "daily"]);
+/**
+ * How often a selected scope re-syncs its files on its own: every two days, or only when someone
+ * presses "Sync now" (always available). Syncing is a background job; nothing syncs on page load.
+ */
+export const SyncFrequencySchema = z.enum(["2d", "manual"]);
 export type SyncFrequency = z.infer<typeof SyncFrequencySchema>;
 /** Who can read what a scope imports: everyone in the workspace, or only people whose own account opens it in the tool. */
 export const ScopeVisibilitySchema = z.enum(["workspace", "restricted"]);

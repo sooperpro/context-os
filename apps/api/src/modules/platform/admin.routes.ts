@@ -6,6 +6,7 @@ import {
   departments,
   memberships,
   pointsLedger,
+  sourceObjects,
   teams,
   users,
   workspaces,
@@ -54,24 +55,48 @@ export function createAdminRoutes(container: Container) {
       .innerJoin(memberships, eq(memberships.userId, users.id))
       .where(eq(memberships.workspaceId, actor.workspaceId))
       .all();
+    // People data (onboarding plans, check-ins, learning assignments, continuity checklists) is not
+    // exported: admin rights don't grant it (Spec §3). Knowledge-derived records and audit entries
+    // of a project come only when the admin can open every source in it, as on the audit log page.
+    const fullyVisible = new Map<string, boolean>();
+    const visibleProject = (projectId: string | null) => {
+      if (!projectId) return true;
+      if (!fullyVisible.has(projectId))
+        try {
+          const allowed = new Set(identity.visibleSourceIds(actor, projectId));
+          fullyVisible.set(
+            projectId,
+            db
+              .select({ id: sourceObjects.id })
+              .from(sourceObjects)
+              .where(eq(sourceObjects.projectId, projectId))
+              .all()
+              .every((source) => allowed.has(source.id)),
+          );
+        } catch {
+          fullyVisible.set(projectId, false);
+        }
+      return fullyVisible.get(projectId)!;
+    };
     const kinds = [
       "flag",
       "correction",
       "bounty",
       "learning_path",
       "path_version",
-      "path_assignment",
-      "onboarding_plan",
-      "checkin",
       "reward_item",
       "redemption",
       "kudos",
       "badge",
       "invitation",
-      "continuity_checklist",
     ];
     const records = Object.fromEntries(
-      kinds.map((kind) => [kind, store.listWhere(actor.workspaceId, kind, {}, 5000)]),
+      kinds.map((kind) => [
+        kind,
+        store
+          .listWhere(actor.workspaceId, kind, {}, 5000)
+          .filter((row) => visibleProject(row.projectId)),
+      ]),
     );
     const payload = {
       exportedAt: new Date().toISOString(),
@@ -91,7 +116,12 @@ export function createAdminRoutes(container: Container) {
         .from(pointsLedger)
         .where(eq(pointsLedger.workspaceId, actor.workspaceId))
         .all(),
-      auditLog: db.select().from(auditLog).where(eq(auditLog.workspaceId, actor.workspaceId)).all(),
+      auditLog: db
+        .select()
+        .from(auditLog)
+        .where(eq(auditLog.workspaceId, actor.workspaceId))
+        .all()
+        .filter((row) => visibleProject(row.projectId)),
       note: "Ask conversations are private to each asker and are not included (decision D1). Encrypted shipping and provider credentials are never exported.",
     };
     audit.record({

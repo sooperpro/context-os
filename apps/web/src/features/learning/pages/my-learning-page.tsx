@@ -33,6 +33,7 @@ import { StatusChip } from "@/components/ui/status-chip";
 import { meQuery } from "@/features/account/api/account.queries";
 import { LEARNING_ENDPOINTS as E } from "@/features/learning/api/learning.api";
 import { myLearningQuery, useAddCourse } from "@/features/learning/api/learning.queries";
+import { modulePath } from "@/features/learning/learning-meta";
 import { comingSoon } from "@/lib/coming-soon";
 import { formatShortDate } from "@/lib/format";
 
@@ -126,13 +127,25 @@ export function MyLearningPage() {
                       ) : null}
                     </SegmentedItemBody>
                     <SegmentedItemTrail className="ps-14 @min-[640px]:ps-0">
-                      <Button
-                        size="xs"
-                        variant={started ? "default" : "secondary"}
-                        onClick={() => comingSoon("Courses")}
-                      >
-                        {started ? "Resume" : "Start"}
-                      </Button>
+                      {course.id.startsWith("tutorial-") ? (
+                        // Tutorials open as a module: lessons, then the knowledge check.
+                        <Button
+                          size="xs"
+                          variant={started ? "default" : "secondary"}
+                          nativeButton={false}
+                          render={<Link to={modulePath(course.id)} />}
+                        >
+                          {started ? "Resume" : "Start"}
+                        </Button>
+                      ) : (
+                        <Button
+                          size="xs"
+                          variant={started ? "default" : "secondary"}
+                          onClick={() => comingSoon("Courses")}
+                        >
+                          {started ? "Resume" : "Start"}
+                        </Button>
+                      )}
                     </SegmentedItemTrail>
                   </SegmentedItem>
                 );

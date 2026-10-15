@@ -16,6 +16,7 @@ const hub = {
   project: {
     id: PROJECT,
     workspaceId: "99999999-9999-4999-8999-999999999999",
+    slug: null,
     name: "Kestrel",
     description: null,
     createdAt: "2026-10-01T00:00:00.000Z",

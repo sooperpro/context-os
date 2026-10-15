@@ -1,4 +1,4 @@
-import { useClerk, useOrganizationList, useUser } from "@clerk/react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router";
 import type { Theme } from "@/components/theme-context";
 import {
@@ -32,6 +32,8 @@ import {
   PersonIcon,
   type MaterialIcon,
 } from "@/components/ui/icons";
+import { selectWorkspace, signOut } from "@/features/auth/api/auth.api";
+import { authKeys, sessionQuery } from "@/features/auth/api/auth.queries";
 import { useTheme } from "@/hooks/use-theme";
 import { initialsOf } from "@/lib/format";
 
@@ -47,19 +49,31 @@ const THEMES: Array<{
 ];
 
 /**
- * The prototype's account menu on our own avatar: name and email, account management (Clerk's
- * profile), theme with "Match system", workspace switching, and sign out.
+ * The prototype's account menu on our own avatar: name and email, sign-in and security (settings),
+ * theme with "Match system", workspace switching, and sign out.
  */
 export function AccountMenu() {
-  const { user } = useUser();
-  const clerk = useClerk();
+  const { data: session } = useQuery(sessionQuery());
+  const queryClient = useQueryClient();
   const { theme, setTheme } = useTheme();
-  const organizations = useOrganizationList({ userMemberships: true });
+  const switchWorkspace = useMutation({
+    mutationFn: selectWorkspace,
+    onSuccess: (next) => {
+      // Everything cached belongs to the previous workspace.
+      queryClient.clear();
+      queryClient.setQueryData(authKeys.session(), next);
+    },
+  });
+  const signOutNow = useMutation({
+    mutationFn: signOut,
+    onSuccess: () => window.location.assign("/"),
+  });
 
-  const name = user?.fullName ?? user?.firstName ?? "Account";
-  const email = user?.primaryEmailAddress?.emailAddress;
-  const memberships = organizations.isLoaded ? organizations.userMemberships.data : [];
-  const activeOrganizationId = clerk.organization?.id ?? "";
+  const user = session?.user;
+  const name = user?.name ?? "Account";
+  const email = user?.email ?? undefined;
+  const workspaces = session?.workspaces ?? [];
+  const activeWorkspaceId = session?.activeWorkspaceId ?? "";
   // Your avatar wears your shape, as on your profile (prototype `.avatar.shape-*`).
   const tone = avatarToneFor(user?.id ?? "account");
   const shape = avatarShapeFor(user?.id ?? "account");
@@ -76,14 +90,14 @@ export function AccountMenu() {
         }
       >
         <Avatar size="sm" tone={tone} shape={shape}>
-          {user?.imageUrl ? <AvatarImage src={user.imageUrl} alt="" /> : null}
+          {user?.image ? <AvatarImage src={user.image} alt="" /> : null}
           <AvatarFallback>{initialsOf(name) || "?"}</AvatarFallback>
         </Avatar>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" sideOffset={6}>
         <div className="flex items-center gap-3 p-3">
           <Avatar size="lg" tone={tone} shape={shape}>
-            {user?.imageUrl ? <AvatarImage src={user.imageUrl} alt="" /> : null}
+            {user?.image ? <AvatarImage src={user.image} alt="" /> : null}
             <AvatarFallback>{initialsOf(name) || "?"}</AvatarFallback>
           </Avatar>
           <div className="min-w-0">
@@ -98,7 +112,7 @@ export function AccountMenu() {
         <DropdownMenuItem render={<Link to="/settings?tab=notifications" />}>
           <NotificationsIcon /> Notifications
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => clerk.openUserProfile()}>
+        <DropdownMenuItem render={<Link to="/settings?tab=security" />}>
           <ManageAccountsIcon /> Sign-in and security
         </DropdownMenuItem>
         <DropdownMenuSeparator />
@@ -111,31 +125,39 @@ export function AccountMenu() {
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>
-        {memberships.length > 1 ? (
+        {workspaces.length > 1 ? (
           <>
             <DropdownMenuSeparator />
             <DropdownMenuRadioGroup
-              value={activeOrganizationId}
-              onValueChange={(organizationId: string) =>
-                void organizations.setActive?.({ organization: organizationId })
-              }
+              value={activeWorkspaceId}
+              onValueChange={(workspaceId: string) => switchWorkspace.mutate(workspaceId)}
             >
               <DropdownMenuLabel>Workspace</DropdownMenuLabel>
-              {memberships.map((membership) => (
-                <DropdownMenuRadioItem
-                  key={membership.organization.id}
-                  value={membership.organization.id}
-                >
-                  {membership.organization.name}
+              {workspaces.map((workspace) => (
+                <DropdownMenuRadioItem key={workspace.id} value={workspace.id}>
+                  {workspace.name}
                 </DropdownMenuRadioItem>
               ))}
             </DropdownMenuRadioGroup>
           </>
         ) : null}
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => void clerk.signOut({ redirectUrl: "/" })}>
-          <LogoutIcon /> Sign out
-        </DropdownMenuItem>
+        {session?.authentication === "development" ? (
+          <>
+            {/* Local development has one built-in user and no sign-in, so there is no session to end. */}
+            <DropdownMenuItem disabled>
+              <LogoutIcon /> Sign out
+            </DropdownMenuItem>
+            <p className="max-w-64 px-3 pb-2 text-xs text-on-surface-variant">
+              Development mode has no sign-in. Set AUTH_MODE=accounts in apps/api/.env to sign in
+              and out with real accounts.
+            </p>
+          </>
+        ) : (
+          <DropdownMenuItem disabled={signOutNow.isPending} onClick={() => signOutNow.mutate()}>
+            <LogoutIcon /> Sign out
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -3,6 +3,7 @@ import { RootLayout } from "@/app/root-layout";
 import { RedirectHome } from "@/components/redirect-home";
 import { RouteErrorBoundary } from "@/components/route-error-boundary";
 import { HrOnly } from "@/features/people-ops/components/hr-only";
+import { CuratorOnly } from "@/features/tutorials/components/curator-only";
 import { HIDDEN } from "@/lib/hidden";
 import { NotFoundPage } from "@/pages/not-found-page";
 
@@ -219,6 +220,33 @@ const appChildren = [
           <HrOnly>
             <TemplateEditorPage />
           </HrOnly>
+        ),
+      };
+    },
+  },
+  {
+    path: "tutorials",
+    lazy: async () => {
+      const { TutorialsPage } = await import("@/features/tutorials/pages/tutorials-page");
+      return {
+        Component: () => (
+          <CuratorOnly>
+            <TutorialsPage />
+          </CuratorOnly>
+        ),
+      };
+    },
+  },
+  {
+    path: "tutorials/:tutorialId",
+    lazy: async () => {
+      const { TutorialStudioPage } =
+        await import("@/features/tutorials/pages/tutorial-studio-page");
+      return {
+        Component: () => (
+          <CuratorOnly>
+            <TutorialStudioPage />
+          </CuratorOnly>
         ),
       };
     },

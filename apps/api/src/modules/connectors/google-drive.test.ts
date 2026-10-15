@@ -4,6 +4,8 @@ import { and, eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   connectorConnections,
+  connectorScopes,
+  identityLinks,
   jobs,
   memberships,
   oauthStates,
@@ -13,7 +15,7 @@ import {
 } from "../../db/schema.js";
 import { openCredentials } from "../../lib/credentials.js";
 import { createProject, createTestApp, jsonRequest, type TestApp } from "../../test/helpers.js";
-import { createGoogleDriveService } from "./google-drive.js";
+import { accessJob, createGoogleDriveService } from "./google-drive.js";
 
 const provider = vi.hoisted(() => ({
   getToken: vi.fn(),
@@ -21,14 +23,17 @@ const provider = vi.hoisted(() => ({
   get: vi.fn(),
   exportFile: vi.fn(),
   list: vi.fn(),
+  permissions: vi.fn(),
   revokeToken: vi.fn(),
 }));
 vi.mock("googleapis", () => ({
   google: {
     auth: {
       OAuth2: class {
-        setCredentials() {
-          /* Credentials are intentionally inert in this provider fake. */
+        credentials: { access_token?: string } = {};
+        /** Kept so the fake can answer per account (whose Drive is listing). */
+        setCredentials(credentials: { access_token?: string }) {
+          this.credentials = credentials;
         }
         on() {
           /* Refresh callbacks are not emitted by this provider fake. */
@@ -41,8 +46,14 @@ vi.mock("googleapis", () => ({
         revokeToken = provider.revokeToken;
       },
     },
-    drive: () => ({
-      files: { get: provider.get, export: provider.exportFile, list: provider.list },
+    drive: ({ auth }: { auth?: { credentials?: { access_token?: string } } }) => ({
+      files: {
+        get: provider.get,
+        export: provider.exportFile,
+        list: (params: unknown) =>
+          provider.list(params, auth?.credentials?.access_token) as Promise<unknown>,
+      },
+      permissions: { list: provider.permissions },
     }),
   },
 }));
@@ -114,7 +125,7 @@ describe("Google Drive provider contract (mocked, not live verification)", () =>
     expect(t.container.db.select().from(oauthStates).all()).toEqual([]);
     await expect(service.callback(state, "test-code")).rejects.toMatchObject({ status: 400 });
     expect(provider.getToken).toHaveBeenCalledTimes(1);
-    const list = await (await t.app.request("/api/v1/connectors")).json();
+    const list: unknown = await (await t.app.request("/api/v1/connectors")).json();
     expect(JSON.stringify(list)).not.toContain("credentials");
     expect(JSON.stringify(list)).not.toContain("test-access");
   });
@@ -155,6 +166,7 @@ describe("Google Drive provider contract (mocked, not live verification)", () =>
     expect(
       t.container.db.select().from(jobs).where(eq(jobs.type, "process_source")).all(),
     ).toHaveLength(1);
+    await t.drain();
     content = "Updated provider document content.";
     expect(
       (await service.importFile(t.container.devActor, result.id, project.id, "file-1")).content,
@@ -175,33 +187,125 @@ describe("Google Drive provider contract (mocked, not live verification)", () =>
     expect(t.container.db.select().from(sourceObjects).all()).toHaveLength(1);
   });
 
-  it("requires reader-owned connections and fails closed on permission errors and token revocation", async () => {
+  it("works out who may read restricted files in the background, never during a request", async () => {
+    const db = t.container.db;
+    const member = (id: string, email: string | null) => {
+      db.insert(users).values({ id, name: id, email }).run();
+      db.insert(memberships)
+        .values({ workspaceId: t.container.workspace.id, userId: id, role: "member" })
+        .run();
+      return { ...t.container.devActor, id, name: id, role: "member" as const };
+    };
+    const shared = member("shared", "shared@example.com");
+    const reader = member("reader", null);
+    const outsider = member("outsider", "outsider@example.com");
+    // The owner's listing shows the file shared with shared@example.com; the reader's own Drive
+    // lists it too (a group share Drive doesn't spell out).
+    let readerSees = true;
+    let sharedWith = [{ type: "user", emailAddress: "Shared@Example.com" }];
+    provider.list.mockImplementation((params: { q?: string }, token?: string) =>
+      Promise.resolve({
+        data: {
+          files:
+            token === "reader-access" && !readerSees
+              ? []
+              : params.q?.includes("in parents")
+                ? [{ ...info, permissions: token === "reader-access" ? undefined : sharedWith }]
+                : [],
+        },
+      }),
+    );
+    provider.getToken.mockResolvedValueOnce({
+      tokens: { ...token, access_token: "owner-access" },
+    });
     const { service, result } = await connect();
     const project = await createProject(t.app);
-    const source = await service.importFile(t.container.devActor, result.id, project.id, "file-1");
-    const reader = {
-      ...t.container.devActor,
-      id: "reader",
-      name: "Reader",
-      role: "member" as const,
-    };
-    const db = t.container.db;
-    db.insert(users).values({ id: reader.id, name: reader.name }).run();
-    db.insert(memberships)
-      .values({ workspaceId: reader.workspaceId, userId: reader.id, role: reader.role })
+    service.setScopes(t.container.devActor, result.id, {
+      projectId: project.id,
+      scopes: [
+        {
+          scopeType: "folder",
+          externalId: "folder_1",
+          name: "Specs",
+          excluded: false,
+          visibility: "restricted",
+        },
+      ],
+    });
+    service.requestSync(t.container.devActor, result.id);
+    await t.drain();
+    const source = db.select().from(sourceObjects).get()!;
+    const visible = (actor: typeof shared) =>
+      t.container.identity.visibleSourceIds(actor, project.id).includes(source.id);
+    // Shared by email: visible. Not shared and no Drive of their own: hidden.
+    expect(visible(shared)).toBe(true);
+    expect(visible(reader)).toBe(false);
+    expect(visible(outsider)).toBe(false);
+    // Claiming someone else's address as your Google identity gets you nothing: a member's own
+    // sign-in email always wins.
+    db.insert(identityLinks)
+      .values({
+        id: "claimed-link",
+        workspaceId: t.container.workspace.id,
+        userId: outsider.id,
+        provider: "google",
+        externalId: "someone-else",
+        email: "shared@example.com",
+        status: "confirmed",
+        source: "oauth",
+        linkedAt: new Date(),
+      })
       .run();
-    db.insert(sourceAccess).values({ sourceId: source.id, userId: reader.id }).run();
-    await service.refreshAccess(reader);
-    expect(t.container.identity.visibleSourceIds(reader, project.id)).toEqual([]);
+    t.container.queue.enqueue(accessJob(db.select().from(connectorScopes).get()!));
+    await t.drain();
+    expect(visible(outsider)).toBe(false);
+    expect(visible(shared)).toBe(true);
+    expect(t.container.identity.visibleSourceIds(t.container.devActor, project.id)).toContain(
+      source.id,
+    );
+
+    // The reader connects their own Drive; the background refresh finds the file there.
     const state = new URL(service.authorize(reader).authorizationUrl).searchParams.get("state")!;
+    provider.getToken.mockResolvedValueOnce({
+      tokens: { ...token, access_token: "reader-access" },
+    });
     const readerConnection = await service.callback(state, "test-code");
-    await service.refreshAccess(reader);
-    expect(t.container.identity.visibleSourceIds(reader, project.id)).toEqual([source.id]);
-    provider.get.mockRejectedValue({ response: { status: 403 } });
-    await service.refreshAccess(reader);
-    expect(t.container.identity.visibleSourceIds(reader, project.id)).toEqual([]);
-    provider.get.mockRejectedValue({ response: { status: 401 } });
-    await service.refreshAccess(reader);
+    await t.drain();
+    expect(visible(reader)).toBe(true);
+
+    // Requests read the stored answer: no Google call while serving pages.
+    const calls = provider.list.mock.calls.length + provider.get.mock.calls.length;
+    await t.app.request(`/api/v1/projects/${project.id}/sources`);
+    await t.app.request("/api/v1/users/me");
+    expect(provider.list.mock.calls.length + provider.get.mock.calls.length).toBe(calls);
+
+    // Sharing removed in Drive: the next refresh takes access away.
+    sharedWith = [];
+    readerSees = false;
+    const scope = db.select().from(connectorScopes).get()!;
+    t.container.queue.enqueue(accessJob(scope));
+    await t.drain();
+    expect(visible(shared)).toBe(false);
+    expect(visible(reader)).toBe(false);
+
+    // Grants that aren't refreshed expire (fail closed).
+    sharedWith = [{ type: "anyone", emailAddress: "" }];
+    t.container.queue.enqueue(accessJob(scope));
+    await t.drain();
+    expect(visible(outsider)).toBe(true);
+    db.update(sourceAccess)
+      .set({ expiresAt: new Date(Date.now() - 1000) })
+      .run();
+    expect(visible(outsider)).toBe(false);
+
+    // A revoked reader token marks their connection for re-authorisation.
+    provider.list.mockImplementation((_params: unknown, token?: string) =>
+      token === "reader-access"
+        ? Promise.reject(Object.assign(new Error("Unauthorized"), { response: { status: 401 } }))
+        : Promise.resolve({ data: { files: [info] } }),
+    );
+    t.container.queue.enqueue(accessJob(scope));
+    await t.drain();
     expect(
       db
         .select()
@@ -266,6 +370,7 @@ describe("Google Drive provider contract (mocked, not live verification)", () =>
         pageToken: "page",
         q: "'folder_1' in parents and trashed = false",
       }),
+      "test-access",
     );
     expect(
       (
