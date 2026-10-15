@@ -25,11 +25,10 @@ import type { z } from "zod";
 import { apiRequest } from "@/lib/api-client";
 
 /**
- * Every endpoint the Home dashboards read, with the shared schema of its response. The manager's,
- * People Ops' and admin's are served by the API, as are the employee's knowledge updates, team news
- * and people to know (apps/api/src/modules/platform/employee.routes.ts). The employee's other cards
- * are not yet, so in development the mock layer answers them (see src/mocks) and the cards show a
- * "Preview data" chip. The contracts live in packages/shared/src/schemas/home.ts.
+ * Every endpoint the Home dashboards read, with the shared schema of its response. The API serves
+ * all of them: the employee's cards from apps/api/src/modules/learning/learner.routes.ts and
+ * apps/api/src/modules/platform/employee.routes.ts, the others from their role's routes. Tests use
+ * the fixtures in src/mocks/home. The contracts live in packages/shared/src/schemas/home.ts.
  */
 export const HOME_ENDPOINTS = {
   myOnboarding: { path: "/v1/me/onboarding", schema: MyOnboardingSchema },

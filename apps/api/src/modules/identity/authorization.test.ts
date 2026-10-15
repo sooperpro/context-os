@@ -133,11 +133,50 @@ describe("Authorization: role and access checks that must hold", () => {
       status: "private",
       data: { notes: "Private probation note" },
     });
+    // People Ops events stay in the trail, without the check-in pulse or the decision.
+    member("hana", "hr");
+    t.container.audit.record({
+      actor: { ...owner, id: "dan", name: "Dan", role: "manager" },
+      action: "checkin.create",
+      targetType: "checkin",
+      targetId: "c1",
+      metadata: { type: "weekly", pulse: "off_track", shared: false },
+    });
+    t.container.audit.record({
+      actor: { ...owner, id: "hana", name: "Hana", role: "hr" },
+      action: "probation.decision",
+      targetType: "onboarding_record",
+      targetId: "r1",
+      metadata: { outcome: "extended", extensionDays: 30, recommendation: "extend" },
+    });
     const response = await t.app.request("/api/v1/admin/export");
     expect(response.status).toBe(200);
-    const body = await json<{ records: Record<string, unknown> }>(response);
+    const body = await json<{
+      records: Record<string, unknown>;
+      auditLog: Array<{ action: string; metadata: Record<string, unknown> | null }>;
+    }>(response);
     expect(Object.keys(body.records)).not.toContain("checkin");
     expect(JSON.stringify(body)).not.toContain("Private probation note");
+    const exported = (action: string) => body.auditLog.find((row) => row.action === action);
+    expect(exported("checkin.create")?.metadata).toEqual({ type: "weekly", shared: false });
+    expect(exported("probation.decision")?.metadata).toEqual({});
+
+    const trail = async () =>
+      (
+        await json<{ items: Array<{ action: string; metadata: Record<string, unknown> | null }> }>(
+          await t.app.request("/api/v1/audit"),
+        )
+      ).items;
+    expect(JSON.stringify(await trail())).not.toMatch(/off_track|extended|"extend"/);
+    const csv = await (await t.app.request("/api/v1/audit?format=csv")).text();
+    expect(csv).not.toMatch(/off_track|extended/);
+    // People Ops reads its own trail in full.
+    as("hana", "hr");
+    expect((await trail()).find((row) => row.action === "probation.decision")?.metadata).toEqual({
+      outcome: "extended",
+      extensionDays: 30,
+      recommendation: "extend",
+    });
   });
 
   it("shows a tutorial's content only to curators who can open all its sources", async () => {

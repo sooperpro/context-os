@@ -7,6 +7,7 @@ export * from "./schemas/auth.js";
 export * from "./schemas/common.js";
 export * from "./schemas/connectors.js";
 export * from "./schemas/context.js";
+export * from "./schemas/continuity.js";
 export * from "./schemas/contributions.js";
 export * from "./schemas/epm.js";
 export * from "./schemas/feedback.js";

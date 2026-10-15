@@ -28,10 +28,9 @@ import {
 import { apiRequest } from "@/lib/api-client";
 
 /**
- * The learner's onboarding endpoints. The API serves My learning (`/v1/me/learning`); the roadmap,
- * modules, lessons and checks are not served yet (the API's `/learning/*` routes return generic
- * records), so in development the mock layer answers them (src/mocks/learning.ts). Contracts:
- * packages/shared/src/schemas/learning.ts.
+ * The learner's onboarding endpoints: My learning (`/v1/me/learning`), and the roadmap, modules,
+ * lessons and checks built from published tutorials (apps/api/src/modules/learning/learner.routes.ts).
+ * Tests use the fixtures in src/mocks/learning.ts. Contracts: packages/shared/src/schemas/learning.ts.
  */
 export const LEARNING_ENDPOINTS = {
   roadmap: { path: "/v1/me/roadmap", schema: MyRoadmapSchema },
@@ -59,7 +58,11 @@ export const LEARNING_ENDPOINTS = {
     input: LearningRequestInputSchema,
   },
   myLearning: { path: "/v1/me/learning", schema: MyLearningSchema },
-  addCourse: { path: "/v1/me/learning/:id/add", schema: MyLearningSchema, input: AddCourseInputSchema },
+  addCourse: {
+    path: "/v1/me/learning/:id/add",
+    schema: MyLearningSchema,
+    input: AddCourseInputSchema,
+  },
 } as const;
 
 const E = LEARNING_ENDPOINTS;
@@ -97,4 +100,8 @@ export const fetchMyLearning = (signal?: AbortSignal): Promise<MyLearning> =>
   apiRequest(E.myLearning.path, { schema: E.myLearning.schema, signal });
 
 export const addCourse = (id: string): Promise<MyLearning> =>
-  apiRequest(withId(E.addCourse.path, id), { method: "POST", body: {}, schema: E.addCourse.schema });
+  apiRequest(withId(E.addCourse.path, id), {
+    method: "POST",
+    body: {},
+    schema: E.addCourse.schema,
+  });

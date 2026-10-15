@@ -332,6 +332,14 @@ const appChildren = [
     },
   },
   {
+    // Linked from the offboarding notification; the API lets only the manager and admins open it.
+    path: "continuity/checklists/:checklistId",
+    lazy: async () => {
+      const { ChecklistPage } = await import("@/features/continuity/pages/checklist-page");
+      return { Component: ChecklistPage };
+    },
+  },
+  {
     path: "settings",
     lazy: async () => {
       const { SettingsPage } = await import("@/features/settings/pages/settings-page");

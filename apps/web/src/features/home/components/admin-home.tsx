@@ -74,8 +74,8 @@ import { DashboardGrid } from "./dashboard";
 import { span } from "./dashboard-meta";
 
 /**
- * The admin's workspace overview (prototype `adminHome`). Connectors, members and the audit log are
- * live; security, sync activity and AI answers wait on API endpoints and show preview data meanwhile.
+ * The admin's workspace overview (prototype `adminHome`): connectors, members, security, sync
+ * activity, AI answers and the audit log, all served by the API.
  */
 export function AdminHome() {
   const workspace = useQuery(currentWorkspaceQuery());

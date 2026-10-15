@@ -46,7 +46,8 @@ function hourIn(timezone: string | undefined, at: Date): { hour: number; weekday
 
 /**
  * In-app notification producer. Email/Slack delivery is not implemented: the record carries
- * `channels` and `deliverAfter` so a delivery worker can honour quiet hours later.
+ * `channels` and `deliverAfter` so a delivery worker can honour quiet hours later. A record whose
+ * in-app channel is off is kept for that worker and left out of the bell.
  */
 export function createNotifier(db: Db) {
   const deliverAfter = (
@@ -88,8 +89,15 @@ export function createNotifier(db: Db) {
       const prefs = NotificationPreferencesSchema.parse(user.preferences.notifications ?? {});
       const category = prefs.categories[input.category as keyof typeof prefs.categories] as
         { inApp: boolean; email: boolean; slack: boolean } | undefined;
-      // Security notifications cannot be opted out of.
-      if (input.category !== "security" && category && !category.inApp) return null;
+      const security = input.category === "security";
+      // Settings shows one in-app and one email switch. A category can still turn its own in-app
+      // off or its own email on. Security notifications cannot be opted out of.
+      const channels = {
+        inApp: security || (prefs.inApp && (category?.inApp ?? true)),
+        email: prefs.email || (category?.email ?? false),
+        slack: category?.slack ?? false,
+      };
+      if (!channels.inApp && !channels.email && !channels.slack) return null;
       const now = new Date();
       const resolved = settings ?? workspaceSettings(db, workspaceId);
       if (input.nudge) {
@@ -160,16 +168,11 @@ export function createNotifier(db: Db) {
             batchKey: input.batchKey ?? null,
             nudge: input.nudge ?? false,
             count: 1,
-            channels: {
-              inApp: true,
-              email: category?.email ?? prefs.email,
-              slack: category?.slack ?? false,
-            },
-            deliverAfter: deliverAfter(
-              userTimezone,
-              prefs,
-              input.nudge ?? false,
-              now,
+            channels,
+            // Quiet hours hold back every channel except for security (PRD §13 global rules).
+            deliverAfter: (security
+              ? now
+              : deliverAfter(userTimezone, prefs, input.nudge ?? false, now)
             ).toISOString(),
           },
         })

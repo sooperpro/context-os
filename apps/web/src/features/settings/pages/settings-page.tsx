@@ -67,9 +67,8 @@ import { useViewer } from "@/features/workspace/hooks/use-viewer";
 /*
  * Personal settings (prototype `#settings`): profile name and time zone, notification channels and
  * quiet hours, theme and reduced motion (this device), Context Bot preferences, sign-in and
- * sessions from the identity provider, connected apps and a copy of your data. Connected apps use
- * the live connector API; Context Bot preferences and personal data export remain preview-backed.
- * Settings only affect the person changing them.
+ * sessions from the identity provider, connected apps and a copy of your data. All of them are
+ * served by the API. Settings only affect the person changing them.
  */
 
 const TABS = [
@@ -346,7 +345,10 @@ function NotificationsTab() {
       <Card>
         <CardHeader>
           <CardTitle>Quiet hours</CardTitle>
-          <CardDescription>Email waits until quiet hours end, in your time zone.</CardDescription>
+          <CardDescription>
+            Notifications wait until quiet hours end, in your time zone. Security alerts always come
+            through.
+          </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 @xl:grid-cols-2">
           <HourSelect

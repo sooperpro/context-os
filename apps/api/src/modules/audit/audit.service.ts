@@ -14,6 +14,38 @@ export interface AuditEntry {
   metadata?: Record<string, unknown>;
 }
 
+/** Audit actions that record People Ops work: onboarding, probation and check-ins. */
+const PEOPLE_OPS_ACTION = /^(onboarding|probation|checkin)\./;
+/**
+ * Details of People Ops events only People Ops may read: a check-in's pulse, the probation
+ * recommendation and the employment decision (role access spec §3). Everyone else with audit
+ * access still sees that the event happened.
+ */
+const PEOPLE_DATA_KEYS = new Set([
+  "pulse",
+  "recommendation",
+  "outcome",
+  "extensionDays",
+  "effectiveOn",
+]);
+
+/**
+ * An audit row as the viewer may read it. The entry hash covers the full metadata, so a redacted
+ * row no longer verifies against it.
+ */
+export function auditRowFor<T extends { action: string; metadata: Record<string, unknown> | null }>(
+  viewer: Pick<Actor, "role">,
+  row: T,
+): T {
+  if (viewer.role === "hr" || !row.metadata || !PEOPLE_OPS_ACTION.test(row.action)) return row;
+  return {
+    ...row,
+    metadata: Object.fromEntries(
+      Object.entries(row.metadata).filter(([key]) => !PEOPLE_DATA_KEYS.has(key)),
+    ),
+  };
+}
+
 /** Append-only audit trail. Failed writes throw so enclosing transactions can roll back. */
 export function createAuditService(db: Db, logger: Logger) {
   return {

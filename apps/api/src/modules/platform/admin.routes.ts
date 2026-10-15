@@ -12,6 +12,7 @@ import {
   workspaces,
 } from "../../db/schema.js";
 import type { AppEnv } from "../../types.js";
+import { auditRowFor } from "../audit/audit.service.js";
 import { requireRole } from "../identity/identity.service.js";
 import { createPlatformStore } from "./store.js";
 
@@ -121,8 +122,10 @@ export function createAdminRoutes(container: Container) {
         .from(auditLog)
         .where(eq(auditLog.workspaceId, actor.workspaceId))
         .all()
-        .filter((row) => visibleProject(row.projectId)),
-      note: "Ask conversations are private to each asker and are not included (decision D1). Encrypted shipping and provider credentials are never exported.",
+        .filter((row) => visibleProject(row.projectId))
+        // Admins see that People Ops events happened, not their pulse, recommendation or outcome.
+        .map((row) => auditRowFor(actor, row)),
+      note: "Ask conversations are private to each asker and are not included (decision D1). Encrypted shipping and provider credentials are never exported. People Ops details are left out of audit entries, so those entries no longer match their hashes.",
     };
     audit.record({
       actor,
