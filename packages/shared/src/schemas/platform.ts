@@ -101,6 +101,8 @@ export const WorkspaceCreateSchema = z
     region: z.enum(["us-east-1", "ap-south-1", "eu-central-1"]).default("us-east-1"),
   })
   .strict();
+/** `POST /workspaces` body; `region` defaults to us-east-1. */
+export type WorkspaceCreateInput = z.input<typeof WorkspaceCreateSchema>;
 
 // ----- workspace settings (PRD §7.17 policies, §8.2 overrides, §8.5, §7.12, §7.13) -----
 
@@ -342,7 +344,8 @@ export const CurrentWorkspaceSchema = z.object({
   id: z.string(),
   name: z.string(),
   role: SystemRoleSchema,
-  authentication: z.enum(["development", "clerk"]),
+  /** Same values as `AuthenticationModeSchema` (auth.ts imports this file, so it is not reused). */
+  authentication: z.enum(["development", "accounts"]),
 });
 export type CurrentWorkspace = z.infer<typeof CurrentWorkspaceSchema>;
 
@@ -413,6 +416,8 @@ export const InviteResultSchema = z.object({
   id: z.string().nullable(),
   status: z.string(),
   requestedRole: InviteRoleSchema.optional(),
+  /** `email`: an invitation email went out. `local`: recorded only (development mode sends none). */
+  delivery: z.enum(["email", "local"]).optional(),
 });
 export type InviteResult = z.infer<typeof InviteResultSchema>;
 

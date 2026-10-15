@@ -1,28 +1,27 @@
-import { randomUUID } from "node:crypto";
-import { createClerkClient } from "@clerk/backend";
 import type { AssignmentType, ProjectStats } from "@contextos/shared";
 import { and, eq, gt, inArray, isNull, or } from "drizzle-orm";
-import type { Env } from "../../config/env.js";
 import type { Db } from "../../db/index.js";
 import {
   assignments,
+  authSessions,
   contextItems,
   departments,
   evidence,
   memberships,
-  organizationLinks,
   platformRecords,
   projectMemberships,
   projects,
   questions,
   sourceAccess,
   sourceObjects,
+  ssoProviders,
   teams,
   users,
   workspaces,
 } from "../../db/schema.js";
 import { AppError, NotFoundError } from "../../lib/errors.js";
 import type { Actor } from "../../types.js";
+import type { Auth } from "../auth/auth.js";
 
 /** A workspace access policy (role access spec §4.8): who may open a project or a synced folder. */
 export interface AccessPolicyRecord {
@@ -112,58 +111,99 @@ export function policiesCovering(
   );
 }
 
+/** Organization fields anyone in the workspace may see (the rest, like a last day, is HR/admin data). */
+const PUBLIC_ORGANIZATION_KEYS = [
+  "departmentId",
+  "teamId",
+  "jobTitle",
+  "roleFamily",
+  "location",
+  "timezone",
+  "startDate",
+  "isNewHire",
+] as const;
+
+/**
+ * A member's organization as a viewer may see it: everything for admins, the person and their
+ * manager; only the public profile fields for everyone else.
+ */
+export function organizationFor(
+  viewer: Pick<Actor, "id" | "role">,
+  member: { userId: string; managerId: string | null; organization: Record<string, unknown> },
+): Record<string, unknown> {
+  if (
+    viewer.role === "owner" ||
+    viewer.role === "admin" ||
+    viewer.id === member.userId ||
+    viewer.id === member.managerId
+  )
+    return member.organization;
+  return Object.fromEntries(
+    PUBLIC_ORGANIZATION_KEYS.flatMap((key) =>
+      key in member.organization ? [[key, member.organization[key]]] : [],
+    ),
+  );
+}
+
 export function requireRole(actor: Actor, ...roles: Array<Actor["role"]>): void {
   if (!roles.includes(actor.role))
     throw new AppError(403, "FORBIDDEN", "This operation is not permitted");
 }
 
-export function createIdentityService(db: Db, env: Env, devActor: Actor) {
-  let refreshSourceAccess: ((actor: Actor) => Promise<void>) | undefined;
-  const clerk =
-    env.AUTH_MODE === "clerk"
-      ? createClerkClient({
-          secretKey: env.CLERK_SECRET_KEY,
-          publishableKey: env.CLERK_PUBLISHABLE_KEY,
-        })
-      : null;
-  const member = (actor: Actor) =>
+export function createIdentityService(db: Db, devActor: Actor, auth: Auth | null) {
+  const member = (actor: Pick<Actor, "id" | "workspaceId">) =>
     db
       .select()
       .from(memberships)
       .where(and(eq(memberships.workspaceId, actor.workspaceId), eq(memberships.userId, actor.id)))
       .get();
-  /** Apply a pending invitation (role, department, team, manager, start date) on first sign-in. */
-  const acceptInvitation = (workspaceId: string, userId: string) => {
-    const email = db
-      .select({ email: users.email })
-      .from(users)
-      .where(eq(users.id, userId))
-      .get()?.email;
-    if (!email) return;
-    const invitation = db
+  const isActive = (membership: ReturnType<typeof member>) =>
+    membership?.status === "active" &&
+    (!membership.guestExpiresAt || membership.guestExpiresAt > new Date());
+  const profileName = (userId: string, fallback: string) =>
+    db.select({ name: users.name }).from(users).where(eq(users.id, userId)).get()?.name ?? fallback;
+
+  /**
+   * Apply pending invitations for a verified email, in every workspace that sent one: membership with
+   * the requested role, department, team, manager and start date.
+   */
+  const acceptInvitations = (userId: string, email: string): number => {
+    const address = email.toLowerCase();
+    const pending = db
       .select()
       .from(platformRecords)
-      .where(
-        and(
-          eq(platformRecords.workspaceId, workspaceId),
-          eq(platformRecords.kind, "invitation"),
-          eq(platformRecords.status, "pending"),
-        ),
-      )
+      .where(and(eq(platformRecords.kind, "invitation"), eq(platformRecords.status, "pending")))
       .all()
-      .find((row) => row.data.email === email.toLowerCase());
-    if (!invitation) return;
-    const data = invitation.data as {
-      role?: "admin" | "manager" | "hr" | "member" | "guest";
-      departmentId?: string;
-      teamId?: string;
-      managerId?: string;
-      startDate?: string;
-      isNewHire?: boolean;
-    };
-    db.update(memberships)
-      .set({
-        role: data.role ?? "member",
+      .filter(
+        (row) =>
+          row.data.email === address &&
+          (typeof row.data.expiresAt !== "string" || new Date(row.data.expiresAt) > new Date()),
+      );
+    for (const invitation of pending) {
+      const data = invitation.data as {
+        role?: "admin" | "manager" | "hr" | "member" | "guest";
+        departmentId?: string;
+        teamId?: string;
+        managerId?: string;
+        startDate?: string;
+        isNewHire?: boolean;
+      };
+      const role = data.role ?? ("member" as const);
+      // Guests always expire (PRD §6.5, at most 180 days): the invitation's date, or 90 days.
+      const requested =
+        typeof invitation.data.guestExpiresAt === "string"
+          ? new Date(invitation.data.guestExpiresAt)
+          : null;
+      const values = {
+        role,
+        guestExpiresAt:
+          role === "guest"
+            ? requested &&
+              requested > new Date() &&
+              requested.getTime() <= Date.now() + 180 * 86_400_000
+              ? requested
+              : new Date(Date.now() + 90 * 86_400_000)
+            : null,
         managerId: data.managerId ?? null,
         organization: {
           ...(data.departmentId ? { departmentId: data.departmentId } : {}),
@@ -171,117 +211,126 @@ export function createIdentityService(db: Db, env: Env, devActor: Actor) {
           ...(data.startDate ? { startDate: data.startDate } : {}),
           isNewHire: data.isNewHire ?? false,
         },
-      })
-      .where(and(eq(memberships.workspaceId, workspaceId), eq(memberships.userId, userId)))
-      .run();
-    db.update(platformRecords)
-      .set({
-        status: "accepted",
-        data: { ...invitation.data, acceptedBy: userId, acceptedAt: new Date().toISOString() },
-        updatedAt: new Date(),
-      })
-      .where(eq(platformRecords.id, invitation.id))
-      .run();
-  };
-  const service = {
-    setSourceVerifier(verify: (actor: Actor) => Promise<void>) {
-      refreshSourceAccess = verify;
-    },
-    async refreshSourceAccess(actor: Actor) {
-      await refreshSourceAccess?.(actor);
-    },
-    async authenticate(request: Request, allowWorkspaceCreation = false): Promise<Actor> {
-      if (!clerk) {
-        const membership = member(devActor);
-        if (
-          membership?.status !== "active" ||
-          (membership.guestExpiresAt && membership.guestExpiresAt <= new Date())
-        )
-          throw new AppError(403, "FORBIDDEN", "Membership is inactive or expired");
-        return { ...devActor, role: membership.role };
-      }
-      const state = await clerk.authenticateRequest(request, {
-        authorizedParties: env.CORS_ORIGINS,
-        acceptsToken: "session_token",
-      });
-      const auth = state.toAuth();
-      if (!auth?.userId) throw new AppError(401, "UNAUTHENTICATED", "Sign in to continue");
-      const profile = await clerk.users.getUser(auth.userId);
-      db.insert(users)
-        .values({
-          id: auth.userId,
-          name: [profile.firstName, profile.lastName].filter(Boolean).join(" ") || "Member",
-          email: profile.emailAddresses.find((entry) => entry.id === profile.primaryEmailAddressId)
-            ?.emailAddress,
-        })
-        .onConflictDoNothing()
-        .run();
-      if (allowWorkspaceCreation)
-        return {
-          id: auth.userId,
-          name: db.select().from(users).where(eq(users.id, auth.userId)).get()!.name,
-          workspaceId: "",
-          role: "member",
-          sessionId: auth.sessionId,
-        };
-      if (!auth.orgId) throw new AppError(403, "FORBIDDEN", "Select a workspace organization");
-      // Verify current membership instead of trusting an old session role after removal.
-      const providerMemberships = await clerk.users.getOrganizationMembershipList({
-        userId: auth.userId,
-        limit: 100,
-      });
-      const providerMember = providerMemberships.data.find(
-        (entry) => entry.organization.id === auth.orgId,
-      );
-      if (!providerMember) throw new AppError(403, "FORBIDDEN", "Workspace membership is required");
-      let link = db
-        .select()
-        .from(organizationLinks)
-        .where(eq(organizationLinks.organizationId, auth.orgId))
-        .get();
-      if (!link) {
-        if (providerMember.role !== "org:admin")
-          throw new AppError(
-            403,
-            "FORBIDDEN",
-            "An organization admin must initialize the workspace",
-          );
-        const workspaceId = randomUUID();
-        db.transaction((tx) => {
-          tx.insert(workspaces)
-            .values({ id: workspaceId, name: providerMember.organization.name })
-            .run();
-          tx.insert(organizationLinks).values({ organizationId: auth.orgId!, workspaceId }).run();
-          tx.insert(memberships).values({ workspaceId, userId: auth.userId, role: "owner" }).run();
-        });
-        link = { organizationId: auth.orgId, workspaceId };
-      }
-      const inserted = db
-        .insert(memberships)
-        .values({
-          workspaceId: link.workspaceId,
-          userId: auth.userId,
-          role: providerMember.role === "org:admin" ? "admin" : "member",
-        })
-        .onConflictDoNothing()
-        .returning()
-        .get();
-      // First sign-in after accepting an invitation applies the requested role and org data.
-      if (inserted) acceptInvitation(link.workspaceId, auth.userId);
-      const actor: Actor = {
-        id: auth.userId,
-        name: db.select().from(users).where(eq(users.id, auth.userId)).get()!.name,
-        workspaceId: link.workspaceId,
-        role: "member",
-        sessionId: auth.sessionId,
       };
-      const membership = member(actor);
-      if (
-        membership?.status !== "active" ||
-        (membership.guestExpiresAt && membership.guestExpiresAt <= new Date())
+      db.transaction((tx) => {
+        tx.insert(memberships)
+          .values({ workspaceId: invitation.workspaceId, userId, ...values })
+          .onConflictDoUpdate({
+            target: [memberships.workspaceId, memberships.userId],
+            set: values,
+          })
+          .run();
+        tx.update(platformRecords)
+          .set({
+            status: "accepted",
+            data: { ...invitation.data, acceptedBy: userId, acceptedAt: new Date().toISOString() },
+            updatedAt: new Date(),
+          })
+          .where(eq(platformRecords.id, invitation.id))
+          .run();
+      });
+    }
+    return pending.length;
+  };
+
+  /** Whether a session may act in a workspace that requires company SSO. Owners keep a fallback. */
+  const ssoSatisfied = (
+    workspaceId: string,
+    role: Actor["role"],
+    authMethod: string | null | undefined,
+  ): boolean => {
+    const workspace = db
+      .select({ ssoEnforced: workspaces.ssoEnforced })
+      .from(workspaces)
+      .where(eq(workspaces.id, workspaceId))
+      .get();
+    if (!workspace?.ssoEnforced || role === "owner") return true;
+    if (!authMethod?.startsWith("sso:")) return false;
+    return !!db
+      .select({ id: ssoProviders.id })
+      .from(ssoProviders)
+      .where(
+        and(
+          eq(ssoProviders.providerId, authMethod.slice("sso:".length)),
+          eq(ssoProviders.organizationId, workspaceId),
+          eq(ssoProviders.domainVerified, true),
+        ),
       )
-        throw new AppError(403, "FORBIDDEN", "Membership is inactive or expired");
-      return { ...actor, role: membership.role };
+      .get();
+  };
+
+  const service = {
+    auth,
+    /** The signed-in session and its user, or null (always null in development mode). */
+    async readSession(request: Request) {
+      if (!auth) return null;
+      return auth.api.getSession({ headers: request.headers });
+    },
+    /**
+     * Resolve the acting user for a request: the verified session, its active workspace and a current,
+     * active membership there. Routes that work before a workspace is chosen (session, workspace
+     * creation) pass `allowWithoutWorkspace` and receive an actor with an empty workspace id.
+     */
+    async authenticate(request: Request, allowWithoutWorkspace = false): Promise<Actor> {
+      if (!auth) {
+        const membership = member(devActor);
+        if (!isActive(membership))
+          throw new AppError(403, "FORBIDDEN", "Membership is inactive or expired");
+        return { ...devActor, role: membership!.role };
+      }
+      const result = await auth.api.getSession({ headers: request.headers });
+      if (!result) throw new AppError(401, "UNAUTHENTICATED", "Sign in to continue");
+      const { session, user } = result;
+      const base = {
+        id: user.id,
+        name: profileName(user.id, user.name),
+        sessionId: session.id,
+      };
+      const workspaceId = session.activeWorkspaceId;
+      const membership = workspaceId ? member({ id: user.id, workspaceId }) : undefined;
+      if (!workspaceId || !isActive(membership)) {
+        if (allowWithoutWorkspace) return { ...base, workspaceId: "", role: "member" };
+        throw new AppError(403, "WORKSPACE_REQUIRED", "Choose a workspace to continue");
+      }
+      if (!ssoSatisfied(workspaceId, membership!.role, session.authMethod)) {
+        if (allowWithoutWorkspace) return { ...base, workspaceId: "", role: "member" };
+        throw new AppError(
+          403,
+          "SSO_REQUIRED",
+          "This workspace requires signing in with your company's single sign-on",
+        );
+      }
+      return { ...base, workspaceId, role: membership!.role };
+    },
+    acceptInvitations,
+    ssoSatisfied,
+    /** Workspaces a user may act in, with their role in each. */
+    workspacesFor(userId: string) {
+      return db
+        .select({
+          id: workspaces.id,
+          name: workspaces.name,
+          slug: workspaces.slug,
+          role: memberships.role,
+          status: memberships.status,
+          guestExpiresAt: memberships.guestExpiresAt,
+        })
+        .from(memberships)
+        .innerJoin(workspaces, eq(workspaces.id, memberships.workspaceId))
+        .where(eq(memberships.userId, userId))
+        .all()
+        .filter(
+          (row) =>
+            row.status === "active" && (!row.guestExpiresAt || row.guestExpiresAt > new Date()),
+        )
+        .map(({ id, name, slug, role }) => ({ id, name, slug, role }));
+    },
+    /** Point a session at a workspace; the caller has checked membership. */
+    setActiveWorkspace(sessionId: string, workspaceId: string | null) {
+      db.update(authSessions)
+        .set({ activeWorkspaceId: workspaceId, updatedAt: new Date() })
+        .where(eq(authSessions.id, sessionId))
+        .run();
     },
     requireProject(actor: Actor, projectId: string) {
       const project = db
@@ -307,6 +356,8 @@ export function createIdentityService(db: Db, env: Env, devActor: Actor) {
       return project;
     },
     hasAssignment(actor: Actor, type: AssignmentType, scopeId: string): boolean {
+      // Guests are limited to the projects they were added to and never verify, curate or mentor.
+      if (actor.role === "guest") return false;
       return !!db
         .select()
         .from(assignments)
@@ -317,10 +368,14 @@ export function createIdentityService(db: Db, env: Env, devActor: Actor) {
             eq(assignments.type, type),
             or(
               eq(assignments.scopeId, scopeId),
-              and(
-                eq(assignments.scopeType, "workspace"),
-                eq(assignments.scopeId, actor.workspaceId),
-              ),
+              // A workspace-wide assignment covers every project, but a mentor is always for one
+              // named person.
+              type === "mentor"
+                ? undefined
+                : and(
+                    eq(assignments.scopeType, "workspace"),
+                    eq(assignments.scopeId, actor.workspaceId),
+                  ),
             ),
             or(isNull(assignments.expiresAt), gt(assignments.expiresAt, new Date())),
           ),
@@ -336,51 +391,14 @@ export function createIdentityService(db: Db, env: Env, devActor: Actor) {
         );
     },
     /**
-     * The identity provider's member list for a workspace (its Clerk organization) and seat limit;
-     * null when sign-in has no directory (development mode).
+     * The external directory's member list for a workspace and its seat limit. Sign-in is our own and
+     * there is no directory feed yet (SCIM), so this is null: members come from invitations and SSO.
      */
-    async directory(workspaceId: string): Promise<{
+    directory(_workspaceId: string): Promise<{
       seatLimit: number | null;
       members: Array<{ userId: string; name: string; email: string | null; admin: boolean }>;
     } | null> {
-      if (!clerk) return null;
-      const link = db
-        .select()
-        .from(organizationLinks)
-        .where(eq(organizationLinks.workspaceId, workspaceId))
-        .get();
-      if (!link) return { seatLimit: null, members: [] };
-      const organization = await clerk.organizations.getOrganization({
-        organizationId: link.organizationId,
-      });
-      const members: Array<{ userId: string; name: string; email: string | null; admin: boolean }> =
-        [];
-      for (let offset = 0; ; offset += 100) {
-        const page = await clerk.organizations.getOrganizationMembershipList({
-          organizationId: link.organizationId,
-          limit: 100,
-          offset,
-        });
-        for (const entry of page.data) {
-          const profile = entry.publicUserData;
-          if (!profile?.userId) continue;
-          members.push({
-            userId: profile.userId,
-            name:
-              [profile.firstName, profile.lastName].filter(Boolean).join(" ") ||
-              profile.identifier ||
-              "Member",
-            email: profile.identifier.includes("@") ? profile.identifier : null,
-            admin: entry.role === "org:admin",
-          });
-        }
-        if (page.data.length < 100) break;
-      }
-      return {
-        seatLimit:
-          organization.maxAllowedMemberships > 0 ? organization.maxAllowedMemberships : null,
-        members,
-      };
+      return Promise.resolve(null);
     },
     /**
      * Sources the actor may open in a project: the source's own permissions (mirrored, or shared
@@ -514,7 +532,6 @@ export function createIdentityService(db: Db, env: Env, devActor: Actor) {
         throw new NotFoundError("Active workspace member");
       return row;
     },
-    clerk,
   };
   return service;
 }

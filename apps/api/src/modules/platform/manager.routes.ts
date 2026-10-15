@@ -14,7 +14,14 @@ import { AppError, NotFoundError } from "../../lib/errors.js";
 import { validationHook } from "../../middleware/validation.js";
 import type { Actor, AppEnv } from "../../types.js";
 import { decidePromotion } from "../ask/promotions.js";
+import {
+  createLearningContent,
+  TUTORIAL,
+  TUTORIAL_PREFIX,
+  type ProgressData,
+} from "../learning/content.js";
 import { createOnboardingRecords } from "./onboarding-records.js";
+import { roadmapData } from "./onboarding-roadmap.js";
 import { workspaceSettings } from "./settings.js";
 import { createPlatformStore, type PlatformRecord } from "./store.js";
 
@@ -35,6 +42,7 @@ const FLAG_OPEN = ["open", "triaged", "in_progress", "pending_verification"];
 export function createManagerRoutes(container: Container) {
   const { db, identity } = container;
   const store = createPlatformStore(db);
+  const learning = createLearningContent(container);
   const records = createOnboardingRecords(container);
 
   const personRef = (workspaceId: string, userId: string) =>
@@ -233,6 +241,81 @@ export function createManagerRoutes(container: Container) {
       (startDate && Date.parse(`${startDate}T00:00:00Z`) + 90 * DAY <= Date.now()
         ? isoDay(new Date(Date.parse(`${startDate}T00:00:00Z`) + 90 * DAY))
         : null);
+    // Tutorials: the ones they're taking outside a roadmap, and published ones they could add.
+    const taking = learning
+      .progressRows(actor.workspaceId, actor.id)
+      .filter((row) => String(row.data.moduleKey).startsWith(TUTORIAL_PREFIX));
+    const onRoadmap = new Set(
+      (() => {
+        const roadmap = learning.roadmapRow(actor.workspaceId, actor.id);
+        return roadmap
+          ? roadmapData(roadmap).modules.flatMap((entry) => entry.catalogId ?? [])
+          : [];
+      })(),
+    );
+    const tutorialKind = (kind: string): MyLearning["assigned"][number]["kind"] =>
+      kind === "decisions"
+        ? "decisions"
+        : ["project", "systems", "product"].includes(kind)
+          ? "project"
+          : "other";
+    for (const row of taking) {
+      const data = row.data as unknown as ProgressData;
+      const content = learning.tutorialContent(
+        actor.workspaceId,
+        String(data.moduleKey).slice(TUTORIAL_PREFIX.length),
+        data.versionId,
+      );
+      if (!content) continue;
+      if (data.completedAt) {
+        completed.push({
+          id: data.moduleKey,
+          title: content.title,
+          completedOn: data.completedAt.slice(0, 10),
+        });
+        continue;
+      }
+      const steps = content.lessons.length + (content.check ? 1 : 0);
+      assigned.push({
+        id: data.moduleKey,
+        title: content.title,
+        kind: tutorialKind(content.kind),
+        reason:
+          !data.assignedBy || data.assignedBy === actor.id
+            ? "Added by you"
+            : `Assigned by ${personRef(actor.workspaceId, data.assignedBy).name}`,
+        dueOn: data.dueOn,
+        lessonCount: steps,
+        lessonsDone:
+          content.lessons.filter((lesson) => data.lessonsDone.includes(lesson.id)).length +
+          (content.check && data.passed ? 1 : 0),
+        minutes: content.lessons.reduce((sum, lesson) => sum + lesson.minutes, 0),
+      });
+    }
+    const takingKeys = new Set(taking.map((row) => String(row.data.moduleKey)));
+    for (const row of store.listWhere(actor.workspaceId, TUTORIAL, { status: "published" }, 200)) {
+      const key = `${TUTORIAL_PREFIX}${row.id}`;
+      if (takingKeys.has(key) || onRoadmap.has(key) || !row.projectId) continue;
+      try {
+        identity.requireProject(actor, row.projectId);
+      } catch {
+        continue;
+      }
+      const content = learning.tutorialContent(actor.workspaceId, row.id);
+      if (!content) continue;
+      const project = db
+        .select({ name: projects.name })
+        .from(projects)
+        .where(eq(projects.id, row.projectId))
+        .get();
+      suggested.push({
+        id: key,
+        title: content.title,
+        kind: tutorialKind(content.kind),
+        reason: `A tutorial on ${project?.name ?? "a project"} for ${str(row.data.audience) || "everyone"}`,
+        minutes: content.lessons.reduce((sum, lesson) => sum + lesson.minutes, 0),
+      });
+    }
     return { onboardingFinishedOn: finished, assigned, suggested, completed };
   };
 
@@ -250,6 +333,31 @@ export function createManagerRoutes(container: Container) {
     .post("/me/learning/:id/add", (c) => {
       const actor = c.get("actor");
       if (actor.role === "guest") throw new AppError(403, "FORBIDDEN", "Guests cannot add courses");
+      // A tutorial: start taking it from My learning.
+      if (c.req.param("id").startsWith(TUTORIAL_PREFIX)) {
+        const key = c.req.param("id");
+        const content = learning.tutorialContent(
+          actor.workspaceId,
+          key.slice(TUTORIAL_PREFIX.length),
+        );
+        const tutorial = learning.tutorialRow(actor.workspaceId, key.slice(TUTORIAL_PREFIX.length));
+        if (!content?.projectId || tutorial?.status !== "published")
+          throw new NotFoundError("Course");
+        identity.requireProject(actor, content.projectId);
+        if (learning.progressFor(actor.workspaceId, actor.id, key))
+          throw new AppError(409, "CONFLICT", "This course is already yours");
+        learning.startProgress(actor.workspaceId, actor.id, key, content, {
+          placement: "my_learning",
+          assignedBy: actor.id,
+        });
+        container.audit.record({
+          actor,
+          action: "tutorial.enrol",
+          targetType: "tutorial",
+          targetId: content.tutorialId!,
+        });
+        return c.json(myLearning(actor));
+      }
       const path = readablePaths(actor).find((row) => row.id === c.req.param("id"));
       if (!path) throw new NotFoundError("Course");
       const existing = store

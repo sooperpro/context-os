@@ -10,10 +10,14 @@ describe("SignInLayout", () => {
         <button type="button">Continue with Google Workspace</button>
       </SignInLayout>,
     );
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Everything you need to know");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+      "Everything you need to know",
+    );
     expect(screen.getByRole("heading", { level: 2, name: "Sign in" })).toBeInTheDocument();
     expect(screen.getByText("Use your work account.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Continue with Google Workspace" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Continue with Google Workspace" }),
+    ).toBeInTheDocument();
     expect(screen.getByText(/single sign-on/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "ContextOS home" })).toBeInTheDocument();
   });

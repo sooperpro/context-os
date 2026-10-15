@@ -106,8 +106,13 @@ export function createMessageRoutes(container: Container) {
             question: row.question,
             answer: row.answer.answer,
             note: input.note ?? "",
+            // Everything the answer drew on (related items' sources too), not only what it cited:
+            // reviewers who can't open all of it never see it.
             sourceIds: [
-              ...new Set(row.answer.citations.map((citation) => citation.sourceObjectId)),
+              ...new Set([
+                ...(row.sourceIds ?? []),
+                ...row.answer.citations.map((citation) => citation.sourceObjectId),
+              ]),
             ],
             decisions: [],
           },

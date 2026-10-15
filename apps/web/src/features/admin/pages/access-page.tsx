@@ -34,6 +34,7 @@ import { StatusChip } from "@/components/ui/status-chip";
 import { ADMIN_ENDPOINTS as E } from "@/features/admin/api/admin.api";
 import { accessPreviewQuery, policiesQuery } from "@/features/admin/api/admin.queries";
 import { PolicyDialog, ResolveConflictDialog } from "@/features/admin/components/policy-dialogs";
+import { SsoCard } from "@/features/admin/components/sso-card";
 import { POLICY_EFFECT } from "@/features/admin/admin-meta";
 
 /**
@@ -102,6 +103,7 @@ export function AccessPage() {
                 ))}
               </ul>
             </SectionCard>
+            <SsoCard />
           </PageMain>
           <PageSide>
             {data?.previewPeople.length ? <PreviewCard people={data.previewPeople} /> : null}

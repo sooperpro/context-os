@@ -8,7 +8,7 @@ import {
   type ScopeVisibility,
 } from "@contextos/shared";
 import { zValidator } from "@hono/zod-validator";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Container } from "../../container.js";
@@ -26,7 +26,13 @@ import { validationHook } from "../../middleware/validation.js";
 import type { Actor, AppEnv } from "../../types.js";
 import { requireRole } from "../identity/identity.service.js";
 import { createPlatformStore } from "../platform/store.js";
-import type { createGoogleDriveService } from "./google-drive.js";
+import {
+  scopeNote,
+  scopeSyncJob,
+  syncFrequencyOf,
+  type createGoogleDriveService,
+  type ScopeCursor,
+} from "./google-drive.js";
 
 type DriveService = ReturnType<typeof createGoogleDriveService>;
 type Catalog = Pick<
@@ -321,22 +327,26 @@ export function createAdminConnectorRoutes(container: Container, drive: DriveSer
           )
           .all()
       : [];
-    const activeSyncs = projectIds.length
-      ? db
-          .select({ id: jobs.id })
-          .from(jobs)
-          .where(
-            and(
-              inArray(jobs.projectId, projectIds),
-              eq(jobs.type, "sync_connector"),
-              inArray(jobs.status, ["queued", "running"]),
-            ),
-          )
-          .all().length
-      : 0;
+    const pending = (type: "sync_connector" | "import_drive_file") =>
+      projectIds.length
+        ? (db
+            .select({ total: sql<number>`count(*)` })
+            .from(jobs)
+            .where(
+              and(
+                inArray(jobs.projectId, projectIds),
+                eq(jobs.type, type),
+                inArray(jobs.status, ["queued", "running"]),
+              ),
+            )
+            .get()?.total ?? 0)
+        : 0;
+    const activeSyncs = pending("sync_connector");
+    // Files listed but not downloaded yet count toward the work left.
+    const importing = pending("import_drive_file");
     const ready = sources.filter((source) => source.status === "ready").length;
     const settled = sources.filter((source) => ["ready", "failed"].includes(source.status)).length;
-    const processing = sources.length - settled;
+    const processing = sources.length - settled + importing;
     const lastSynced = scopes
       .map((scope) => scope.lastSyncedAt?.getTime() ?? 0)
       .reduce((max, value) => Math.max(max, value), 0);
@@ -366,7 +376,7 @@ export function createAdminConnectorRoutes(container: Container, drive: DriveSer
       };
     const backfilling = scopes.some((scope) => scope.status === "backfilling");
     if (backfilling || activeSyncs > 0 || processing > 0) {
-      const share = sources.length ? settled / sources.length : 0;
+      const share = sources.length + importing ? settled / (sources.length + importing) : 0;
       // Every known document is processed but Drive is still being walked for new ones.
       const walking = processing === 0 && sources.length > 0;
       return {
@@ -497,7 +507,7 @@ export function createAdminConnectorRoutes(container: Container, drive: DriveSer
                   excluded: scope.isExcluded,
                   backfillFrom: scope.backfillFrom?.toISOString().slice(0, 10),
                   visibility: scope.visibility,
-                  frequency: scope.syncFrequency,
+                  frequency: syncFrequencyOf(scope),
                 })),
               ...input.scopeIds.map((id) => ({
                 scopeType: types.get(id)!,
@@ -556,13 +566,7 @@ export function createAdminConnectorRoutes(container: Container, drive: DriveSer
               .set({ status: "backfilling", lastError: null, lastSyncRequestedAt: new Date() })
               .where(eq(connectorScopes.id, scope.id))
               .run();
-            queue.enqueue({
-              projectId: scope.projectId,
-              type: "sync_connector",
-              payload: { connectionId: scope.connectionId, scopeId: scope.id },
-              subject: scope.name,
-              dedupe: true,
-            });
+            queue.enqueue(scopeSyncJob(scope));
           }
           audit.record({
             actor,
@@ -607,7 +611,8 @@ export function createAdminConnectorRoutes(container: Container, drive: DriveSer
             itemCount: scope.itemCount,
             lastSyncedAt: scope.lastSyncedAt?.toISOString() ?? null,
             lastError: scope.lastError,
-            frequency: scope.syncFrequency,
+            note: scopeNote(scope.cursor as ScopeCursor | null),
+            frequency: syncFrequencyOf(scope),
             visibility: scope.visibility,
           })),
         });
@@ -647,13 +652,7 @@ export function createAdminConnectorRoutes(container: Container, drive: DriveSer
             })
             .where(eq(connectorScopes.id, scope.id))
             .run();
-          queue.enqueue({
-            projectId: scope.projectId,
-            type: "sync_connector",
-            payload: { connectionId: scope.connectionId, scopeId: scope.id },
-            subject: scope.name,
-            dedupe: true,
-          });
+          queue.enqueue(scopeSyncJob(scope));
           queued += 1;
         }
         audit.record({

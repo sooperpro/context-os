@@ -37,6 +37,8 @@ import {
   TuneFilledIcon,
   TuneIcon,
   type MaterialIcon,
+  SchoolFilledIcon,
+  SchoolIcon,
 } from "@/components/ui/icons";
 import type { Persona } from "@/features/workspace/viewer";
 import { HIDDEN } from "@/lib/hidden";
@@ -132,6 +134,15 @@ export const NAV_ITEMS: readonly NavItem[] = [
     to: "/templates",
     roles: ["hr"],
     personas: ["people_ops"],
+  },
+  {
+    id: "tutorials",
+    label: "Tutorials",
+    icon: SchoolIcon,
+    activeIcon: SchoolFilledIcon,
+    to: "/tutorials",
+    roles: ["owner", "admin", "hr"],
+    personas: ["admin", "people_ops"],
   },
   {
     id: "members",

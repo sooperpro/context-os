@@ -15,39 +15,40 @@ switch each mock off once the real endpoint ships.
 
 ## 0. Summary
 
-| What                                                    |  Count | Where                 |
-| ------------------------------------------------------- | -----: | --------------------- |
-| Endpoints the web app fakes with mock data (to build)   | **27** | Section 7, Appendix A |
-| Live API routes the web app already uses                |    130 | Appendix B            |
-| Live API routes the web app doesn't use yet             |     55 | Appendix C            |
-| Changes needed on live endpoints                        |     10 | Section 5             |
-| Decisions needed before building                        |     11 | Section 6             |
-| Features with no contract yet ("coming soon" in the UI) |     14 | Section 8             |
+| What                                                    | Count | Where                 |
+| ------------------------------------------------------- | ----: | --------------------- |
+| Endpoints the web app fakes with mock data (to build)   | **7** | Section 7, Appendix A |
+| Live API routes the web app already uses                |   159 | Appendix B            |
+| Live API routes the web app doesn't use yet             |    55 | Appendix C            |
+| Changes needed on live endpoints                        |    10 | Section 5             |
+| Decisions needed before building                        |    10 | Section 6             |
+| Features with no contract yet ("coming soon" in the UI) |    13 | Section 8             |
 
 Every web call to a literal path hits a live route, and every call through an endpoint descriptor is
 mocked except the live `GET /v1/audit`: the web app calls **no endpoint that is neither live nor
 mocked**.
 
 **Important for production.** The mock layer exists only in development. A production build doesn't
-contain it, so **the 27 endpoints simply 404 in production today** and the screens built on them show
+contain it, so **the 7 endpoints simply 404 in production today** and the screens built on them show
 their error states. Shipping these endpoints is what makes those screens real.
 
-The 27 endpoints by area:
+The 7 endpoints by area (all contributions, hidden for the demo):
 
 | Section | Area                                                          | Endpoints | Mock file(s)                              |
 | ------- | ------------------------------------------------------------- | --------: | ----------------------------------------- |
-| 7.1     | Learner: roadmap, modules, lessons, checks, Home summaries    |        10 | `learning.ts` (My learning is live)       |
-| 7.2     | Employee Home cards                                           |         5 | `home/employee.ts`                        |
-| 7.3     | First-day welcome                                             |         2 | `welcome.ts`                              |
+| 7.1     | Learner: roadmap, modules, lessons, checks, Home summaries    |         0 | — (live, `learning/learner.routes.ts`)    |
+| 7.2     | Employee Home cards                                           |         0 | — (live)                                  |
+| 7.3     | First-day welcome                                             |         0 | — (live, `platform/employee.routes.ts`)   |
 | 7.4     | Saved knowledge                                               |         0 | — (live, `platform/saved.routes.ts`)      |
-| 7.5     | Personal settings: Context Bot preferences and data export    |         3 | `account.ts`                              |
+| 7.5     | Personal settings: Context Bot preferences and data export    |         0 | — (live, `platform/employee.routes.ts`)   |
 | 7.6     | Manager: team, member pages, check-ins, assigning, Home cards |         0 | — (live, `platform/team.routes.ts`)       |
 | 7.7     | People directory                                              |         0 | —                                         |
 | 7.8     | Contributions and the review queue                            |         7 | `contributions.ts` (review queue is live) |
 | 7.9     | HR (People Ops): onboarding, probation, templates             |         0 | — (live, `platform/people-ops.routes.ts`) |
 | 7.10    | Admin                                                         |         0 | — (live)                                  |
 | 7.11    | Context Bot outside projects                                  |         0 | — (live, `ask/assistant.routes.ts`)       |
-|         | **Total**                                                     |    **27** |                                           |
+| 7.12    | Tutorials (Studio)                                            |         0 | — (live, `learning/tutorials.routes.ts`)  |
+|         | **Total**                                                     |     **7** |                                           |
 
 ## 1. How the web app talks to the API
 
@@ -221,8 +222,8 @@ and `GET /v1/workspaces/current`, and the audit log.
    check-ins); a calendar can replace it later.
 9. **Server-written text vs structured fields** (section 1), and localisation.
 10. **Team vocabulary.** Mocks use three different team lists; use `/v1/org/teams` everywhere.
-11. **Empty states for people without a plan.** `GET /v1/me/roadmap` and `GET /v1/me/onboarding`
-    have no empty form: 404, or an empty roadmap?
+11. ~~Empty states for people without a plan.~~ _Decided:_ `GET /v1/me/roadmap` and
+    `GET /v1/me/onboarding` answer 404; the roadmap page and Home then point to My learning.
 
 ## 7. Endpoint reference
 
@@ -235,6 +236,28 @@ shouldn't be copied. Counts per area are in section 0; the one-line list is Appe
 Mock file: `apps/web/src/mocks/learning.ts` (12 endpoints, including the two Home summaries that share its
 state). Contracts: `packages/shared/src/schemas/learning.ts`, `home.ts`, `manager.ts` (My learning).
 Backlog: item 7. All endpoints are **for the caller only**.
+
+**Live.** Served by `apps/api/src/modules/learning/learner.routes.ts` (tests:
+`learning/tutorials.test.ts`); the mocks are test fixtures (`apps/web/src/test/learning-mocks.ts`).
+
+- **One model.** The roadmap is the `roadmap` record HR and the manager use (7.6, 7.9). A module's
+  content is a published tutorial (7.12): one assigned directly (`tutorial-<id>`), or the tutorial a
+  curator marked as teaching a template module (`mod-…`). A template module nobody has written a
+  tutorial for shows one honest "talk it through with your buddy, then mark it done" step; learning
+  path modules show their items. Completing modules updates the roadmap record, so status, progress
+  and the manager's and HR's views follow the learner.
+- **Ids.** Module ids are roadmap module ids, or `tutorial-<id>` for tutorials taken in My learning.
+  Lessons are `<moduleId>~<lessonId>`; a module's check is `<moduleId>~check`.
+- **Lessons** are one `markdown` block (a new `LessonBlock` type; GitHub-flavoured Markdown, rendered
+  without raw HTML). Lessons built on sources the learner can't open show as restricted, and check
+  questions citing those sources are left out.
+- **Rules.** Modules in a stage that hasn't opened are `locked` (unless someone assigned them). A
+  module is done when every lesson is done and its check (if any) is passed; retakes are allowed.
+  Progress is a `learning_progress` record per learner and module, pinned to the tutorial version
+  they started (FR-LRN-012). Clarifications go to the tutorial's author; roadmap changes to the
+  manager. `GET /v1/me/tasks` and `GET /v1/me/milestones` (7.2) are served here too.
+
+The original handoff notes follow.
 
 **The model the screens assume.** A person has one roadmap built from an onboarding template:
 4 **stages** (Foundations wk 1–2, Product & systems 3–4, Team practice 5–8, Ownership 9–12), each with
@@ -395,6 +418,13 @@ lessonCount, lessonsDone, minutes}, suggested[] {id, title, kind, reason, minute
 Mock file: `apps/web/src/mocks/home/employee.ts` (5 endpoints, all static). Contract: `home.ts`.
 Caller only. UI: `features/home/components/employee-home.tsx`.
 
+**Live.** Tasks and milestones: `learning/learner.routes.ts` (modules due this week or overdue;
+stage ends, the 30-day check-in, the 60-day readiness review and the probation review). Knowledge
+updates, team activity and people: `platform/employee.routes.ts` (tests: `employee.test.ts`).
+Knowledge updates are items changed in the last 14 days that the caller can open; people are the
+manager, buddy, People partner (`peoplePartnerId` on the HR record), mentors and up to three domain
+owners. Fixtures for tests: `apps/web/src/test/employee-mocks.ts` and `learning-mocks.ts`.
+
 #### `GET /v1/me/tasks?from=&to=`
 
 - **Returns** `MyTasksSchema`: `from, to, items[] {id, kind check|practical|reading|meeting, title,
@@ -436,6 +466,11 @@ text, actor, where, at}}`.
 ### 7.3 First-day welcome
 
 Mock file: `apps/web/src/mocks/welcome.ts`. Contract: `welcome.ts`. Backlog: item 14. Caller only.
+
+**Live** (`platform/employee.routes.ts`). The profile is stored in `users.preferences.profile`
+(location also in `memberships.organization.location`); `reminders` is the onboarding category of
+`/v1/notifications/preferences`, so there is one switch. `known` topics are stored but don't make
+roadmap modules optional yet.
 
 #### `GET /v1/me/welcome`
 
@@ -479,6 +514,12 @@ what the caller can still open; a project slug is accepted). Contract: `saved.ts
 
 Mock file: `apps/web/src/mocks/account.ts` (3 endpoints). Contract: `account.ts`. Backlog: item 15.
 Caller only. UI: Settings → Preferences (Context Bot card) and Security (Connected apps, Your data).
+
+**Live** (`platform/employee.routes.ts`). Preferences live in `users.preferences.assistant`. The data
+export is built at once (profile, Ask history, shared check-ins, proposals, gaps, flags, saved items;
+answers drawing on sources the person can no longer open are withheld), kept 7 days, and announced
+in-app and by email with a link to `GET /v1/me/data-export/:id` (owner only). Without an email
+address it answers 409.
 
 Connected apps are live through `GET /v1/connectors` and
 `DELETE /v1/connectors/:id?mode=keep_derived`. The adapter presents connector connections in the
@@ -1102,6 +1143,35 @@ reconnect, Manage (folders, sync all, stop syncing) and connector requests
 (`platform/members-admin.routes.ts`, plus `POST /v1/role-requests` and `GET /v1/role-requests/mine`
 for any member); access policies, conflicts and the preview (`platform/access-policies.routes.ts`).
 
+**Google Drive sync, as served.** Nothing touches Google while serving a page: syncing and access
+are background jobs (`connectors/google-drive.ts`).
+
+- **Schedule.** A selected folder syncs every two days (`2d`) or only on "Sync now" (`manual`); the
+  10-minute cooldown on Sync now stays. Migrations 0010–0011 moved every folder on 15m, hourly or
+  daily to `2d`.
+- **`sync_connector`** lists the scope's metadata (1,000 files a page; shared drives and My Drive flat,
+  folders walked to any depth, up to `DRIVE_MAX_FILES_PER_SCOPE`, 20,000 by default) and queues one
+  `import_drive_file` job per new or changed file (Drive's modified time). Unchanged files are not
+  downloaded or audited; files whose processing failed are re-queued; files gone from Drive are
+  tombstoned once the whole scope was listed. Sheets, Slides and other types are counted and shown
+  as the scope's `note` in Manage.
+- **`import_drive_file`** downloads one file (up to `MAX_DOCUMENT_BYTES`, 50 MB), keeps up to
+  `MAX_SOURCE_TEXT_CHARS` (2 million) of its text, and queues processing at bulk priority. Permanent
+  problems (too large, no text, no access) are recorded so the same version isn't fetched again;
+  anything else retries with backoff.
+- **`refresh_access`** works out who may read a restricted scope: people the file or shared drive is
+  shared with (email, domain, anyone with the link, matched to members by sign-in or connected
+  Google email), plus members whose own connected Drive lists it. Stored as `source_access` grants
+  valid for 30 hours and refreshed every 6 hours (and after each sync or a new Drive connection), so
+  a revoked share disappears within hours and a broken refresh fails closed. My Drive scopes rely on
+  sharing only.
+- **Processing.** Jobs carry a priority (listing first, uploads next, bulk imports last) and a
+  concurrency key (one job per source, scope or project overview at a time); the worker runs
+  `WORKER_CONCURRENCY` (4) at once. Long documents are read by the AI in up to
+  `EXTRACTION_MAX_WINDOWS` (4) sections of 120k characters; the rest is still searchable in chat. Chat
+  scores questions against an in-memory int8 copy of each project's vectors, reloaded only when the
+  project's documents change.
+
 **Access policies as served.** Groups are team and department names from the org structure. A policy
 covers projects or synced folders (`sources: [{kind, id}]`, now required in the input). Restrict: only
 its groups can open the sources. Exclude: never used in answers, and only its groups can open them.
@@ -1319,6 +1389,32 @@ unhelpful reasons, unanswered questions. Approving a role request doesn't change
 mock. The admin Home "Sources" card already uses live `/v1/connectors` while `/connectors` is mocked,
 so the two disagree until this section ships.
 
+### 7.12 Tutorials (Tutorial Studio)
+
+**Live.** `apps/api/src/modules/learning/tutorials.routes.ts` (drafting: `tutorial-ai.ts`; tests:
+`learning/tutorials.test.ts`). Contract: `packages/shared/src/schemas/tutorials.ts`. UI: `/tutorials`
+and `/tutorials/:id` for admins, owners and People Ops (project `path_curator`s may manage their
+projects' tutorials through the API).
+
+- **Drafting (FR-LRN-001).** `POST /v1/tutorials {projectId, audience, focus?, coversModule?}` (202)
+  queues `generate_tutorial`. The job writes lessons (Markdown) and a knowledge check from the
+  project's **stored** knowledge: the Knowledge Hub's items with their evidence quotes, plus passages
+  retrieved for the focus. It never reads Drive. Every lesson and question cites numbered sources.
+- **Review (FR-LRN-004/005).** `GET`/`PATCH /v1/tutorials/:id` edit title, summary, objectives,
+  lessons (Markdown, order) and questions; the Studio previews exactly what learners read. Learners
+  only ever see published versions: `POST /v1/tutorials/:id/publish {updateLearners}` snapshots a
+  `tutorial_version`.
+- **No updates on sync (FR-LRN-008).** Each draft keeps the content hashes of its sources. A Drive
+  sync never changes a tutorial; the Studio shows which sources changed or were removed ("Needs
+  update"), and the curator decides to `POST /v1/tutorials/:id/regenerate`. The published version
+  stays until they publish again.
+- **Versions (FR-LRN-012).** People part-way through keep their version unless `updateLearners` is
+  true; finished lessons stay finished.
+- **Assigning.** `POST /v1/tutorials/:id/assign {userId, dueOn}` puts it on the person's roadmap when
+  they're onboarding (their manager and HR see it there), otherwise in My learning; they're notified.
+  Published tutorials are also modules in the template catalog (`tutorial-<id>`) and the manager's
+  "Assign learning", and suggestions in My learning.
+
 ### 7.11 Context Bot outside projects
 
 Live since the Context Bot integration: `apps/api/src/modules/ask/assistant.routes.ts` serves all three. Contract: `packages/shared/src/schemas/assistant.ts`.
@@ -1388,7 +1484,7 @@ nothing). Each needs a contract first; the frontend will write it in `packages/s
 |   7 | Act on a knowledge gap's conflict or stale source ("Review sources", "Request update") | Manager Home "Knowledge gaps"                                                                 | **Done:** `KnowledgeGap.target`; "Request update" posts a flag (7.6)                                                                     |
 |   8 | Per-person actions in the team roster ("More actions")                                 | Manager Home roster                                                                           | **Done:** open, record check-in, assign learning (no new endpoint)                                                                       |
 |   9 | Owners see learning ratings                                                            | The UI tells learners "The owner sees your rating"                                            | An aggregate on the module owner's view                                                                                                  |
-|  10 | Start or resume a course                                                               | My learning ("Start", "Resume")                                                               | A course detail or lesson flow for `/v1/me/learning` items                                                                               |
+|  10 | Start or resume a course                                                               | My learning ("Start", "Resume")                                                               | **Done for tutorials** (they open as a module); older learning paths still have no lesson flow                                           |
 |  11 | Save a Context Bot answer                                                              | Answer cards (the reference has a bookmark)                                                   | Add `answer` to `SaveInput.targetType` (`/v1/me/saved`)                                                                                  |
 |  12 | Avatar shape                                                                           | Settings → Profile (reference has a shape picker; today the shape comes from the person's id) | `preferences.avatarShape` on `/v1/users/me`: one of `cookie9`, `cookie6`, `clover4`, `sunny`, `flower`, `cookie4`, `clover8`, `cookie12` |
 |  13 | Unread badges on the rail                                                              | Rail items                                                                                    | Unread counts per area (for example `GET /v1/me/badges`)                                                                                 |
@@ -1421,44 +1517,24 @@ nothing). Each needs a contract first; the frontend will write it in `packages/s
 - [ ] `pnpm check` passes.
 - [ ] `docs/api-change-requests.md` status table and Appendix A updated.
 
-## Appendix A. Every mocked endpoint (27)
+## Appendix A. Every mocked endpoint (7)
 
 Generated from `apps/web/src/mocks/endpoints.ts` and the endpoint descriptors in
 `apps/web/src/features/*/api/*.api.ts`. Schemas are exported from `@contextos/shared`
 (`packages/shared/src/schemas/`). Mock files are under `apps/web/src/mocks/`. Row numbers preserve
 the original catalog, so gaps identify endpoints retired from the mock layer.
 
-|   # | Section | Method | Path                             | Request body                      | Response                     | Mock file          |
-| --: | ------- | ------ | -------------------------------- | --------------------------------- | ---------------------------- | ------------------ |
-|   1 | 7.1     | GET    | `/v1/me/checks/:id`              | —                                 | `KnowledgeCheckSchema`       | `learning.ts`      |
-|   2 | 7.1     | POST   | `/v1/me/checks/:id/attempts`     | `CheckAttemptInputSchema`         | `CheckResultSchema`          | `learning.ts`      |
-|   4 | 7.1     | POST   | `/v1/me/learning-ratings`        | `LearningRatingInputSchema`       | `LearningRatingSchema`       | `learning.ts`      |
-|   5 | 7.1     | POST   | `/v1/me/learning-requests`       | `LearningRequestInputSchema`      | `LearningRequestSchema`      | `learning.ts`      |
-|   7 | 7.1     | GET    | `/v1/me/lessons/:id`             | —                                 | `LessonSchema`               | `learning.ts`      |
-|   8 | 7.1     | POST   | `/v1/me/lessons/:id/complete`    | `LessonCompletionInputSchema`     | `LessonCompletionSchema`     | `learning.ts`      |
-|   9 | 7.1     | GET    | `/v1/me/modules/:id`             | —                                 | `ModuleDetailSchema`         | `learning.ts`      |
-|  10 | 7.1     | GET    | `/v1/me/next-up`                 | —                                 | `NextUpResponseSchema`       | `learning.ts`      |
-|  11 | 7.1     | GET    | `/v1/me/onboarding`              | —                                 | `MyOnboardingSchema`         | `learning.ts`      |
-|  12 | 7.1     | GET    | `/v1/me/roadmap`                 | —                                 | `MyRoadmapSchema`            | `learning.ts`      |
-|  13 | 7.2     | GET    | `/v1/me/knowledge-updates`       | —                                 | `KnowledgeUpdateListSchema`  | `home/employee.ts` |
-|  14 | 7.2     | GET    | `/v1/me/milestones`              | —                                 | `MilestoneListSchema`        | `home/employee.ts` |
-|  15 | 7.2     | GET    | `/v1/me/people`                  | —                                 | `MyPeopleSchema`             | `home/employee.ts` |
-|  16 | 7.2     | GET    | `/v1/me/tasks`                   | —                                 | `MyTasksSchema`              | `home/employee.ts` |
-|  17 | 7.2     | GET    | `/v1/me/team-activity`           | —                                 | `TeamActivityFeedSchema`     | `home/employee.ts` |
-|  18 | 7.3     | GET    | `/v1/me/welcome`                 | —                                 | `WelcomeSchema`              | `welcome.ts`       |
-|  19 | 7.3     | POST   | `/v1/me/welcome`                 | `WelcomeInputSchema`              | `WelcomeSchema`              | `welcome.ts`       |
-|  22 | 7.5     | GET    | `/v1/me/assistant-preferences`   | —                                 | `AssistantPreferencesSchema` | `account.ts`       |
-|  23 | 7.5     | PATCH  | `/v1/me/assistant-preferences`   | `AssistantPreferencesInputSchema` | `AssistantPreferencesSchema` | `account.ts`       |
-|  26 | 7.5     | POST   | `/v1/me/data-export`             | `{}`                              | `DataExportResultSchema`     | `account.ts`       |
-|  44 | 7.8     | POST   | `/v1/contributions`              | `ContributionInputSchema`         | `ContributionSchema`         | `contributions.ts` |
-|  45 | 7.8     | POST   | `/v1/contributions/:id/resubmit` | `ContributionResubmitInputSchema` | `ContributionSchema`         | `contributions.ts` |
-|  46 | 7.8     | POST   | `/v1/contributions/draft`        | `ContributionDraftInputSchema`    | `ContributionDraftSchema`    | `contributions.ts` |
-|  47 | 7.8     | GET    | `/v1/contributions/reviewer`     | —                                 | `SuggestedReviewerSchema`    | `contributions.ts` |
-|  48 | 7.8     | GET    | `/v1/me/contributions`           | —                                 | `ContributionListSchema`     | `contributions.ts` |
-|  49 | 7.8     | GET    | `/v1/me/knowledge-gaps`          | —                                 | `KnowledgeGapListSchema`     | `contributions.ts` |
-|  52 | 7.8     | GET    | `/v1/sources/search`             | —                                 | `SourcePickListSchema`       | `contributions.ts` |
+|   # | Section | Method | Path                             | Request body                      | Response                  | Mock file          |
+| --: | ------- | ------ | -------------------------------- | --------------------------------- | ------------------------- | ------------------ |
+|  44 | 7.8     | POST   | `/v1/contributions`              | `ContributionInputSchema`         | `ContributionSchema`      | `contributions.ts` |
+|  45 | 7.8     | POST   | `/v1/contributions/:id/resubmit` | `ContributionResubmitInputSchema` | `ContributionSchema`      | `contributions.ts` |
+|  46 | 7.8     | POST   | `/v1/contributions/draft`        | `ContributionDraftInputSchema`    | `ContributionDraftSchema` | `contributions.ts` |
+|  47 | 7.8     | GET    | `/v1/contributions/reviewer`     | —                                 | `SuggestedReviewerSchema` | `contributions.ts` |
+|  48 | 7.8     | GET    | `/v1/me/contributions`           | —                                 | `ContributionListSchema`  | `contributions.ts` |
+|  49 | 7.8     | GET    | `/v1/me/knowledge-gaps`          | —                                 | `KnowledgeGapListSchema`  | `contributions.ts` |
+|  52 | 7.8     | GET    | `/v1/sources/search`             | —                                 | `SourcePickListSchema`    | `contributions.ts` |
 
-## Appendix B. Live API routes the web app calls (130)
+## Appendix B. Live API routes the web app calls (159)
 
 These already work. `GET /v1/audit` needs the change in section 5.
 
@@ -1594,6 +1670,35 @@ These already work. `GET /v1/audit` needs the change in section 5.
 | GET    | `/v1/team/members/:id/assign-options`                        | platform/team.routes.ts                 |
 | POST   | `/v1/team/members/:id/assignments`                           | platform/team.routes.ts                 |
 | POST   | `/v1/team/members/:id/escalations`                           | platform/team.routes.ts                 |
+| GET    | `/v1/me/roadmap`                                             | learning/learner.routes.ts              |
+| GET    | `/v1/me/modules/:id`                                         | learning/learner.routes.ts              |
+| GET    | `/v1/me/lessons/:id`                                         | learning/learner.routes.ts              |
+| POST   | `/v1/me/lessons/:id/complete`                                | learning/learner.routes.ts              |
+| GET    | `/v1/me/checks/:id`                                          | learning/learner.routes.ts              |
+| POST   | `/v1/me/checks/:id/attempts`                                 | learning/learner.routes.ts              |
+| POST   | `/v1/me/learning-ratings`                                    | learning/learner.routes.ts              |
+| POST   | `/v1/me/learning-requests`                                   | learning/learner.routes.ts              |
+| GET    | `/v1/me/next-up`                                             | learning/learner.routes.ts              |
+| GET    | `/v1/me/onboarding`                                          | learning/learner.routes.ts              |
+| GET    | `/v1/me/tasks`                                               | learning/learner.routes.ts              |
+| GET    | `/v1/me/milestones`                                          | learning/learner.routes.ts              |
+| GET    | `/v1/me/knowledge-updates`                                   | platform/employee.routes.ts             |
+| GET    | `/v1/me/team-activity`                                       | platform/employee.routes.ts             |
+| GET    | `/v1/me/people`                                              | platform/employee.routes.ts             |
+| GET    | `/v1/me/welcome`                                             | platform/employee.routes.ts             |
+| POST   | `/v1/me/welcome`                                             | platform/employee.routes.ts             |
+| GET    | `/v1/me/assistant-preferences`                               | platform/employee.routes.ts             |
+| PATCH  | `/v1/me/assistant-preferences`                               | platform/employee.routes.ts             |
+| POST   | `/v1/me/data-export`                                         | platform/employee.routes.ts             |
+| GET    | `/v1/me/data-export/:id`                                     | platform/employee.routes.ts             |
+| GET    | `/v1/tutorials`                                              | learning/tutorials.routes.ts            |
+| POST   | `/v1/tutorials`                                              | learning/tutorials.routes.ts            |
+| GET    | `/v1/tutorials/:id`                                          | learning/tutorials.routes.ts            |
+| PATCH  | `/v1/tutorials/:id`                                          | learning/tutorials.routes.ts            |
+| POST   | `/v1/tutorials/:id/regenerate`                               | learning/tutorials.routes.ts            |
+| POST   | `/v1/tutorials/:id/publish`                                  | learning/tutorials.routes.ts            |
+| POST   | `/v1/tutorials/:id/archive`                                  | learning/tutorials.routes.ts            |
+| POST   | `/v1/tutorials/:id/assign`                                   | learning/tutorials.routes.ts            |
 
 ## Appendix C. Live API routes the web app does not call yet (55)
 

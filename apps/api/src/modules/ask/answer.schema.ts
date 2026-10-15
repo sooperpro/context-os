@@ -7,7 +7,7 @@ export const AnswerOutputSchema = z.object({
   answer: z
     .string()
     .describe(
-      "Direct answer in plain prose. Reference evidence inline as [n]. If the evidence is insufficient, say so plainly.",
+      "Direct answer formatted in Markdown: short paragraphs, bullet or numbered lists for steps and options, **bold** for key terms, `code` for system names, a small table when comparing. No headings for short answers. Reference evidence inline as [n]. If the evidence is insufficient, say so plainly.",
     ),
   confidence: AnswerConfidenceSchema.describe(
     "high = directly stated by evidence; medium = well supported; low = partial/indirect; insufficient = the evidence does not establish an answer",

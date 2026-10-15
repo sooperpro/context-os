@@ -2,7 +2,7 @@ import { WelcomeInputSchema, WelcomeSchema, type WelcomeInput } from "@contextos
 import { apiRequest } from "@/lib/api-client";
 
 /**
- * The first-day welcome. Not served yet; in development the mock layer answers (src/mocks/welcome.ts).
+ * The first-day welcome, served by the API (apps/api/src/modules/platform/employee.routes.ts).
  * Contract: packages/shared/src/schemas/welcome.ts.
  */
 export const WELCOME_ENDPOINTS = {

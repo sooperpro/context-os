@@ -1,7 +1,7 @@
 import type { BountyStatus, WorkspaceSettingsState } from "@contextos/shared";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { Db } from "../../db/index.js";
-import { platformRecords } from "../../db/schema.js";
+import { conflicts, evidence, platformRecords } from "../../db/schema.js";
 import { AppError, BadRequestError, NotFoundError } from "../../lib/errors.js";
 import type { Actor } from "../../types.js";
 import type { IdentityService } from "../identity/identity.service.js";
@@ -73,6 +73,43 @@ export function createBountyService({ db, identity, store, notifier }: BountyDep
         },
       });
     return row;
+  };
+  /**
+   * Automatic bounties name the claims or flag they come from (titles, flag comments). Someone who
+   * can't open every source behind those doesn't see the bounty at all (PP-2).
+   */
+  const visibleTo = (
+    actor: Actor,
+    row: PlatformRecord,
+    visibleByProject = new Map<string, Set<string>>(),
+  ) => {
+    const projectId = String(row.data.projectId);
+    let sourceIds: string[] = [];
+    if (row.data.origin === "conflict" && typeof row.data.conflictId === "string") {
+      const conflict = db
+        .select({ memberIds: conflicts.memberIds })
+        .from(conflicts)
+        .where(eq(conflicts.id, row.data.conflictId))
+        .get();
+      sourceIds = conflict?.memberIds.length
+        ? db
+            .select({ sourceId: evidence.sourceObjectId })
+            .from(evidence)
+            .where(inArray(evidence.contextItemId, conflict.memberIds))
+            .all()
+            .map((entry) => entry.sourceId)
+        : [];
+    } else if (typeof row.data.flagId === "string") {
+      const flag = store.find(actor.workspaceId, "flag", row.data.flagId);
+      sourceIds = Array.isArray(flag?.data.sourceIds) ? (flag.data.sourceIds as string[]) : [];
+    }
+    if (!sourceIds.length) return true;
+    let visible = visibleByProject.get(projectId);
+    if (!visible) {
+      visible = new Set(identity.visibleSourceIds(actor, projectId));
+      visibleByProject.set(projectId, visible);
+    }
+    return sourceIds.every((id) => visible.has(id));
   };
   const canEarn = (actor: Actor, settings: WorkspaceSettingsState) =>
     actor.role !== "guest" || settings.gamification.guestsCanEarn;
@@ -193,6 +230,7 @@ export function createBountyService({ db, identity, store, notifier }: BountyDep
       const row = store.find(workspaceId, "bounty", bountyId);
       if (row && ["draft", "open"].includes(row.status)) store.patch(row, { status: "cancelled" });
     },
+    visibleTo,
     list(
       actor: Actor,
       query: {
@@ -208,6 +246,7 @@ export function createBountyService({ db, identity, store, notifier }: BountyDep
       if (!canEarn(actor, settings))
         throw new AppError(403, "FORBIDDEN", "Guests cannot browse bounties");
       const accessible = new Set<string>();
+      const visibleByProject = new Map<string, Set<string>>();
       return store
         .listWhere(actor.workspaceId, "bounty", { projectId: query.projectId }, 500)
         .map((row) => refresh(row))
@@ -232,13 +271,14 @@ export function createBountyService({ db, identity, store, notifier }: BountyDep
             !["owner", "admin"].includes(actor.role)
           )
             return false;
-          return true;
+          return visibleTo(actor, row, visibleByProject);
         })
         .slice(query.offset, query.offset + query.limit);
     },
     get(actor: Actor, id: string): PlatformRecord {
       const row = refresh(store.get(actor, "bounty", id));
       identity.requireProject(actor, String(row.data.projectId));
+      if (!visibleTo(actor, row)) throw new NotFoundError("Bounty");
       if (
         row.status === "draft" &&
         row.ownerId !== actor.id &&

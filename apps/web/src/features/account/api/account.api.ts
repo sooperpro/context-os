@@ -53,8 +53,9 @@ export const updateCompanionPreferences = (
     schema: CompanionPreferencesSchema,
   });
 
-/* Assistant preferences and personal data export still use the development preview layer.
- * Connected apps are adapted from the live connector API.
+/* Assistant preferences and the personal data export are served by the API
+ * (apps/api/src/modules/platform/employee.routes.ts). The export answers 202, or 409 when the account
+ * has no email address to send the link to. Connected apps are adapted from the live connector API.
  */
 export const ACCOUNT_ENDPOINTS = {
   assistantPreferences: {

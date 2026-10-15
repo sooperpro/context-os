@@ -81,6 +81,7 @@ import {
 import { HOME_ENDPOINTS as E } from "@/features/home/api/home.api";
 import { ROADMAP_PATH, learningPath } from "@/features/learning/learning-meta";
 import { homeQuery } from "@/features/home/api/home.queries";
+import { ApiClientError } from "@/lib/api-client";
 import { comingSoon } from "@/lib/coming-soon";
 import { CONTRIBUTION_KIND_LABEL, KNOWLEDGE_ORIGIN_LABEL } from "@/lib/labels";
 import {
@@ -130,6 +131,8 @@ export function EmployeeHome() {
   const tasks = useQuery(homeQuery("myTasks"));
 
   const plan = onboarding.data;
+  // Not onboarding (no plan): Home points at My learning instead of a roadmap.
+  const noPlan = onboarding.error instanceof ApiClientError && onboarding.error.status === 404;
   const day = plan ? 1 - daysFromToday(plan.startDate) : null;
   const stage = plan?.stages.find((entry) => entry.state === "current");
   const dueThisWeek = tasks.data?.items.filter((task) => task.state === "open").length;
@@ -162,15 +165,19 @@ export function EmployeeHome() {
           ) : undefined
         }
         actions={
-          <Button variant="outline" nativeButton={false} render={<Link to={ROADMAP_PATH} />}>
-            <RouteIcon aria-hidden /> View roadmap
+          <Button
+            variant="outline"
+            nativeButton={false}
+            render={<Link to={noPlan ? "/learning" : ROADMAP_PATH} />}
+          >
+            <RouteIcon aria-hidden /> {noPlan ? "My learning" : "View roadmap"}
           </Button>
         }
       />
       <WelcomeBanner />
       <div className="grid grid-cols-1 gap-3 [grid-template-areas:'hero'_'prog'_'week'_'miles'_'ask'_'news'_'side'] medium:gap-4 @min-[640px]:grid-cols-2 @min-[640px]:[grid-template-areas:'hero_hero'_'prog_miles'_'week_week'_'ask_ask'_'news_news'_'side_side'] @min-[940px]:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)] @min-[940px]:[grid-template-areas:'hero_prog'_'week_miles'_'ask_ask'_'news_side']">
         <NextUpCard query={nextUp} />
-        <OnboardingCard query={onboarding} day={day} />
+        {noPlan ? <NoPlanCard /> : <OnboardingCard query={onboarding} day={day} />}
         <WeekCard query={tasks} stageName={stage?.name} />
         <MilestonesCard />
         <AskBand className="[grid-area:ask]" prompts={prompts} />
@@ -344,6 +351,25 @@ function NextUpBody({ item, headingId }: { item: NextUp; headingId: string }) {
 }
 
 /* ---- Your onboarding --------------------------------------------------------------------- */
+
+function NoPlanCard() {
+  return (
+    <SectionCard className="[grid-area:prog]" title="Your learning">
+      <p className="text-sm text-on-surface-variant">
+        You're not onboarding, so there's no roadmap. Tutorials assigned to you, and ones you can
+        add yourself, are in My learning.
+      </p>
+      <Button
+        variant="outline"
+        className="self-start"
+        nativeButton={false}
+        render={<Link to="/learning" />}
+      >
+        Open My learning
+      </Button>
+    </SectionCard>
+  );
+}
 
 function OnboardingCard({
   query,

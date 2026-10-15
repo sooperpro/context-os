@@ -47,7 +47,7 @@ export function createMemberAdminRoutes(container: Container) {
   const store = createPlatformStore(db);
   const notifier = createNotifier(db);
   const admin = (actor: Actor) => requireRole(actor, "owner", "admin");
-  const provider = env.AUTH_MODE === "clerk" ? "Clerk" : "Development sign-in";
+  const provider = env.AUTH_MODE === "accounts" ? "ContextOS sign-in" : "Development sign-in";
 
   const personRef = (workspaceId: string, userId: string) => {
     const user = db.select().from(users).where(eq(users.id, userId)).get();
@@ -108,7 +108,8 @@ export function createMemberAdminRoutes(container: Container) {
         seats: { used, total: seatLimit },
         directorySync: {
           provider,
-          enabled: env.AUTH_MODE === "clerk",
+          // No external directory feed yet (SCIM): members join by invitation or company SSO.
+          enabled: false,
           lastRunAt: last?.createdAt.toISOString() ?? null,
         },
       } satisfies MembersOverview);

@@ -5,8 +5,8 @@ import { Shape } from "@/components/ui/shape";
 
 /**
  * Full-screen sign-in and first-day frame, from the prototype: a primary-container brand panel with
- * expressive shapes and the pitch on the left, a card on the right. Clerk's components (or any
- * other content) render inside the card.
+ * expressive shapes and the pitch on the left, a card on the right. The sign-in form (or any
+ * other content) renders inside the card.
  */
 interface SignInLayoutProps {
   /** Card heading, e.g. "Sign in" or "Choose your workspace". */

@@ -24,7 +24,6 @@ import {
   identityLinks,
   memberships,
   oauthStates,
-  organizationLinks,
   projectMemberships,
   projects,
   sourceAccess,
@@ -39,7 +38,8 @@ import { createNotifier } from "../platform/notify.js";
 import { ledgerSummary } from "../platform/reputation.js";
 import { resolveSettings, workspaceSettings } from "../platform/settings.js";
 import { createPlatformStore } from "../platform/store.js";
-import { requireRole } from "./identity.service.js";
+import { sendInvitationEmail } from "../auth/invitations.js";
+import { organizationFor, requireRole } from "./identity.service.js";
 
 const adminRoles = ["owner", "admin"] as const;
 const ProjectMemberSchema = z.object({ userId: z.string().min(1).max(200) }).strict();
@@ -151,6 +151,9 @@ export function createIdentityRoutes(container: Container) {
       if (actor.role === "guest")
         throw new AppError(403, "FORBIDDEN", "Directory access is not permitted");
       const { limit, offset, q, role, status, departmentId, teamId } = c.req.valid("query");
+      // Who is suspended or leaving is for admins; everyone else lists active members.
+      if (status && status !== "active" && !["owner", "admin"].includes(actor.role))
+        throw new AppError(403, "FORBIDDEN", "Only admins can list members who aren't active");
       const settings = workspaceSettings(db, actor.workspaceId);
       const needle = q?.toLocaleLowerCase();
       const rows = db
@@ -188,7 +191,11 @@ export function createIdentityRoutes(container: Container) {
           role: membership.role,
           status: membership.status,
           managerId: membership.managerId,
-          organization: membership.organization,
+          organization: organizationFor(actor, {
+            userId: user.id,
+            managerId: membership.managerId,
+            organization: membership.organization,
+          }),
           tier:
             settings.gamification.enabled && user.preferences.hideTier !== true
               ? ledgerSummary(db, actor.workspaceId, user.id, settings).tier
@@ -421,13 +428,6 @@ export function createIdentityRoutes(container: Container) {
               "FORBIDDEN",
               "Managers can invite members into their own team only",
             );
-      const organization = db
-        .select()
-        .from(organizationLinks)
-        .where(eq(organizationLinks.workspaceId, actor.workspaceId))
-        .get();
-      if (identity.clerk && !organization)
-        throw new AppError(503, "NOT_CONFIGURED", "Workspace organization is not linked");
       const results: Array<Record<string, unknown>> = [];
       for (const invitation of invitations) {
         if (invitation.managerId) identity.requireMember(actor.workspaceId, invitation.managerId);
@@ -449,24 +449,13 @@ export function createIdentityRoutes(container: Container) {
           results.push({ email, status: "pending", invitationId: pending.id });
           continue;
         }
-        let providerInvitationId: string | null = null;
-        if (identity.clerk && organization) {
-          const created = await identity.clerk.organizations.createOrganizationInvitation({
-            organizationId: organization.organizationId,
-            emailAddress: invitation.email,
-            inviterUserId: actor.id,
-            role: "org:member",
-            publicMetadata: { requestedRole: invitation.role },
-          });
-          providerInvitationId = created.id;
-        }
+        const delivery = await sendInvitationEmail(container, actor, email);
         const row = store.create(
           actor,
           "invitation",
           {
             ...invitation,
             email,
-            providerInvitationId,
             expiresAt: new Date(Date.now() + INVITATION_DAYS * 86400000).toISOString(),
           },
           { status: "pending" },
@@ -476,9 +465,8 @@ export function createIdentityRoutes(container: Container) {
           email,
           status: "pending",
           invitationId: row.id,
-          providerInvitationId,
           requestedRole: invitation.role,
-          delivery: identity.clerk ? "clerk" : "local",
+          delivery,
         });
       }
       return c.json(
@@ -494,23 +482,12 @@ export function createIdentityRoutes(container: Container) {
       const { limit, offset } = c.req.valid("query");
       return c.json({ items: store.listWhere(actor.workspaceId, "invitation", {}, limit, offset) });
     })
-    .delete("/users/invitations/:id", async (c) => {
+    .delete("/users/invitations/:id", (c) => {
       const actor = c.get("actor");
       requireRole(actor, ...adminRoles);
       const row = store.get(actor, "invitation", c.req.param("id"));
       if (row.status !== "pending")
         throw new AppError(409, "CONFLICT", "Invitation is not pending");
-      const organization = db
-        .select()
-        .from(organizationLinks)
-        .where(eq(organizationLinks.workspaceId, actor.workspaceId))
-        .get();
-      if (identity.clerk && organization && typeof row.data.providerInvitationId === "string")
-        await identity.clerk.organizations.revokeOrganizationInvitation({
-          organizationId: organization.organizationId,
-          invitationId: row.data.providerInvitationId,
-          requestingUserId: actor.id,
-        });
       store.patch(row, { status: "revoked" });
       audit.record({
         actor,
@@ -545,6 +522,29 @@ export function createIdentityRoutes(container: Container) {
           "FORBIDDEN",
           "Managers can assign Mentor or Curator to their own reports",
         );
+      // A mentor follows one person's onboarding and check-ins (people data): always one named
+      // learner, never yourself (admin rights don't grant people data, Spec §3), and for managers
+      // only between their own reports.
+      if (input.type === "mentor") {
+        if (input.scopeType !== "user")
+          throw new BadRequestError("A mentor is assigned to one person (scopeType user)");
+        if (input.userId === actor.id)
+          throw new AppError(403, "FORBIDDEN", "You can't make yourself someone's mentor");
+        if (input.userId === input.scopeId)
+          throw new BadRequestError("Someone can't mentor themselves");
+        const learner = identity.requireMember(actor.workspaceId, input.scopeId);
+        if (actor.role === "manager" && learner.managerId !== actor.id)
+          throw new AppError(403, "FORBIDDEN", "Managers assign mentors for their own reports");
+      }
+      // Managers grant curation of a project, not of the whole workspace.
+      if (
+        actor.role === "manager" &&
+        input.type === "path_curator" &&
+        input.scopeType !== "project"
+      )
+        throw new BadRequestError("Managers grant curation for a project");
+      // Guests see only the projects they were added to; they never own, curate or mentor.
+      if (member.role === "guest") throw new BadRequestError("Guests can't hold assignments");
       if (input.scopeType === "project") identity.requireProject(actor, input.scopeId);
       if (input.scopeType === "user") identity.requireMember(actor.workspaceId, input.scopeId);
       if (input.scopeType === "workspace" && input.scopeId !== actor.workspaceId)

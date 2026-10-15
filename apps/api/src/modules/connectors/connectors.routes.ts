@@ -132,15 +132,25 @@ export function createConnectorRoutes(
         validationHook,
       ),
       async (c) => {
-        requireRole(c.get("actor"), "owner", "admin", "manager");
+        const actor = c.get("actor");
+        requireRole(actor, "owner", "admin", "manager");
+        const { visibility } = c.req.valid("json");
+        // Sharing a file with the whole workspace overrides its Drive permissions: owners and
+        // admins decide that; a manager's import mirrors Drive (only people who can open it).
+        if (visibility === "workspace" && actor.role === "manager")
+          throw new AppError(
+            403,
+            "FORBIDDEN",
+            "Only admins can share an imported file with the whole workspace",
+          );
         return c.json(
           await drive.importFile(
-            c.get("actor"),
+            actor,
             c.req.param("id"),
             c.req.valid("json").projectId,
             c.req.valid("json").fileId,
             undefined,
-            c.req.valid("json").visibility,
+            visibility,
           ),
           201,
         );

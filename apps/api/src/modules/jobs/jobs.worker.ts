@@ -17,11 +17,16 @@ export interface WorkerOptions {
   /** Periodic maintenance (bounty expiry, nudges, purges) run between job polls. */
   sweeps?: { run: () => unknown };
   sweepIntervalMs?: number;
+  /**
+   * Jobs run at the same time. Jobs mostly wait on Gemini and Google, so a few in parallel keep a
+   * large import moving; jobs that share a concurrency key still run one at a time.
+   */
+  concurrency?: number;
 }
 
 const backoffMs = (attempt: number) => Math.min(60_000, 2_000 * 2 ** (attempt - 1));
 
-/** Single-process poller that executes queued jobs. `runOnce`/`drain` exist for tests. */
+/** In-process poller that executes queued jobs. `runOnce`/`drain` exist for tests. */
 export function createWorker({
   queue,
   handlers,
@@ -30,11 +35,11 @@ export function createWorker({
   staleAfterMs = 15 * 60_000,
   sweeps,
   sweepIntervalMs = 60_000,
+  concurrency = 1,
 }: WorkerOptions) {
   let running = false;
-  let timer: NodeJS.Timeout | null = null;
-  let loopPromise: Promise<void> | null = null;
-  let wake: (() => void) | null = null;
+  let loopPromises: Array<Promise<void>> = [];
+  const sleepers = new Set<{ timer: NodeJS.Timeout; wake: () => void }>();
   let lastSweepAt = 0;
 
   async function execute(job: JobRow): Promise<void> {
@@ -97,11 +102,15 @@ export function createWorker({
       if (!processed) {
         if (sweeps && Date.now() - lastSweepAt >= sweepIntervalMs) runSweeps();
         await new Promise<void>((resolve) => {
-          wake = resolve;
-          timer = setTimeout(resolve, pollIntervalMs);
+          const sleeper = {
+            timer: setTimeout(() => {
+              sleepers.delete(sleeper);
+              resolve();
+            }, pollIntervalMs),
+            wake: resolve,
+          };
+          sleepers.add(sleeper);
         });
-        wake = null;
-        timer = null;
       }
     }
   }
@@ -112,14 +121,17 @@ export function createWorker({
       running = true;
       const requeued = queue.requeueStale(new Date(Date.now() - staleAfterMs));
       if (requeued > 0) logger.warn({ requeued }, "Re-queued stale running jobs");
-      loopPromise = loop();
+      loopPromises = Array.from({ length: Math.max(1, concurrency) }, () => loop());
     },
     async stop(): Promise<void> {
       running = false;
-      if (timer) clearTimeout(timer);
-      wake?.();
-      await loopPromise;
-      loopPromise = null;
+      for (const sleeper of sleepers) {
+        clearTimeout(sleeper.timer);
+        sleeper.wake();
+      }
+      sleepers.clear();
+      await Promise.all(loopPromises);
+      loopPromises = [];
     },
     runOnce,
     drain,

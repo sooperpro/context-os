@@ -7,33 +7,35 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { getPreviewPersona, setPreviewPersona } from "@/features/workspace/viewer";
 import { jsonResponse, renderWithProviders } from "@/test/utils";
 
-vi.mock("@clerk/react", () => ({
-  useUser: () => ({
-    user: {
-      id: "u1",
-      fullName: "Maya Okafor",
-      firstName: "Maya",
-      imageUrl: "",
-      primaryEmailAddress: { emailAddress: "maya@tessellate.io" },
-    },
-  }),
-  useClerk: () => ({ organization: null, openUserProfile: vi.fn(), signOut: vi.fn() }),
-  useOrganizationList: () => ({
-    isLoaded: true,
-    userMemberships: { data: [] },
-    setActive: vi.fn(),
-  }),
-}));
-
 function renderShell() {
-  vi.spyOn(globalThis, "fetch").mockResolvedValue(
-    jsonResponse({
-      id: "ws",
-      name: "Default workspace",
-      role: "owner",
-      authentication: "development",
-    }),
-  );
+  vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    return Promise.resolve(
+      url.endsWith("/v1/session")
+        ? jsonResponse({
+            authentication: "development",
+            user: { id: "u1", name: "Maya Okafor", email: "maya@tessellate.io", image: null },
+            signInMethod: "development",
+            linkedMethods: [],
+            activeWorkspaceId: "ws",
+            workspaces: [
+              {
+                id: "ws",
+                name: "Default workspace",
+                slug: null,
+                role: "owner",
+                ssoRequired: false,
+              },
+            ],
+          })
+        : jsonResponse({
+            id: "ws",
+            name: "Default workspace",
+            role: "owner",
+            authentication: "development",
+          }),
+    );
+  });
   return renderWithProviders(
     <ThemeProvider>
       <Routes>

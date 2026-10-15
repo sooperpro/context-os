@@ -114,10 +114,28 @@ export function createIdentityLinkRoutes(
             )
             .get();
           if (connection) {
+            // The email is the one Google verified when they connected (stored by the OAuth
+            // callback), never what the request says: it decides which Drive files they can read.
+            const verified = db
+              .select({ email: identityLinks.email })
+              .from(identityLinks)
+              .where(
+                and(
+                  eq(identityLinks.workspaceId, actor.workspaceId),
+                  eq(identityLinks.userId, actor.id),
+                  eq(identityLinks.provider, "google"),
+                  eq(identityLinks.source, "oauth"),
+                ),
+              )
+              .get();
             const row = upsert(
               actor,
               actor.id,
-              { provider: "google", externalId: connection.accountId, email: input.email },
+              {
+                provider: "google",
+                externalId: connection.accountId,
+                email: verified?.email ?? undefined,
+              },
               "confirmed",
               "oauth",
             );
@@ -287,6 +305,14 @@ export function createIdentityLinkRoutes(
         if (row.status !== "suggested")
           throw new AppError(409, "CONFLICT", "Only suggested links can be decided");
         const status = c.req.valid("json").status;
+        // A Google identity carries an email that decides Drive access: only the person's own
+        // Google sign-in can confirm it.
+        if (status === "confirmed" && provider === "google")
+          throw new AppError(
+            409,
+            "CONFLICT",
+            "Google identities are confirmed by the person connecting their Google account",
+          );
         if (status === "confirmed" && takenByOther(actor, provider, row.externalId, id))
           throw new AppError(409, "CONFLICT", "This identity is already linked to another member");
         const updated = db

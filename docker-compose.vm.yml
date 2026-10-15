@@ -2,6 +2,8 @@ services:
   api:
     environment:
       CORS_ORIGINS: https://dev.contextos.sooper.pro
+      # Sign-in links and Google/Microsoft/SSO callbacks are built from this public address.
+      AUTH_URL: https://dev.contextos.sooper.pro
       # Must exactly match an Authorized redirect URI on the Google OAuth web client.
       GOOGLE_REDIRECT_URI: https://dev.contextos.sooper.pro/api/v1/connectors/google-drive/callback
 

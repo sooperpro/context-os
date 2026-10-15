@@ -1,3 +1,4 @@
+import type { TutorialDraft } from "../modules/learning/tutorial-ai.js";
 import { fileURLToPath } from "node:url";
 import {
   ProjectWithStatsSchema,
@@ -14,6 +15,7 @@ import { createDb } from "../db/index.js";
 import { runMigrations } from "../db/migrate.js";
 import type { GeminiClient, StructuredGenerationRequest } from "../lib/gemini.js";
 import { logger } from "../lib/logger.js";
+import type { Mailer } from "../lib/mailer.js";
 import type { AnswerOutput } from "../modules/ask/answer.schema.js";
 import type { ExtractionOutput } from "../modules/context/extraction.schema.js";
 import type { OverviewOutput } from "../modules/hub/overview.js";
@@ -144,6 +146,49 @@ export const SAMPLE_ANSWER: AnswerOutput = {
   relatedItemRefs: [1, 2, 42],
 };
 
+/** A tutorial draft as the model would return it (sources cited by number). */
+export const SAMPLE_TUTORIAL: TutorialDraft = {
+  title: "How billing moves to Kafka",
+  summary:
+    "Billing events are moving from the batch job to **Kafka**. This explains why and what changes for you.",
+  objectives: ["Explain why billing moved to Kafka", "Name who owns the billing service"],
+  lessons: [
+    {
+      title: "Why we changed",
+      minutes: 5,
+      body: "## Why we changed\n\nThe nightly batch job was **too slow** for real-time invoices.\n\n### Key points\n\n- Kafka carries billing events\n- Invoices update in minutes",
+      sources: [1],
+    },
+    {
+      title: "Who owns what",
+      minutes: 4,
+      body: "## Owners\n\n| Area | Owner |\n| --- | --- |\n| Billing service | Platform team |",
+      sources: [1],
+    },
+  ],
+  questions: [
+    {
+      prompt: "Why did billing move to Kafka?",
+      options: [
+        "The batch job was too slow",
+        "Kafka is cheaper",
+        "Legal asked for it",
+        "No reason",
+      ],
+      correctIndex: 0,
+      explanation: "The batch job couldn't produce real-time invoices.",
+      source: 1,
+    },
+    {
+      prompt: "What carries billing events now?",
+      options: ["A cron job", "Kafka", "Email", "Spreadsheets"],
+      correctIndex: 1,
+      explanation: "Billing events are published to Kafka.",
+      source: 1,
+    },
+  ],
+};
+
 export const SAMPLE_BRAG_DOC: BragDocOutput = {
   narrative: "During this period I resolved knowledge flags and verified corrections [F1].",
   highlights: ["Verified correction accepted [F1]"],
@@ -155,6 +200,7 @@ export interface FakeGeminiOptions {
     ExtractionOutput | ((request: StructuredGenerationRequest<z.ZodType>) => ExtractionOutput);
   overview?: OverviewOutput;
   answer?: AnswerOutput;
+  tutorial?: TutorialDraft;
   /** When set, every generateStructured call rejects with this error. */
   failWith?: Error;
   /** When set, embed() rejects with this error (retrieval must degrade gracefully). */
@@ -205,6 +251,9 @@ export function createFakeGemini(options: FakeGeminiOptions = {}): FakeGemini {
         case "ask":
           output = options.answer ?? SAMPLE_ANSWER;
           break;
+        case "tutorial":
+          output = options.tutorial ?? SAMPLE_TUTORIAL;
+          break;
         case "brag_doc":
           output = options.bragDoc ?? SAMPLE_BRAG_DOC;
           break;
@@ -227,24 +276,32 @@ const MIGRATIONS_DIR = fileURLToPath(new URL("../../drizzle", import.meta.url));
 
 /** Fully wired app + container on an in-memory SQLite database; worker is not started. */
 export function createTestApp<G extends GeminiClient = FakeGemini>(
-  options: { gemini?: G; env?: NodeJS.ProcessEnv } = {},
+  options: { gemini?: G; env?: NodeJS.ProcessEnv; mailer?: Mailer } = {},
 ) {
   const env = loadEnv({
     ...process.env,
-    CLERK_SECRET_KEY: undefined,
-    CLERK_PUBLISHABLE_KEY: undefined,
+    AUTH_SECRET: undefined,
+    SMTP_URL: undefined,
+    MICROSOFT_CLIENT_ID: undefined,
+    MICROSOFT_CLIENT_SECRET: undefined,
     GOOGLE_CLIENT_ID: undefined,
     GOOGLE_CLIENT_SECRET: undefined,
     CONNECTOR_TOKEN_ENCRYPTION_KEY: undefined,
     ...options.env,
     NODE_ENV: "test",
-    AUTH_MODE: "development",
+    AUTH_MODE: options.env?.AUTH_MODE ?? "development",
     DATABASE_URL: ":memory:",
   });
   const database = createDb(env.DATABASE_URL);
   runMigrations(database.db, MIGRATIONS_DIR);
   const gemini = (options.gemini ?? createFakeGemini()) as G;
-  const container = createContainer({ env, db: database.db, gemini, logger });
+  const container = createContainer({
+    env,
+    db: database.db,
+    gemini,
+    logger,
+    mailer: options.mailer,
+  });
   const app = createApp({ env, container });
   return {
     app,

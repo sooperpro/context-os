@@ -3,12 +3,12 @@ headers {
 }
 
 script:pre-request {
-  const token = bru.getEnvVar("accessToken");
-  if (token) req.setHeader("Authorization", "Bearer " + token);
-  else req.deleteHeader("Authorization");
+  const cookie = bru.getEnvVar("sessionCookie");
+  if (cookie) req.setHeader("Cookie", cookie);
+  else req.deleteHeader("Cookie");
 }
 
 docs {
-  Use Local for development or a git-ignored private environment for real Clerk session tokens.
+  Use Local for development or a git-ignored private environment for a real session cookie.
   Optional multi-user and live-provider requests are skipped until their prerequisites are configured.
 }

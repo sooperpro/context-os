@@ -186,6 +186,8 @@ const FlowNodeSchema = z.object({
 });
 
 export const LessonBlockSchema = z.discriminatedUnion("type", [
+  /** A tutorial lesson's body: GitHub-flavoured Markdown, rendered as formatted text. */
+  z.object({ type: z.literal("markdown"), text: z.string() }),
   z.object({ type: z.literal("lede"), text: z.string() }),
   z.object({ type: z.literal("heading"), text: z.string() }),
   z.object({ type: z.literal("paragraph"), text: z.string() }),

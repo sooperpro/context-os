@@ -1,5 +1,5 @@
 import type { Answer, AnswerConfidence, Citation } from "@contextos/shared";
-import { Fragment } from "react";
+import { Markdown } from "@/components/markdown";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -73,9 +73,7 @@ export function AnswerBody({ answer }: AnswerCardProps) {
       <StatusChip tone={confidence.tone} icon={confidence.icon} className="self-start">
         {confidence.label(distinctSources)}
       </StatusChip>
-      <p className="text-[15px] leading-6 whitespace-pre-wrap">
-        <AnswerText text={answer.answer} citationByRef={citationByRef} onCite={openCitation} />
-      </p>
+      <AnswerText text={answer.answer} citationByRef={citationByRef} onCite={openCitation} />
 
       {answer.currentState ? (
         <section className="rounded-md bg-pane px-3 py-2 text-sm">
@@ -192,6 +190,10 @@ export function AnswerBody({ answer }: AnswerCardProps) {
 }
 
 /** Renders "[n]" markers as the prototype's citation chips (AI container, 18px). */
+/**
+ * The answer as formatted Markdown, with its `[n]` markers as citation chips: each marker becomes a
+ * `#cite-n` link, which renders as the chip that opens the source.
+ */
 function AnswerText({
   text,
   citationByRef,
@@ -201,22 +203,37 @@ function AnswerText({
   citationByRef: Map<number, Citation>;
   onCite: (citation: Citation) => void;
 }) {
-  const parts = text.split(/(\[\d+\])/g);
+  const linked = text.replace(/\[(\d+)\](?!\()/g, (marker, n: string) =>
+    citationByRef.has(Number(n)) ? `[${n}](#cite-${n})` : marker,
+  );
   return (
-    <>
-      {parts.map((part, index) => {
-        const match = /^\[(\d+)\]$/.exec(part);
-        const citation = match ? citationByRef.get(Number(match[1])) : undefined;
-        if (!match || !citation) return <Fragment key={index}>{part}</Fragment>;
-        return (
-          <CiteButton
-            key={index}
-            n={citation.ref}
-            title={citation.sourceTitle}
-            onClick={() => onCite(citation)}
-          />
-        );
-      })}
-    </>
+    <Markdown
+      text={linked}
+      className="text-[15px] leading-6"
+      overrides={{
+        a: ({ href, children }) => {
+          const ref = href?.startsWith("#cite-") ? Number(href.slice("#cite-".length)) : null;
+          const citation = ref === null ? undefined : citationByRef.get(ref);
+          if (!citation)
+            return (
+              <a
+                href={href}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="font-medium text-primary underline underline-offset-2"
+              >
+                {children}
+              </a>
+            );
+          return (
+            <CiteButton
+              n={citation.ref}
+              title={citation.sourceTitle}
+              onClick={() => onCite(citation)}
+            />
+          );
+        },
+      }}
+    />
   );
 }

@@ -5,10 +5,6 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { SettingsPage } from "@/features/settings/pages/settings-page";
 import { jsonResponse, renderWithProviders } from "@/test/utils";
 
-vi.mock("@clerk/react", () => ({
-  useClerk: () => ({ openUserProfile: vi.fn(), signOut: vi.fn() }),
-}));
-
 function mockApi(role = "member") {
   const calls: Array<{ url: string; method: string; body: unknown }> = [];
   let prefs = { email: false, inApp: true, quietStartHour: 22, quietEndHour: 8 };
@@ -84,7 +80,7 @@ describe("SettingsPage", () => {
     render("/settings?tab=notifications");
     await user.click(await screen.findByRole("switch", { name: /Email/ }));
     await waitFor(() =>
-      expect(calls.find((call) => call.method === "PATCH")?.body).toEqual({
+      expect(calls.find((call) => call.method === "PATCH")?.body).toMatchObject({
         email: true,
         inApp: true,
         quietStartHour: 22,

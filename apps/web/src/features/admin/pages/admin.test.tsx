@@ -155,9 +155,20 @@ describe("Connectors", () => {
     expect(within(wizard).getByRole("button", { name: "Next" })).toBeDisabled();
     await user.click(await within(wizard).findByRole("checkbox", { name: /Specs/ }));
     await user.click(within(wizard).getByRole("button", { name: "Next" }));
-    await user.click(within(wizard).getByRole("button", { name: "Daily" }));
+    // Every two days by default, or only on Sync now.
+    expect(within(wizard).getByRole("button", { name: "Every 2 days" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await user.click(within(wizard).getByRole("button", { name: "Manual only" }));
     expect(
-      await within(wizard).findByText("1 folders · syncs daily · shared with everyone"),
+      await within(wizard).findByText(
+        "1 folders · syncs when you press Sync now · shared with everyone",
+      ),
+    ).toBeInTheDocument();
+    await user.click(within(wizard).getByRole("button", { name: "Every 2 days" }));
+    expect(
+      await within(wizard).findByText("1 folders · syncs every 2 days · shared with everyone"),
     ).toBeInTheDocument();
     await user.click(within(wizard).getByRole("button", { name: "Connect and start sync" }));
 
@@ -165,7 +176,7 @@ describe("Connectors", () => {
     expect(api.connectBodies).toEqual([
       {
         scopeIds: ["folder-1"],
-        frequency: "daily",
+        frequency: "2d",
         skipOlderThan: "3y",
         projectId: "11111111-1111-4111-8111-111111111111",
         visibility: "workspace",
@@ -333,7 +344,8 @@ describe("Connector management", () => {
         itemCount: 12,
         lastSyncedAt: "2026-10-14T09:00:00.000Z",
         lastError: null,
-        frequency: "hourly",
+        note: "3 Sheets or Slides skipped",
+        frequency: "manual",
         visibility: "workspace",
       },
     ];
@@ -369,9 +381,11 @@ describe("Connector management", () => {
     const dialog = await screen.findByRole("dialog", { name: "Manage Google Drive" });
     expect(
       await within(dialog).findByText(
-        "Feeds Billing platform · connected by Tom Becker · syncs hourly · shared with everyone",
+        "Feeds Billing platform · connected by Tom Becker · syncs when you press Sync now · shared with everyone",
       ),
     ).toBeInTheDocument();
+    // What the last sync left out, so nobody wonders where a file went.
+    expect(within(dialog).getByText("3 Sheets or Slides skipped")).toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "Sync now" }));
     await user.click(within(dialog).getByRole("button", { name: "Stop syncing Specs" }));
     expect(await within(dialog).findByText(/No folders are synced yet/)).toBeInTheDocument();

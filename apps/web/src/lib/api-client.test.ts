@@ -1,11 +1,9 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { ApiClientError, apiRequest, setApiAccessTokenProvider } from "@/lib/api-client";
+import { ApiClientError, apiRequest } from "@/lib/api-client";
 import { jsonResponse } from "@/test/utils";
 
 describe("apiRequest", () => {
-  afterEach(() => setApiAccessTokenProvider(undefined));
-
   it("builds the URL with query params and validates the response", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse({ ok: true }));
 
@@ -18,17 +16,16 @@ describe("apiRequest", () => {
     expect(fetchSpy).toHaveBeenCalledWith("/api/v1/things?limit=5", expect.anything());
   });
 
-  it("sends the active Clerk session token as a bearer token", async () => {
+  it("relies on the same-origin session cookie and sends no bearer token", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse({ ok: true }));
-    setApiAccessTokenProvider(() => Promise.resolve("session-token"));
 
     await apiRequest("/v1/things", {
       schema: z.object({ ok: z.boolean() }),
     });
 
-    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/things", expect.anything());
     const requestInit = fetchSpy.mock.calls.at(0)?.[1];
-    expect(new Headers(requestInit?.headers).get("Authorization")).toBe("Bearer session-token");
+    expect(new Headers(requestInit?.headers).get("Authorization")).toBeNull();
+    expect(requestInit?.credentials ?? "same-origin").toBe("same-origin");
   });
 
   it("throws ApiClientError with the server's error envelope", async () => {

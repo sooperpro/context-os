@@ -10,9 +10,10 @@ import type {
 } from "@contextos/shared";
 import { and, eq } from "drizzle-orm";
 import type { Container } from "../../container.js";
-import { departments, memberships, organizationLinks, teams, users } from "../../db/schema.js";
+import { departments, memberships, teams, users } from "../../db/schema.js";
 import { AppError, BadRequestError, NotFoundError } from "../../lib/errors.js";
 import type { Actor } from "../../types.js";
+import { sendInvitationEmail } from "../auth/invitations.js";
 import { createNotifier } from "./notify.js";
 import {
   buildRoadmap,
@@ -366,8 +367,31 @@ export function createOnboardingRecords(container: Container) {
         owner: personRef(workspaceId, path.ownerId)?.name ?? null,
       };
     });
+  /** Published tutorials, so templates and "Assign learning" can use them (`tutorial-<id>`). */
+  const tutorialModules = (workspaceId: string): TemplateModule[] =>
+    store.listWhere(workspaceId, "tutorial", { status: "published" }, 500).flatMap((row) => {
+      const content = row.data.content as
+        | { title: string; kind: TemplateModule["kind"]; lessons: Array<{ minutes: number }> }
+        | null
+        | undefined;
+      if (!content) return [];
+      return [
+        {
+          id: `tutorial-${row.id}`,
+          title: content.title,
+          kind: content.kind,
+          minutes: content.lessons.reduce((sum, lesson) => sum + lesson.minutes, 0) || null,
+          owner: personRef(workspaceId, row.ownerId)?.name ?? null,
+        },
+      ];
+    });
   const catalog = (workspaceId: string) =>
-    new Map([...BUILT_IN, ...pathModules(workspaceId)].map((entry) => [entry.id, entry]));
+    new Map(
+      [...BUILT_IN, ...pathModules(workspaceId), ...tutorialModules(workspaceId)].map((entry) => [
+        entry.id,
+        entry,
+      ]),
+    );
 
   const activeCount = (workspaceId: string, templateId: string) =>
     store
@@ -1138,22 +1162,7 @@ export function createOnboardingRecords(container: Container) {
       .listWhere(actor.workspaceId, "invitation", { status: "pending" }, 1000)
       .find((row) => row.data.email === email);
     if (pending) return pending.id;
-    const organization = db
-      .select()
-      .from(organizationLinks)
-      .where(eq(organizationLinks.workspaceId, actor.workspaceId))
-      .get();
-    let providerInvitationId: string | null = null;
-    if (identity.clerk && organization) {
-      const created = await identity.clerk.organizations.createOrganizationInvitation({
-        organizationId: organization.organizationId,
-        emailAddress: email,
-        inviterUserId: actor.id,
-        role: "org:member",
-        publicMetadata: { requestedRole: "member" },
-      });
-      providerInvitationId = created.id;
-    }
+    await sendInvitationEmail(container, actor, email);
     const row = store.create(
       actor,
       "invitation",
@@ -1163,7 +1172,6 @@ export function createOnboardingRecords(container: Container) {
         managerId: input.managerId,
         startDate: input.startDate,
         isNewHire: true,
-        providerInvitationId,
         expiresAt: new Date(Date.now() + INVITATION_DAYS * DAY).toISOString(),
       },
       { status: "pending" },
@@ -1252,6 +1260,7 @@ export function createOnboardingRecords(container: Container) {
     templateData,
     findTemplate,
     pathModules,
+    tutorialModules,
     catalog,
     activeCount,
     templateRef,

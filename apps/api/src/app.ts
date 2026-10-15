@@ -6,12 +6,15 @@ import { secureHeaders } from "hono/secure-headers";
 import { timeout } from "hono/timeout";
 import type { Env } from "./config/env.js";
 import type { Container } from "./container.js";
-import { PayloadTooLargeError } from "./lib/errors.js";
+import { AppError, NotFoundError, PayloadTooLargeError } from "./lib/errors.js";
 import { errorHandler, notFoundHandler } from "./middleware/error-handler.js";
 import { projectScope } from "./middleware/project-scope.js";
 import { apiRateLimiter } from "./middleware/rate-limit.js";
 import { requestLogger } from "./middleware/request-logger.js";
 import { createAskRoutes, createQuestionRoutes } from "./modules/ask/ask.routes.js";
+import { AUTH_BASE_PATH } from "./modules/auth/auth.js";
+import { createSessionRoutes } from "./modules/auth/session.routes.js";
+import { createSsoRoutes } from "./modules/auth/sso.routes.js";
 import { createAssistantRoutes } from "./modules/ask/assistant.routes.js";
 import { createMessageRoutes } from "./modules/ask/messages.routes.js";
 import { createThreadRoutes } from "./modules/ask/threads.routes.js";
@@ -47,7 +50,10 @@ import { createKnowledgeRoutes } from "./modules/platform/knowledge.routes.js";
 import { createLearningRoutes } from "./modules/platform/learning.routes.js";
 import { createMemberAdminRoutes } from "./modules/platform/members-admin.routes.js";
 import { createPeopleOpsRoutes } from "./modules/platform/people-ops.routes.js";
+import { createLearnerRoutes } from "./modules/learning/learner.routes.js";
+import { createTutorialRoutes } from "./modules/learning/tutorials.routes.js";
 import { createManagerRoutes } from "./modules/platform/manager.routes.js";
+import { createEmployeeRoutes } from "./modules/platform/employee.routes.js";
 import { createTeamRoutes } from "./modules/platform/team.routes.js";
 import { createOnboardingRoutes } from "./modules/platform/onboarding.routes.js";
 import { createRewardRoutes } from "./modules/platform/rewards.routes.js";
@@ -70,9 +76,25 @@ const REQUEST_TIMEOUT_MS = 90_000; // Ask calls the model synchronously
 const PUBLIC_PATHS = [
   "/api/v1/health",
   "/api/v1/health/ready",
+  "/api/v1/auth-options",
   "/api/v1/connectors/google-drive/callback",
 ];
-const PUBLIC_PREFIXES = ["/api/v1/webhooks/"];
+const PUBLIC_PREFIXES = ["/api/v1/webhooks/", `${AUTH_BASE_PATH}/`];
+/** Better Auth SSO endpoints that manage providers; sign-in, callbacks and SAML metadata stay open. */
+const SSO_MANAGEMENT = new Set([
+  "/sso/register",
+  "/sso/update-provider",
+  "/sso/delete-provider",
+  "/sso/get-provider",
+  "/sso/providers",
+  "/sso/request-domain-verification",
+  "/sso/verify-domain",
+]);
+/** Signed-in routes that work before a workspace is chosen: the session itself, creating one. */
+const workspaceOptional = (method: string, path: string) =>
+  path === "/api/v1/session" ||
+  path.startsWith("/api/v1/session/") ||
+  (method === "POST" && path === "/api/v1/workspaces");
 
 /**
  * Build the Hono application with all middleware and routes wired to the
@@ -83,8 +105,11 @@ export function createApp({ env, container, version = "0.1.0" }: AppDeps) {
   const app = new Hono<AppEnv>();
   const { services, repos } = container;
   const drive = createGoogleDriveService(container);
-  container.identity.setSourceVerifier((actor) => drive.refreshAccess(actor));
   container.connectors.sync = (job) => drive.syncScope(job);
+  container.connectors.importFile = (job) => drive.importListedFile(job);
+  container.connectors.refreshAccess = (job) => drive.refreshScopeAccess(job);
+  const tutorials = createTutorialRoutes(container);
+  container.connectors.generateTutorial = (job) => tutorials.generate(job);
 
   // ----- global middleware -----
   app.use(requestId());
@@ -122,14 +147,49 @@ export function createApp({ env, container, version = "0.1.0" }: AppDeps) {
       }),
     );
   }
-  // Provider-authenticated identity, or the explicit local-only development actor.
+  // Cross-site request forgery: the session is a cookie, so a write must come from the app itself.
+  // Browsers send `Origin` (and `Sec-Fetch-Site`) with every write; requests from other sites are
+  // refused even when the cookie would be sent (sibling subdomains are "same-site"). Clients that
+  // aren't browsers send neither and still need a valid session. Webhooks verify signatures instead,
+  // and sign-in routes are checked by Better Auth (a SAML IdP posts back from its own site).
+  const trustedOrigins = new Set([
+    ...env.CORS_ORIGINS,
+    ...(env.AUTH_URL ? [new URL(env.AUTH_URL).origin] : []),
+  ]);
+  app.use("/api/*", async (c, next) => {
+    if (
+      ["GET", "HEAD", "OPTIONS"].includes(c.req.method) ||
+      c.req.path.startsWith("/api/v1/webhooks/") ||
+      c.req.path.startsWith(`${AUTH_BASE_PATH}/`)
+    )
+      return next();
+    const origin = c.req.header("origin");
+    const fetchSite = c.req.header("sec-fetch-site");
+    if ((origin && !trustedOrigins.has(origin)) || (!origin && fetchSite === "cross-site"))
+      throw new AppError(403, "FORBIDDEN", "This request didn't come from ContextOS");
+    return next();
+  });
+  // Sign-in, callbacks and sign-out (magic link, Google, Microsoft, company SSO).
+  const auth = container.identity.auth;
+  if (auth)
+    app.on(["GET", "POST"], `${AUTH_BASE_PATH}/*`, (c) => {
+      // The SSO plugin's provider management is only reached through the admin routes
+      // (`/admin/sso/*`, owners and admins), never directly: over HTTP it would let any session
+      // register, repoint or delete a workspace's identity provider.
+      if (SSO_MANAGEMENT.has(c.req.path.slice(AUTH_BASE_PATH.length)))
+        throw new NotFoundError("Route");
+      return auth.handler(c.req.raw);
+    });
+  // Session-authenticated identity, or the explicit local-only development actor.
   app.use("/api/*", async (c, next) => {
     const path = c.req.path;
     if (PUBLIC_PATHS.includes(path) || PUBLIC_PREFIXES.some((prefix) => path.startsWith(prefix)))
       return next();
-    const creatingWorkspace = c.req.method === "POST" && path === "/api/v1/workspaces";
-    const actor = await container.identity.authenticate(c.req.raw, creatingWorkspace);
-    if (!creatingWorkspace) await drive.refreshAccess(actor);
+    // Who may read which Drive file is worked out by background jobs: requests never call Google.
+    const actor = await container.identity.authenticate(
+      c.req.raw,
+      workspaceOptional(c.req.method, path),
+    );
     c.set("actor", actor);
     return next();
   });
@@ -155,6 +215,8 @@ export function createApp({ env, container, version = "0.1.0" }: AppDeps) {
 
   const routes = app
     .route("/api/v1", createWebhookRoutes(container))
+    .route("/api/v1", createSessionRoutes(container))
+    .route("/api/v1", createSsoRoutes(container))
     .route("/api/v1", createWorkspaceRoutes(container))
     .route("/api/v1", createIdentityRoutes(container))
     .route("/api/v1", createIdentityLinkRoutes(container, drive))
@@ -182,6 +244,9 @@ export function createApp({ env, container, version = "0.1.0" }: AppDeps) {
     .route("/api/v1", createPeopleOpsRoutes(container))
     .route("/api/v1", createTeamRoutes(container))
     .route("/api/v1", createManagerRoutes(container))
+    .route("/api/v1", createEmployeeRoutes(container))
+    .route("/api/v1", tutorials.routes)
+    .route("/api/v1", createLearnerRoutes(container))
     .route("/api/v1/health", createHealthRoutes({ db: container.db, version }))
     .route("/api/v1/projects", createProjectsRoutes(services.projects))
     .route("/api/v1/projects/:projectId", projectRouter);

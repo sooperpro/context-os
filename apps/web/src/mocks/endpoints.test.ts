@@ -1,14 +1,23 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { buildApiUrl } from "@/lib/api-client";
 import { mockEndpoints } from "@/mocks/endpoints";
+import { employeeFixtures, employeeHandlers } from "@/test/employee-mocks";
+import { learnerFixtures, learnerHandlers } from "@/test/learning-mocks";
 import { mockServer, setupMockApi } from "@/test/msw";
 import { managerFixtures, managerHandlers } from "@/test/manager-mocks";
 import { peopleOpsFixtures, peopleOpsHandlers } from "@/test/people-ops-mocks";
 
 setupMockApi();
-// People Ops and the manager's endpoints are served by the API; their fixtures still back the
-// screen tests.
-beforeEach(() => mockServer.use(...peopleOpsHandlers(), ...managerHandlers()));
+// People Ops', the manager's and the employee's own endpoints are served by the API; their fixtures
+// still back the screen tests.
+beforeEach(() =>
+  mockServer.use(
+    ...peopleOpsHandlers(),
+    ...managerHandlers(),
+    ...employeeHandlers(),
+    ...learnerHandlers(),
+  ),
+);
 
 /** Example ids for parameterized endpoints, from the fixtures. */
 const EXAMPLE: Record<string, string> = {
@@ -33,7 +42,13 @@ describe("mock layer", () => {
 
   // Each handler parses its fixture with the shared schema, so a fixture that drifts from the
   // contract turns into a 500 here instead of a screen that renders impossible data.
-  const reads = [...mockEndpoints, ...peopleOpsFixtures, ...managerFixtures]
+  const reads = [
+    ...mockEndpoints,
+    ...peopleOpsFixtures,
+    ...managerFixtures,
+    ...employeeFixtures,
+    ...learnerFixtures,
+  ]
     .map((endpoint) => endpoint.key)
     .filter((key) => key.startsWith("GET "));
   it.each(reads)("%s answers with data its schema accepts", async (key) => {

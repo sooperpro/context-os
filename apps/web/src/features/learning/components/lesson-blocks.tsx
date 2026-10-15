@@ -1,6 +1,7 @@
 import type { LessonBlock } from "@contextos/shared";
 import { cn } from "cn";
 import { Fragment, useState, type ReactNode } from "react";
+import { Markdown } from "@/components/markdown";
 import { OriginIcon } from "@/components/origin-icon";
 import { Button } from "@/components/ui/button";
 import {
@@ -51,6 +52,8 @@ const joinNames = (names: string[]) =>
 
 function Block({ block }: { block: LessonBlock }): ReactNode {
   switch (block.type) {
+    case "markdown":
+      return <Markdown text={block.text} className="mt-5" />;
     case "lede":
       return (
         <p className="mt-5 text-[19px] leading-[30px]">

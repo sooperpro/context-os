@@ -5,7 +5,11 @@ import { mockGet, mockPost } from "@/mocks/define";
 import { people } from "@/mocks/fixtures/people";
 import { dateFromToday } from "@/mocks/fixtures/time";
 
-/** Maya's first-day welcome (prototype `#welcome`). Finishing it lasts for the session. */
+/**
+ * Maya's first-day welcome (prototype `#welcome`). The API serves `/v1/me/welcome`
+ * (apps/api/src/modules/platform/employee.routes.ts), so this is a fixture for screen tests only
+ * (src/test/employee-mocks.ts). Finishing it lasts until the test ends.
+ */
 const seed = (): Welcome => ({
   firstDay: dateFromToday(-8),
   title: "Product Engineer",

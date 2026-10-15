@@ -46,7 +46,7 @@ import {
   useRequestConnector,
   useSyncConnector,
 } from "@/features/admin/api/admin.queries";
-import { SYNC_FREQUENCY } from "@/features/admin/admin-meta";
+import { SYNC_FREQUENCY, SYNC_PHRASE } from "@/features/admin/admin-meta";
 import { projectsQuery } from "@/features/projects/api/projects.queries";
 import { ApiClientError } from "@/lib/api-client";
 import { formatCount, formatRelativeTime } from "@/lib/format";
@@ -88,7 +88,7 @@ function Wizard({ connector: opened, close }: { connector: AdminConnector; close
   const [step, setStep] = useState(0);
   const [account, setAccount] = useState<string | null>(null);
   const [picked, setPicked] = useState(() => new Set<string>());
-  const [frequency, setFrequency] = useState<SyncFrequency>("hourly");
+  const [frequency, setFrequency] = useState<SyncFrequency>("2d");
   const [skip, setSkip] = useState<ConnectInput["skipOlderThan"]>("3y");
   const [shared, setShared] = useState(true);
   const [projectChoice, setProjectChoice] = useState<string | null>(null);
@@ -284,6 +284,10 @@ function Wizard({ connector: opened, close }: { connector: AdminConnector; close
                 </ConnectedButton>
               ))}
             </ConnectedButtonGroup>
+            <span className="text-xs text-on-surface-variant">
+              Syncing runs in the background and only downloads new or changed files. Sync now is
+              always available.
+            </span>
           </fieldset>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor={ids.skip}>Skip content not updated in</Label>
@@ -312,7 +316,7 @@ function Wizard({ connector: opened, close }: { connector: AdminConnector; close
             <span className="flex flex-col">
               <b className="text-sm font-medium">{connector.name}</b>
               <span className="text-xs text-on-surface-variant">
-                {picked.size} {unit} · syncs {SYNC_FREQUENCY[frequency].toLowerCase()} ·{" "}
+                {picked.size} {unit} · {SYNC_PHRASE[frequency]} ·{" "}
                 {shared ? "shared with everyone" : "permissions mirrored"}
               </span>
             </span>
@@ -526,7 +530,7 @@ function ManageBody({
                   {[
                     `Feeds ${scope.projectName}`,
                     `connected by ${scope.connectedBy}`,
-                    `syncs ${SYNC_FREQUENCY[scope.frequency].toLowerCase()}`,
+                    SYNC_PHRASE[scope.frequency],
                     scope.visibility === "workspace"
                       ? "shared with everyone"
                       : "permissions mirrored",
@@ -541,6 +545,9 @@ function ManageBody({
                     <span className="text-error"> · {scope.lastError}</span>
                   ) : null}
                 </span>
+                {scope.note ? (
+                  <span className="text-xs text-on-surface-variant">{scope.note}</span>
+                ) : null}
               </span>
               <Button
                 size="xs"

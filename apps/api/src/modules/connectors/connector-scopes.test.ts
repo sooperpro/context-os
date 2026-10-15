@@ -266,7 +266,7 @@ describe("Google Drive scopes, sync jobs and disconnect modes (mocked provider)"
     const body = (scopeIds: string[], projectId?: string) =>
       jsonRequest({
         scopeIds,
-        frequency: "15m",
+        frequency: "2d",
         skipOlderThan: "1y",
         visibility: "workspace",
         ...(projectId ? { projectId } : {}),
@@ -295,7 +295,7 @@ describe("Google Drive scopes, sync jobs and disconnect modes (mocked provider)"
     expect(scope).toMatchObject({
       externalId: "folder-1",
       visibility: "workspace",
-      syncFrequency: "15m",
+      syncFrequency: "2d",
       status: "backfilling",
     });
     expect(scope?.backfillFrom).toBeTruthy();
@@ -313,9 +313,15 @@ describe("Google Drive scopes, sync jobs and disconnect modes (mocked provider)"
       }),
     ]);
 
-    // The sweep re-queues the scope once its 15-minute schedule is due, and not before.
+    // The sweep re-queues the scope once its two-day schedule is due, and not before; a
+    // manual-only folder is never re-synced on its own.
     expect(t.container.sweeps.run().connectorSyncsQueued).toBe(0);
-    expect(t.container.sweeps.run(new Date(Date.now() + 16 * 60_000)).connectorSyncsQueued).toBe(1);
+    expect(t.container.sweeps.run(new Date(Date.now() + 47 * 3_600_000)).connectorSyncsQueued).toBe(
+      0,
+    );
+    expect(t.container.sweeps.run(new Date(Date.now() + 49 * 3_600_000)).connectorSyncsQueued).toBe(
+      1,
+    );
     expect(
       t.container.db
         .select()
@@ -324,6 +330,11 @@ describe("Google Drive scopes, sync jobs and disconnect modes (mocked provider)"
         .all()
         .filter((job) => job.status === "queued"),
     ).toHaveLength(1);
+
+    t.container.db.update(connectorScopes).set({ syncFrequency: "manual" }).run();
+    expect(
+      t.container.sweeps.run(new Date(Date.now() + 30 * 86_400_000)).connectorSyncsQueued,
+    ).toBe(0);
 
     // A failing folder shows as an error, and Fix re-syncs it.
     t.container.db

@@ -49,11 +49,9 @@ describe("Phase 1 workspace and organization", () => {
       id: string;
       region: string;
       primaryDomainVerified: boolean;
-      organizationId: string | null;
     };
     expect(created.region).toBe("us-east-1");
     expect(created.primaryDomainVerified).toBe(false);
-    expect(created.organizationId).toBeNull();
     const member = t.container.db
       .select()
       .from(memberships)
