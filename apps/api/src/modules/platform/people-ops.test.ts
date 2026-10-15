@@ -538,4 +538,168 @@ describe("People Ops", () => {
     expect(republished.history.map((entry) => entry.version)).toEqual(["v2", "v1"]);
     expect(audits("onboarding.template.publish")).toHaveLength(2);
   });
+  it("archives, restores and deletes templates, and says why one can't be deleted", async () => {
+    t = createTestApp();
+    member("hr1", "hr");
+    member("dana", "manager");
+    as("hr1", "hr");
+    const base = "/api/v1/people-ops/templates";
+    type Summary = { id: string; archived: boolean };
+    const list = async (query = "") =>
+      (await json<{ items: Summary[] }>(await t.app.request(`${base}${query}`))).items;
+    const [used, spare] = await list();
+    const assignable = async () =>
+      (
+        await json<{ templates: Array<{ id: string }> }>(
+          await t.app.request("/api/v1/people-ops/onboarding-options"),
+        )
+      ).templates.map((entry) => entry.id);
+    const onboard = (templateId: string, name: string) =>
+      t.app.request(
+        "/api/v1/people-ops/onboardings",
+        jsonRequest({
+          name,
+          title: "Engineer",
+          team: "Platform",
+          startDate: dayFromToday(5),
+          managerId: "dana",
+          buddyId: null,
+          templateId,
+        }),
+      );
+    const record = await json<{ id: string }>(await onboard(used!.id, "Lee Park"));
+
+    // Archiving hides it from new onboardings but not from the people on it.
+    const archived = await t.app.request(`${base}/${used!.id}/archive`, jsonRequest({}));
+    expect(await json(archived)).toMatchObject({ archived: true, deletable: false });
+    expect(await list()).toHaveLength(5);
+    expect(await list("?archived=include")).toHaveLength(6);
+    expect((await list("?archived=include")).find((item) => item.id === used!.id)?.archived).toBe(
+      true,
+    );
+    expect(await assignable()).not.toContain(used!.id);
+    expect((await onboard(used!.id, "Kim Ode")).status).toBe(409);
+    expect(
+      await json(await t.app.request(`/api/v1/people-ops/onboardings/${record.id}`)),
+    ).toMatchObject({ template: { id: used!.id } });
+    expect(
+      (await t.app.request(`${base}/${used!.id}/draft`, jsonRequest({ stages: [] }))).status,
+    ).toBe(409);
+    expect(
+      (await t.app.request(`${base}/${used!.id}/publish`, jsonRequest({ stages: [], note: "" })))
+        .status,
+    ).toBe(409);
+    // A copy of an archived template starts live.
+    const copy = await json<{ archived: boolean }>(
+      await t.app.request(base, jsonRequest({ name: "Copy", baseId: used!.id })),
+    );
+    expect(copy.archived).toBe(false);
+
+    // A template people have used is archived, never deleted.
+    const refused = await t.app.request(`${base}/${used!.id}`, { method: "DELETE" });
+    expect(refused.status).toBe(409);
+    expect(JSON.stringify(await refused.json())).toContain("1 onboarding uses this template");
+
+    const restored = await t.app.request(`${base}/${used!.id}/restore`, jsonRequest({}));
+    expect(await json(restored)).toMatchObject({ archived: false });
+    expect(await assignable()).toContain(used!.id);
+
+    // One nobody used can be deleted for good.
+    expect((await t.app.request(`${base}/${spare!.id}`, { method: "DELETE" })).status).toBe(204);
+    expect((await t.app.request(`${base}/${spare!.id}`)).status).toBe(404);
+    expect(audits("onboarding.template.archive")).toHaveLength(1);
+    expect(audits("onboarding.template.restore")).toHaveLength(1);
+    expect(audits("onboarding.template.delete")).toHaveLength(1);
+
+    // Only HR.
+    as("dana", "manager");
+    for (const request of [
+      t.app.request(`${base}/${used!.id}/archive`, jsonRequest({})),
+      t.app.request(`${base}/${used!.id}/restore`, jsonRequest({})),
+      t.app.request(`${base}/${used!.id}`, { method: "DELETE" }),
+      t.app.request(`${base}/${used!.id}/versions/1`),
+    ])
+      expect((await request).status).toBe(403);
+  });
+
+  it("never deletes the last template, so the starter set does not come back", async () => {
+    t = createTestApp();
+    member("hr1", "hr");
+    as("hr1", "hr");
+    const base = "/api/v1/people-ops/templates";
+    const ids = (await json<{ items: Array<{ id: string }> }>(await t.app.request(base))).items.map(
+      (item) => item.id,
+    );
+    for (const id of ids.slice(0, -1))
+      expect((await t.app.request(`${base}/${id}`, { method: "DELETE" })).status).toBe(204);
+    const last = await t.app.request(`${base}/${ids.at(-1)}`, { method: "DELETE" });
+    expect(last.status).toBe(409);
+    expect(JSON.stringify(await last.json())).toContain("at least one template");
+    expect((await json<{ items: unknown[] }>(await t.app.request(base))).items).toHaveLength(1);
+  });
+
+  it("keeps a copy of each published version so an old one can be opened", async () => {
+    t = createTestApp();
+    member("hr1", "hr");
+    as("hr1", "hr");
+    const base = "/api/v1/people-ops/templates";
+    type Detail = {
+      id: string;
+      history: Array<{ version: string; saved: boolean }>;
+      stages: Array<{ id: string; modules: Array<{ id: string }> }>;
+    };
+    const [seeded, first] = (
+      await json<{ items: Array<{ id: string }> }>(await t.app.request(base))
+    ).items;
+    const created = await json<Detail>(
+      await t.app.request(base, jsonRequest({ name: "Platform engineer", baseId: first!.id })),
+    );
+    const stageId = created.stages[0]!.id;
+    const original = created.stages[0]!.modules.map((entry) => entry.id);
+    const withExtra = [...original, "mod-incidents"];
+
+    await t.app.request(
+      `${base}/${created.id}/publish`,
+      jsonRequest({ stages: [{ id: stageId, moduleIds: withExtra }], note: "First version" }),
+    );
+    // v2 drops the extra module again; v1's copy must not change.
+    await t.app.request(
+      `${base}/${created.id}/draft`,
+      jsonRequest({ stages: [{ id: stageId, moduleIds: original }] }),
+    );
+    const published = await json<Detail>(
+      await t.app.request(
+        `${base}/${created.id}/publish`,
+        jsonRequest({ stages: [{ id: stageId, moduleIds: original }], note: "Drop incidents" }),
+      ),
+    );
+    expect(published.history).toEqual([
+      expect.objectContaining({ version: "v2", saved: true }),
+      expect.objectContaining({ version: "v1", saved: true }),
+    ]);
+    // Work in progress on v3 does not touch what v1 and v2 were.
+    await t.app.request(
+      `${base}/${created.id}/draft`,
+      jsonRequest({ stages: [{ id: stageId, moduleIds: [] }] }),
+    );
+    const version = async (n: number | string) =>
+      t.app.request(`${base}/${created.id}/versions/${n}`);
+    const v1 = await json<{
+      version: string;
+      note: string;
+      publishedOn: string;
+      stages: Array<{ modules: Array<{ id: string }> }>;
+    }>(await version(1));
+    expect(v1).toMatchObject({ version: "v1", note: "First version" });
+    expect(v1.stages[0]!.modules.map((entry) => entry.id)).toEqual(withExtra);
+    const v2 = await json<{ stages: Array<{ modules: Array<{ id: string }> }> }>(await version(2));
+    expect(v2.stages[0]!.modules.map((entry) => entry.id)).toEqual(original);
+
+    // A version nobody saved a copy of, or that doesn't exist, can't be opened.
+    expect((await version(3)).status).toBe(404);
+    expect((await version("abc")).status).toBe(400);
+    const seededDetail = await json<Detail>(await t.app.request(`${base}/${seeded!.id}`));
+    expect(seededDetail.history[0]).toMatchObject({ version: "v1", saved: false });
+    expect((await t.app.request(`${base}/${seeded!.id}/versions/1`)).status).toBe(404);
+  });
 });

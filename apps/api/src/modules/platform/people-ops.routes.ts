@@ -60,6 +60,9 @@ export function createPeopleOpsRoutes(container: Container) {
     personRef,
     requirePerson,
     templateRows,
+    isArchived,
+    deleteBlocker,
+    templateVersion,
     templateData,
     catalog,
     templateDetail,
@@ -266,8 +269,21 @@ export function createPeopleOpsRoutes(container: Container) {
           .sort((a, b) => a.dueOn.localeCompare(b.dueOn));
         return c.json({ items });
       })
-      .get("/people-ops/templates", (c) =>
-        c.json({ items: templateRows(c.get("actor")).map(templateSummary) }),
+      .get(
+        "/people-ops/templates",
+        zValidator(
+          "query",
+          z.object({ archived: z.literal("include").optional() }),
+          validationHook,
+        ),
+        (c) => {
+          const { archived } = c.req.valid("query");
+          return c.json({
+            items: templateRows(c.get("actor"))
+              .filter((row) => archived === "include" || !isArchived(row))
+              .map(templateSummary),
+          });
+        },
       )
 
       /* ---- Onboarding --------------------------------------------------------------------- */
@@ -790,6 +806,72 @@ export function createPeopleOpsRoutes(container: Container) {
         templateRows(actor);
         return c.json(templateDetail(store.get(actor, TEMPLATE, c.req.param("id"))));
       })
+      .get(
+        "/people-ops/templates/:id/versions/:version",
+        zValidator(
+          "param",
+          z.object({ id: z.string(), version: z.coerce.number().int().min(1) }),
+          validationHook,
+        ),
+        (c) => {
+          const actor = c.get("actor");
+          const { id, version } = c.req.valid("param");
+          templateRows(actor);
+          const detail = templateVersion(store.get(actor, TEMPLATE, id), version);
+          if (!detail) throw new NotFoundError("A saved copy of that version");
+          return c.json(detail);
+        },
+      )
+      .post("/people-ops/templates/:id/archive", (c) => {
+        const actor = c.get("actor");
+        templateRows(actor);
+        const row = store.get(actor, TEMPLATE, c.req.param("id"));
+        if (isArchived(row)) return c.json(templateDetail(row));
+        const updated = store.patch(row, {
+          data: { ...templateData(row), archivedAt: new Date().toISOString() },
+        });
+        audit.record({
+          actor,
+          action: "onboarding.template.archive",
+          targetType: "onboarding_template",
+          targetId: row.id,
+          metadata: { name: templateData(row).name },
+        });
+        return c.json(templateDetail(updated));
+      })
+      .post("/people-ops/templates/:id/restore", (c) => {
+        const actor = c.get("actor");
+        templateRows(actor);
+        const row = store.get(actor, TEMPLATE, c.req.param("id"));
+        if (!isArchived(row)) return c.json(templateDetail(row));
+        const updated = store.patch(row, {
+          data: { ...templateData(row), archivedAt: null },
+        });
+        audit.record({
+          actor,
+          action: "onboarding.template.restore",
+          targetType: "onboarding_template",
+          targetId: row.id,
+          metadata: { name: templateData(row).name },
+        });
+        return c.json(templateDetail(updated));
+      })
+      .delete("/people-ops/templates/:id", (c) => {
+        const actor = c.get("actor");
+        templateRows(actor);
+        const row = store.get(actor, TEMPLATE, c.req.param("id"));
+        const blocker = deleteBlocker(row);
+        if (blocker) throw new AppError(409, "CONFLICT", blocker);
+        store.remove(row);
+        audit.record({
+          actor,
+          action: "onboarding.template.delete",
+          targetType: "onboarding_template",
+          targetId: row.id,
+          metadata: { name: templateData(row).name },
+        });
+        return c.body(null, 204);
+      })
       .get("/people-ops/template-library", (c) => {
         const actor = c.get("actor");
         return c.json({ items: [...catalog(actor.workspaceId).values()] });
@@ -811,6 +893,8 @@ export function createPeopleOpsRoutes(container: Container) {
               version: 1,
               status: "draft",
               publishedVersion: null,
+              // A copy starts live, even when its base was archived.
+              archivedAt: null,
               stages: base.stages.map((stage) => ({ ...stage, moduleIds: [...stage.moduleIds] })),
               history: [{ version: 1, on: today(), note: `Draft based on ${base.name}` }],
               updatedBy: actor.name,
@@ -834,6 +918,8 @@ export function createPeopleOpsRoutes(container: Container) {
           const actor = c.get("actor");
           const row = store.get(actor, TEMPLATE, c.req.param("id"));
           const data = templateData(row);
+          if (isArchived(row))
+            throw new AppError(409, "CONFLICT", "Restore the template before editing it");
           // Editing a published template starts the next version as a draft.
           const next = applyStages(actor.workspaceId, data, c.req.valid("json"));
           const updated = store.patch(row, {
@@ -856,6 +942,8 @@ export function createPeopleOpsRoutes(container: Container) {
           const row = store.get(actor, TEMPLATE, c.req.param("id"));
           const input = c.req.valid("json");
           const data = templateData(row);
+          if (isArchived(row))
+            throw new AppError(409, "CONFLICT", "Restore the template before publishing it");
           const next = applyStages(actor.workspaceId, data, input);
           if (!next.stages.some((stage) => stage.moduleIds.length))
             throw new BadRequestError("Add at least one module before publishing");
@@ -869,7 +957,23 @@ export function createPeopleOpsRoutes(container: Container) {
                 status: "published",
                 publishedVersion: version,
                 history: [
-                  { version, on: today(), note: input.note.trim() || "Updated modules" },
+                  {
+                    version,
+                    on: today(),
+                    note: input.note.trim() || "Updated modules",
+                    // A copy of what was published, so the version can be opened later.
+                    snapshot: {
+                      name: next.name,
+                      roles: next.roles,
+                      teams: next.teams,
+                      weeks: next.weeks,
+                      passMark: next.passMark,
+                      stages: next.stages.map((stage) => ({
+                        ...stage,
+                        moduleIds: [...stage.moduleIds],
+                      })),
+                    },
+                  },
                   ...data.history.filter((entry) => entry.version !== version),
                 ],
                 updatedBy: actor.name,

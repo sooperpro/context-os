@@ -14,10 +14,12 @@ import type {
 import { keepPreviousData, queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { homeKeys } from "@/features/home/api/home.queries";
 import {
+  archiveTemplate,
   completeSetupStep,
   createOnboarding,
   createTemplate,
   decideProbation,
+  deleteTemplate,
   discussProbation,
   fetchOnboarding,
   fetchOnboardingOptions,
@@ -26,9 +28,11 @@ import {
   fetchProbation,
   fetchTemplate,
   fetchTemplateLibrary,
+  fetchTemplateVersion,
   messageOnboarding,
   publishTemplate,
   remindManagers,
+  restoreTemplate,
   saveTemplateDraft,
   updateOnboarding,
 } from "./people-ops.api";
@@ -42,6 +46,8 @@ export const peopleOpsKeys = {
   options: () => [...peopleOpsKeys.all, "options"] as const,
   probation: (id: string) => [...peopleOpsKeys.all, "probation", id] as const,
   template: (id: string) => [...peopleOpsKeys.all, "template", id] as const,
+  templateVersion: (id: string, version: number) =>
+    [...peopleOpsKeys.all, "template", id, "version", version] as const,
   library: () => [...peopleOpsKeys.all, "library"] as const,
   person: (userId: string) => [...peopleOpsKeys.all, "person", userId] as const,
 };
@@ -87,6 +93,14 @@ export const templateQuery = (id: string) =>
   queryOptions({
     queryKey: peopleOpsKeys.template(id),
     queryFn: ({ signal }) => fetchTemplate(id, signal),
+  });
+
+/** One published version as it was published; fetched only when someone opens it. */
+export const templateVersionQuery = (id: string, version: number) =>
+  queryOptions({
+    queryKey: peopleOpsKeys.templateVersion(id, version),
+    queryFn: ({ signal }) => fetchTemplateVersion(id, version, signal),
+    staleTime: Infinity,
   });
 
 export const templateLibraryQuery = () =>
@@ -171,6 +185,21 @@ export function usePublishTemplate(id: string) {
     mutationFn: (input: TemplatePublishInput) => publishTemplate(id, input),
     onSuccess: () => refresh(),
   });
+}
+
+export function useArchiveTemplate(id: string) {
+  const refresh = useRefresh();
+  return useMutation({ mutationFn: () => archiveTemplate(id), onSuccess: () => refresh() });
+}
+
+export function useRestoreTemplate(id: string) {
+  const refresh = useRefresh();
+  return useMutation({ mutationFn: () => restoreTemplate(id), onSuccess: () => refresh() });
+}
+
+export function useDeleteTemplate(id: string) {
+  const refresh = useRefresh();
+  return useMutation({ mutationFn: () => deleteTemplate(id), onSuccess: () => refresh() });
 }
 
 export function useCreateTemplate() {

@@ -14,10 +14,12 @@ import {
   ReminderInputSchema,
   ReminderResultSchema,
   SetupStepInputSchema,
+  TemplateArchiveInputSchema,
   TemplateDetailSchema,
   TemplateDraftInputSchema,
   TemplateLibrarySchema,
   TemplatePublishInputSchema,
+  TemplateVersionSchema,
   type NewOnboardingInput,
   type NewTemplateInput,
   type OnboardingAssignmentInput,
@@ -30,6 +32,7 @@ import {
   type TemplateDraftInput,
   type TemplatePublishInput,
 } from "@contextos/shared";
+import { z } from "zod";
 import { apiRequest } from "@/lib/api-client";
 
 /**
@@ -83,6 +86,20 @@ export const PEOPLE_OPS_ENDPOINTS = {
     input: ReminderInputSchema,
   },
   template: { path: "/v1/people-ops/templates/:id", schema: TemplateDetailSchema },
+  templateVersion: {
+    path: "/v1/people-ops/templates/:id/versions/:version",
+    schema: TemplateVersionSchema,
+  },
+  archiveTemplate: {
+    path: "/v1/people-ops/templates/:id/archive",
+    schema: TemplateDetailSchema,
+    input: TemplateArchiveInputSchema,
+  },
+  restoreTemplate: {
+    path: "/v1/people-ops/templates/:id/restore",
+    schema: TemplateDetailSchema,
+    input: TemplateArchiveInputSchema,
+  },
   saveDraft: {
     path: "/v1/people-ops/templates/:id/draft",
     schema: TemplateDetailSchema,
@@ -160,6 +177,29 @@ export const remindManagers = (input: ReminderInput) =>
 
 export const fetchTemplate = (id: string, signal?: AbortSignal) =>
   apiRequest(withId(E.template.path, id), { schema: E.template.schema, signal });
+
+export const fetchTemplateVersion = (id: string, version: number, signal?: AbortSignal) =>
+  apiRequest(withId(E.templateVersion.path, id).replace(":version", String(version)), {
+    schema: E.templateVersion.schema,
+    signal,
+  });
+
+export const archiveTemplate = (id: string) =>
+  apiRequest(withId(E.archiveTemplate.path, id), {
+    method: "POST",
+    body: {},
+    schema: E.archiveTemplate.schema,
+  });
+
+export const restoreTemplate = (id: string) =>
+  apiRequest(withId(E.restoreTemplate.path, id), {
+    method: "POST",
+    body: {},
+    schema: E.restoreTemplate.schema,
+  });
+
+export const deleteTemplate = (id: string) =>
+  apiRequest(withId(E.template.path, id), { method: "DELETE", schema: z.undefined() });
 
 export const saveTemplateDraft = (id: string, input: TemplateDraftInput) =>
   apiRequest(withId(E.saveDraft.path, id), {

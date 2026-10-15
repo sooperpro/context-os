@@ -308,6 +308,10 @@ export const TemplateDetailSchema = z.object({
   /** The version active onboardings use; null for a template that was never published. */
   publishedVersion: z.string().nullable(),
   activeCount: Count,
+  /** Hidden from new onboardings. People already on it keep their roadmap. */
+  archived: z.boolean(),
+  /** False when onboardings used it (archive it instead) or it is the workspace's last template. */
+  deletable: z.boolean(),
   roles: z.array(z.string()),
   teams: z.array(z.string()),
   weeks: Count,
@@ -323,9 +327,32 @@ export const TemplateDetailSchema = z.object({
       modules: z.array(TemplateModuleSchema),
     }),
   ),
-  history: z.array(z.object({ version: z.string(), on: DateOnly, note: z.string() })),
+  history: z.array(
+    z.object({
+      version: z.string(),
+      on: DateOnly,
+      note: z.string(),
+      /** True when a copy of that version was kept, so it can be opened. Older versions have none. */
+      saved: z.boolean(),
+    }),
+  ),
 });
 export type TemplateDetail = z.infer<typeof TemplateDetailSchema>;
+
+/** `POST /v1/people-ops/templates/:id/archive` and `/restore`: no body. */
+export const TemplateArchiveInputSchema = z.object({}).strict();
+
+/** `GET /v1/people-ops/templates/:id/versions/:n`: one published version as it was when published. */
+export const TemplateVersionSchema = TemplateDetailSchema.pick({
+  id: true,
+  name: true,
+  roles: true,
+  teams: true,
+  weeks: true,
+  passMark: true,
+  stages: true,
+}).extend({ version: z.string(), publishedOn: DateOnly, note: z.string() });
+export type TemplateVersion = z.infer<typeof TemplateVersionSchema>;
 
 /** `POST /v1/people-ops/templates/:id/draft`: save the stages' modules, in order, as a draft. */
 export const TemplateDraftInputSchema = z

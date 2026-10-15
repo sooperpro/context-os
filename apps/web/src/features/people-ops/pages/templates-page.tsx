@@ -1,15 +1,23 @@
 import type { OnboardingTemplate } from "@contextos/shared";
+import { cn } from "cn";
 import { useBotContext } from "@/components/layout/bot-context";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Link } from "react-router";
 import { PageHeader } from "@/components/layout/page-header";
 import { PreviewDataChip } from "@/components/preview-data-chip";
 import { SectionCard } from "@/components/section-card";
 import { Button } from "@/components/ui/button";
-import { AddIcon, CheckCircleIcon, EditIcon, LibraryBooksIcon } from "@/components/ui/icons";
+import {
+  AddIcon,
+  CheckCircleIcon,
+  EditIcon,
+  Inventory2Icon,
+  LibraryBooksIcon,
+} from "@/components/ui/icons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusChip } from "@/components/ui/status-chip";
+import { Switch } from "@/components/ui/switch";
 import { HOME_ENDPOINTS } from "@/features/home/api/home.api";
 import { homeQuery } from "@/features/home/api/home.queries";
 import { NewTemplateDialog, TemplateTile } from "@/features/people-ops/components/template-parts";
@@ -28,7 +36,11 @@ export function TemplatesPage() {
     },
     "templates",
   );
-  const query = useQuery(homeQuery("templates"));
+  const [showArchived, setShowArchived] = useState(false);
+  const archivedId = useId();
+  const query = useQuery(
+    homeQuery("templates", showArchived ? { archived: "include" } : undefined),
+  );
   const [creating, setCreating] = useState(false);
   const items = query.data?.items ?? [];
 
@@ -44,8 +56,20 @@ export function TemplatesPage() {
           </Button>
         }
       />
-      <div className="flex justify-end empty:hidden">
+      <div className="flex flex-wrap items-center justify-end gap-3">
         <PreviewDataChip endpoint={HOME_ENDPOINTS.templates.path} />
+        <label
+          htmlFor={archivedId}
+          className="flex items-center gap-2 text-sm text-on-surface-variant"
+        >
+          Show archived
+          <Switch
+            id={archivedId}
+            size="sm"
+            checked={showArchived}
+            onCheckedChange={setShowArchived}
+          />
+        </label>
       </div>
       {query.isPending ? (
         <div
@@ -88,11 +112,16 @@ function TemplateCard({ template }: { template: OnboardingTemplate }) {
   return (
     <Link
       to={templatePath(template.id)}
-      className="flex w-full flex-col gap-2 rounded-3xl bg-card p-4.5 text-on-surface no-underline transition-[border-radius,box-shadow] duration-[350ms] ease-spring-fast-spatial outline-none hover:rounded-[32px] hover:shadow-elevation-1 focus-visible:ring-3 focus-visible:ring-ring/50"
+      className={cn(
+        "flex w-full flex-col gap-2 rounded-3xl bg-card p-4.5 text-on-surface no-underline transition-[border-radius,box-shadow] duration-[350ms] ease-spring-fast-spatial outline-none hover:rounded-[32px] hover:shadow-elevation-1 focus-visible:ring-3 focus-visible:ring-ring/50",
+        template.archived && "opacity-70",
+      )}
     >
       <span className="mb-1 flex items-center justify-between gap-2">
         <TemplateTile family={template.family} />
-        {template.status === "draft" ? (
+        {template.archived ? (
+          <StatusChip icon={<Inventory2Icon />}>Archived</StatusChip>
+        ) : template.status === "draft" ? (
           <StatusChip icon={<EditIcon />}>Draft {template.version}</StatusChip>
         ) : (
           <StatusChip tone="success" icon={<CheckCircleIcon />}>

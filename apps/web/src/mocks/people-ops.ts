@@ -194,7 +194,7 @@ const CATALOG = new Map(Object.values(M).map((entry) => [entry.id, entry]));
 
 interface MockTemplate extends Omit<
   TemplateDetail,
-  "stages" | "version" | "publishedVersion" | "history"
+  "stages" | "version" | "publishedVersion" | "history" | "deletable"
 > {
   /** "Engineering · IC": how onboarding records name it. */
   short: string;
@@ -207,7 +207,13 @@ interface MockTemplate extends Omit<
     weekEnd: number;
     moduleIds: string[];
   }>;
-  history: Array<{ version: number; on: string; note: string }>;
+  /** `snapshot` is the copy kept when the version was published (older, seeded versions have none). */
+  history: Array<{
+    version: number;
+    on: string;
+    note: string;
+    snapshot?: Pick<MockTemplate, "name" | "roles" | "teams" | "weeks" | "passMark" | "stages">;
+  }>;
 }
 
 const stage = (
@@ -227,7 +233,7 @@ const stage = (
 function template(
   seed: Omit<
     MockTemplate,
-    "status" | "publishedVersion" | "passMark" | "updatedAt" | "updatedBy" | "history"
+    "status" | "publishedVersion" | "passMark" | "updatedAt" | "updatedBy" | "history" | "archived"
   > & {
     updated: number;
     by: PersonRef;
@@ -238,14 +244,29 @@ function template(
   return {
     ...rest,
     status: "published",
+    archived: false,
     publishedVersion: seed.version,
     passMark: 4,
     updatedAt: atFromToday(updated, 15),
     updatedBy: by.name,
+    // The current version has a kept copy, as a version published through the API would;
+    // the older ones don't (they came before copies were kept).
     history: history.map(([days, note], index) => ({
       version: seed.version - index,
       on: dateFromToday(days),
       note,
+      ...(index === 0
+        ? {
+            snapshot: {
+              name: seed.name,
+              roles: [...seed.roles],
+              teams: [...seed.teams],
+              weeks: seed.weeks,
+              passMark: 4,
+              stages: seed.stages.map((item) => ({ ...item, moduleIds: [...item.moduleIds] })),
+            },
+          }
+        : {}),
     })),
   };
 }
@@ -1083,13 +1104,41 @@ function reviewDetail(review: MockReview): ProbationDetail {
 function templateDetail(entry: MockTemplate): TemplateDetail {
   return {
     ...entry,
+    // As the API: used templates are archived, never deleted, and the last one stays.
+    deletable: entry.activeCount === 0 && templates.length > 1,
     version: v(entry.version),
     publishedVersion: entry.publishedVersion === null ? null : v(entry.publishedVersion),
     stages: entry.stages.map(({ moduleIds, ...rest }) => ({
       ...rest,
       modules: moduleIds.flatMap((id) => CATALOG.get(id) ?? []),
     })),
-    history: entry.history.map((item) => ({ ...item, version: v(item.version) })),
+    history: entry.history.map(({ snapshot, ...item }) => ({
+      ...item,
+      version: v(item.version),
+      saved: Boolean(snapshot),
+    })),
+  };
+}
+
+/** One published version from its kept copy, or null when none was kept. */
+function templateVersion(entry: MockTemplate, version: number) {
+  const item = entry.history.find((candidate) => candidate.version === version);
+  if (!item?.snapshot) return null;
+  const { snapshot } = item;
+  return {
+    id: entry.id,
+    version: v(version),
+    publishedOn: item.on,
+    note: item.note,
+    name: snapshot.name,
+    roles: snapshot.roles,
+    teams: snapshot.teams,
+    weeks: snapshot.weeks,
+    passMark: snapshot.passMark,
+    stages: snapshot.stages.map(({ moduleIds, ...rest }) => ({
+      ...rest,
+      modules: moduleIds.flatMap((id) => CATALOG.get(id) ?? []),
+    })),
   };
 }
 
@@ -1101,6 +1150,7 @@ function templateSummary(entry: MockTemplate): OnboardingTemplate {
     version: v(entry.version),
     status: entry.status,
     activeCount: entry.activeCount,
+    archived: entry.archived,
     updatedAt: entry.updatedAt,
     updatedBy: entry.updatedBy,
     roles: entry.roles,
@@ -1165,8 +1215,9 @@ export function starterList(within: number) {
     }));
 }
 
-export function templateList() {
-  return templates.map(templateSummary);
+/** HR Home's templates: live ones only, unless archived ones are asked for. */
+export function templateList(includeArchived = false) {
+  return templates.filter((entry) => includeArchived || !entry.archived).map(templateSummary);
 }
 
 /** A manager sent their probation recommendation from a check-in (prototype `submitRecommendation`). */
@@ -1244,7 +1295,9 @@ export const peopleOpsPageMocks = [
     items: starterList(Number(new URL(request.url).searchParams.get("within") ?? 14)),
   })),
   mockGet(H.overdueMilestones)(() => ({ items: overdueList() })),
-  mockGet(H.templates)(() => ({ items: templateList() })),
+  mockGet(H.templates)(({ request }) => ({
+    items: templateList(new URL(request.url).searchParams.get("archived") === "include"),
+  })),
 
   mockGet(E.onboardings)(({ request }) => {
     const params = new URL(request.url).searchParams;
@@ -1419,9 +1472,32 @@ export const peopleOpsPageMocks = [
         version: entry.version,
         on: dateFromToday(0),
         note: input.note.trim() || "Updated modules",
+        snapshot: {
+          name: entry.name,
+          roles: [...entry.roles],
+          teams: [...entry.teams],
+          weeks: entry.weeks,
+          passMark: entry.passMark,
+          stages: entry.stages.map((item) => ({ ...item, moduleIds: [...item.moduleIds] })),
+        },
       },
       ...entry.history,
     ];
+    return templateDetail(entry);
+  }),
+  mockGet(E.templateVersion)(({ params }) => {
+    const found = templateVersion(findTemplate(param(params.id)), Number(param(params.version)));
+    if (!found) throw new MockNotFoundError("A saved copy of that version");
+    return found;
+  }),
+  mockPost(E.archiveTemplate)((_input, { params }) => {
+    const entry = findTemplate(param(params.id));
+    entry.archived = true;
+    return templateDetail(entry);
+  }),
+  mockPost(E.restoreTemplate)((_input, { params }) => {
+    const entry = findTemplate(param(params.id));
+    entry.archived = false;
     return templateDetail(entry);
   }),
   mockPost(E.createTemplate)((input) => {
@@ -1434,6 +1510,7 @@ export const peopleOpsPageMocks = [
       short: input.name.trim() || `${base.short} (copy)`,
       version: 1,
       status: "draft",
+      archived: false,
       publishedVersion: null,
       activeCount: 0,
       updatedAt: new Date().toISOString(),

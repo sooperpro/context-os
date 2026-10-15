@@ -31,6 +31,8 @@ const EXAMPLE: Record<string, string> = {
   "/v1/people-ops/onboardings/:id": "/v1/people-ops/onboardings/p-leah",
   "/v1/people-ops/probation-reviews/:id": "/v1/people-ops/probation-reviews/pr-sofia",
   "/v1/people-ops/templates/:id": "/v1/people-ops/templates/tpl-eng-ic",
+  "/v1/people-ops/templates/:id/versions/:version":
+    "/v1/people-ops/templates/tpl-eng-ic/versions/4",
   "/v1/people-ops/people/:id/onboarding": "/v1/people-ops/people/p-leah/onboarding",
 };
 
