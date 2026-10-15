@@ -1,6 +1,7 @@
 import type { KnowledgeSection, PersonProfile } from "@contextos/shared";
 import { useBotContext } from "@/components/layout/bot-context";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link, useParams } from "react-router";
 import { useAssistant } from "@/components/layout/assistant-context";
 import { PageColumns, PageMain, PageSide } from "@/components/layout/page-columns";
@@ -23,6 +24,7 @@ import {
   CalendarMonthIcon,
   ChatIcon,
   ConversionPathIcon,
+  EditIcon,
   EventIcon,
   GavelIcon,
   GroupsIcon,
@@ -41,7 +43,9 @@ import { PEOPLE_ENDPOINTS as E } from "@/features/people/api/people.api";
 import { personQuery } from "@/features/people/api/people.queries";
 import { OrgNode, PersonBadges } from "@/features/people/components/person-parts";
 import { roleAndTeam } from "@/features/people/people-meta";
+import { meQuery } from "@/features/account/api/account.queries";
 import { personOnboardingQuery } from "@/features/people-ops/api/people-ops.queries";
+import { PersonDetailsDialog } from "@/features/people-ops/components/person-details-dialog";
 import { onboardingPath } from "@/features/people-ops/people-ops-meta";
 import { memberPath } from "@/features/team/team-meta";
 import { useViewer } from "@/features/workspace/hooks/use-viewer";
@@ -89,6 +93,10 @@ function Profile({ person }: { person: PersonProfile }) {
   const first = firstName(person.name);
   // HR sees the onboarding card for everyone onboarding, with a link to their record (spec §4.5).
   const { persona } = useViewer();
+  // People Ops can change a person's job title, team and manager, but not their own.
+  const me = useQuery({ ...meQuery(), enabled: persona === "people_ops" });
+  const canEdit = persona === "people_ops" && me.data !== undefined && me.data.id !== person.id;
+  const [editing, setEditing] = useState(false);
   const record = useQuery({
     ...personOnboardingQuery(person.id),
     enabled: persona === "people_ops",
@@ -131,6 +139,11 @@ function Profile({ person }: { person: PersonProfile }) {
         subtitle={roleAndTeam(person)}
         actions={
           <>
+            {canEdit ? (
+              <Button variant="secondary" onClick={() => setEditing(true)}>
+                <EditIcon aria-hidden /> Edit details
+              </Button>
+            ) : null}
             <Button onClick={() => comingSoon("Messages")}>
               <ChatIcon aria-hidden /> Message
             </Button>
@@ -264,6 +277,9 @@ function Profile({ person }: { person: PersonProfile }) {
           </SectionCard>
         </PageSide>
       </PageColumns>
+      {canEdit ? (
+        <PersonDetailsDialog personId={person.id} open={editing} onOpenChange={setEditing} />
+      ) : null}
     </div>
   );
 }

@@ -725,7 +725,12 @@ export function createIdentityRoutes(container: Container) {
       // stay with admins. The scope is part of the query, so no filter can widen it.
       const hrScope =
         actor.role === "hr"
-          ? or(like(auditLog.action, "onboarding.%"), like(auditLog.action, "probation.%"))
+          ? or(
+              like(auditLog.action, "onboarding.%"),
+              like(auditLog.action, "probation.%"),
+              // Changes to people's job title, team or manager are People Ops work too.
+              eq(auditLog.action, "user.organization.update"),
+            )
           : undefined;
       const rows = db
         .select()

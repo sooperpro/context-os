@@ -41,6 +41,7 @@ describe("navigation config", () => {
       "templates",
       "people",
       "knowledge",
+      "learning",
       "audit",
       "tutorials",
     ]);

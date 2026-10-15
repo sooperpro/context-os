@@ -278,6 +278,35 @@ export type ReminderInput = z.infer<typeof ReminderInputSchema>;
 export const ReminderResultSchema = z.object({ reminded: z.array(PersonRefSchema) });
 export type ReminderResult = z.infer<typeof ReminderResultSchema>;
 
+/* ---- A person's job details ---------------------------------------------------------------- */
+
+/** `GET /v1/people-ops/people/:id/details`: what People Ops may change about a person. */
+export const PersonDetailsSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  jobTitle: z.string().nullable(),
+  departmentId: z.string().nullable(),
+  teamId: z.string().nullable(),
+  manager: PersonRefSchema.nullable(),
+});
+export type PersonDetails = z.infer<typeof PersonDetailsSchema>;
+
+/**
+ * `PATCH /v1/people-ops/people/:id/details`: change a person's job title, department, team or
+ * manager. Omit a field to leave it; send `null` (or an empty title) to clear it. Choosing a team
+ * moves them to its department.
+ */
+export const PersonDetailsInputSchema = z
+  .object({
+    jobTitle: z.string().trim().max(200).optional(),
+    departmentId: z.uuid().nullable().optional(),
+    teamId: z.uuid().nullable().optional(),
+    managerId: z.string().min(1).max(200).nullable().optional(),
+  })
+  .strict()
+  .refine((input) => Object.keys(input).length > 0, { message: "Change something." });
+export type PersonDetailsInput = z.infer<typeof PersonDetailsInputSchema>;
+
 /* ---- Templates ----------------------------------------------------------------------------- */
 
 /** Module kinds in templates: the learner's module kinds plus a few role-specific ones. */

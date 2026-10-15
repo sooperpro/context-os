@@ -4,6 +4,7 @@ import type {
   OnboardingAssignmentInput,
   OnboardingFilter,
   OnboardingMessageInput,
+  PersonDetailsInput,
   ProbationDecisionInput,
   ProbationDiscussInput,
   ReminderInput,
@@ -13,6 +14,8 @@ import type {
 } from "@contextos/shared";
 import { keepPreviousData, queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { homeKeys } from "@/features/home/api/home.queries";
+import { membersKeys } from "@/features/members/api/members.queries";
+import { peopleKeys } from "@/features/people/api/people.queries";
 import {
   archiveTemplate,
   completeSetupStep,
@@ -24,6 +27,7 @@ import {
   fetchOnboarding,
   fetchOnboardingOptions,
   fetchOnboardings,
+  fetchPersonDetails,
   fetchPersonOnboarding,
   fetchProbation,
   fetchTemplate,
@@ -35,6 +39,7 @@ import {
   restoreTemplate,
   saveTemplateDraft,
   updateOnboarding,
+  updatePersonDetails,
 } from "./people-ops.api";
 import { ApiClientError } from "@/lib/api-client";
 
@@ -50,6 +55,7 @@ export const peopleOpsKeys = {
     [...peopleOpsKeys.all, "template", id, "version", version] as const,
   library: () => [...peopleOpsKeys.all, "library"] as const,
   person: (userId: string) => [...peopleOpsKeys.all, "person", userId] as const,
+  details: (userId: string) => [...peopleOpsKeys.all, "details", userId] as const,
 };
 
 export const onboardingsQuery = (q: string, team: string, filter: OnboardingFilter) =>
@@ -101,6 +107,13 @@ export const templateVersionQuery = (id: string, version: number) =>
     queryKey: peopleOpsKeys.templateVersion(id, version),
     queryFn: ({ signal }) => fetchTemplateVersion(id, version, signal),
     staleTime: Infinity,
+  });
+
+/** A person's job title, department, team and manager, for People Ops to change. */
+export const personDetailsQuery = (userId: string) =>
+  queryOptions({
+    queryKey: peopleOpsKeys.details(userId),
+    queryFn: ({ signal }) => fetchPersonDetails(userId, signal),
   });
 
 export const templateLibraryQuery = () =>
@@ -184,6 +197,22 @@ export function usePublishTemplate(id: string) {
   return useMutation({
     mutationFn: (input: TemplatePublishInput) => publishTemplate(id, input),
     onSuccess: () => refresh(),
+  });
+}
+
+/** Saves new job details; the profile, directory, members list and onboarding records reload. */
+export function useUpdatePersonDetails(userId: string) {
+  const refresh = useRefresh();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: PersonDetailsInput) => updatePersonDetails(userId, input),
+    onSuccess: async () => {
+      await Promise.all([
+        refresh(),
+        queryClient.invalidateQueries({ queryKey: peopleKeys.all }),
+        queryClient.invalidateQueries({ queryKey: membersKeys.all() }),
+      ]);
+    },
   });
 }
 

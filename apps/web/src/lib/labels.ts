@@ -155,7 +155,7 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   "team.update": "Updated a team",
   "thread.delete": "Deleted a conversation",
   "user.invite": "Invited someone",
-  "user.organization.update": "Changed someone's team",
+  "user.organization.update": "Changed someone's job title, team or manager",
   "user.update": "Changed someone's role or status",
   "workspace.create": "Created the workspace",
   "workspace.setup": "Updated workspace setup",

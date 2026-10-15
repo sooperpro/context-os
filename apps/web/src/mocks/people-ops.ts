@@ -4,6 +4,7 @@ import type {
   OnboardingRecordSummary,
   OnboardingStatus,
   OnboardingTemplate,
+  PersonDetails,
   PersonRef,
   ProbationDetail,
   ProbationReview,
@@ -1215,6 +1216,29 @@ export function starterList(within: number) {
     }));
 }
 
+/** Job details People Ops has saved in this session; anyone else starts from their fixture. */
+const savedDetails = new Map<string, PersonDetails>();
+const personById = (id: string): PersonRef => {
+  const known = [...Object.values(people), ...records.map((record) => record.person)].find(
+    (entry) => entry.id === id,
+  );
+  if (!known) throw new MockNotFoundError("Person");
+  return known;
+};
+const detailsFor = (id: string): PersonDetails => {
+  const saved = savedDetails.get(id);
+  if (saved) return saved;
+  const person = personById(id);
+  return {
+    id,
+    name: person.name,
+    jobTitle: person.title,
+    departmentId: null,
+    teamId: null,
+    manager: null,
+  };
+};
+
 /** HR Home's templates: live ones only, unless archived ones are asked for. */
 export function templateList(includeArchived = false) {
   return templates.filter((entry) => includeArchived || !entry.archived).map(templateSummary);
@@ -1441,6 +1465,21 @@ export const peopleOpsPageMocks = [
     return reviewDetail(review);
   }),
   mockGet(E.personOnboarding)(({ params }) => summary(findRecord(param(params.id)))),
+  mockGet(E.personDetails)(({ params }) => detailsFor(param(params.id))),
+  mockPatch(E.personDetails)((input, { params }) => {
+    const current = detailsFor(param(params.id));
+    const next: PersonDetails = {
+      ...current,
+      ...(input.jobTitle !== undefined ? { jobTitle: input.jobTitle || null } : {}),
+      ...(input.departmentId !== undefined ? { departmentId: input.departmentId } : {}),
+      ...(input.teamId !== undefined ? { teamId: input.teamId } : {}),
+      ...(input.managerId !== undefined
+        ? { manager: input.managerId ? personById(input.managerId) : null }
+        : {}),
+    };
+    savedDetails.set(next.id, next);
+    return next;
+  }),
   mockPost(E.remind)((input) => {
     if (input.about === "milestone") {
       const managers = OVERDUE.filter((item) => input.ids.includes(item.id)).flatMap(

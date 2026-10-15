@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { OptionalSelect } from "@/features/members/components/optional-select";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -62,9 +63,6 @@ const ROLES: Array<{ value: InviteForm["role"]; title: string; description: stri
 ];
 
 const ROLE_ITEMS = Object.fromEntries(ROLES.map((option) => [option.value, option.title]));
-
-/** "Not set" in the optional selects; the form holds "" for it. */
-const NONE = "none";
 
 interface InviteMemberDialogProps {
   open: boolean;
@@ -321,43 +319,5 @@ function InviteMemberForm({ close }: { close: () => void }) {
         </Button>
       </DialogFooter>
     </form>
-  );
-}
-
-function OptionalSelect({
-  id,
-  value,
-  onChange,
-  options,
-  disabled,
-}: {
-  id: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: Array<{ value: string; label: string }>;
-  disabled?: boolean;
-}) {
-  return (
-    <Select
-      items={{
-        [NONE]: "Not set",
-        ...Object.fromEntries(options.map((option) => [option.value, option.label])),
-      }}
-      value={value || NONE}
-      disabled={disabled}
-      onValueChange={(next) => onChange(next === NONE || next == null ? "" : String(next))}
-    >
-      <SelectTrigger id={id} className="w-full">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value={NONE}>Not set</SelectItem>
-        {options.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
-            {option.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
   );
 }

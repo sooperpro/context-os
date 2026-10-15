@@ -718,4 +718,127 @@ describe("People Ops", () => {
     expect(seededDetail.history[0]).toMatchObject({ version: "v1", saved: false });
     expect((await t.app.request(`${base}/${seeded!.id}/versions/1`)).status).toBe(404);
   });
+  it("lets HR change a person's job title, team and manager, and keeps their onboarding record in step", async () => {
+    t = createTestApp();
+    const owner = { ...t.container.devActor };
+    const org = async (path: string, body: unknown) =>
+      json<{ id: string }>(await t.app.request(`/api/v1/org/${path}`, jsonRequest(body)));
+    const engineering = await org("departments", { name: "Engineering" });
+    const finance = await org("departments", { name: "Finance" });
+    const billing = await org("teams", { name: "Billing", departmentId: engineering.id });
+    const payroll = await org("teams", { name: "Payroll", departmentId: finance.id });
+    member("hr1", "hr");
+    member("dana", "manager");
+    member("erin", "manager");
+    member("sam", "member", "dana", "sam@example.com");
+    as("hr1", "hr");
+    const path = "/api/v1/people-ops/people/sam/details";
+    type Details = {
+      jobTitle: string | null;
+      departmentId: string | null;
+      teamId: string | null;
+      manager: { id: string } | null;
+    };
+    const get = async () => json<Details>(await t.app.request(path));
+    const patch = (body: unknown) => t.app.request(path, jsonRequest(body, "PATCH"));
+
+    expect(await get()).toMatchObject({
+      jobTitle: null,
+      departmentId: null,
+      teamId: null,
+      manager: { id: "dana" },
+    });
+    // Picking a team puts them in its department.
+    expect(
+      await json(await patch({ jobTitle: "Staff Engineer", teamId: billing.id })),
+    ).toMatchObject({
+      jobTitle: "Staff Engineer",
+      departmentId: engineering.id,
+      teamId: billing.id,
+    });
+    // Moving the department drops a team that is not in it; the title stays.
+    expect(await json(await patch({ departmentId: finance.id }))).toMatchObject({
+      jobTitle: "Staff Engineer",
+      departmentId: finance.id,
+      teamId: null,
+    });
+    expect(await json(await patch({ teamId: payroll.id }))).toMatchObject({
+      departmentId: finance.id,
+      teamId: payroll.id,
+    });
+    // A team outside the chosen department, or a department that is not there, is refused.
+    expect((await patch({ departmentId: engineering.id, teamId: payroll.id })).status).toBe(400);
+    expect((await patch({ departmentId: "99999999-9999-4999-8999-999999999999" })).status).toBe(
+      400,
+    );
+    // Clearing the department clears the team with it; an empty title clears the title.
+    expect(await json(await patch({ departmentId: null, jobTitle: "" }))).toMatchObject({
+      jobTitle: null,
+      departmentId: null,
+      teamId: null,
+    });
+    expect((await patch({})).status).toBe(400);
+
+    // A new manager, but never themselves, HR, someone who isn't a member, or a reporting loop.
+    expect((await patch({ managerId: "sam" })).status).toBe(400);
+    expect((await patch({ managerId: "hr1" })).status).toBe(400);
+    expect((await patch({ managerId: "nobody" })).status).toBe(400);
+    member("loop", "member", "sam");
+    expect((await patch({ managerId: "loop" })).status).toBe(400);
+    expect(await json(await patch({ managerId: "erin" }))).toMatchObject({
+      manager: { id: "erin" },
+    });
+    const notified = (userId: string) =>
+      t.container.db
+        .select()
+        .from(platformRecords)
+        .where(and(eq(platformRecords.kind, "notification"), eq(platformRecords.ownerId, userId)))
+        .all()
+        .map((row) => row.data.title);
+    expect(notified("erin")).toContain("Sam Person is now on your team");
+    expect(notified("sam")).toContain("Your manager is now Erin Person");
+
+    // Their onboarding record follows: same title, team and manager.
+    const record = await json<{ id: string }>(
+      await t.app.request(
+        "/api/v1/people-ops/onboardings",
+        jsonRequest({
+          name: "Sam Person",
+          title: "Engineer",
+          email: "sam@example.com",
+          team: "Platform",
+          startDate: dayFromToday(3),
+          managerId: "erin",
+          buddyId: null,
+          templateId: null,
+        }),
+      ),
+    );
+    await patch({ jobTitle: "Lead Engineer", teamId: payroll.id, managerId: "dana" });
+    expect(
+      await json(await t.app.request(`/api/v1/people-ops/onboardings/${record.id}`)),
+    ).toMatchObject({ team: "Payroll", manager: { id: "dana" } });
+
+    // Every change is on the audit trail, and HR can read it.
+    expect(audits("user.organization.update").length).toBeGreaterThanOrEqual(6);
+    const trail = await json<{ items: Array<{ action: string }> }>(
+      await t.app.request("/api/v1/audit"),
+    );
+    expect(trail.items.map((entry) => entry.action)).toContain("user.organization.update");
+
+    // Not their own, and only HR.
+    expect(
+      (
+        await t.app.request(
+          "/api/v1/people-ops/people/hr1/details",
+          jsonRequest({ jobTitle: "Head of People" }, "PATCH"),
+        )
+      ).status,
+    ).toBe(403);
+    as("dana", "manager");
+    expect((await t.app.request(path)).status).toBe(403);
+    expect((await patch({ jobTitle: "Nope" })).status).toBe(403);
+    Object.assign(t.container.devActor, owner);
+    expect((await t.app.request(path)).status).toBe(403);
+  });
 });

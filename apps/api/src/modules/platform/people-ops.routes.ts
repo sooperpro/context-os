@@ -5,6 +5,7 @@ import {
   OnboardingAssignmentInputSchema,
   OnboardingFilterSchema,
   OnboardingMessageInputSchema,
+  PersonDetailsInputSchema,
   ProbationDecisionInputSchema,
   ProbationDiscussInputSchema,
   ProbationRecommendationInputSchema,
@@ -20,7 +21,7 @@ import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Container } from "../../container.js";
-import { memberships } from "../../db/schema.js";
+import { departments, memberships, teams } from "../../db/schema.js";
 import { AppError, BadRequestError, NotFoundError } from "../../lib/errors.js";
 import { validationHook } from "../../middleware/validation.js";
 import type { Actor, AppEnv } from "../../types.js";
@@ -59,6 +60,7 @@ export function createPeopleOpsRoutes(container: Container) {
     activeMembers,
     personRef,
     requirePerson,
+    teamName,
     templateRows,
     isArchived,
     deleteBlocker,
@@ -116,6 +118,19 @@ export function createPeopleOpsRoutes(container: Container) {
           )
           .get()?.managerId ?? null;
     }
+  };
+
+  /** A person People Ops can look at or change: an active member of the workspace. */
+  const detailsOf = (workspaceId: string, member: ReturnType<typeof identity.requireMember>) => {
+    const { jobTitle, departmentId, teamId } = member.organization;
+    return {
+      id: member.userId,
+      name: personRef(workspaceId, member.userId)?.name ?? member.userId,
+      jobTitle: typeof jobTitle === "string" ? jobTitle : null,
+      departmentId: typeof departmentId === "string" ? departmentId : null,
+      teamId: typeof teamId === "string" ? teamId : null,
+      manager: personRef(workspaceId, member.managerId),
+    };
   };
 
   return (
@@ -351,6 +366,149 @@ export function createPeopleOpsRoutes(container: Container) {
         if (!row) throw new NotFoundError("Onboarding record");
         return c.json(summary(row));
       })
+      .get("/people-ops/people/:userId/details", (c) => {
+        const actor = c.get("actor");
+        return c.json(
+          detailsOf(
+            actor.workspaceId,
+            identity.requireMember(actor.workspaceId, c.req.param("userId")),
+          ),
+        );
+      })
+      .patch(
+        "/people-ops/people/:userId/details",
+        zValidator("json", PersonDetailsInputSchema, validationHook),
+        (c) => {
+          const actor = c.get("actor");
+          const userId = c.req.param("userId");
+          const input = c.req.valid("json");
+          // Org-controlled fields are not the employee's to edit, and People Ops is an employee too
+          // (role access spec §6 rule 7): an admin changes their own.
+          if (userId === actor.id)
+            throw new AppError(403, "FORBIDDEN", "Ask an admin to change your own details");
+          const member = identity.requireMember(actor.workspaceId, userId);
+          const before = detailsOf(actor.workspaceId, member);
+
+          // Department and team stay consistent: a team belongs to one department.
+          let departmentId = before.departmentId;
+          let teamId = before.teamId;
+          if (input.departmentId !== undefined) {
+            departmentId = input.departmentId;
+            if (
+              departmentId &&
+              !db
+                .select({ id: departments.id })
+                .from(departments)
+                .where(
+                  and(
+                    eq(departments.workspaceId, actor.workspaceId),
+                    eq(departments.id, departmentId),
+                  ),
+                )
+                .get()
+            )
+              throw new BadRequestError("That department does not exist");
+          }
+          if (input.teamId !== undefined) teamId = input.teamId;
+          if (teamId) {
+            const team = db
+              .select({ departmentId: teams.departmentId })
+              .from(teams)
+              .where(and(eq(teams.workspaceId, actor.workspaceId), eq(teams.id, teamId)))
+              .get();
+            if (!team) throw new BadRequestError("That team does not exist");
+            if (input.teamId !== undefined && input.departmentId === undefined)
+              departmentId = team.departmentId;
+            else if (team.departmentId !== departmentId) {
+              if (input.teamId !== undefined)
+                throw new BadRequestError("That team is not in the chosen department");
+              teamId = null; // the department moved on from the team they were in
+            }
+          }
+          if (!departmentId) teamId = null;
+
+          let managerId = member.managerId;
+          if (input.managerId !== undefined) {
+            if (input.managerId) {
+              requirePerson(actor.workspaceId, input.managerId, "The manager");
+              checkManager(actor, input.managerId, userId);
+            }
+            managerId = input.managerId;
+          }
+
+          const organization: Record<string, unknown> = { ...member.organization };
+          if (input.jobTitle !== undefined) {
+            if (input.jobTitle) organization.jobTitle = input.jobTitle;
+            else delete organization.jobTitle;
+          }
+          if (departmentId) organization.departmentId = departmentId;
+          else delete organization.departmentId;
+          if (teamId) organization.teamId = teamId;
+          else delete organization.teamId;
+
+          db.transaction(() => {
+            db.update(memberships)
+              .set({ organization, managerId })
+              .where(
+                and(eq(memberships.workspaceId, actor.workspaceId), eq(memberships.userId, userId)),
+              )
+              .run();
+            // Their onboarding record keeps its own copy of title, team and manager: keep it in step.
+            const record = store
+              .listWhere(actor.workspaceId, ONBOARDING, { status: "active" }, 1000)
+              .find((row) => recordData(row).personId === userId);
+            if (record)
+              store.patch(record, {
+                data: {
+                  ...recordData(record),
+                  ...(input.jobTitle ? { title: input.jobTitle } : {}),
+                  team: teamName(actor.workspaceId, organization),
+                  managerId,
+                },
+              });
+            audit.record({
+              actor,
+              action: "user.organization.update",
+              targetType: "user",
+              targetId: userId,
+              metadata: {
+                before: {
+                  jobTitle: before.jobTitle,
+                  departmentId: before.departmentId,
+                  teamId: before.teamId,
+                  managerId: before.manager?.id ?? null,
+                },
+                after: {
+                  jobTitle:
+                    typeof organization.jobTitle === "string" ? organization.jobTitle : null,
+                  departmentId,
+                  teamId,
+                  managerId,
+                },
+              },
+            });
+          });
+          if (managerId && managerId !== before.manager?.id) {
+            notifyPerson(
+              actor.workspaceId,
+              managerId,
+              `${before.name} is now on your team`,
+              `/team/${userId}`,
+              "people_ops.manager_changed",
+            );
+            notifyPerson(
+              actor.workspaceId,
+              userId,
+              `Your manager is now ${personRef(actor.workspaceId, managerId)?.name ?? "someone new"}`,
+              "/",
+              "people_ops.manager_changed",
+            );
+          }
+          return c.json(
+            detailsOf(actor.workspaceId, identity.requireMember(actor.workspaceId, userId)),
+          );
+        },
+      )
       .get("/people-ops/onboardings/:id", (c) =>
         c.json(recordDetail(recordById(c.get("actor"), c.req.param("id")))),
       )

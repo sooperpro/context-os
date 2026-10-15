@@ -11,6 +11,8 @@ import {
   ProbationDetailSchema,
   ProbationDiscussInputSchema,
   OnboardingRecordSummarySchema,
+  PersonDetailsInputSchema,
+  PersonDetailsSchema,
   ReminderInputSchema,
   ReminderResultSchema,
   SetupStepInputSchema,
@@ -25,6 +27,7 @@ import {
   type OnboardingAssignmentInput,
   type OnboardingFilter,
   type OnboardingMessageInput,
+  type PersonDetailsInput,
   type ProbationDecisionInput,
   type ProbationDiscussInput,
   type ReminderInput,
@@ -79,6 +82,11 @@ export const PEOPLE_OPS_ENDPOINTS = {
   personOnboarding: {
     path: "/v1/people-ops/people/:id/onboarding",
     schema: OnboardingRecordSummarySchema,
+  },
+  personDetails: {
+    path: "/v1/people-ops/people/:id/details",
+    schema: PersonDetailsSchema,
+    input: PersonDetailsInputSchema,
   },
   remind: {
     path: "/v1/people-ops/reminders",
@@ -170,6 +178,16 @@ export const fetchPersonOnboarding = (userId: string, signal?: AbortSignal) =>
   apiRequest(withId(E.personOnboarding.path, userId), {
     schema: E.personOnboarding.schema,
     signal,
+  });
+
+export const fetchPersonDetails = (userId: string, signal?: AbortSignal) =>
+  apiRequest(withId(E.personDetails.path, userId), { schema: E.personDetails.schema, signal });
+
+export const updatePersonDetails = (userId: string, input: PersonDetailsInput) =>
+  apiRequest(withId(E.personDetails.path, userId), {
+    method: "PATCH",
+    body: input,
+    schema: E.personDetails.schema,
   });
 
 export const remindManagers = (input: ReminderInput) =>

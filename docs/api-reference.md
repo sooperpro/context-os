@@ -314,7 +314,7 @@ Webhook events (section 22) resolve identities through confirmed links only.
 
 ### `GET /audit`
 
-Owner/admin (FR-ADM-007), and HR for the People Ops trail only: `onboarding.*` and `probation.*` events (HR never sees role, access or connector changes). Query: `limit`, `offset`, `action`, `actorId`, `targetType`, `from`, `to`, `format=json|csv`. Entries are hash-chained (`previousHash`, `entryHash`) and append-only at the database level. Project-scoped rows are shown only when the caller can read every source in that project. CSV responses are themselves audited (`audit.export`). JSON: `{ total, items }`.
+Owner/admin (FR-ADM-007), and HR for the People Ops trail only: `onboarding.*`, `probation.*` and `user.organization.update` events (HR never sees role, access or connector changes). Query: `limit`, `offset`, `action`, `actorId`, `targetType`, `from`, `to`, `format=json|csv`. Entries are hash-chained (`previousHash`, `entryHash`) and append-only at the database level. Project-scoped rows are shown only when the caller can read every source in that project. CSV responses are themselves audited (`audit.export`). JSON: `{ total, items }`.
 
 ### `GET /continuity/checklists`, `PATCH /continuity/checklists/:id`
 
