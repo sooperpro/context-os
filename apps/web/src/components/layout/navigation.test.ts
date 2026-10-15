@@ -55,6 +55,7 @@ describe("navigation config", () => {
       "access",
       "ai",
       "audit",
+      "workspace",
       "knowledge",
       "setup",
     ]);

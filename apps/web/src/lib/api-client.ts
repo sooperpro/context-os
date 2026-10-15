@@ -87,3 +87,26 @@ export async function apiRequest<TResponse>(
   const json: unknown = await response.json().catch(() => null);
   return schema.parse(json);
 }
+
+/**
+ * Downloads a file the API serves as an attachment (an export) and has the browser save it under
+ * the name the API gives, or `fallbackName`.
+ */
+export async function apiDownload(
+  path: string,
+  { query, fallbackName }: { query?: Record<string, QueryValue>; fallbackName: string },
+): Promise<string> {
+  const response = await fetch(buildApiUrl(path, query), { headers: { Accept: "*/*" } });
+  if (!response.ok) await throwApiError(response);
+  const disposition = response.headers.get("content-disposition") ?? "";
+  const name = /filename="?([^";]+)"?/.exec(disposition)?.[1] ?? fallbackName;
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  return name;
+}

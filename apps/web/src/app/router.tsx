@@ -332,6 +332,19 @@ const appChildren = [
     },
   },
   {
+    path: "workspace",
+    lazy: async () => {
+      const { WorkspacePage } = await import("@/features/admin/pages/workspace-page");
+      return {
+        Component: () => (
+          <AdminOnly>
+            <WorkspacePage />
+          </AdminOnly>
+        ),
+      };
+    },
+  },
+  {
     // Linked from the offboarding notification; the API lets only the manager and admins open it.
     path: "continuity/checklists/:checklistId",
     lazy: async () => {

@@ -13,7 +13,9 @@ import {
   createTeam,
   grantAssignment,
   listAssignments,
+  listPendingInvitations,
   removeAssignment,
+  revokeInvitation,
   deleteDepartment,
   deleteTeam,
   inviteMember,
@@ -34,6 +36,7 @@ export const membersKeys = {
   teams: () => [...workspaceKeys.all, "teams"] as const,
   projectAccess: (userId: string) => [...membersKeys.all(), "projects", userId] as const,
   assignments: () => [...membersKeys.all(), "assignments"] as const,
+  invitations: () => [...membersKeys.all(), "invitations"] as const,
 };
 
 export const membersQuery = () =>
@@ -48,6 +51,18 @@ export const projectAccessQuery = (userId: string) =>
     queryKey: membersKeys.projectAccess(userId),
     queryFn: ({ signal }) => listProjectAccess(userId, signal),
   });
+export const pendingInvitationsQuery = () =>
+  queryOptions({
+    queryKey: membersKeys.invitations(),
+    queryFn: ({ signal }) => listPendingInvitations(signal),
+  });
+export const useRevokeInvitation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: revokeInvitation,
+    onSettled: () => queryClient.invalidateQueries({ queryKey: membersKeys.invitations() }),
+  });
+};
 export const assignmentsQuery = () =>
   queryOptions({
     queryKey: membersKeys.assignments(),

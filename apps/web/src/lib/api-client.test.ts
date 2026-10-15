@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { ApiClientError, apiRequest } from "@/lib/api-client";
+import { ApiClientError, apiDownload, apiRequest } from "@/lib/api-client";
 import { jsonResponse } from "@/test/utils";
 
 describe("apiRequest", () => {
@@ -51,5 +51,40 @@ describe("apiRequest", () => {
     await expect(
       apiRequest("/v1/things", { schema: z.object({ ok: z.boolean() }) }),
     ).rejects.toBeInstanceOf(z.ZodError);
+  });
+});
+
+describe("apiDownload", () => {
+  it("saves the file under the name the API gives, and throws the API's error", async () => {
+    const created = vi.fn(() => "blob:export");
+    const revoked = vi.fn();
+    vi.stubGlobal(
+      "URL",
+      Object.assign(URL, { createObjectURL: created, revokeObjectURL: revoked }),
+    );
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => undefined);
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response("id,action\n", {
+        status: 200,
+        headers: { "Content-Disposition": 'attachment; filename="audit-log.csv"' },
+      }),
+    );
+    await expect(
+      apiDownload("/v1/audit", { query: { format: "csv" }, fallbackName: "export.csv" }),
+    ).resolves.toBe("audit-log.csv");
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/audit?format=csv", expect.anything());
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(revoked).toHaveBeenCalledWith("blob:export");
+
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ error: { code: "FORBIDDEN", message: "Not for you" } }, { status: 403 }),
+    );
+    await expect(apiDownload("/v1/admin/export", { fallbackName: "x.json" })).rejects.toThrow(
+      "Not for you",
+    );
+    click.mockRestore();
+    vi.unstubAllGlobals();
   });
 });

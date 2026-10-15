@@ -2,6 +2,7 @@ import type { AuditEntry } from "@contextos/shared";
 import { useBotContext } from "@/components/layout/bot-context";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/page-header";
 import { SectionCard } from "@/components/section-card";
 import { Chip } from "@/components/ui/chip";
@@ -10,6 +11,7 @@ import { DotList } from "@/components/ui/dot-list";
 import {
   AdminPanelSettingsIcon,
   CheckIcon,
+  DownloadIcon,
   HistoryIcon,
   KeyboardArrowDownIcon,
   KeyboardArrowUpIcon,
@@ -23,6 +25,8 @@ import { AUDIT_CATEGORIES, auditArea, type AuditCategory } from "@/features/admi
 import { daysFromToday, formatDateTime, formatRelativeTime } from "@/lib/format";
 import { useViewer } from "@/features/workspace/hooks/use-viewer";
 import { AUDIT_ACTION_LABEL } from "@/lib/labels";
+import { Button } from "@/components/ui/button";
+import { apiDownload } from "@/lib/api-client";
 
 const RANGES = [
   [0, "Today"],
@@ -56,6 +60,7 @@ export function AuditPage() {
   const query = useQuery(auditQuery(range));
   const [category, setCategory] = useState<AuditCategory | "All">("All");
   const [open, setOpen] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
   const q = text.trim().toLowerCase();
   const entries = [...(query.data?.items ?? [])]
     .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
@@ -94,6 +99,28 @@ export function AuditPage() {
             </ConnectedButton>
           ))}
         </ConnectedButtonGroup>
+        <Button
+          variant="outline"
+          disabled={exporting}
+          onClick={() => {
+            setExporting(true);
+            // The whole date range; category and search filters apply on this page only.
+            apiDownload(E.audit.path, {
+              query: {
+                format: "csv",
+                from: new Date(Date.now() - range * 86_400_000).toISOString(),
+              },
+              fallbackName: "audit-log.csv",
+            })
+              .then((name) => toast.success(`Downloaded ${name}`))
+              .catch((error: unknown) =>
+                toast.error(error instanceof Error ? error.message : "The export failed."),
+              )
+              .finally(() => setExporting(false));
+          }}
+        >
+          <DownloadIcon aria-hidden /> Export CSV
+        </Button>
       </div>
       {peopleOps ? null : (
         <div role="group" aria-label="Filter by category" className="flex flex-wrap gap-2">

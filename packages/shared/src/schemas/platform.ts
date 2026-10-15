@@ -349,6 +349,16 @@ export const CurrentWorkspaceSchema = z.object({
   role: SystemRoleSchema,
   /** Same values as `AuthenticationModeSchema` (auth.ts imports this file, so it is not reused). */
   authentication: z.enum(["development", "accounts"]),
+  /** Typed to confirm the workspace's deletion (or the name when there is no slug). */
+  slug: z.string().nullable().optional(),
+  /** A scheduled deletion (owner only, 7-day grace), when there is one. */
+  settings: z
+    .object({
+      deletion: z
+        .object({ scheduledAt: z.string(), requestedBy: z.string(), requestedAt: z.string() })
+        .optional(),
+    })
+    .optional(),
 });
 export type CurrentWorkspace = z.infer<typeof CurrentWorkspaceSchema>;
 

@@ -36,6 +36,7 @@ import { ApiClientError } from "@/lib/api-client";
 import { formatCount, formatTime } from "@/lib/format";
 import { ROLE_LABEL } from "@/lib/labels";
 import { ResponsibilitiesPanel } from "@/features/members/components/responsibilities-panel";
+import { PendingInvitationsCard } from "@/features/members/components/pending-invitations-card";
 
 const ROLE_ORDER: SystemRole[] = ["member", "manager", "admin", "owner", "guest"];
 
@@ -166,6 +167,7 @@ export function MembersPage() {
                 ))}
               </div>
               {canManage ? <RoleRequestsCard /> : null}
+              {canManage ? <PendingInvitationsCard /> : null}
               <SectionCard
                 title="Members"
                 action={

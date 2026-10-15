@@ -82,6 +82,40 @@ export function removeAssignment(id: string) {
   });
 }
 
+const InvitationRowSchema = z.object({
+  id: z.string(),
+  status: z.string(),
+  createdAt: z.string(),
+  data: z.object({
+    email: z.string(),
+    role: z.string().optional(),
+    name: z.string().optional(),
+    expiresAt: z.string().optional(),
+  }),
+});
+export type InvitationRow = z.infer<typeof InvitationRowSchema>;
+
+/** Invitations still waiting to be accepted (not expired). Admins only. */
+export async function listPendingInvitations(signal?: AbortSignal): Promise<InvitationRow[]> {
+  const result = await apiRequest("/v1/users/invitations", {
+    query: { limit: 100, offset: 0 },
+    schema: z.object({ items: z.array(InvitationRowSchema) }),
+    signal,
+  });
+  return result.items.filter(
+    (row) =>
+      row.status === "pending" &&
+      (!row.data.expiresAt || Date.parse(row.data.expiresAt) > Date.now()),
+  );
+}
+
+export function revokeInvitation(id: string) {
+  return apiRequest(`/v1/users/invitations/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    schema: z.unknown(),
+  });
+}
+
 export async function listMembers(signal?: AbortSignal): Promise<WorkspaceMember[]> {
   const result = await apiRequest("/v1/users", {
     query: { limit: 100, offset: 0 },

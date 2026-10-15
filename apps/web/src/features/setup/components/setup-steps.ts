@@ -1,7 +1,10 @@
 import type { SetupStep } from "@contextos/shared";
 
 /** Copy for each wizard step. Order comes from the backend (`SETUP_STEPS`). */
-export const STEP_COPY: Record<SetupStep, { title: string; short: string; description: string; evidence: string }> = {
+export const STEP_COPY: Record<
+  SetupStep,
+  { title: string; short: string; description: string; evidence: string }
+> = {
   connect_source: {
     title: "Connect a source",
     short: "Connect",
@@ -31,10 +34,10 @@ export const STEP_COPY: Record<SetupStep, { title: string; short: string; descri
     evidence: "Completes when a second member joins or an invitation is sent.",
   },
   assign_new_hire: {
-    title: "Assign a new hire",
+    title: "Start a new hire's onboarding",
     short: "New hire",
     description:
-      "Assign a published learning path to a new hire with a start date and a mentor. Learning paths exist in the API but are not in the app yet.",
-    evidence: "Completes when a learning path assignment exists.",
+      "People Ops starts onboarding from Onboarding › New onboarding (manager, buddy, template, start date), and a manager can assign a roadmap from Team onboarding.",
+    evidence: "Completes when the first onboarding is started.",
   },
 };

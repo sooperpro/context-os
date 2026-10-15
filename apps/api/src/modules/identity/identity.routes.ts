@@ -751,6 +751,27 @@ export function createIdentityRoutes(container: Container) {
       });
       return c.body(null, 204);
     })
+    .get("/projects/:projectId/sources/:sourceId/access", (c) => {
+      const actor = c.get("actor");
+      requireRole(actor, ...adminRoles);
+      const { projectId, sourceId } = c.req.param();
+      identity.requireSource(actor, projectId, sourceId);
+      // People it was shared with one by one; connected sources follow their provider instead.
+      return c.json({
+        items: db
+          .select({
+            userId: sourceAccess.userId,
+            name: users.name,
+            expiresAt: sourceAccess.expiresAt,
+          })
+          .from(sourceAccess)
+          .innerJoin(users, eq(users.id, sourceAccess.userId))
+          .where(eq(sourceAccess.sourceId, sourceId))
+          .all()
+          .filter((row) => !row.expiresAt || row.expiresAt > new Date())
+          .map((row) => ({ ...row, expiresAt: row.expiresAt?.toISOString() ?? null })),
+      });
+    })
     .post(
       "/projects/:projectId/sources/:sourceId/access",
       zValidator("json", SourceAccessInputSchema, validationHook),
@@ -865,7 +886,10 @@ export function createIdentityRoutes(container: Container) {
             return false;
           }
         });
-      const page = rows.slice(offset, offset + limit).map((row) => auditRowFor(actor, row));
+      // A CSV export holds the whole range (up to 10,000 rows), not one page.
+      const page = (
+        format === "csv" ? rows.slice(0, 10_000) : rows.slice(offset, offset + limit)
+      ).map((row) => auditRowFor(actor, row));
       if (format === "csv") {
         audit.record({
           actor,
