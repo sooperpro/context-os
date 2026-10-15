@@ -60,9 +60,11 @@ docker compose -f docker-compose.yml -f docker-compose.vm.yml exec api printenv 
 
 `.github/workflows/deploy-dev.yml` deploys pushes to the `dev` branch. It packages the checked-out
 Git revision, transfers it through Google Cloud IAP,
-then builds and restarts the Compose services. Extraction overlays the source tree, leaving the
-VM's `.env` files and Docker volumes in place. API credentials stay on the VM and are not sent to
-GitHub.
+then builds and restarts the Compose services. Each deployment replaces the source tree from a
+clean staging directory, preserving the VM's `.env` files and Docker volumes. API credentials
+stay on the VM and are not sent to GitHub. The VM override selects `AUTH_MODE=accounts`; the API
+env file must provide `AUTH_SECRET` and `SMTP_URL`. Startup failures include container status and
+recent API logs in the workflow output.
 
 ### One-time access setup
 
