@@ -124,11 +124,27 @@ jobs:
           scp "$RUNNER_TEMP/contextos-dev.tar.gz" dev-vm:contextos-dev.tar.gz
           ssh dev-vm 'bash -s' <<'REMOTE'
           set -euo pipefail
-          mkdir -p "$HOME/context-os-dev"
-          tar -xzf "$HOME/contextos-dev.tar.gz" -C "$HOME/context-os-dev"
+          deploy_dir="$HOME/context-os-dev"
+          staging_dir="$HOME/context-os-dev.next"
+          rm -rf "$staging_dir"
+          mkdir -p "$staging_dir"
+          tar -xzf "$HOME/contextos-dev.tar.gz" -C "$staging_dir"
           rm -f "$HOME/contextos-dev.tar.gz"
 
-          cd "$HOME/context-os-dev"
+          # The archive intentionally excludes secrets. Preserve the VM-local
+          # environment files while replacing the source tree completely so
+          # deleted files from an older revision cannot leak into Docker builds.
+          for env_file in ".env" "apps/api/.env" "apps/web/.env"; do
+            if [[ -f "$deploy_dir/$env_file" ]]; then
+              mkdir -p "$staging_dir/$(dirname "$env_file")"
+              cp -p "$deploy_dir/$env_file" "$staging_dir/$env_file"
+            fi
+          done
+
+          rm -rf "$deploy_dir"
+          mv "$staging_dir" "$deploy_dir"
+
+          cd "$deploy_dir"
           sudo -n docker compose \
             -f docker-compose.yml \
             -f docker-compose.vm.yml \
