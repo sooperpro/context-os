@@ -65,7 +65,12 @@ export function NameDialog({
           </DialogHeader>
           <div className="space-y-2">
             <Label htmlFor="org-name">{label}</Label>
-            <Input id="org-name" autoComplete="off" aria-invalid={!!error} {...form.register("name")} />
+            <Input
+              id="org-name"
+              autoComplete="off"
+              aria-invalid={!!error}
+              {...form.register("name")}
+            />
             {error ? <p className="text-xs text-destructive">{error.message}</p> : null}
           </div>
           <DialogFooter>

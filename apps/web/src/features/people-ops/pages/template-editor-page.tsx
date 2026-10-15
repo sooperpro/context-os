@@ -1,7 +1,7 @@
 import type { TemplateDetail, TemplateModule } from "@contextos/shared";
 import { useBotContext } from "@/components/layout/bot-context";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Link, useParams } from "react-router";
 import { toast } from "sonner";
 import { PageColumns, PageMain, PageSide } from "@/components/layout/page-columns";
@@ -21,6 +21,7 @@ import {
   AddIcon,
   ArrowDownwardIcon,
   ArrowUpwardIcon,
+  CloseIcon,
   DeleteIcon,
   HistoryIcon,
   InfoIcon,
@@ -28,6 +29,7 @@ import {
   PublishIcon,
   SaveIcon,
 } from "@/components/ui/icons";
+import { Input } from "@/components/ui/input";
 import { Loader } from "@/components/ui/loader";
 import { MetaChip } from "@/components/ui/meta-chip";
 import {
@@ -93,13 +95,14 @@ function Editor({ template }: { template: TemplateDetail }) {
     {
       chips: [{ icon: LibraryBooksIcon, label: template.name }],
       suggestions: [
-        "What changed in the Engineering template v4?",
+        `What changed in ${template.name} ${template.version}?`,
         "Which teams have overdue check-ins?",
       ],
     },
     `template:${template.id}`,
   );
   const [stages, setStages] = useState<Stages>(template.stages);
+  const [audience, setAudience] = useState({ roles: template.roles, teams: template.teams });
   const [dirty, setDirty] = useState(false);
   const [adding, setAdding] = useState<{ id: string; name: string } | null>(null);
   const [publishing, setPublishing] = useState(false);
@@ -115,6 +118,10 @@ function Editor({ template }: { template: TemplateDetail }) {
   );
   const payload = () =>
     stages.map((stage) => ({ id: stage.id, moduleIds: stage.modules.map((module) => module.id) }));
+  const changeAudience = (key: keyof typeof audience, values: string[]) => {
+    setAudience((current) => ({ ...current, [key]: values }));
+    setDirty(true);
+  };
 
   const change = (stageId: string, update: (modules: TemplateModule[]) => TemplateModule[]) => {
     setStages((current) =>
@@ -180,7 +187,7 @@ function Editor({ template }: { template: TemplateDetail }) {
             disabled={!dirty || save.isPending}
             onClick={() =>
               save.mutate(
-                { stages: payload() },
+                { stages: payload(), ...audience },
                 {
                   onSuccess: (saved) =>
                     toast.success(`Draft ${saved.version} saved. Only People Ops can see it.`),
@@ -281,23 +288,18 @@ function Editor({ template }: { template: TemplateDetail }) {
         </PageMain>
         <PageSide>
           <SectionCard title="Who it’s for">
-            {(
-              [
-                ["Roles", template.roles],
-                ["Teams", template.teams],
-              ] as const
-            ).map(([label, values]) => (
-              <div key={label} className="flex flex-col gap-1.5">
-                <span className="text-xs font-medium text-on-surface-variant">{label}</span>
-                <span className="flex flex-wrap gap-1.5">
-                  {values.map((value) => (
-                    <MetaChip key={value} tone="outline" className="h-7.5 px-3 text-sm">
-                      {value}
-                    </MetaChip>
-                  ))}
-                </span>
-              </div>
-            ))}
+            <AudienceField
+              label="Roles"
+              placeholder="Add a role"
+              values={audience.roles}
+              onChange={(values) => changeAudience("roles", values)}
+            />
+            <AudienceField
+              label="Teams"
+              placeholder="Add a team"
+              values={audience.teams}
+              onChange={(values) => changeAudience("teams", values)}
+            />
             <dl className="flex flex-col gap-2.5 text-sm">
               {(
                 [
@@ -353,7 +355,7 @@ function Editor({ template }: { template: TemplateDetail }) {
         onOpenChange={setPublishing}
         onPublish={(note) =>
           publish.mutate(
-            { stages: payload(), note },
+            { stages: payload(), ...audience, note },
             {
               onSuccess: (published) => {
                 setPublishing(false);
@@ -363,6 +365,66 @@ function Editor({ template }: { template: TemplateDetail }) {
             },
           )
         }
+      />
+    </div>
+  );
+}
+
+/** Roles or teams a template is for: chips to remove, and a field that adds one on Enter. */
+function AudienceField({
+  label,
+  placeholder,
+  values,
+  onChange,
+}: {
+  label: string;
+  placeholder: string;
+  values: string[];
+  onChange: (values: string[]) => void;
+}) {
+  const id = useId();
+  const [draft, setDraft] = useState("");
+  const add = () => {
+    const value = draft.trim();
+    if (!value) return;
+    if (!values.some((entry) => entry.toLowerCase() === value.toLowerCase()))
+      onChange([...values, value]);
+    setDraft("");
+  };
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="text-xs font-medium text-on-surface-variant">
+        {label}
+      </label>
+      {values.length ? (
+        <span className="flex flex-wrap gap-1.5">
+          {values.map((value) => (
+            <MetaChip key={value} tone="outline" className="h-7.5 gap-1 ps-3 pe-1 text-sm">
+              {value}
+              <button
+                type="button"
+                className="grid size-5 place-items-center rounded-full hover:bg-surface-container-high [&_svg]:size-4"
+                aria-label={`Remove ${value}`}
+                onClick={() => onChange(values.filter((entry) => entry !== value))}
+              >
+                <CloseIcon aria-hidden />
+              </button>
+            </MetaChip>
+          ))}
+        </span>
+      ) : null}
+      <Input
+        id={id}
+        value={draft}
+        maxLength={100}
+        placeholder={placeholder}
+        onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key !== "Enter") return;
+          event.preventDefault();
+          add();
+        }}
+        onBlur={add}
       />
     </div>
   );

@@ -35,7 +35,8 @@ import { CAPABILITIES, CAPABILITY_ROLES } from "@/features/admin/admin-meta";
 import { firstName, formatShortDate } from "@/lib/format";
 import { ROLE_LABEL } from "@/lib/labels";
 
-const article = (role: RoleRequest["role"]) => (role === "admin" || role === "owner" ? "an" : "a");
+const article = (role: RoleRequest["role"]) =>
+  role === "admin" || role === "owner" || role === "hr" ? "an" : "a";
 
 /** Open role requests (prototype "Role requests"): approve or decline; making someone an admin asks first. */
 export function RoleRequestsCard() {

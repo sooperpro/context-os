@@ -1,6 +1,6 @@
 import type {
+  AdminConnector,
   AuditEntry,
-  ConnectorConnection,
   SecurityCheck,
   SystemRole,
   WorkspaceMember,
@@ -9,6 +9,7 @@ import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
+import { ConnectorLogo } from "@/components/connector-logo";
 import { PageHeader } from "@/components/layout/page-header";
 import { SectionCard } from "@/components/section-card";
 import { Banner } from "@/components/ui/banner";
@@ -19,7 +20,6 @@ import {
   AutoDeleteIcon,
   CableIcon,
   CheckCircleIcon,
-  DescriptionIcon,
   ErrorIcon,
   KeyIcon,
   PersonAddIcon,
@@ -47,23 +47,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useUpdateAiSettings } from "@/features/admin/api/admin.queries";
+import { adminConnectorsQuery, useUpdateAiSettings } from "@/features/admin/api/admin.queries";
 import {
   ACCESS_PATH,
   AI_SETTINGS_PATH,
   AUDIT_PATH,
   CONNECTORS_PATH,
+  CONNECTOR_STATE,
   MEMBERS_PATH,
   auditArea,
 } from "@/features/admin/admin-meta";
-import { connectorsQuery } from "@/features/connectors/api/connectors.queries";
 import { HOME_ENDPOINTS as E } from "@/features/home/api/home.api";
 import { homeQuery } from "@/features/home/api/home.queries";
 import { membersQuery } from "@/features/members/api/members.queries";
 import { currentWorkspaceQuery } from "@/features/workspace/api/workspace.queries";
 import {
   formatCount,
-  formatDate,
   formatDuration,
   formatPercent,
   formatRelativeTime,
@@ -80,10 +79,11 @@ import { span } from "./dashboard-meta";
  */
 export function AdminHome() {
   const workspace = useQuery(currentWorkspaceQuery());
-  const connectors = useQuery(connectorsQuery());
+  // The workspace's connectors (every member's connections), as on the Connectors page.
+  const connectors = useQuery(adminConnectorsQuery());
   const members = useQuery(membersQuery());
-  const connected = connectors.data ?? [];
-  const broken = connected.filter((connection) => connection.status !== "connected");
+  const connected = (connectors.data?.items ?? []).filter((item) => item.state !== "available");
+  const broken = connected.filter((item) => item.state === "error");
 
   return (
     <div className="mx-auto flex max-w-360 flex-col">
@@ -113,19 +113,27 @@ export function AdminHome() {
           icon={<SyncProblemIcon aria-hidden />}
           title={
             broken.length === 1
-              ? `${providerName(broken[0]?.provider ?? "")} needs to be reconnected`
-              : `${broken.length} knowledge sources need to be reconnected`
+              ? `${broken[0]?.name ?? "A knowledge source"} needs attention`
+              : `${broken.length} knowledge sources need attention`
           }
-          description="Imports from them are paused. Answers that cite them may be out of date."
+          description={
+            broken.length === 1 && broken[0]?.error
+              ? `${broken[0].error} Answers that cite it may be out of date.`
+              : "Imports from them are paused. Answers that cite them may be out of date."
+          }
           actions={
-            <Button variant="destructive" nativeButton={false} render={<Link to="/setup" />}>
+            <Button
+              variant="destructive"
+              nativeButton={false}
+              render={<Link to={CONNECTORS_PATH} />}
+            >
               Reconnect
             </Button>
           }
         />
       ) : null}
       <DashboardGrid>
-        <SourcesCard query={connectors} />
+        <SourcesCard query={connectors} items={connected} />
         <SecurityCard />
         <SyncActivityCard />
         <AiAnswersCard />
@@ -138,25 +146,13 @@ export function AdminHome() {
 
 /* ---- Knowledge sources (live) ------------------------------------------------------------- */
 
-function providerName(provider: string): string {
-  return provider === "google-drive" || provider === "google_drive"
-    ? "Google Drive"
-    : provider.replace(/[-_]/g, " ").replace(/^\w/, (letter) => letter.toUpperCase());
-}
-
-function connectionStatus(status: ConnectorConnection["status"]): {
-  label: string;
-  tone: "success" | "error" | "neutral";
-  icon: ReactNode;
-} {
-  if (status === "connected")
-    return { label: "Connected", tone: "success", icon: <CheckCircleIcon /> };
-  if (status === "needs_reauth") return { label: "Reconnect", tone: "error", icon: <ErrorIcon /> };
-  return { label: "Disconnected", tone: "neutral", icon: <SyncProblemIcon /> };
-}
-
-function SourcesCard({ query }: { query: UseQueryResult<ConnectorConnection[]> }) {
-  const items = query.data ?? [];
+function SourcesCard({
+  query,
+  items,
+}: {
+  query: UseQueryResult<{ items: AdminConnector[] }>;
+  items: AdminConnector[];
+}) {
   return (
     <SectionCard
       className={span(8)}
@@ -170,30 +166,32 @@ function SourcesCard({ query }: { query: UseQueryResult<ConnectorConnection[]> }
       }
     >
       <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-3">
-        {items.map((connection) => {
-          const status = connectionStatus(connection.status);
+        {items.map((connector) => {
+          const state = CONNECTOR_STATE[connector.state];
           return (
-            <div key={connection.id} className="flex flex-col gap-3 rounded-xl bg-pane p-4">
+            <div key={connector.id} className="flex flex-col gap-3 rounded-xl bg-pane p-4">
               <div className="flex items-center gap-3">
-                <SegmentedItemLead tone="neutral">
-                  <DescriptionIcon aria-hidden />
-                </SegmentedItemLead>
+                <ConnectorLogo provider={connector.id} />
                 <div className="flex min-w-0 flex-1 flex-col">
-                  <b className="truncate text-sm font-medium">
-                    {providerName(connection.provider)}
-                  </b>
+                  <b className="truncate text-sm font-medium">{connector.name}</b>
                   <span className="truncate text-xs text-on-surface-variant">
-                    {connection.accountId ?? "Workspace connection"}
+                    {connector.error ?? connector.detail ?? "Connected"}
                   </span>
                 </div>
               </div>
+              {connector.state === "syncing" && connector.progress !== null ? (
+                <Progress
+                  value={Math.round(connector.progress * 100)}
+                  aria-label={`${connector.name} sync progress`}
+                />
+              ) : null}
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <StatusChip tone={status.tone} icon={status.icon}>
-                  {status.label}
+                <StatusChip tone={state.tone} icon={<state.icon />}>
+                  {state.short}
                 </StatusChip>
-                {connection.createdAt ? (
+                {connector.lastSyncAt ? (
                   <span className="text-xs text-on-surface-variant">
-                    Since {formatDate(connection.createdAt)}
+                    {formatRelativeTime(connector.lastSyncAt)}
                   </span>
                 ) : null}
               </div>
@@ -376,6 +374,21 @@ function AiAnswersCard() {
               {data.ratings.toLocaleString()} ratings in the last {data.periodDays} days
             </span>
           </div>
+          {data.unanswered.length ? (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-on-surface-variant">Top unanswered</span>
+              <ul aria-label="Top unanswered questions" className="flex flex-col gap-1">
+                {data.unanswered.map((entry) => (
+                  <li key={entry.question} className="flex items-baseline justify-between gap-3">
+                    <span className="min-w-0 truncate text-sm">{entry.question}</span>
+                    <span className="shrink-0 text-xs text-on-surface-variant tabular-nums">
+                      {formatCount(entry.asks, "ask")}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           <ul className="flex flex-col gap-3">
             {data.settings.map((setting) => (
               <li key={setting.id} className="flex items-start justify-between gap-4">

@@ -7,6 +7,8 @@ import {
   OnboardingRecordSchema,
   ProbationDecisionInputSchema,
   ProbationDetailSchema,
+  ProbationDiscussInputSchema,
+  OnboardingRecordSummarySchema,
   ReminderInputSchema,
   ReminderResultSchema,
   SetupStepInputSchema,
@@ -19,6 +21,7 @@ import {
   type OnboardingAssignmentInput,
   type OnboardingFilter,
   type ProbationDecisionInput,
+  type ProbationDiscussInput,
   type ReminderInput,
   type SetupStepId,
   type TemplateDraftInput,
@@ -27,9 +30,10 @@ import {
 import { apiRequest } from "@/lib/api-client";
 
 /**
- * People Ops (HR) endpoints. None is served yet; in development the mock layer answers them
- * (src/mocks/people-ops.ts). Contracts: packages/shared/src/schemas/people-ops.ts. The probation
- * list and the template list are HR Home's (`HOME_ENDPOINTS.probationReviews`, `.templates`).
+ * People Ops (HR) endpoints, for the `hr` role only (apps/api/src/modules/platform/people-ops.routes.ts).
+ * With `VITE_MOCK_API` the mock layer answers them instead (src/mocks/people-ops.ts). Contracts:
+ * packages/shared/src/schemas/people-ops.ts. The probation list and the template list are HR Home's
+ * (`HOME_ENDPOINTS.probationReviews`, `.templates`).
  */
 export const PEOPLE_OPS_ENDPOINTS = {
   onboardings: { path: "/v1/people-ops/onboardings", schema: OnboardingRecordListSchema },
@@ -55,6 +59,15 @@ export const PEOPLE_OPS_ENDPOINTS = {
     path: "/v1/people-ops/probation-reviews/:id/decision",
     schema: ProbationDetailSchema,
     input: ProbationDecisionInputSchema,
+  },
+  discuss: {
+    path: "/v1/people-ops/probation-reviews/:id/discuss",
+    schema: ProbationDetailSchema,
+    input: ProbationDiscussInputSchema,
+  },
+  personOnboarding: {
+    path: "/v1/people-ops/people/:id/onboarding",
+    schema: OnboardingRecordSummarySchema,
   },
   remind: {
     path: "/v1/people-ops/reminders",
@@ -121,6 +134,15 @@ export const fetchProbation = (id: string, signal?: AbortSignal) =>
 
 export const decideProbation = (id: string, input: ProbationDecisionInput) =>
   apiRequest(withId(E.decide.path, id), { method: "POST", body: input, schema: E.decide.schema });
+
+export const discussProbation = (id: string, input: ProbationDiscussInput) =>
+  apiRequest(withId(E.discuss.path, id), { method: "POST", body: input, schema: E.discuss.schema });
+
+export const fetchPersonOnboarding = (userId: string, signal?: AbortSignal) =>
+  apiRequest(withId(E.personOnboarding.path, userId), {
+    schema: E.personOnboarding.schema,
+    signal,
+  });
 
 export const remindManagers = (input: ReminderInput) =>
   apiRequest(E.remind.path, { method: "POST", body: input, schema: E.remind.schema });

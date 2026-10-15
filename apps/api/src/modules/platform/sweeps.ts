@@ -1,10 +1,12 @@
-import { and, eq, lt, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import type { Db } from "../../db/index.js";
 import {
   assignments,
   connectorConnections,
   connectorScopes,
   memberships,
+  projects,
+  questions,
   users,
   workspaces,
 } from "../../db/schema.js";
@@ -36,6 +38,7 @@ export interface SweepReport {
   flagsEscalated: number;
   workspacesPurged: number;
   connectorSyncsQueued: number;
+  weeklyDigests: number;
 }
 
 /** How long after the last requested sync a scope is due again (FR-INT-007 polling fallback). */
@@ -68,6 +71,7 @@ export function createSweeps({ db, bounties, logger, queue }: SweepDeps) {
         flagsEscalated: 0,
         workspacesPurged: 0,
         connectorSyncsQueued: 0,
+        weeklyDigests: 0,
       };
       // Selected connector scopes re-sync on their schedule while their account is connected.
       if (queue)
@@ -126,6 +130,74 @@ export function createSweeps({ db, bounties, logger, queue }: SweepDeps) {
         }
         const workspaceId = workspace.id;
         report.bountiesExpired += bounties.expireDue(workspaceId, now);
+
+        // Weekly digest to managers on Mondays (AI settings): how many questions their team couldn't
+        // get answered last week. Counts only: Ask history stays private (D1).
+        if (settings.ai.weeklyDigest && now.getUTCDay() === 1) {
+          const week = now.toISOString().slice(0, 10);
+          const since = new Date(now.getTime() - 7 * 86_400_000);
+          const members = db
+            .select({ userId: memberships.userId, managerId: memberships.managerId })
+            .from(memberships)
+            .where(and(eq(memberships.workspaceId, workspaceId), eq(memberships.status, "active")))
+            .all();
+          const teams = new Map<string, string[]>();
+          for (const member of members)
+            if (member.managerId)
+              teams.set(member.managerId, [...(teams.get(member.managerId) ?? []), member.userId]);
+          const workspaceProjects = db
+            .select({ id: projects.id })
+            .from(projects)
+            .where(eq(projects.workspaceId, workspaceId))
+            .all()
+            .map((row) => row.id);
+          for (const [managerId, reports] of teams) {
+            const sent = store
+              .listWhere(workspaceId, "weekly_digest", { ownerId: managerId }, 5)
+              .some((row) => row.data.week === week);
+            if (sent) continue;
+            const unanswered = workspaceProjects.length
+              ? db
+                  .select({ answer: questions.answer })
+                  .from(questions)
+                  .where(
+                    and(
+                      inArray(questions.projectId, workspaceProjects),
+                      inArray(questions.actorId, reports),
+                      gte(questions.createdAt, since),
+                    ),
+                  )
+                  .all()
+                  .filter((row) => row.answer.confidence === "insufficient").length
+              : 0;
+            const reported = store
+              .listWhere(workspaceId, "knowledge_gap", {}, 500)
+              .filter((row) => reports.includes(row.ownerId) && row.createdAt >= since).length;
+            store.insert({
+              workspaceId,
+              ownerId: managerId,
+              kind: "weekly_digest",
+              status: "sent",
+              data: { week, unanswered, reported },
+            });
+            if (!unanswered && !reported) continue;
+            notifier.notify(
+              workspaceId,
+              managerId,
+              {
+                type: "digest.weekly",
+                category: "maintenance",
+                title: `Last week your team asked ${unanswered + reported} question${unanswered + reported === 1 ? "" : "s"} that had no good answer`,
+                body: reported
+                  ? `${reported} reported as knowledge gaps. See them on your Home.`
+                  : "See the knowledge gaps on your Home.",
+                link: "/",
+              },
+              settings,
+            );
+            report.weeklyDigests += 1;
+          }
+        }
 
         // Stuck items (48 h after first open) nudge the mentor once (N4, FR-PRB-005).
         const stuckCutoff = now.getTime() - settings.policies.nudges.stuckHours * 3600000;

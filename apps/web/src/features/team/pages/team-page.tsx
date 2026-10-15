@@ -7,7 +7,6 @@ import { Link } from "react-router";
 import { OnboardingStatusChip } from "@/components/onboarding-status-chip";
 import { PageHeader } from "@/components/layout/page-header";
 import { PlanProgress } from "@/components/plan-progress";
-import { PreviewDataChip } from "@/components/preview-data-chip";
 import { SectionCard } from "@/components/section-card";
 import { PersonAvatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -127,9 +126,6 @@ export function TeamPage() {
         />
       ) : (
         <>
-          <div className="flex items-center justify-end empty:hidden">
-            <PreviewDataChip endpoint={HOME_ENDPOINTS.teamOnboarding.path} />
-          </div>
           <div
             role="group"
             aria-label="Team status"

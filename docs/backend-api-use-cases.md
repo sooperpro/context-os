@@ -215,7 +215,7 @@ These are backend capabilities. The animated widget, browser extension and their
 Configure the API-only variables in `apps/api/.env.example`: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, and a 64-character hexadecimal `CONNECTOR_TOKEN_ENCRYPTION_KEY`. Keep real values out of source control. Register the exact callback URL with a Google web OAuth client and configure the consent screen/Drive API. This implementation requests `openid`, `email` and restricted `drive.readonly` access; obtain the required Google approval for your deployment.
 
 1. `POST /connectors/google-drive/authorize` returns the Google consent URL, with expiring single-use state bound to the user/workspace.
-2. Open it in a browser and complete consent. Google returns to `GET /connectors/google-drive/callback`; code exchange verifies Google identity and records an encrypted connection. The callback returns the connection JSON. It does not require a bearer header; its state is the authorization binding.
+2. Open it in a browser and complete consent. Google returns to `GET /connectors/google-drive/callback`; code exchange verifies Google identity and records an encrypted connection. The callback redirects the browser to the configured web origin's `/setup?google_drive=connected` page (or `google_drive=error` if the grant fails). It does not require a bearer header; its state is the authorization binding.
 3. `GET /connectors` lists your connections without token material.
 4. `GET /connectors/:id/files?folderId=...&pageToken=...` lists a bounded page of accessible files, including shared-drive support.
 5. `POST /connectors/:id/import` with `projectId` and `fileId` imports one explicitly selected document (owner/admin/manager).

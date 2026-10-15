@@ -139,7 +139,7 @@ function RecordView({ record }: { record: OnboardingRecord }) {
       icon: <HandshakeIcon />,
     },
     {
-      kind: null,
+      kind: "partner",
       label: "People partner",
       value: record.peoplePartner?.name ?? null,
       icon: <Diversity3Icon />,

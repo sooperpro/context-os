@@ -83,12 +83,13 @@ export const OnboardingRecordSchema = OnboardingRecordSummarySchema.extend({
 });
 export type OnboardingRecord = z.infer<typeof OnboardingRecordSchema>;
 
-/** `PATCH /v1/people-ops/onboardings/:id`: change the manager, buddy or template. */
+/** `PATCH /v1/people-ops/onboardings/:id`: change the manager, buddy, template or People partner. */
 export const OnboardingAssignmentInputSchema = z
   .object({
     managerId: z.string().optional(),
     buddyId: z.string().optional(),
     templateId: z.string().optional(),
+    peoplePartnerId: z.string().optional(),
   })
   .strict()
   .refine((input) => Object.keys(input).length > 0, { message: "Change something." });
@@ -102,6 +103,8 @@ export const OnboardingOptionsSchema = z.object({
   teams: z.array(z.string()),
   managers: z.array(PersonRefSchema),
   buddies: z.array(PersonRefSchema),
+  /** Everyone with the HR role. */
+  peoplePartners: z.array(PersonRefSchema),
   templates: z.array(z.object({ id: z.string(), name: z.string() })),
 });
 export type OnboardingOptions = z.infer<typeof OnboardingOptionsSchema>;
@@ -111,6 +114,11 @@ export const NewOnboardingInputSchema = z
   .object({
     name: z.string().trim().min(2, "Add their full name.").max(200),
     title: z.string().trim().min(2, "Add a job title.").max(200),
+    /**
+     * Their work email. Links the record to their account: an invitation is sent, and the manager
+     * and start date apply on first sign-in. Without it, the record waits for directory sync.
+     */
+    email: z.email("Add a valid work email.").max(320).nullable().optional(),
     team: z.string().min(1),
     startDate: DateOnly,
     managerId: z.string(),
@@ -182,6 +190,8 @@ export const ProbationDetailSchema = z.object({
   ),
   /** "8 check-ins · last on Oct 6". */
   checkinSummary: z.string(),
+  /** Check-ins expected by now (one every 30 days) but not recorded. */
+  missingCheckins: Count,
   activity: z.array(ProbationActivitySchema),
   decision: ProbationDecisionSchema.nullable(),
 });
@@ -202,6 +212,31 @@ export const ProbationDecisionInputSchema = z
     path: ["extensionDays"],
   });
 export type ProbationDecisionInput = z.infer<typeof ProbationDecisionInputSchema>;
+
+/** `POST /v1/people-ops/probation-reviews/:id/discuss`: ask the manager to talk before deciding. */
+export const ProbationDiscussInputSchema = z.object({ note: z.string().trim().max(2000) }).strict();
+export type ProbationDiscussInput = z.infer<typeof ProbationDiscussInputSchema>;
+
+/**
+ * `POST /v1/probation/employees/:userId/recommendation`: the manager's probation recommendation
+ * (a "Probation recommendation" check-in). It goes to HR as ready for approval; HR records the
+ * employment status decision.
+ */
+export const ProbationRecommendationInputSchema = z
+  .object({
+    recommendation: z.enum(["confirm", "extend", "discuss"]),
+    ratings: z
+      .array(
+        z.object({
+          area: z.string().trim().min(1).max(100),
+          level: z.number().int().min(0).max(3),
+        }),
+      )
+      .max(20),
+    note: z.string().trim().max(4000),
+  })
+  .strict();
+export type ProbationRecommendationInput = z.infer<typeof ProbationRecommendationInputSchema>;
 
 /**
  * `POST /v1/people-ops/reminders`: nudge managers about probation recommendations and missing
@@ -268,7 +303,12 @@ export type TemplateDetail = z.infer<typeof TemplateDetailSchema>;
 
 /** `POST /v1/people-ops/templates/:id/draft`: save the stages' modules, in order, as a draft. */
 export const TemplateDraftInputSchema = z
-  .object({ stages: z.array(z.object({ id: z.string(), moduleIds: z.array(z.string()) })) })
+  .object({
+    stages: z.array(z.object({ id: z.string(), moduleIds: z.array(z.string()) })),
+    /** Who it's for. Omit to keep the current lists. */
+    roles: z.array(z.string().trim().min(1).max(100)).max(20).optional(),
+    teams: z.array(z.string().trim().min(1).max(100)).max(20).optional(),
+  })
   .strict();
 export type TemplateDraftInput = z.infer<typeof TemplateDraftInputSchema>;
 

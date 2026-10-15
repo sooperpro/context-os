@@ -207,6 +207,9 @@ export function createIdentityRoutes(container: Container) {
         .get();
       if (!target) throw new NotFoundError("Workspace member");
       const { lastDay, ...input } = c.req.valid("json");
+      // Nobody changes their own role (role access spec §1 and §4.8).
+      if (userId === actor.id && input.role !== undefined && input.role !== target.role)
+        throw new AppError(403, "FORBIDDEN", "You can't change your own role");
       if ((target.role === "owner" || input.role === "owner") && actor.role !== "owner")
         throw new AppError(403, "FORBIDDEN", "Only an owner can manage ownership");
       if (input.managerId) identity.requireMember(actor.workspaceId, input.managerId);

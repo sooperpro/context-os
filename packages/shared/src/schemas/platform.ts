@@ -7,7 +7,7 @@ import {
   SyncFrequencySchema,
 } from "./connectors.js";
 
-export const SystemRoleSchema = z.enum(["owner", "admin", "manager", "member", "guest"]);
+export const SystemRoleSchema = z.enum(["owner", "admin", "manager", "hr", "member", "guest"]);
 export type SystemRole = z.infer<typeof SystemRoleSchema>;
 export const AssignmentTypeSchema = z.enum([
   "mentor",
@@ -70,7 +70,7 @@ export const UserDirectoryQuerySchema = PageQuerySchema.extend({
 export const InvitationSchema = z
   .object({
     email: z.email(),
-    role: z.enum(["admin", "manager", "member", "guest"]).default("member"),
+    role: z.enum(["admin", "manager", "hr", "member", "guest"]).default("member"),
     name: z.string().trim().max(200).optional(),
     departmentId: IdSchema.optional(),
     teamId: IdSchema.optional(),
@@ -397,7 +397,7 @@ export type WorkspaceSetup = z.infer<typeof WorkspaceSetupSchema>;
 
 /* ---- Invitations (`POST /users/invite`) --------------------------------------------------- */
 
-export const InviteRoleSchema = z.enum(["admin", "manager", "member", "guest"]);
+export const InviteRoleSchema = z.enum(["admin", "manager", "hr", "member", "guest"]);
 /** `InviteInputSchema` (above) is the API's body: one invitation or a bulk list. */
 export type InviteInput = z.infer<typeof InviteInputSchema>;
 /** The web app's single-invite form: an email and a role, a valid `InvitationSchema` body. */

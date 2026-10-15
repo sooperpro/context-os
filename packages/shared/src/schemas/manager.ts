@@ -201,6 +201,17 @@ export type RoadmapAssignmentInput = z.infer<typeof RoadmapAssignmentInputSchema
 /** What a write returns: the id of what was created. */
 export const CreatedSchema = z.object({ id: z.string() });
 
+/**
+ * `POST /v1/team/members/:id/escalations` (no body): the manager escalates a new hire who is stuck.
+ * Waiting on access goes to the workspace admins, anything else to People Ops; once a day per person.
+ */
+export const EscalationInputSchema = z.object({}).strict();
+export const EscalationSchema = z.object({
+  id: z.string(),
+  to: z.enum(["admins", "people_ops"]),
+});
+export type Escalation = z.infer<typeof EscalationSchema>;
+
 /* ---- Review queue -------------------------------------------------------------------------- */
 
 export const ReviewItemSchema = z.object({

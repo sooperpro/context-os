@@ -1,4 +1,10 @@
-import type { InviteForm, OrgNameInput, TeamInput, TeamUpdateInput, UserUpdate } from "@contextos/shared";
+import type {
+  InviteForm,
+  OrgNameInput,
+  TeamInput,
+  TeamUpdateInput,
+  UserUpdate,
+} from "@contextos/shared";
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { workspaceKeys } from "@/features/workspace/api/workspace.queries";
 import {
@@ -25,7 +31,10 @@ export const membersKeys = {
 export const membersQuery = () =>
   queryOptions({ queryKey: membersKeys.list(), queryFn: ({ signal }) => listMembers(signal) });
 export const departmentsQuery = () =>
-  queryOptions({ queryKey: membersKeys.departments(), queryFn: ({ signal }) => listDepartments(signal) });
+  queryOptions({
+    queryKey: membersKeys.departments(),
+    queryFn: ({ signal }) => listDepartments(signal),
+  });
 export const teamsQuery = () =>
   queryOptions({ queryKey: membersKeys.teams(), queryFn: ({ signal }) => listTeams(signal) });
 
@@ -41,16 +50,30 @@ function useInvalidating<TInput, TResult>(
 }
 
 /** Sends a Clerk organization invitation. The API returns 503 until Clerk is configured. */
-export const useInviteMember = () => useInvalidating((input: InviteForm) => inviteMember(input), membersKeys.all);
+export const useInviteMember = () =>
+  useInvalidating((input: InviteForm) => inviteMember(input), membersKeys.all);
 /** Role, status, manager or guest expiry. The API protects the last owner and ownership changes. */
 export const useUpdateMember = () =>
-  useInvalidating(({ userId, ...input }: UserUpdate & { userId: string }) => updateMember(userId, input), membersKeys.all);
+  useInvalidating(
+    ({ userId, ...input }: UserUpdate & { userId: string }) => updateMember(userId, input),
+    membersKeys.all,
+  );
 
-export const useCreateDepartment = () => useInvalidating((input: OrgNameInput) => createDepartment(input), membersKeys.departments);
+export const useCreateDepartment = () =>
+  useInvalidating((input: OrgNameInput) => createDepartment(input), membersKeys.departments);
 export const useRenameDepartment = () =>
-  useInvalidating(({ id, ...input }: OrgNameInput & { id: string }) => renameDepartment(id, input), membersKeys.departments);
-export const useDeleteDepartment = () => useInvalidating((id: string) => deleteDepartment(id), membersKeys.departments);
-export const useCreateTeam = () => useInvalidating((input: TeamInput) => createTeam(input), membersKeys.teams);
+  useInvalidating(
+    ({ id, ...input }: OrgNameInput & { id: string }) => renameDepartment(id, input),
+    membersKeys.departments,
+  );
+export const useDeleteDepartment = () =>
+  useInvalidating((id: string) => deleteDepartment(id), membersKeys.departments);
+export const useCreateTeam = () =>
+  useInvalidating((input: TeamInput) => createTeam(input), membersKeys.teams);
 export const useUpdateTeam = () =>
-  useInvalidating(({ id, ...input }: TeamUpdateInput & { id: string }) => updateTeam(id, input), membersKeys.teams);
-export const useDeleteTeam = () => useInvalidating((id: string) => deleteTeam(id), membersKeys.teams);
+  useInvalidating(
+    ({ id, ...input }: TeamUpdateInput & { id: string }) => updateTeam(id, input),
+    membersKeys.teams,
+  );
+export const useDeleteTeam = () =>
+  useInvalidating((id: string) => deleteTeam(id), membersKeys.teams);

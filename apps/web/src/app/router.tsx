@@ -2,6 +2,7 @@ import { createBrowserRouter } from "react-router";
 import { RootLayout } from "@/app/root-layout";
 import { RedirectHome } from "@/components/redirect-home";
 import { RouteErrorBoundary } from "@/components/route-error-boundary";
+import { HrOnly } from "@/features/people-ops/components/hr-only";
 import { HIDDEN } from "@/lib/hidden";
 import { NotFoundPage } from "@/pages/not-found-page";
 
@@ -145,7 +146,13 @@ const appChildren = [
     lazy: async () => {
       const { OnboardingListPage } =
         await import("@/features/people-ops/pages/onboarding-list-page");
-      return { Component: OnboardingListPage };
+      return {
+        Component: () => (
+          <HrOnly>
+            <OnboardingListPage />
+          </HrOnly>
+        ),
+      };
     },
   },
   {
@@ -153,14 +160,26 @@ const appChildren = [
     lazy: async () => {
       const { OnboardingRecordPage } =
         await import("@/features/people-ops/pages/onboarding-record-page");
-      return { Component: OnboardingRecordPage };
+      return {
+        Component: () => (
+          <HrOnly>
+            <OnboardingRecordPage />
+          </HrOnly>
+        ),
+      };
     },
   },
   {
     path: "probation",
     lazy: async () => {
       const { ProbationListPage } = await import("@/features/people-ops/pages/probation-list-page");
-      return { Component: ProbationListPage };
+      return {
+        Component: () => (
+          <HrOnly>
+            <ProbationListPage />
+          </HrOnly>
+        ),
+      };
     },
   },
   {
@@ -168,14 +187,26 @@ const appChildren = [
     lazy: async () => {
       const { ProbationDetailPage } =
         await import("@/features/people-ops/pages/probation-detail-page");
-      return { Component: ProbationDetailPage };
+      return {
+        Component: () => (
+          <HrOnly>
+            <ProbationDetailPage />
+          </HrOnly>
+        ),
+      };
     },
   },
   {
     path: "templates",
     lazy: async () => {
       const { TemplatesPage } = await import("@/features/people-ops/pages/templates-page");
-      return { Component: TemplatesPage };
+      return {
+        Component: () => (
+          <HrOnly>
+            <TemplatesPage />
+          </HrOnly>
+        ),
+      };
     },
   },
   {
@@ -183,7 +214,13 @@ const appChildren = [
     lazy: async () => {
       const { TemplateEditorPage } =
         await import("@/features/people-ops/pages/template-editor-page");
-      return { Component: TemplateEditorPage };
+      return {
+        Component: () => (
+          <HrOnly>
+            <TemplateEditorPage />
+          </HrOnly>
+        ),
+      };
     },
   },
   {

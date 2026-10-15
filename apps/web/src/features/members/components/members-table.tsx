@@ -77,8 +77,8 @@ export function MembersTable({ members, viewer }: MembersTableProps) {
   const canManage = viewer.role === "owner" || viewer.role === "admin";
   const assignable: SystemRole[] =
     viewer.role === "owner"
-      ? ["owner", "admin", "manager", "member", "guest"]
-      : ["admin", "manager", "member", "guest"];
+      ? ["owner", "admin", "manager", "hr", "member", "guest"]
+      : ["admin", "manager", "hr", "member", "guest"];
 
   const setRole = (member: WorkspaceMember, role: SystemRole) =>
     update.mutate(
@@ -87,7 +87,7 @@ export function MembersTable({ members, viewer }: MembersTableProps) {
         onSuccess: () => {
           setPending(null);
           toast.success(
-            `${member.name} is now ${role === "admin" || role === "owner" ? "an" : "a"} ${ROLE_LABEL[role]}`,
+            `${member.name} is now ${role === "admin" || role === "owner" || role === "hr" ? "an" : "a"} ${ROLE_LABEL[role]}`,
           );
         },
         onError: (error) => toast.error(error.message || "The role could not be changed."),

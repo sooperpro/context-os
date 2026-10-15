@@ -22,7 +22,9 @@ import {
 import { AppError, NotFoundError } from "../../lib/errors.js";
 import { validationHook } from "../../middleware/validation.js";
 import type { Actor, AppEnv } from "../../types.js";
-import { requireRole } from "../identity/identity.service.js";
+import { readAccessPolicies, requireRole } from "../identity/identity.service.js";
+import { excludedSources, policyConflictCount } from "./access-policies.routes.js";
+import { directorySyncRuns } from "./members-admin.routes.js";
 import { mergeSettings, resolveSettings, workspaceSettings } from "./settings.js";
 import { createPlatformStore } from "./store.js";
 
@@ -232,8 +234,7 @@ export function createAdminOverviewRoutes(container: Container) {
       staleAfterHours: settings.ai.staleAfterHours,
       routeAfterAsks: settings.ai.routeAfterAsks,
       weeklyDigest: settings.ai.weeklyDigest,
-      // Exclusion policies are not served yet, so nothing is excluded beyond source permissions.
-      excluded: [],
+      excluded: excludedSources(db, actor.workspaceId),
       unhelpfulReasons,
       unhelpfulNote,
       unanswered,
@@ -259,19 +260,43 @@ export function createAdminOverviewRoutes(container: Container) {
             .all().length
         : 0;
       const retention = settings.policies.retention;
+      const policies = readAccessPolicies(db, actor.workspaceId).length;
+      const conflicts = policyConflictCount(db, actor.workspaceId);
+      const requests = store
+        .listWhere(actor.workspaceId, "role_request", { status: "open" }, 200)
+        .map((row) => String(row.data.role));
+      const lastSync = directorySyncRuns(container, actor.workspaceId, 1)[0];
+      const roleName = (role: string) =>
+        role === "hr" ? "HR" : role.charAt(0).toUpperCase() + role.slice(1);
       const items: SecurityCheck[] = [
         env.AUTH_MODE === "clerk"
           ? { id: "sso", value: "Clerk sign-in · required", state: "ok" }
           : { id: "sso", value: "Development sign-in · not for production", state: "attention" },
-        { id: "scim", value: "Not configured", state: "off" },
+        env.AUTH_MODE === "clerk"
+          ? {
+              id: "scim",
+              value: lastSync
+                ? `Clerk directory · last run ${lastSync.createdAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`
+                : "Clerk directory · not synced yet",
+              state: lastSync ? "ok" : "attention",
+            }
+          : { id: "scim", value: "Not configured", state: "off" },
         {
           id: "access_policies",
-          value: shared
-            ? `Source permissions mirrored · ${plural(shared, "source")} shared with everyone`
-            : "Source permissions mirrored",
-          state: "ok",
+          value: [
+            `${plural(policies + 1, "policy", "policies")} active`,
+            conflicts ? plural(conflicts, "conflict") : "no conflicts",
+            ...(shared ? [`${plural(shared, "source")} shared with everyone`] : []),
+          ].join(" · "),
+          state: conflicts ? "attention" : "ok",
         },
-        { id: "role_requests", value: "None pending", state: "ok" },
+        requests.length
+          ? {
+              id: "role_requests",
+              value: `${[...new Set(requests)].map(roleName).join(", ")} · ${requests.length} pending`,
+              state: "attention",
+            }
+          : { id: "role_requests", value: "None pending", state: "ok" },
         {
           id: "data_retention",
           value: `Ask history ${retention.askConversationDays} days · audit log ${retention.auditLogDays} days`,
@@ -287,20 +312,21 @@ export function createAdminOverviewRoutes(container: Container) {
         ? new Date(c.req.valid("query").since!)
         : startOfToday();
       const owned = projectsOf(actor.workspaceId).map((project) => project.id);
-      if (!owned.length) return c.json({ items: [] });
-      const runs = db
-        .select()
-        .from(jobs)
-        .where(
-          and(
-            inArray(jobs.projectId, owned),
-            eq(jobs.type, "sync_connector"),
-            gte(jobs.createdAt, since),
-          ),
-        )
-        .orderBy(desc(jobs.createdAt))
-        .limit(50)
-        .all();
+      const runs = !owned.length
+        ? []
+        : db
+            .select()
+            .from(jobs)
+            .where(
+              and(
+                inArray(jobs.projectId, owned),
+                eq(jobs.type, "sync_connector"),
+                gte(jobs.createdAt, since),
+              ),
+            )
+            .orderBy(desc(jobs.createdAt))
+            .limit(50)
+            .all();
       const scopeIds = [...new Set(runs.map((job) => scopeIdOf(job)))].filter(Boolean);
       const scopes = new Map(
         (scopeIds.length
@@ -339,7 +365,20 @@ export function createAdminOverviewRoutes(container: Container) {
               : 0,
         };
       });
-      return c.json({ items });
+      // Directory syncs belong in the same list (handoff §7.10).
+      const directoryRuns = directorySyncRuns(container, actor.workspaceId, 20)
+        .filter((run) => run.createdAt >= since)
+        .map((run): SyncRun => ({
+          id: run.id,
+          connector: `Directory · ${typeof run.data.provider === "string" ? run.data.provider : "Clerk"}`,
+          startedAt: run.createdAt.toISOString(),
+          ok: true,
+          detail: `${Number(run.data.created ?? 0)} added, ${Number(run.data.updated ?? 0)} updated, ${Number(run.data.deactivated ?? 0)} deactivated`,
+          durationMs: Number(run.data.durationMs ?? 0),
+        }));
+      return c.json({
+        items: [...items, ...directoryRuns].sort((a, b) => b.startedAt.localeCompare(a.startedAt)),
+      });
     })
     .get("/admin/ai", (c) => {
       const actor = c.get("actor");
@@ -350,6 +389,7 @@ export function createAdminOverviewRoutes(container: Container) {
         ratings: settings.stats.ratings,
         periodDays: settings.stats.periodDays,
         settings: settings.rules.filter((rule) => rule.id !== "pause_during_checks"),
+        unanswered: settings.unanswered.slice(0, 3),
       });
     })
     .get("/admin/ai-settings", (c) => {

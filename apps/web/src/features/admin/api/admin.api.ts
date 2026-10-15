@@ -5,6 +5,8 @@ import {
   AccessPreviewSchema,
   AdminConnectorListSchema,
   AdminConnectorSchema,
+  AdminConnectorScopeListSchema,
+  AdminConnectorSyncResultSchema,
   AiSettingsInputSchema,
   AiSettingsSchema,
   AuditEntryListSchema,
@@ -15,24 +17,28 @@ import {
   ConnectorRequestResultSchema,
   DirectorySyncResultSchema,
   MembersOverviewSchema,
+  MyRoleRequestListSchema,
+  MyRoleRequestSchema,
   ReconnectInputSchema,
   ResolveConflictInputSchema,
   RoleRequestDecisionInputSchema,
   RoleRequestDecisionSchema,
+  RoleRequestInputSchema,
   RoleRequestListSchema,
   type AccessPolicyInput,
   type AiSettingsInput,
   type ConnectInput,
   type ConnectorRequestInput,
+  type RoleRequestInput,
 } from "@contextos/shared";
 import { z } from "zod";
 import { apiRequest } from "@/lib/api-client";
 
 /**
- * The admin's workspace endpoints. The audit log, the connector catalog and AI settings are live;
- * members overview, directory sync, role requests and access policies are not served yet and the
- * development mock layer answers them (src/mocks/admin.ts). Contracts:
- * packages/shared/src/schemas/admin.ts.
+ * The admin's workspace endpoints (role access spec §4.8), all served by the API: members overview,
+ * directory sync and role requests (platform/members-admin.routes.ts), the connector catalog
+ * (connectors/admin-connectors.routes.ts), access policies (platform/access-policies.routes.ts), AI
+ * settings and the audit log. Contracts: packages/shared/src/schemas/admin.ts.
  */
 export const ADMIN_ENDPOINTS = {
   membersOverview: { path: "/v1/admin/members/overview", schema: MembersOverviewSchema },
@@ -63,6 +69,12 @@ export const ADMIN_ENDPOINTS = {
     schema: AdminConnectorSchema,
     input: ReconnectInputSchema,
   },
+  connectorScopes: {
+    path: "/v1/admin/connectors/:id/scopes",
+    schema: AdminConnectorScopeListSchema,
+  },
+  syncConnector: { path: "/v1/admin/connectors/:id/sync", schema: AdminConnectorSyncResultSchema },
+  removeConnectorScope: { path: "/v1/admin/connectors/:id/scopes/:scopeId" },
   requestConnector: {
     path: "/v1/admin/connector-requests",
     schema: ConnectorRequestResultSchema,
@@ -79,6 +91,7 @@ export const ADMIN_ENDPOINTS = {
     schema: AccessPolicySchema,
     input: AccessPolicyInputSchema,
   },
+  deletePolicy: { path: "/v1/admin/access-policies/:id" },
   resolveConflict: {
     path: "/v1/admin/access-conflicts/:id/resolve",
     schema: AccessPolicyListSchema,
@@ -91,8 +104,15 @@ export const ADMIN_ENDPOINTS = {
     schema: AiSettingsSchema,
     input: AiSettingsInputSchema,
   },
-  /** Live. Oldest first, paged; no filters or sort yet (docs/api-change-requests.md, item 5). */
+  /** Newest first; `from`/`to` (ISO) narrow the range before paging. */
   audit: { path: "/v1/audit", schema: AuditEntryListSchema },
+  /** Any member: ask for a role, and see their own requests. */
+  requestRole: {
+    path: "/v1/role-requests",
+    schema: MyRoleRequestSchema,
+    input: RoleRequestInputSchema,
+  },
+  myRoleRequests: { path: "/v1/role-requests/mine", schema: MyRoleRequestListSchema },
 } as const;
 
 const E = ADMIN_ENDPOINTS;
@@ -138,6 +158,18 @@ export const reconnectConnector = (id: string) =>
     schema: E.reconnect.schema,
   });
 
+export const fetchConnectorScopes = (id: string, signal?: AbortSignal) =>
+  apiRequest(withId(E.connectorScopes.path, id), { schema: E.connectorScopes.schema, signal });
+
+export const syncConnector = (id: string) =>
+  apiRequest(withId(E.syncConnector.path, id), { method: "POST", schema: E.syncConnector.schema });
+
+export const removeConnectorScope = (id: string, scopeId: string) =>
+  apiRequest(
+    withId(E.removeConnectorScope.path, id).replace(":scopeId", encodeURIComponent(scopeId)),
+    { method: "DELETE", schema: z.undefined() },
+  );
+
 export const requestConnector = (input: ConnectorRequestInput) =>
   apiRequest(E.requestConnector.path, {
     method: "POST",
@@ -157,6 +189,9 @@ export const updatePolicy = (id: string, input: AccessPolicyInput) =>
     body: input,
     schema: E.updatePolicy.schema,
   });
+
+export const deletePolicy = (id: string) =>
+  apiRequest(withId(E.deletePolicy.path, id), { method: "DELETE", schema: z.undefined() });
 
 export const resolveConflict = (id: string, optionId: string) =>
   apiRequest(withId(E.resolveConflict.path, id), {
@@ -178,6 +213,16 @@ export const updateAiSettings = (input: AiSettingsInput) =>
     schema: E.updateAiSettings.schema,
   });
 
-/** The most recent page the API returns (it caps `limit` at 100). */
-export const fetchAudit = (signal?: AbortSignal) =>
-  apiRequest(E.audit.path, { query: { limit: 100, offset: 0 }, schema: E.audit.schema, signal });
+/** The newest events since `from` (the API caps `limit` at 100). */
+export const fetchAudit = (from?: string, signal?: AbortSignal) =>
+  apiRequest(E.audit.path, {
+    query: { limit: 100, offset: 0, from },
+    schema: E.audit.schema,
+    signal,
+  });
+
+export const requestRole = (input: RoleRequestInput) =>
+  apiRequest(E.requestRole.path, { method: "POST", body: input, schema: E.requestRole.schema });
+
+export const fetchMyRoleRequests = (signal?: AbortSignal) =>
+  apiRequest(E.myRoleRequests.path, { schema: E.myRoleRequests.schema, signal });

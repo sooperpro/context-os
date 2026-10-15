@@ -7,6 +7,7 @@ import type { Db } from "../../db/index.js";
 import {
   assignments,
   contextItems,
+  departments,
   evidence,
   memberships,
   organizationLinks,
@@ -16,11 +17,100 @@ import {
   questions,
   sourceAccess,
   sourceObjects,
+  teams,
   users,
   workspaces,
 } from "../../db/schema.js";
 import { AppError, NotFoundError } from "../../lib/errors.js";
 import type { Actor } from "../../types.js";
+
+/** A workspace access policy (role access spec §4.8): who may open a project or a synced folder. */
+export interface AccessPolicyRecord {
+  id: string;
+  name: string;
+  /** restrict: only `groups` can open it. exclude: never used in answers, and only `groups` can open it. */
+  effect: "restrict" | "exclude";
+  groups: string[];
+  sources: Array<{ kind: "project" | "folder"; id: string }>;
+  updatedAt: Date;
+}
+
+/** Policy records as stored in `platform_records` (kind `access_policy`). */
+export function readAccessPolicies(db: Db, workspaceId: string): AccessPolicyRecord[] {
+  return db
+    .select()
+    .from(platformRecords)
+    .where(
+      and(
+        eq(platformRecords.workspaceId, workspaceId),
+        eq(platformRecords.kind, "access_policy"),
+        eq(platformRecords.status, "active"),
+      ),
+    )
+    .all()
+    .map((row) => ({
+      id: row.id,
+      name: typeof row.data.name === "string" ? row.data.name : "Policy",
+      effect: row.data.effect === "exclude" ? ("exclude" as const) : ("restrict" as const),
+      groups: Array.isArray(row.data.groups) ? row.data.groups.map(String) : [],
+      sources: Array.isArray(row.data.sources)
+        ? (row.data.sources as Array<{ kind: string; id: string }>)
+            .filter((entry) => entry && (entry.kind === "project" || entry.kind === "folder"))
+            .map((entry) => ({ kind: entry.kind as "project" | "folder", id: String(entry.id) }))
+        : [],
+      updatedAt: row.updatedAt,
+    }));
+}
+
+/** Groups a member belongs to: their team and department names (from the org structure). */
+export function memberGroups(db: Db, workspaceId: string, userId: string): string[] {
+  const membership = db
+    .select({ organization: memberships.organization })
+    .from(memberships)
+    .where(and(eq(memberships.workspaceId, workspaceId), eq(memberships.userId, userId)))
+    .get();
+  const organization = membership?.organization ?? {};
+  const names: string[] = [];
+  if (typeof organization.teamId === "string") {
+    const team = db
+      .select({ name: teams.name })
+      .from(teams)
+      .where(and(eq(teams.workspaceId, workspaceId), eq(teams.id, organization.teamId)))
+      .get();
+    if (team) names.push(team.name);
+  }
+  if (typeof organization.departmentId === "string") {
+    const department = db
+      .select({ name: departments.name })
+      .from(departments)
+      .where(
+        and(
+          eq(departments.workspaceId, workspaceId),
+          eq(departments.id, organization.departmentId),
+        ),
+      )
+      .get();
+    if (department) names.push(department.name);
+  }
+  return names;
+}
+
+/**
+ * The policies that cover a source, given its project and the synced folder it came from. Several
+ * policies may cover one source: until an admin resolves that conflict, the more open rule wins
+ * (anyone in any covering policy's groups may open it).
+ */
+export function policiesCovering(
+  policies: AccessPolicyRecord[],
+  projectId: string,
+  scopeId: unknown,
+): AccessPolicyRecord[] {
+  return policies.filter((policy) =>
+    policy.sources.some((entry) =>
+      entry.kind === "project" ? entry.id === projectId : entry.id === scopeId,
+    ),
+  );
+}
 
 export function requireRole(actor: Actor, ...roles: Array<Actor["role"]>): void {
   if (!roles.includes(actor.role))
@@ -64,7 +154,7 @@ export function createIdentityService(db: Db, env: Env, devActor: Actor) {
       .find((row) => row.data.email === email.toLowerCase());
     if (!invitation) return;
     const data = invitation.data as {
-      role?: "admin" | "manager" | "member" | "guest";
+      role?: "admin" | "manager" | "hr" | "member" | "guest";
       departmentId?: string;
       teamId?: string;
       managerId?: string;
@@ -245,7 +335,65 @@ export function createIdentityService(db: Db, env: Env, devActor: Actor) {
           `A ${type.replaceAll("_", " ")} assignment is required`,
         );
     },
+    /**
+     * The identity provider's member list for a workspace (its Clerk organization) and seat limit;
+     * null when sign-in has no directory (development mode).
+     */
+    async directory(workspaceId: string): Promise<{
+      seatLimit: number | null;
+      members: Array<{ userId: string; name: string; email: string | null; admin: boolean }>;
+    } | null> {
+      if (!clerk) return null;
+      const link = db
+        .select()
+        .from(organizationLinks)
+        .where(eq(organizationLinks.workspaceId, workspaceId))
+        .get();
+      if (!link) return { seatLimit: null, members: [] };
+      const organization = await clerk.organizations.getOrganization({
+        organizationId: link.organizationId,
+      });
+      const members: Array<{ userId: string; name: string; email: string | null; admin: boolean }> =
+        [];
+      for (let offset = 0; ; offset += 100) {
+        const page = await clerk.organizations.getOrganizationMembershipList({
+          organizationId: link.organizationId,
+          limit: 100,
+          offset,
+        });
+        for (const entry of page.data) {
+          const profile = entry.publicUserData;
+          if (!profile?.userId) continue;
+          members.push({
+            userId: profile.userId,
+            name:
+              [profile.firstName, profile.lastName].filter(Boolean).join(" ") ||
+              profile.identifier ||
+              "Member",
+            email: profile.identifier.includes("@") ? profile.identifier : null,
+            admin: entry.role === "org:admin",
+          });
+        }
+        if (page.data.length < 100) break;
+      }
+      return {
+        seatLimit:
+          organization.maxAllowedMemberships > 0 ? organization.maxAllowedMemberships : null,
+        members,
+      };
+    },
+    /**
+     * Sources the actor may open in a project: the source's own permissions (mirrored, or shared
+     * with the workspace), narrowed by the workspace's access policies. Admins get no bypass.
+     */
     visibleSourceIds(actor: Actor, projectId: string): string[] {
+      return service.policyFilteredSources(actor, projectId).visible;
+    },
+    /** Sources answers may draw on: the visible ones minus anything an exclude policy covers. */
+    answerableSourceIds(actor: Actor, projectId: string): string[] {
+      return service.policyFilteredSources(actor, projectId).answerable;
+    },
+    policyFilteredSources(actor: Actor, projectId: string) {
       service.requireProject(actor, projectId);
       const grants = db
         .select({ id: sourceAccess.sourceId })
@@ -256,8 +404,8 @@ export function createIdentityService(db: Db, env: Env, devActor: Actor) {
             or(isNull(sourceAccess.expiresAt), gt(sourceAccess.expiresAt, new Date())),
           ),
         );
-      return db
-        .select({ id: sourceObjects.id })
+      const rows = db
+        .select({ id: sourceObjects.id, metadata: sourceObjects.metadata })
         .from(sourceObjects)
         .where(
           and(
@@ -265,8 +413,26 @@ export function createIdentityService(db: Db, env: Env, devActor: Actor) {
             or(eq(sourceObjects.visibility, "workspace"), inArray(sourceObjects.id, grants)),
           ),
         )
-        .all()
-        .map((source) => source.id);
+        .all();
+      const policies = readAccessPolicies(db, actor.workspaceId);
+      if (!policies.length) {
+        const ids = rows.map((row) => row.id);
+        return { visible: ids, answerable: ids };
+      }
+      const groups = new Set(memberGroups(db, actor.workspaceId, actor.id));
+      const visible: string[] = [];
+      const answerable: string[] = [];
+      for (const row of rows) {
+        const covering = policiesCovering(policies, projectId, row.metadata?.scopeId);
+        if (
+          covering.length &&
+          !covering.some((policy) => policy.groups.some((group) => groups.has(group)))
+        )
+          continue;
+        visible.push(row.id);
+        if (!covering.some((policy) => policy.effect === "exclude")) answerable.push(row.id);
+      }
+      return { visible, answerable };
     },
     requireSource(actor: Actor, projectId: string, sourceId: string): void {
       if (!service.visibleSourceIds(actor, projectId).includes(sourceId))

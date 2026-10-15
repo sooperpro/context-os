@@ -28,8 +28,9 @@ import {
 import { apiRequest } from "@/lib/api-client";
 
 /**
- * The learner's onboarding endpoints. None is served yet (the API's `/learning/*` routes return
- * generic records); in development the mock layer answers them (src/mocks/learning.ts). Contracts:
+ * The learner's onboarding endpoints. The API serves My learning (`/v1/me/learning`); the roadmap,
+ * modules, lessons and checks are not served yet (the API's `/learning/*` routes return generic
+ * records), so in development the mock layer answers them (src/mocks/learning.ts). Contracts:
  * packages/shared/src/schemas/learning.ts.
  */
 export const LEARNING_ENDPOINTS = {

@@ -9,7 +9,6 @@ import { useAssistant } from "@/components/layout/assistant-context";
 import { PageColumns, PageMain, PageSide } from "@/components/layout/page-columns";
 import { OnboardingStatusChip } from "@/components/onboarding-status-chip";
 import { PlanProgress, PlanTickNote } from "@/components/plan-progress";
-import { PreviewDataChip } from "@/components/preview-data-chip";
 import { ProfileHero } from "@/components/profile-hero";
 import { SectionCard } from "@/components/section-card";
 import { Badge } from "@/components/ui/badge";
@@ -55,14 +54,23 @@ import {
 import { Shape } from "@/components/ui/shape";
 import { StatusChip } from "@/components/ui/status-chip";
 import { TEAM_ENDPOINTS as E } from "@/features/team/api/team.api";
-import { teamMemberQuery, useEditMemberRoadmap } from "@/features/team/api/team.queries";
+import {
+  teamMemberQuery,
+  useEditMemberRoadmap,
+  useEscalateMember,
+} from "@/features/team/api/team.queries";
 import {
   AssignLearningDialog,
   AssignRoadmapDialog,
 } from "@/features/team/components/assign-dialogs";
 import { CheckMark } from "@/features/team/components/check-mark";
-import { CHECKIN_TYPE_LABEL, PULSE, TEAM_PATH, checkinPath } from "@/features/team/team-meta";
-import { comingSoon } from "@/lib/coming-soon";
+import {
+  CHECKIN_TYPE_LABEL,
+  ESCALATED_TO,
+  PULSE,
+  TEAM_PATH,
+  checkinPath,
+} from "@/features/team/team-meta";
 import { daysFromToday, firstName, formatShortDate, formatWeekday } from "@/lib/format";
 
 const MODULE_STATE: Record<
@@ -117,10 +125,10 @@ function MemberView({ member }: { member: TeamMemberDetail }) {
         { icon: PersonIcon, label: member.person.name },
         { icon: LockIcon, label: "Visible to you as manager" },
       ],
-      suggestions:
-        member.person.id === "p-leah"
-          ? ["Summarize Leah’s onboarding progress", "Which topics is my team struggling with?"]
-          : [`What does ${first} work on?`],
+      suggestions: [
+        `Summarize ${first}’s onboarding progress`,
+        "Which topics is my team struggling with?",
+      ],
       intro: `I can summarize ${first}’s progress, check-ins and knowledge checks.`,
     },
     `member:${member.person.id}`,
@@ -128,6 +136,7 @@ function MemberView({ member }: { member: TeamMemberDetail }) {
   const days = daysFromToday(member.startDate);
   const started = days <= 0;
   const hasRoadmap = member.modules.length > 0;
+  const escalate = useEscalateMember();
 
   const insightAction = () => {
     const action = member.insight?.action;
@@ -152,8 +161,12 @@ function MemberView({ member }: { member: TeamMemberDetail }) {
             ? setAssigning("learning")
             : action.kind === "assign_roadmap"
               ? setAssigning("roadmap")
-              : comingSoon("Escalating access requests")
+              : escalate.mutate(member.person.id, {
+                  onSuccess: (result) => toast.success(`Escalated to ${ESCALATED_TO[result.to]}`),
+                  onError: () => toast.error("The escalation could not be sent. Please try again."),
+                })
         }
+        disabled={action.kind === "escalate" && escalate.isPending}
       >
         {action.label}
       </Button>
@@ -182,7 +195,6 @@ function MemberView({ member }: { member: TeamMemberDetail }) {
               {started ? `Day ${1 - days} of 90` : `Starts ${formatShortDate(member.startDate)}`}
             </Badge>
             {member.buddy ? <Badge variant="ai">Buddy: {member.buddy.name}</Badge> : null}
-            <PreviewDataChip endpoint={E.member.path} />
           </>
         }
         subtitle={

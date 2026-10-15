@@ -216,51 +216,215 @@ describe("Connectors", () => {
     expect(await screen.findByText("No connectors match “sharepoint”")).toBeInTheDocument();
   });
 });
+/* The live access-policy contract: one conflict on a synced folder, and a preview that follows it. */
+function livePolicies() {
+  const folder = {
+    kind: "folder",
+    id: "scope-comp",
+    provider: "google-drive",
+    label: "Comp bands · HR",
+  };
+  const project = {
+    kind: "project",
+    id: "p-board",
+    provider: "contextos",
+    label: "Board (project)",
+  };
+  const policy = (id: string, name: string, groups: string[], conflict: boolean) => ({
+    id,
+    name,
+    effect: "restrict",
+    description: `Only ${groups.join(", ")} can open it.`,
+    groups,
+    sources: [folder],
+    locked: false,
+    conflict,
+    updatedAt: "2026-10-14T09:00:00.000Z",
+  });
+  const mirror = {
+    id: "mirror",
+    name: "Mirror source permissions",
+    effect: "default",
+    description: "Always on.",
+    groups: [],
+    sources: [],
+    locked: true,
+    conflict: false,
+    updatedAt: null,
+  };
+  let resolved = false;
+  let created: Record<string, unknown> | null = null;
+  const posted: unknown[] = [];
+  const state = () => {
+    const items = [
+      mirror,
+      policy("p-hr", "People Ops only", ["People Ops"], !resolved),
+      ...(resolved ? [] : [policy("p-fin", "Finance leads", ["Finance"], true)]),
+      ...(created ? [created] : []),
+    ];
+    return {
+      total: items.length,
+      items,
+      conflicts: resolved
+        ? []
+        : [
+            {
+              id: "folder:scope-comp",
+              title: "2 policies cover Comp bands · HR",
+              description: "Until you choose, the more open rule applies.",
+              options: [
+                { id: "p-hr", label: "Keep “People Ops only”", description: "" },
+                { id: "p-fin", label: "Keep “Finance leads”", description: "" },
+              ],
+            },
+          ],
+      groups: ["Finance", "Leadership", "People Ops"],
+      previewPeople: [
+        { person: { id: "u-priya", name: "Priya Nair", title: null }, groups: "Finance" },
+      ],
+      sourceOptions: [project, folder],
+    };
+  };
+  mockServer.use(
+    http.get(buildApiUrl("/v1/admin/access-policies"), () => HttpResponse.json(state())),
+    http.post(buildApiUrl("/v1/admin/access-conflicts/:id/resolve"), () => {
+      resolved = true;
+      return HttpResponse.json(state());
+    }),
+    http.post(buildApiUrl("/v1/admin/access-policies"), async ({ request }) => {
+      const body = (await request.json()) as { name: string; groups: string[]; sources: unknown[] };
+      posted.push(body);
+      created = {
+        ...policy("p-new", body.name, body.groups, false),
+        sources: [project],
+      };
+      return HttpResponse.json(created, { status: 201 });
+    }),
+    http.get(buildApiUrl("/v1/admin/access-preview"), () =>
+      HttpResponse.json({
+        person: { id: "u-priya", name: "Priya Nair", title: null },
+        items: [
+          {
+            ...folder,
+            allowed: !resolved,
+            reason: resolved
+              ? "“People Ops only” limits it to People Ops"
+              : "Allowed by “Finance leads”",
+          },
+        ],
+      }),
+    ),
+  );
+  return { posted };
+}
+
+describe("Connector management", () => {
+  it("lists every synced folder, syncs now and stops syncing a folder", async () => {
+    const api = liveConnectors();
+    api.fail();
+    let scopes = [
+      {
+        id: "s1",
+        name: "Specs",
+        projectId: "11111111-1111-4111-8111-111111111111",
+        projectName: "Billing platform",
+        connectedBy: "Tom Becker",
+        status: "live",
+        itemCount: 12,
+        lastSyncedAt: "2026-10-14T09:00:00.000Z",
+        lastError: null,
+        frequency: "hourly",
+        visibility: "workspace",
+      },
+    ];
+    const calls: string[] = [];
+    mockServer.use(
+      http.get(buildApiUrl("/v1/admin/connectors/:id/scopes"), () =>
+        HttpResponse.json({ items: scopes }),
+      ),
+      http.post(buildApiUrl("/v1/admin/connectors/:id/sync"), () => {
+        calls.push("sync");
+        return HttpResponse.json({ queued: 1 }, { status: 202 });
+      }),
+      http.delete(buildApiUrl("/v1/admin/connectors/:id/scopes/:scopeId"), ({ params }) => {
+        calls.push(`remove:${String(params.scopeId)}`);
+        scopes = [];
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderAt("/connectors");
+
+    const drive = await within(
+      await screen.findByRole("list", { name: "Connected sources" }),
+    ).findByRole("article", { name: "Google Drive" });
+    // A failing card offers Fix; open Manage from the catalog instead.
+    expect(within(drive).getByRole("button", { name: "Fix" })).toBeInTheDocument();
+    const catalog = screen.getByRole("list", { name: "Catalog" });
+    await user.click(
+      within(within(catalog).getByRole("article", { name: "Google Drive" })).getByRole("button", {
+        name: "Manage",
+      }),
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Manage Google Drive" });
+    expect(
+      await within(dialog).findByText(
+        "Feeds Billing platform · connected by Tom Becker · syncs hourly · shared with everyone",
+      ),
+    ).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Sync now" }));
+    await user.click(within(dialog).getByRole("button", { name: "Stop syncing Specs" }));
+    expect(await within(dialog).findByText(/No folders are synced yet/)).toBeInTheDocument();
+    expect(calls).toEqual(["sync", "remove:s1"]);
+  });
+});
+
 describe("Access policies", () => {
   it("resolves the conflict and the preview follows", async () => {
+    livePolicies();
     const user = userEvent.setup();
     renderAt("/access");
 
-    expect(
-      await screen.findByText("Two policies disagree about the Comp bands folder"),
-    ).toBeInTheDocument();
-    expect(screen.getByText("14 policies · 8 shown")).toBeInTheDocument();
+    expect(await screen.findByText("2 policies cover Comp bands · HR")).toBeInTheDocument();
+    expect(screen.getByText("3 policies · 3 shown")).toBeInTheDocument();
     const preview = screen.getByRole("region", { name: /Preview access/ });
-    await user.click(await within(preview).findByRole("combobox"));
-    await user.click(await screen.findByRole("option", { name: /Priya Nair/ }));
-    expect(
-      await within(preview).findByText("Finance · Restricted (conflicts with HR · Confidential)"),
-    ).toBeInTheDocument();
+    expect(await within(preview).findByText("Allowed by “Finance leads”")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Resolve" }));
     const dialog = await screen.findByRole("dialog", { name: "Resolve the conflict" });
-    expect(within(dialog).getByRole("radio", { name: /Keep it People Ops only/ })).toBeChecked();
+    expect(within(dialog).getByRole("radio", { name: /Keep “People Ops only”/ })).toBeChecked();
     await user.click(within(dialog).getByRole("button", { name: "Apply" }));
 
     await waitFor(() =>
-      expect(
-        screen.queryByText("Two policies disagree about the Comp bands folder"),
-      ).not.toBeInTheDocument(),
+      expect(screen.queryByText("2 policies cover Comp bands · HR")).not.toBeInTheDocument(),
     );
-    expect(screen.queryByText("Conflict")).not.toBeInTheDocument();
-    const row = (await within(preview).findAllByText("HR shared drive / Comp bands"))[0]!.closest(
-      "li",
-    )!;
-    await waitFor(() => expect(row).toHaveTextContent("No access"));
+    expect(
+      await within(preview).findByText("“People Ops only” limits it to People Ops"),
+    ).toBeInTheDocument();
   });
 
-  it("creates a policy", async () => {
+  it("creates a policy for chosen groups and sources", async () => {
+    const api = livePolicies();
     const user = userEvent.setup();
     renderAt("/access");
 
-    expect(await screen.findByText("14 policies · 8 shown")).toBeInTheDocument();
+    await screen.findByText("3 policies · 3 shown");
     await user.click(screen.getByRole("button", { name: "New policy" }));
     const dialog = await screen.findByRole("dialog", { name: "New policy" });
     await user.type(within(dialog).getByRole("textbox", { name: "Name" }), "Board materials");
     await user.click(within(dialog).getByRole("button", { name: "Leadership" }));
+    expect(within(dialog).getByRole("button", { name: "Create policy" })).toBeDisabled();
+    await user.click(within(dialog).getByRole("button", { name: "Board (project)" }));
     await user.click(within(dialog).getByRole("button", { name: "Create policy" }));
     expect(await screen.findByText("Board materials")).toBeInTheDocument();
-    expect(screen.getByText("15 policies · 9 shown")).toBeInTheDocument();
+    expect(api.posted).toEqual([
+      {
+        name: "Board materials",
+        effect: "restrict",
+        groups: ["Leadership"],
+        sources: [{ kind: "project", id: "p-board" }],
+      },
+    ]);
   });
 });
 

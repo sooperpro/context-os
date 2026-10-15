@@ -18,7 +18,40 @@ function liveApi(role = "owner") {
   const record = async (request: Request) => {
     writes.push({ url: request.url, method: request.method, body: await request.json() });
   };
+  let requests = [
+    {
+      id: "rr-sana",
+      person: { id: "u4", name: "Sana Iqbal", title: "Staff Engineer" },
+      role: "admin",
+      reason: "To manage the GitHub and Jira connectors for Platform.",
+      requestedAt: "2026-10-12T11:00:00.000Z",
+    },
+    {
+      id: "rr-priya",
+      person: { id: "u5", name: "Priya Nair", title: null },
+      role: "manager",
+      reason: "Leading the new Billing team from November 2.",
+      requestedAt: "2026-10-13T15:00:00.000Z",
+    },
+  ];
   mockServer.use(
+    http.get(buildApiUrl("/v1/admin/members/overview"), () =>
+      HttpResponse.json({
+        seats: { used: 3, total: 450 },
+        directorySync: {
+          provider: "Clerk",
+          enabled: true,
+          lastRunAt: "2026-10-14T08:00:00.000Z",
+        },
+      }),
+    ),
+    http.get(buildApiUrl("/v1/admin/role-requests"), () => HttpResponse.json({ items: requests })),
+    http.post(buildApiUrl("/v1/admin/role-requests/:id/decision"), async ({ request, params }) => {
+      const body = (await request.json()) as { decision: string };
+      writes.push({ url: request.url, method: "POST", body });
+      requests = requests.filter((entry) => entry.id !== params.id);
+      return HttpResponse.json({ id: params.id, decision: body.decision });
+    }),
     http.get(buildApiUrl("/v1/workspaces/current"), () =>
       HttpResponse.json({ id: "ws", name: "Tessellate", role, authentication: "development" }),
     ),
@@ -82,7 +115,7 @@ describe("MembersPage", () => {
     liveApi("owner");
     renderWithProviders(<MembersPage />);
 
-    expect(await screen.findByText("412 of 450 seats")).toBeInTheDocument();
+    expect(await screen.findByText("3 of 450 seats")).toBeInTheDocument();
     const table = await membersTable();
     expect(within(table).getByText("maya@tessellate.io")).toBeInTheDocument();
     expect(within(table).getByText("Platform")).toBeInTheDocument();
@@ -95,7 +128,7 @@ describe("MembersPage", () => {
     ).toBeDisabled();
     expect(within(table).getByRole("combobox", { name: "Role for Maya Okafor" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Invite people" })).toBeInTheDocument();
-    expect(screen.getByText(/Synced by SCIM at/)).toBeInTheDocument();
+    expect(await screen.findByText(/Synced from Clerk at/)).toBeInTheDocument();
   });
 
   it("asks before making someone an admin, then changes the role", async () => {
@@ -130,11 +163,11 @@ describe("MembersPage", () => {
     await waitFor(async () =>
       expect(within(await membersTable()).getAllByRole("row")).toHaveLength(2),
     );
-    expect(screen.getByText("Showing 1 of 412 members.")).toBeInTheDocument();
+    expect(await screen.findByText("Showing 1 of 3 members.")).toBeInTheDocument();
   });
 
   it("approves a role request after confirming an admin", async () => {
-    liveApi("owner");
+    const writes = liveApi("owner");
     const user = userEvent.setup();
     renderWithProviders(<MembersPage />);
 
@@ -157,6 +190,9 @@ describe("MembersPage", () => {
     await waitFor(() =>
       expect(screen.queryByRole("region", { name: /Role requests/ })).not.toBeInTheDocument(),
     );
+    expect(
+      writes.filter((write) => write.url.includes("/role-requests/")).map((write) => write.body),
+    ).toEqual([{ decision: "approve" }, { decision: "decline" }]);
   });
 
   it("hides management from members", async () => {

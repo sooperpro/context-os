@@ -14,7 +14,16 @@ import type { AppEnv } from "../../types.js";
 import { requireRole } from "../identity/identity.service.js";
 import type { createGoogleDriveService } from "./google-drive.js";
 
-export function createConnectorRoutes(drive: ReturnType<typeof createGoogleDriveService>) {
+export function createConnectorRoutes(
+  drive: ReturnType<typeof createGoogleDriveService>,
+  frontendOrigin: string,
+) {
+  const setupRedirect = (status: "connected" | "error") => {
+    const url = new URL("/setup", frontendOrigin);
+    url.searchParams.set("google_drive", status);
+    return url.toString();
+  };
+
   return new Hono<AppEnv>()
     .get("/connectors", (c) => c.json({ items: drive.list(c.get("actor")) }))
     .post(
@@ -32,7 +41,7 @@ export function createConnectorRoutes(drive: ReturnType<typeof createGoogleDrive
         validationHook,
       ),
       (c) => {
-        requireRole(c.get("actor"), "owner", "admin", "manager", "member");
+        requireRole(c.get("actor"), "owner", "admin", "manager", "hr", "member");
         if (c.req.valid("param").provider !== "google_drive")
           throw new AppError(
             503,
@@ -46,11 +55,26 @@ export function createConnectorRoutes(drive: ReturnType<typeof createGoogleDrive
       "/connectors/google-drive/callback",
       zValidator(
         "query",
-        z.object({ state: z.string().min(32).max(200), code: z.string().min(1).max(4000) }),
+        z.object({
+          state: z.string().min(32).max(200),
+          // Google sends `error` instead of `code` when the user cancels consent.
+          code: z.string().min(1).max(4000).optional(),
+          error: z.string().max(200).optional(),
+        }),
         validationHook,
       ),
-      async (c) =>
-        c.json(await drive.callback(c.req.valid("query").state, c.req.valid("query").code)),
+      async (c) => {
+        try {
+          const query = c.req.valid("query");
+          if (!query.code) return c.redirect(setupRedirect("error"), 302);
+          await drive.callback(query.state, query.code);
+          return c.redirect(setupRedirect("connected"), 302);
+        } catch {
+          // OAuth callbacks are opened in a browser tab. Return the user to Setup for both
+          // successful and failed grants instead of rendering an API response in that tab.
+          return c.redirect(setupRedirect("error"), 302);
+        }
+      },
     )
     .get(
       "/connectors/:id/files",

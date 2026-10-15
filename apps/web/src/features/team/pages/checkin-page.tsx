@@ -16,7 +16,6 @@ import { toast } from "sonner";
 import { PageColumns, PageMain, PageSide } from "@/components/layout/page-columns";
 import { OnboardingStatusChip } from "@/components/onboarding-status-chip";
 import { PlanProgress } from "@/components/plan-progress";
-import { PreviewDataChip } from "@/components/preview-data-chip";
 import { SectionCard } from "@/components/section-card";
 import { PersonAvatar } from "@/components/ui/avatar";
 import {
@@ -264,7 +263,6 @@ function CheckinForm({
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-sm font-medium">Agenda</span>
                   <span className="flex items-center gap-2">
-                    <PreviewDataChip endpoint={E.checkinPrep.path} />
                     <StatusChip tone="ai" icon={<SmartToyIcon />}>
                       Suggested from {first}’s progress
                     </StatusChip>

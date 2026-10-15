@@ -2,7 +2,6 @@ import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll } from "vitest";
 import { registerPreviewEndpoints } from "@/lib/preview-data";
 import { resetAccountMocks } from "@/mocks/account";
-import { resetAdminMocks } from "@/mocks/admin";
 import { resetContributionMocks } from "@/mocks/contributions";
 import { mockEndpoints } from "@/mocks/endpoints";
 import { resetLearningMocks } from "@/mocks/learning";
@@ -28,7 +27,6 @@ export function setupMockApi(): void {
     resetLearningMocks();
     resetTeamMocks();
     resetPeopleOpsMocks();
-    resetAdminMocks();
     resetWelcomeMocks();
     resetAccountMocks();
   });

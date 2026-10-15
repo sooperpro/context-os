@@ -65,6 +65,8 @@ const PublicProfileSchema = z.object({
   role: z.string(),
   organization: OrganizationSchema.default({}),
   assignments: z.array(AssignmentSchema).default([]),
+  /** Only for the person's manager: the API leaves it null for everyone else. */
+  onboarding: z.object({ startedOn: z.string(), status: z.string() }).nullable().default(null),
 });
 const ViewerSchema = z.object({ id: z.string() }).passthrough();
 
@@ -366,6 +368,6 @@ export async function fetchPerson(id: string, signal?: AbortSignal): Promise<Per
     manager: manager ? personRef(manager) : null,
     reports: members.items.filter((entry) => entry.managerId === member.id).map(personRef),
     owns,
-    onboarding: null,
+    onboarding: profile.onboarding,
   });
 }

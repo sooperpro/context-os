@@ -19,7 +19,8 @@ const Count = z.number().int().min(0);
 
 /** `GET /v1/admin/members/overview`: seats and directory sync, for the Members page header. */
 export const MembersOverviewSchema = z.object({
-  seats: z.object({ used: Count, total: Count }),
+  /** `total` is null when the workspace has no seat limit. */
+  seats: z.object({ used: Count, total: Count.nullable() }),
   directorySync: z.object({
     /** "Google Workspace". */
     provider: z.string(),
@@ -50,6 +51,27 @@ export type RoleRequest = z.infer<typeof RoleRequestSchema>;
 
 /** `GET /v1/admin/role-requests`: open requests, oldest first. */
 export const RoleRequestListSchema = z.object({ items: z.array(RoleRequestSchema) });
+
+/** `POST /v1/role-requests`: any member asks for a different role; an admin approves or declines. */
+export const RoleRequestInputSchema = z
+  .object({
+    role: z.enum(["admin", "manager", "hr", "member"]),
+    reason: z.string().trim().min(3, "Say why you need it.").max(500),
+  })
+  .strict();
+export type RoleRequestInput = z.infer<typeof RoleRequestInputSchema>;
+
+/** `GET /v1/role-requests/mine`: the person's own requests, newest first. */
+export const MyRoleRequestSchema = z.object({
+  id: z.string(),
+  role: SystemRoleSchema,
+  reason: z.string(),
+  status: z.enum(["open", "approved", "declined"]),
+  requestedAt: IsoDateTimeSchema,
+  decidedAt: IsoDateTimeSchema.nullable(),
+});
+export type MyRoleRequest = z.infer<typeof MyRoleRequestSchema>;
+export const MyRoleRequestListSchema = z.object({ items: z.array(MyRoleRequestSchema) });
 
 /** `POST /v1/admin/role-requests/:id/decision`: approving changes their role and writes the audit log. */
 export const RoleRequestDecisionInputSchema = z
@@ -133,6 +155,29 @@ export type ConnectInput = z.infer<typeof ConnectInputSchema>;
 /** `POST /v1/admin/connectors/:id/reconnect`: renew access and re-sync what failed. */
 export const ReconnectInputSchema = z.object({}).strict();
 
+/** A folder or shared drive a connector keeps in sync, as the admin's Manage view lists it. */
+export const AdminConnectorScopeSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  projectId: z.string(),
+  projectName: z.string(),
+  /** Who connected it. */
+  connectedBy: z.string(),
+  status: z.string(),
+  itemCount: Count,
+  lastSyncedAt: IsoDateTimeSchema.nullable(),
+  lastError: z.string().nullable(),
+  frequency: SyncFrequencySchema,
+  visibility: ScopeVisibilitySchema,
+});
+export type AdminConnectorScope = z.infer<typeof AdminConnectorScopeSchema>;
+
+/** `GET /v1/admin/connectors/:id/scopes`; `POST /v1/admin/connectors/:id/sync` answers `{queued}`. */
+export const AdminConnectorScopeListSchema = z.object({
+  items: z.array(AdminConnectorScopeSchema),
+});
+export const AdminConnectorSyncResultSchema = z.object({ queued: Count });
+
 /** `POST /v1/admin/connector-requests`: ask for an integration that isn't in the catalog. */
 export const ConnectorRequestInputSchema = z
   .object({
@@ -151,13 +196,23 @@ export type PolicyEffect = z.infer<typeof PolicyEffectSchema>;
 /** Content a policy or a preview row is about: the provider picks the logo. */
 const SourceRefSchema = z.object({ provider: z.string(), label: z.string() });
 
+/** What a policy covers: a whole project, or one synced folder (a connector scope). */
+export const PolicySourceSchema = z.object({
+  kind: z.enum(["project", "folder"]),
+  id: z.string().min(1).max(200),
+});
+export type PolicySource = z.infer<typeof PolicySourceSchema>;
+/** A source a policy can name, with its label and logo. */
+export const PolicySourceOptionSchema = SourceRefSchema.extend(PolicySourceSchema.shape);
+export type PolicySourceOption = z.infer<typeof PolicySourceOptionSchema>;
+
 export const AccessPolicySchema = z.object({
   id: z.string(),
   name: z.string(),
   effect: PolicyEffectSchema,
   description: z.string(),
   groups: z.array(z.string()),
-  sources: z.array(SourceRefSchema),
+  sources: z.array(SourceRefSchema.extend(PolicySourceSchema.partial().shape)),
   /** The built-in default that mirrors source permissions. */
   locked: z.boolean(),
   /** Part of an unresolved conflict. */
@@ -183,6 +238,8 @@ export const AccessPolicyListSchema = z.object({
   /** Groups a policy can name. */
   groups: z.array(z.string()),
   previewPeople: z.array(z.object({ person: PersonRefSchema, groups: z.string() })),
+  /** Projects and synced folders a policy can cover. */
+  sourceOptions: z.array(PolicySourceOptionSchema).default([]),
 });
 export type AccessPolicyList = z.infer<typeof AccessPolicyListSchema>;
 
@@ -192,6 +249,7 @@ export const AccessPolicyInputSchema = z
     name: z.string().trim().min(2, "Name the policy.").max(200),
     effect: z.enum(["restrict", "exclude"]),
     groups: z.array(z.string()).min(1, "Choose at least one group."),
+    sources: z.array(PolicySourceSchema).min(1, "Choose at least one source.").max(200),
   })
   .strict();
 export type AccessPolicyInput = z.infer<typeof AccessPolicyInputSchema>;

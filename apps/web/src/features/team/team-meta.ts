@@ -24,6 +24,12 @@ export const BLOCKER_LABEL: Record<Blocker, string> = {
 
 export const READINESS_LEVELS = ["Not yet", "Developing", "Meets", "Exceeds"] as const;
 
+/** Who an escalation went to, for its confirmation: "Escalated to People Ops". */
+export const ESCALATED_TO: Record<"admins" | "people_ops", string> = {
+  admins: "your workspace admins",
+  people_ops: "People Ops",
+};
+
 export const TEAM_PATH = "/team";
 export const memberPath = (personId: string) => `${TEAM_PATH}/${encodeURIComponent(personId)}`;
 export const checkinPath = (personId: string, type?: CheckinType) =>

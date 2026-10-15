@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { IsoDateTimeSchema } from "./common.js";
+import { FlagTargetTypeSchema } from "./platform.js";
 import { KnowledgeOriginSchema, KnowledgeSectionSchema, PersonRefSchema } from "./refs.js";
 
 /*
@@ -79,6 +80,18 @@ export const KnowledgeGapSchema = z.object({
   /** Pages and projects it touches: "Project Kestrel", "Release process". */
   related: z.array(z.string()),
   suggestedKind: z.enum(["article", "edit"]),
+  /**
+   * The page a stale or conflict gap is about (from a flag someone on the team raised): "Review
+   * sources" opens it and "Request update" flags it again. Null for unanswered questions.
+   */
+  target: z
+    .object({
+      projectId: z.string(),
+      targetType: FlagTargetTypeSchema,
+      targetId: z.string(),
+    })
+    .nullable()
+    .optional(),
 });
 export type KnowledgeGap = z.infer<typeof KnowledgeGapSchema>;
 

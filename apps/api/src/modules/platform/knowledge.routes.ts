@@ -23,6 +23,7 @@ import { validationHook } from "../../middleware/validation.js";
 import type { Actor, AppEnv } from "../../types.js";
 import { isStaleCandidate, renderClaim, sectionForKind } from "../hub/sections.js";
 import { createNotifier } from "./notify.js";
+import { createOnboardingRecords } from "./onboarding-records.js";
 import { awardReputation, BASE_POINTS } from "./reputation.js";
 import { workspaceSettings } from "./settings.js";
 import { createPlatformStore, type PlatformRecord } from "./store.js";
@@ -633,11 +634,36 @@ export function createKnowledgeRoutes(container: Container) {
       const member = identity.requireMember(actor.workspaceId, c.req.param("id"));
       const user = db.select().from(users).where(eq(users.id, member.userId)).get();
       if (!user) throw new NotFoundError("Member");
+      // The onboarding card is for the person's manager only (role access spec §4.5); People Ops
+      // reads it from their own routes, and admins get no people data.
+      const managedByActor = (() => {
+        if (member.managerId === actor.id) return true;
+        if (!workspaceSettings(db, actor.workspaceId).includeIndirectReports) return false;
+        const seen = new Set<string>([member.userId]);
+        let managerId = member.managerId;
+        while (managerId && !seen.has(managerId)) {
+          if (managerId === actor.id) return true;
+          seen.add(managerId);
+          managerId =
+            identity.requireMemberOptional(actor.workspaceId, managerId)?.managerId ?? null;
+        }
+        return false;
+      })();
+      let onboarding: { startedOn: string; status: string } | null = null;
+      if (managedByActor) {
+        const onboardingRecords = createOnboardingRecords(container);
+        const record = onboardingRecords.recordFor(actor, member.userId);
+        if (record && !onboardingRecords.recordData(record).probation.decision) {
+          const view = onboardingRecords.evaluate(record);
+          onboarding = { startedOn: view.data.startDate, status: view.status };
+        }
+      }
       return c.json({
         id: user.id,
         name: user.name,
         role: member.role,
         organization: member.organization,
+        onboarding,
         // Every active ownership, at any scope: the People profile lists project and section
         // ownership too, so the directory can infer expertise from it.
         assignments: db

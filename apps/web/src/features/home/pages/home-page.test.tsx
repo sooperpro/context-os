@@ -11,6 +11,8 @@ import { HomePage } from "@/features/home/pages/home-page";
 import { getPreviewPersona, setPreviewPersona } from "@/features/workspace/viewer";
 import { buildApiUrl } from "@/lib/api-client";
 import { mockServer, setupMockApi } from "@/test/msw";
+import { managerHandlers } from "@/test/manager-mocks";
+import { peopleOpsHandlers } from "@/test/people-ops-mocks";
 import { renderWithProviders } from "@/test/utils";
 
 setupMockApi();
@@ -20,6 +22,9 @@ const api = (path: string) => buildApiUrl(path);
 /** The live endpoints Home reads; the rest come from the mock layer. */
 function live({ role = "member", connectors = [] as object[], audit = [] as object[] } = {}) {
   mockServer.use(
+    // HR and manager Home's endpoints are live too; these fixtures stand in for the API.
+    ...peopleOpsHandlers(),
+    ...managerHandlers(),
     http.get(api("/v1/workspaces/current"), () =>
       HttpResponse.json({ id: "w1", name: "Tessellate", role, authentication: "development" }),
     ),
@@ -34,6 +39,29 @@ function live({ role = "member", connectors = [] as object[], audit = [] as obje
       }),
     ),
     http.get(api("/v1/connectors"), () => HttpResponse.json({ items: connectors })),
+    // The admin Overview reads the workspace's connector catalog.
+    http.get(api("/v1/admin/connectors"), () =>
+      HttpResponse.json({
+        items: (connectors as Array<{ status?: string }>).map((connection) => ({
+          id: "google-drive",
+          name: "Google Drive",
+          category: "files",
+          description: "Docs in Drive.",
+          unit: "Folders",
+          scopeOptions: [],
+          popular: true,
+          needsAdminOf: null,
+          state: connection.status === "needs_reauth" ? "error" : "healthy",
+          detail: "12 files indexed",
+          lastSyncAt: null,
+          progress: null,
+          error:
+            connection.status === "needs_reauth"
+              ? "Google Drive access expired. Sign in again from Setup to resume syncing."
+              : null,
+        })),
+      }),
+    ),
     http.get(api("/v1/users"), () =>
       HttpResponse.json({
         items: [
@@ -139,6 +167,69 @@ describe("HomePage", () => {
     expect(await within(roster).findByText("Leah Park")).toBeInTheDocument();
     expect(within(roster).getByText("At risk")).toBeInTheDocument();
     expect(screen.getByText(/5 people on the Platform team are onboarding/)).toBeInTheDocument();
+
+    // Escalating a blocked new hire sends it to whoever can unblock them.
+    let escalated: string | null = null;
+    mockServer.use(
+      http.post(api("/v1/team/members/:id/escalations"), ({ params }) => {
+        escalated = String(params.id);
+        return HttpResponse.json({ id: "esc-1", to: "admins" }, { status: 201 });
+      }),
+    );
+    const user = userEvent.setup();
+    await user.click(within(attention).getByRole("button", { name: "Escalate request" }));
+    await waitFor(() => expect(escalated).toBe("p-chloe"));
+
+    // A row's menu assigns learning to that person.
+    await user.click(within(roster).getByRole("button", { name: "More actions for Leah Park" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Assign learning" }));
+    const dialog = await screen.findByRole("dialog", { name: "Assign a learning task" });
+    expect(await within(dialog).findByRole("combobox", { name: "Person" })).toHaveTextContent(
+      "Leah Park",
+    );
+  });
+
+  it("lets a manager open a conflicting page and request an update to a stale one", async () => {
+    live({ role: "manager" });
+    let flagged: unknown = null;
+    const gap = (id: string, reason: string, targetId: string) => ({
+      id,
+      question: `Is “${targetId}” still current?`,
+      reason,
+      detail: reason === "stale" ? "Flagged as out of date" : "Sources disagree",
+      askedCount: 1,
+      section: null,
+      related: [],
+      suggestedKind: "edit",
+      target: { projectId: "proj-1", targetType: "context_item", targetId },
+    });
+    mockServer.use(
+      http.get(api("/v1/team/knowledge-gaps"), () =>
+        HttpResponse.json({
+          items: [gap("g1", "conflict", "item-refunds"), gap("g2", "stale", "item-billing")],
+        }),
+      ),
+      http.post(api("/v1/flags"), async ({ request }) => {
+        flagged = await request.json();
+        return HttpResponse.json({ id: "flag-1", status: "open", merged: true });
+      }),
+    );
+    renderHome();
+
+    const gaps = await screen.findByRole("region", { name: "Knowledge gaps on your team" });
+    expect(await within(gaps).findByRole("button", { name: "Review sources" })).toHaveAttribute(
+      "href",
+      "/projects/proj-1/items/item-refunds",
+    );
+    await userEvent.setup().click(within(gaps).getByRole("button", { name: "Request update" }));
+    await waitFor(() =>
+      expect(flagged).toMatchObject({
+        projectId: "proj-1",
+        targetType: "context_item",
+        targetId: "item-billing",
+        kind: "stale",
+      }),
+    );
   });
 
   it("shows admins the workspace overview from live connectors, members and audit log", async () => {
@@ -182,9 +273,7 @@ describe("HomePage", () => {
     expect(
       await screen.findByRole("heading", { level: 1, name: "Workspace overview" }),
     ).toBeInTheDocument();
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Google Drive needs to be reconnected",
-    );
+    expect(await screen.findByRole("alert")).toHaveTextContent("Google Drive needs attention");
 
     const audit = screen.getByRole("region", { name: "Audit log" });
     const rows = await within(audit).findAllByText(/Connected a knowledge source|Invited someone/);

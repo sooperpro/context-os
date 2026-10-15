@@ -32,10 +32,10 @@ import { ADMIN_ENDPOINTS as E } from "@/features/admin/api/admin.api";
 import { adminConnectorsQuery, useReconnectConnector } from "@/features/admin/api/admin.queries";
 import {
   ConnectWizard,
+  ManageConnectorDialog,
   RequestConnectorDialog,
 } from "@/features/admin/components/connector-dialogs";
 import { CONNECTOR_CATEGORY, CONNECTOR_STATE } from "@/features/admin/admin-meta";
-import { comingSoon } from "@/lib/coming-soon";
 import { ApiClientError } from "@/lib/api-client";
 import { formatRelativeTime } from "@/lib/format";
 
@@ -57,6 +57,7 @@ export function ConnectorsPage() {
   const query = useQuery(adminConnectorsQuery());
   const [requesting, setRequesting] = useState(false);
   const [connecting, setConnecting] = useState<AdminConnector | null>(null);
+  const [managing, setManaging] = useState<AdminConnector | null>(null);
   const [category, setCategory] = useState<ConnectorCategory | "all">("all");
   const [text, setText] = useState("");
   const items = query.data?.items ?? [];
@@ -126,7 +127,7 @@ export function ConnectorsPage() {
             >
               {connected.map((connector) => (
                 <li key={connector.id} className="flex">
-                  <ConnectedCard connector={connector} />
+                  <ConnectedCard connector={connector} onManage={() => setManaging(connector)} />
                 </li>
               ))}
             </ul>
@@ -165,7 +166,11 @@ export function ConnectorsPage() {
               >
                 {catalog.map((connector) => (
                   <li key={connector.id} className="flex">
-                    <CatalogCard connector={connector} onConnect={() => setConnecting(connector)} />
+                    <CatalogCard
+                      connector={connector}
+                      onConnect={() => setConnecting(connector)}
+                      onManage={() => setManaging(connector)}
+                    />
                   </li>
                 ))}
               </ul>
@@ -189,6 +194,11 @@ export function ConnectorsPage() {
       <ConnectWizard
         connector={connecting}
         onOpenChange={(open) => (open ? null : setConnecting(null))}
+      />
+      <ManageConnectorDialog
+        connector={managing}
+        onOpenChange={(open) => (open ? null : setManaging(null))}
+        onAddMore={(connector) => setConnecting(connector)}
       />
       <RequestConnectorDialog open={requesting} onOpenChange={setRequesting} />
     </div>
@@ -220,7 +230,13 @@ function syncedLine(connector: AdminConnector): string {
   return `Synced ${when}`;
 }
 
-function ConnectedCard({ connector }: { connector: AdminConnector }) {
+function ConnectedCard({
+  connector,
+  onManage,
+}: {
+  connector: AdminConnector;
+  onManage: () => void;
+}) {
   const reconnect = useReconnectConnector();
   const state = CONNECTOR_STATE[connector.state];
   return (
@@ -272,7 +288,7 @@ function ConnectedCard({ connector }: { connector: AdminConnector }) {
             variant="ghost"
             size="icon-sm"
             aria-label={`${connector.name} settings`}
-            onClick={() => comingSoon("Connector settings")}
+            onClick={onManage}
           >
             <SettingsIcon aria-hidden />
           </Button>
@@ -285,9 +301,11 @@ function ConnectedCard({ connector }: { connector: AdminConnector }) {
 function CatalogCard({
   connector,
   onConnect,
+  onManage,
 }: {
   connector: AdminConnector;
   onConnect: () => void;
+  onManage: () => void;
 }) {
   const state = CONNECTOR_STATE[connector.state];
   const on = connector.state !== "available";
@@ -319,7 +337,7 @@ function CatalogCard({
             <StatusChip tone={state.tone} icon={<state.icon />}>
               {state.long}
             </StatusChip>
-            <Button size="xs" variant="ghost" onClick={() => comingSoon("Connector settings")}>
+            <Button size="xs" variant="ghost" onClick={onManage}>
               Manage
             </Button>
           </>

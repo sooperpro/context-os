@@ -538,9 +538,18 @@ export function createOnboardingRoutes(container: Container) {
       zValidator("json", OutcomeInput, validationHook),
       (c) => {
         const actor = c.get("actor");
-        const plan = planFor(actor, c.req.param("userId"));
-        if (!directManager(actor, plan.ownerId))
-          throw new AppError(403, "FORBIDDEN", "Only the learner's manager can record an outcome");
+        // Managers recommend; People Ops records the employment status decision (role access spec
+        // §3). HR has no other access to the plan, so it is looked up directly.
+        if (actor.role !== "hr")
+          throw new AppError(
+            403,
+            "FORBIDDEN",
+            "People Ops records the probation outcome; managers send a recommendation",
+          );
+        const plan = store
+          .listOwned(actor, "onboarding_plan", c.req.param("userId"))
+          .find((row) => row.status !== "cancelled");
+        if (!plan) throw new NotFoundError("Onboarding plan");
         const input = c.req.valid("json");
         if (!["active", "scheduled"].includes(plan.status))
           throw new AppError(409, "CONFLICT", "An outcome is already recorded");

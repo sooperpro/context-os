@@ -51,6 +51,7 @@ import {
   PROBATION_PATH,
   TEMPLATES_PATH,
   needsHr,
+  onboardingPath,
   probationPath,
   recommendationChip,
   templatePath,
@@ -463,11 +464,22 @@ function StartersCard() {
                     ))}
                   </span>
                 </SegmentedItemBody>
-                {ready ? null : (
-                  <StatusChip tone="warning" icon={<ErrorIcon />}>
-                    Not ready
-                  </StatusChip>
-                )}
+                <span className="flex shrink-0 flex-col items-end gap-1.5">
+                  {ready ? null : (
+                    <StatusChip tone="warning" icon={<ErrorIcon />}>
+                      Not ready
+                    </StatusChip>
+                  )}
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    nativeButton={false}
+                    render={<Link to={onboardingPath(starter.id)} />}
+                    aria-label={`Open ${starter.person.name}’s onboarding record`}
+                  >
+                    Open record
+                  </Button>
+                </span>
               </SegmentedItem>
             );
           })}
