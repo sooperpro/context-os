@@ -21,7 +21,14 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { AddIcon, SchoolIcon, WarningIcon } from "@/components/ui/icons";
+import {
+  AddIcon,
+  CheckCircleFilledIcon,
+  DescriptionIcon,
+  SchoolIcon,
+  SmartToyIcon,
+  WarningIcon,
+} from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -104,6 +111,16 @@ export function TutorialsPage() {
 
 function TutorialCard({ tutorial }: { tutorial: TutorialSummary }) {
   const status = TUTORIAL_STATUS[tutorial.status];
+  const statusIcon =
+    tutorial.status === "published" ? (
+      <CheckCircleFilledIcon />
+    ) : tutorial.status === "generating" ? (
+      <SmartToyIcon />
+    ) : tutorial.status === "failed" ? (
+      <WarningIcon />
+    ) : (
+      <DescriptionIcon />
+    );
   const stats = [
     ["Lessons", tutorial.lessonCount],
     ["Questions", tutorial.questionCount],
@@ -115,14 +132,14 @@ function TutorialCard({ tutorial }: { tutorial: TutorialSummary }) {
       className="flex w-full flex-col gap-2 rounded-3xl bg-card p-4.5 text-on-surface no-underline transition-[border-radius,box-shadow] duration-[350ms] ease-spring-fast-spatial outline-none hover:rounded-[32px] hover:shadow-elevation-1 focus-visible:ring-3 focus-visible:ring-ring/50"
     >
       <span className="flex flex-wrap items-center gap-1.5">
-        <StatusChip tone={status.tone}>
+        <StatusChip tone={status.tone} icon={statusIcon}>
           {status.label}
           {tutorial.status === "published" && tutorial.publishedVersion
             ? ` · v${tutorial.publishedVersion}`
             : ""}
         </StatusChip>
         {tutorial.generating && tutorial.status !== "generating" ? (
-          <StatusChip tone="info">Writing new draft</StatusChip>
+          <StatusChip tone="info" icon={<SmartToyIcon />}>Writing new draft</StatusChip>
         ) : null}
         {tutorial.staleSources ? (
           <StatusChip tone="warning" icon={<WarningIcon />}>

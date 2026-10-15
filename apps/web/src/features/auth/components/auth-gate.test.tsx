@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
+import type { SessionState } from "@contextos/shared";
 import { AuthGate } from "@/features/auth/components/auth-gate";
 import { apiRequest, buildApiUrl } from "@/lib/api-client";
 import { createQueryClient } from "@/lib/query-client";
@@ -19,7 +20,7 @@ const WORKSPACE = {
   role: "member" as const,
   ssoRequired: false,
 };
-const signedIn = {
+const signedIn: SessionState = {
   authentication: "accounts",
   user: { id: "u1", name: "Alex", email: "alex@example.com", image: null },
   signInMethod: "magic-link",
@@ -56,7 +57,7 @@ function renderApp() {
 
 describe("AuthGate after sign-in", () => {
   it("returns to sign-in when the session ends while the app is open", async () => {
-    let session: unknown = signedIn;
+    let session: SessionState | null = signedIn;
     mockServer.use(
       http.get(buildApiUrl("/v1/session"), () =>
         session
@@ -89,7 +90,7 @@ describe("AuthGate after sign-in", () => {
   });
 
   it("shows the workspace picker when they lose access to the workspace", async () => {
-    let session: unknown = signedIn;
+    let session: SessionState = signedIn;
     mockServer.use(
       http.get(buildApiUrl("/v1/session"), () => HttpResponse.json(session)),
       http.get(buildApiUrl("/v1/projects"), () =>
