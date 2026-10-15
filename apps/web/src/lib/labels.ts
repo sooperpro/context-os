@@ -132,6 +132,7 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   "onboarding.template.archive": "Archived an onboarding template",
   "onboarding.template.create": "Created an onboarding template",
   "onboarding.template.delete": "Deleted an onboarding template",
+  "onboarding.template.draft": "Saved an onboarding template draft",
   "onboarding.template.publish": "Published an onboarding template",
   "onboarding.template.restore": "Restored an onboarding template",
   "path.assign": "Assigned a learning path",

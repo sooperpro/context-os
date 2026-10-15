@@ -922,14 +922,28 @@ export function createPeopleOpsRoutes(container: Container) {
             throw new AppError(409, "CONFLICT", "Restore the template before editing it");
           // Editing a published template starts the next version as a draft.
           const next = applyStages(actor.workspaceId, data, c.req.valid("json"));
-          const updated = store.patch(row, {
-            status: "draft",
-            data: {
-              ...next,
-              version: data.status === "published" ? data.version + 1 : data.version,
+          const version = data.status === "published" ? data.version + 1 : data.version;
+          const updated = db.transaction(() => {
+            const result = store.patch(row, {
               status: "draft",
-              updatedBy: actor.name,
-            } satisfies TemplateData,
+              data: {
+                ...next,
+                version,
+                status: "draft",
+                updatedBy: actor.name,
+              } satisfies TemplateData,
+            });
+            audit.record({
+              actor,
+              action: "onboarding.template.draft",
+              targetType: "onboarding_template",
+              targetId: row.id,
+              metadata: {
+                version: `v${version}`,
+                modules: next.stages.reduce((sum, stage) => sum + stage.moduleIds.length, 0),
+              },
+            });
+            return result;
           });
           return c.json(templateDetail(updated));
         },

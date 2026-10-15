@@ -508,6 +508,12 @@ describe("People Ops", () => {
     );
     expect(draft.roles).toEqual(["Platform engineer"]);
     expect(draft.stages[0]!.modules.at(-1)?.id).toBe("mod-incidents");
+    // Every saved draft is on the audit trail; the rejected save above is not.
+    expect(audits("onboarding.template.draft")).toHaveLength(1);
+    expect(audits("onboarding.template.draft")[0]!.metadata).toMatchObject({
+      version: "v1",
+      modules: stages.reduce((sum, stage) => sum + stage.moduleIds.length, 0),
+    });
     const published = await json<{
       status: string;
       version: string;
@@ -529,6 +535,9 @@ describe("People Ops", () => {
       ),
     );
     expect(v2).toMatchObject({ version: "v2", status: "draft", publishedVersion: "v1" });
+    // Editing a published template starts the next version, and the trail says which.
+    const drafts = audits("onboarding.template.draft").map((entry) => entry.metadata ?? {});
+    expect(drafts.map((entry) => entry.version)).toEqual(["v1", "v2"]);
     const republished = await json<{ history: Array<{ version: string }> }>(
       await t.app.request(
         `/api/v1/people-ops/templates/${created.id}/publish`,
