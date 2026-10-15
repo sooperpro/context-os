@@ -32,6 +32,7 @@ import { Shape } from "@/components/ui/shape";
 import { StatusChip } from "@/components/ui/status-chip";
 import { meQuery } from "@/features/account/api/account.queries";
 import { LEARNING_ENDPOINTS as E } from "@/features/learning/api/learning.api";
+import { useViewer } from "@/features/workspace/hooks/use-viewer";
 import { myLearningQuery, useAddCourse } from "@/features/learning/api/learning.queries";
 import { modulePath } from "@/features/learning/learning-meta";
 import { comingSoon } from "@/lib/coming-soon";
@@ -47,11 +48,17 @@ const KIND_ICON: Record<MyLearning["assigned"][number]["kind"], MaterialIcon> = 
 
 /** My learning (prototype `myLearningPage`): for people past onboarding. */
 export function MyLearningPage() {
+  // Managers and People Ops share this page; the wording follows who is looking.
+  const peopleOps = useViewer().persona === "people_ops";
   useBotContext(
     {
       chips: [{ icon: RouteIcon, label: "My learning" }],
-      suggestions: ["Which topics is my team struggling with?"],
-      intro: "I can suggest courses based on what your team is learning.",
+      suggestions: [
+        peopleOps ? "What should I learn next?" : "Which topics is my team struggling with?",
+      ],
+      intro: peopleOps
+        ? "I can suggest courses and tutorials that fit your role."
+        : "I can suggest courses based on what your team is learning.",
     },
     "my-learning",
   );
@@ -70,11 +77,17 @@ export function MyLearningPage() {
       <PageHeader
         kicker={me.data?.name}
         title="My learning"
-        description={`${finished ? `You finished onboarding in ${finished}. ` : ""}Here’s what’s assigned to you now, and what might help your team.`}
+        description={`${finished ? `You finished onboarding in ${finished}. ` : ""}Here’s what’s assigned to you now, and what might help ${peopleOps ? "you" : "your team"}.`}
         actions={
-          <Button variant="outline" nativeButton={false} render={<Link to="/team" />}>
-            <Diversity3Icon aria-hidden /> Your team’s onboarding
-          </Button>
+          peopleOps ? (
+            <Button variant="outline" nativeButton={false} render={<Link to="/onboarding" />}>
+              <Diversity3Icon aria-hidden /> Everyone onboarding
+            </Button>
+          ) : (
+            <Button variant="outline" nativeButton={false} render={<Link to="/team" />}>
+              <Diversity3Icon aria-hidden /> Your team’s onboarding
+            </Button>
+          )
         }
       />
       <PageColumns>
@@ -157,7 +170,7 @@ export function MyLearningPage() {
             endpoint={E.myLearning.path}
             action={
               <StatusChip tone="ai" icon={<SmartToyIcon />}>
-                From your team’s activity
+                {peopleOps ? "From published courses" : "From your team’s activity"}
               </StatusChip>
             }
           >

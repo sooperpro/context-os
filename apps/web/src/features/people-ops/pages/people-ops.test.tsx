@@ -118,6 +118,76 @@ describe("Onboarding records", () => {
     expect(await screen.findByText("Ready")).toBeInTheDocument();
   });
 
+  it("messages the new hire and their manager from the record", async () => {
+    const posted: unknown[] = [];
+    const user = userEvent.setup();
+    renderAt("/onboarding/p-jonah");
+    mockServer.use(
+      http.post(buildApiUrl("/v1/people-ops/onboardings/:id/message"), async ({ request }) => {
+        posted.push(await request.json());
+        return HttpResponse.json({ delivered: [], skipped: [] });
+      }),
+    );
+
+    await screen.findByRole("heading", { level: 1, name: "Jonah Kim" });
+    await user.click(screen.getByRole("button", { name: "Message" }));
+    const dialog = await screen.findByRole("dialog", { name: "Message about Jonah’s onboarding" });
+    // The new hire is picked to start with; nobody is assigned as a buddy yet.
+    expect(within(dialog).getByRole("checkbox", { name: /Jonah Kim/ })).toBeChecked();
+    expect(within(dialog).getByRole("checkbox", { name: /Onboarding buddy/ })).toBeDisabled();
+    const send = within(dialog).getByRole("button", { name: "Send message" });
+    expect(send).toBeDisabled();
+
+    await user.click(within(dialog).getByRole("checkbox", { name: /Daniel Reyes/ }));
+    await user.type(
+      within(dialog).getByRole("textbox", { name: "Message" }),
+      "Laptop ships Friday.",
+    );
+    expect(send).toBeEnabled();
+    await user.click(send);
+    await waitFor(() =>
+      expect(posted).toEqual([{ to: ["person", "manager"], message: "Laptop ships Friday." }]),
+    );
+    // Nobody got it, so the dialog stays open for another try.
+    expect(screen.getByRole("dialog", { name: "Message about Jonah’s onboarding" })).toBeVisible();
+  });
+
+  it("explains why the New onboarding form is empty when the server refuses it", async () => {
+    let refused = true;
+    const user = userEvent.setup();
+    renderAt("/onboarding");
+    mockServer.use(
+      http.get(buildApiUrl("/v1/people-ops/onboarding-options"), () =>
+        refused
+          ? HttpResponse.json(
+              { error: { code: "FORBIDDEN", message: "This operation is not permitted" } },
+              { status: 403 },
+            )
+          : HttpResponse.json({
+              teams: ["Platform"],
+              managers: [{ id: "u1", name: "Daniel Reyes", title: null }],
+              buddies: [],
+              peoplePartners: [],
+              templates: [],
+            }),
+      ),
+    );
+
+    await user.click(await screen.findByRole("button", { name: "New onboarding" }));
+    const dialog = await screen.findByRole("dialog", { name: "New onboarding" });
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Only people with the HR role can start an onboarding.",
+    );
+    expect(within(dialog).queryByRole("textbox", { name: "Full name" })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Create onboarding" })).toBeDisabled();
+
+    // Once the server allows it, trying again shows the form.
+    refused = false;
+    await user.click(within(dialog).getByRole("button", { name: "Try again" }));
+    expect(await within(dialog).findByRole("textbox", { name: "Full name" })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("starts a new onboarding and opens its record", async () => {
     const user = userEvent.setup();
     renderAt("/onboarding");
@@ -135,6 +205,11 @@ describe("Onboarding records", () => {
       await screen.findByRole("heading", { level: 1, name: "Noor Hassan" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Assignments" })).toHaveTextContent("Daniel Reyes");
+
+    // The account step is nobody's to tick: it finishes when they sign in. The others can be.
+    const setup = screen.getByRole("region", { name: "Setup" });
+    expect(within(setup).getByText("Done when they sign in")).toBeInTheDocument();
+    expect(within(setup).getAllByRole("button", { name: "Mark done" })).toHaveLength(2);
   });
 });
 
@@ -239,6 +314,102 @@ describe("Templates", () => {
     const history = await screen.findByRole("region", { name: "Version history" });
     expect(await within(history).findByText("CRM before pricing")).toBeInTheDocument();
     expect(history).toHaveTextContent(/^Version historyv3/);
+
+    // The version just published can be opened as it was, and so can the one before it; the
+    // oldest had no copy kept.
+    expect(within(history).getAllByRole("button")).toHaveLength(2);
+    expect(history).toHaveTextContent("Older ones weren’t saved");
+    await user.click(within(history).getByRole("button", { name: /Open v3/ }));
+    const version = await screen.findByRole("dialog", {
+      name: "Sales · Account executive · Version 3",
+    });
+    expect(await within(version).findByText(/CRM before pricing/)).toBeInTheDocument();
+    expect(version).toHaveTextContent("Pricing and packaging 2026");
+    expect(within(version).queryByRole("button", { name: "Save draft" })).not.toBeInTheDocument();
+  });
+
+  it("archives a template after asking, then restores it from the banner", async () => {
+    const user = userEvent.setup();
+    renderAt("/templates/tpl-support");
+
+    await screen.findByRole("heading", { level: 1, name: "Support · Specialist" });
+    await user.click(screen.getByRole("button", { name: "More actions for this template" }));
+    // It's in use, so it can be archived but not deleted.
+    expect(screen.queryByRole("menuitem", { name: /Delete template/ })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole("menuitem", { name: /Archive template/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Archive Support · Specialist?" });
+    expect(dialog).toHaveTextContent("keeps their roadmap");
+    await user.click(within(dialog).getByRole("button", { name: "Archive template" }));
+
+    const banner = await screen.findByRole("status");
+    expect(banner).toHaveTextContent("This template is archived");
+    expect(screen.getByRole("button", { name: "Save draft" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Publish/ })).toBeDisabled();
+
+    await user.click(within(banner).getByRole("button", { name: "Restore" }));
+    await waitFor(() =>
+      expect(screen.queryByText("This template is archived")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("deletes a template nobody used, after a confirmation, and returns to the list", async () => {
+    let deleted = false;
+    const user = userEvent.setup();
+    renderAt("/templates");
+    mockServer.use(
+      http.delete(buildApiUrl("/v1/people-ops/templates/:id"), () => {
+        deleted = true;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    // A fresh draft has no onboardings on it, so it can be deleted.
+    // The button is off until the list has loaded.
+    const newTemplate = await screen.findByRole("button", { name: "New template" });
+    await waitFor(() => expect(newTemplate).toBeEnabled());
+    await user.click(newTemplate);
+    const creating = await screen.findByRole("dialog", { name: "New template" });
+    await user.type(within(creating).getByRole("textbox", { name: "Name" }), "Scratch template");
+    await user.click(within(creating).getByRole("button", { name: /^Create/ }));
+    await screen.findByRole("heading", { level: 1, name: "Scratch template" });
+
+    await user.click(screen.getByRole("button", { name: "More actions for this template" }));
+    await user.click(await screen.findByRole("menuitem", { name: /Delete template/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Delete Scratch template?" });
+    expect(dialog).toHaveTextContent("can’t be undone");
+    await user.click(within(dialog).getByRole("button", { name: "Delete template" }));
+    await waitFor(() => expect(deleted).toBe(true));
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Onboarding templates" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows archived templates on the list only when asked", async () => {
+    const user = userEvent.setup();
+    renderAt("/templates/tpl-manager");
+    await screen.findByRole("heading", { level: 1, name: "People manager onboarding" });
+    await user.click(screen.getByRole("button", { name: "More actions for this template" }));
+    await user.click(await screen.findByRole("menuitem", { name: /Archive template/ }));
+    await user.click(
+      within(await screen.findByRole("dialog")).getByRole("button", { name: "Archive template" }),
+    );
+    await screen.findByText("This template is archived");
+
+    await user.click(screen.getByRole("link", { name: "Templates" }));
+    const list = await screen.findByRole("list", { name: "Templates" });
+    expect(within(list).getAllByRole("link")).toHaveLength(6);
+    expect(within(list).queryByText("Archived")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "Show archived" }));
+    // The list reloads with the archived ones in it.
+    await waitFor(async () =>
+      expect(
+        within(await screen.findByRole("list", { name: "Templates" })).getAllByRole("link"),
+      ).toHaveLength(7),
+    );
+    expect(
+      within(screen.getByRole("list", { name: "Templates" })).getByText("Archived"),
+    ).toBeInTheDocument();
   });
 
   it("adds a module from the library", async () => {

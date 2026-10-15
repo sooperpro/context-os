@@ -47,7 +47,7 @@ export const DAY = 86_400_000;
 const INVITATION_DAYS = 14;
 
 export const SETUP: Array<{ id: SetupStepId; label: string }> = [
-  { id: "account", label: "Google Workspace account (SCIM)" },
+  { id: "account", label: "Account active (they have signed in)" },
   { id: "laptop", label: "Laptop delivered" },
   { id: "roadmap", label: "Onboarding roadmap assigned" },
   { id: "buddy", label: "Onboarding buddy assigned" },
@@ -118,8 +118,19 @@ export interface TemplateData {
   weeks: number;
   passMark: number;
   stages: TemplateStage[];
-  history: Array<{ version: number; on: string; note: string }>;
+  history: Array<{ version: number; on: string; note: string; snapshot?: TemplateSnapshot }>;
   updatedBy: string;
+  /** When People Ops archived it: hidden from new onboardings, kept for the people already on it. */
+  archivedAt?: string | null;
+}
+/** What a version looked like when it was published, so an old version can still be opened. */
+export interface TemplateSnapshot {
+  name: string;
+  roles: string[];
+  teams: string[];
+  weeks: number;
+  passMark: number;
+  stages: TemplateStage[];
 }
 
 /* ---- Built-in module catalog and starter templates ------------------------------------------ */
@@ -351,6 +362,10 @@ export function createOnboardingRecords(container: Container) {
     );
   };
   const templateData = (row: PlatformRecord) => row.data as unknown as TemplateData;
+  const isArchived = (row: PlatformRecord) => Boolean(templateData(row).archivedAt);
+  /** Templates that can be offered for a new onboarding: published and not archived. */
+  const isAssignable = (row: PlatformRecord) =>
+    templateData(row).publishedVersion !== null && !isArchived(row);
   const findTemplate = (workspaceId: string, id: string | null) =>
     id ? store.find(workspaceId, TEMPLATE, id) : undefined;
 
@@ -397,6 +412,20 @@ export function createOnboardingRecords(container: Container) {
     store
       .listWhere(workspaceId, ONBOARDING, { status: "active" }, 1000)
       .filter((row) => row.data.templateId === templateId).length;
+  /** Every onboarding that was ever on the template, finished or not. */
+  const totalUses = (workspaceId: string, templateId: string) =>
+    store
+      .listWhere(workspaceId, ONBOARDING, {}, 5000)
+      .filter((row) => row.data.templateId === templateId).length;
+  /** Why a template can't be deleted, or null when it can. */
+  const deleteBlocker = (row: PlatformRecord): string | null => {
+    const uses = totalUses(row.workspaceId, row.id);
+    if (uses)
+      return `${uses} ${uses === 1 ? "onboarding uses" : "onboardings use"} this template. Archive it instead.`;
+    if (store.listWhere(row.workspaceId, TEMPLATE, {}, 500).length <= 1)
+      return "A workspace needs at least one template.";
+    return null;
+  };
 
   const templateRef = (workspaceId: string, id: string | null) => {
     const row = findTemplate(workspaceId, id);
@@ -416,6 +445,8 @@ export function createOnboardingRecords(container: Container) {
       status: data.status,
       publishedVersion: data.publishedVersion === null ? null : `v${data.publishedVersion}`,
       activeCount: activeCount(row.workspaceId, row.id),
+      archived: Boolean(data.archivedAt),
+      deletable: deleteBlocker(row) === null,
       roles: data.roles,
       teams: data.teams,
       weeks: data.weeks,
@@ -426,7 +457,11 @@ export function createOnboardingRecords(container: Container) {
         ...stage,
         modules: moduleIds.flatMap((id) => modules.get(id) ?? []),
       })),
-      history: data.history.map((entry) => ({ ...entry, version: `v${entry.version}` })),
+      history: data.history.map(({ snapshot, ...entry }) => ({
+        ...entry,
+        version: `v${entry.version}`,
+        saved: Boolean(snapshot),
+      })),
     };
   };
   const templateSummary = (row: PlatformRecord) => {
@@ -437,6 +472,7 @@ export function createOnboardingRecords(container: Container) {
       family: data.family,
       version: `v${data.version}`,
       activeCount: activeCount(row.workspaceId, row.id),
+      archived: Boolean(data.archivedAt),
       updatedAt: row.updatedAt.toISOString(),
       status: data.status,
       roles: data.roles,
@@ -444,6 +480,29 @@ export function createOnboardingRecords(container: Container) {
       stageCount: data.stages.length,
       moduleCount: data.stages.reduce((sum, stage) => sum + stage.moduleIds.length, 0),
       updatedBy: data.updatedBy,
+    };
+  };
+
+  /** One published version as it was when published, or null when no copy was kept (older versions). */
+  const templateVersion = (row: PlatformRecord, version: number) => {
+    const entry = templateData(row).history.find((item) => item.version === version);
+    if (!entry?.snapshot) return null;
+    const modules = catalog(row.workspaceId);
+    const { snapshot } = entry;
+    return {
+      id: row.id,
+      version: `v${entry.version}`,
+      publishedOn: entry.on,
+      note: entry.note,
+      name: snapshot.name,
+      roles: snapshot.roles,
+      teams: snapshot.teams,
+      weeks: snapshot.weeks,
+      passMark: snapshot.passMark,
+      stages: snapshot.stages.map(({ moduleIds, ...stage }) => ({
+        ...stage,
+        modules: moduleIds.flatMap((id) => modules.get(id) ?? []),
+      })),
     };
   };
 
@@ -1130,7 +1189,7 @@ export function createOnboardingRecords(container: Container) {
       buddies: members.filter((row) => row.role !== "guest").map((row) => ref(row.userId)),
       peoplePartners: members.filter((row) => row.role === "hr").map((row) => ref(row.userId)),
       templates: templateRows(actor)
-        .filter((row) => templateData(row).publishedVersion !== null)
+        .filter(isAssignable)
         .flatMap((row) => templateRef(actor.workspaceId, row.id) ?? []),
     };
   };
@@ -1140,6 +1199,8 @@ export function createOnboardingRecords(container: Container) {
     if (!row) throw new NotFoundError("Template");
     if (templateData(row).publishedVersion === null)
       throw new AppError(409, "CONFLICT", "Publish the template before assigning it");
+    if (isArchived(row))
+      throw new AppError(409, "CONFLICT", "This template is archived. Restore it to assign it");
     return row;
   };
 
@@ -1257,6 +1318,10 @@ export function createOnboardingRecords(container: Container) {
     requirePerson,
     teamName,
     templateRows,
+    isArchived,
+    isAssignable,
+    deleteBlocker,
+    templateVersion,
     templateData,
     findTemplate,
     pathModules,

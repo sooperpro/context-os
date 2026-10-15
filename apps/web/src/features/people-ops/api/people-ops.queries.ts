@@ -3,6 +3,8 @@ import type {
   NewTemplateInput,
   OnboardingAssignmentInput,
   OnboardingFilter,
+  OnboardingMessageInput,
+  PersonDetailsInput,
   ProbationDecisionInput,
   ProbationDiscussInput,
   ReminderInput,
@@ -12,23 +14,32 @@ import type {
 } from "@contextos/shared";
 import { keepPreviousData, queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { homeKeys } from "@/features/home/api/home.queries";
+import { membersKeys } from "@/features/members/api/members.queries";
+import { peopleKeys } from "@/features/people/api/people.queries";
 import {
+  archiveTemplate,
   completeSetupStep,
   createOnboarding,
   createTemplate,
   decideProbation,
+  deleteTemplate,
   discussProbation,
   fetchOnboarding,
   fetchOnboardingOptions,
   fetchOnboardings,
+  fetchPersonDetails,
   fetchPersonOnboarding,
   fetchProbation,
   fetchTemplate,
   fetchTemplateLibrary,
+  fetchTemplateVersion,
+  messageOnboarding,
   publishTemplate,
   remindManagers,
+  restoreTemplate,
   saveTemplateDraft,
   updateOnboarding,
+  updatePersonDetails,
 } from "./people-ops.api";
 import { ApiClientError } from "@/lib/api-client";
 
@@ -40,8 +51,11 @@ export const peopleOpsKeys = {
   options: () => [...peopleOpsKeys.all, "options"] as const,
   probation: (id: string) => [...peopleOpsKeys.all, "probation", id] as const,
   template: (id: string) => [...peopleOpsKeys.all, "template", id] as const,
+  templateVersion: (id: string, version: number) =>
+    [...peopleOpsKeys.all, "template", id, "version", version] as const,
   library: () => [...peopleOpsKeys.all, "library"] as const,
   person: (userId: string) => [...peopleOpsKeys.all, "person", userId] as const,
+  details: (userId: string) => [...peopleOpsKeys.all, "details", userId] as const,
 };
 
 export const onboardingsQuery = (q: string, team: string, filter: OnboardingFilter) =>
@@ -87,6 +101,21 @@ export const templateQuery = (id: string) =>
     queryFn: ({ signal }) => fetchTemplate(id, signal),
   });
 
+/** One published version as it was published; fetched only when someone opens it. */
+export const templateVersionQuery = (id: string, version: number) =>
+  queryOptions({
+    queryKey: peopleOpsKeys.templateVersion(id, version),
+    queryFn: ({ signal }) => fetchTemplateVersion(id, version, signal),
+    staleTime: Infinity,
+  });
+
+/** A person's job title, department, team and manager, for People Ops to change. */
+export const personDetailsQuery = (userId: string) =>
+  queryOptions({
+    queryKey: peopleOpsKeys.details(userId),
+    queryFn: ({ signal }) => fetchPersonDetails(userId, signal),
+  });
+
 export const templateLibraryQuery = () =>
   queryOptions({
     queryKey: peopleOpsKeys.library(),
@@ -109,6 +138,13 @@ export function useUpdateOnboarding(id: string) {
   return useMutation({
     mutationFn: (input: OnboardingAssignmentInput) => updateOnboarding(id, input),
     onSuccess: () => refresh(),
+  });
+}
+
+/** A note from People Ops to the new hire, manager or buddy. Nothing on the record changes. */
+export function useMessageOnboarding(id: string) {
+  return useMutation({
+    mutationFn: (input: OnboardingMessageInput) => messageOnboarding(id, input),
   });
 }
 
@@ -162,6 +198,37 @@ export function usePublishTemplate(id: string) {
     mutationFn: (input: TemplatePublishInput) => publishTemplate(id, input),
     onSuccess: () => refresh(),
   });
+}
+
+/** Saves new job details; the profile, directory, members list and onboarding records reload. */
+export function useUpdatePersonDetails(userId: string) {
+  const refresh = useRefresh();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: PersonDetailsInput) => updatePersonDetails(userId, input),
+    onSuccess: async () => {
+      await Promise.all([
+        refresh(),
+        queryClient.invalidateQueries({ queryKey: peopleKeys.all }),
+        queryClient.invalidateQueries({ queryKey: membersKeys.all() }),
+      ]);
+    },
+  });
+}
+
+export function useArchiveTemplate(id: string) {
+  const refresh = useRefresh();
+  return useMutation({ mutationFn: () => archiveTemplate(id), onSuccess: () => refresh() });
+}
+
+export function useRestoreTemplate(id: string) {
+  const refresh = useRefresh();
+  return useMutation({ mutationFn: () => restoreTemplate(id), onSuccess: () => refresh() });
+}
+
+export function useDeleteTemplate(id: string) {
+  const refresh = useRefresh();
+  return useMutation({ mutationFn: () => deleteTemplate(id), onSuccess: () => refresh() });
 }
 
 export function useCreateTemplate() {

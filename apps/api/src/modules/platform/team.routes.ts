@@ -654,9 +654,7 @@ export function createTeamRoutes(container: Container) {
           ? member.organization.jobTitle.toLowerCase()
           : "";
       const options = records.options(actor);
-      const published = records
-        .templateRows(actor)
-        .filter((template) => records.templateData(template).publishedVersion !== null);
+      const published = records.templateRows(actor).filter(records.isAssignable);
       const sameTeam = records
         .activeMembers(actor.workspaceId)
         .filter(

@@ -72,6 +72,7 @@ export const InvitationSchema = z
     email: z.email(),
     role: z.enum(["admin", "manager", "hr", "member", "guest"]).default("member"),
     name: z.string().trim().max(200).optional(),
+    jobTitle: z.string().trim().max(200).optional(),
     departmentId: IdSchema.optional(),
     teamId: IdSchema.optional(),
     managerId: z.string().min(1).max(200).optional(),
@@ -403,13 +404,33 @@ export type WorkspaceSetup = z.infer<typeof WorkspaceSetupSchema>;
 export const InviteRoleSchema = z.enum(["admin", "manager", "hr", "member", "guest"]);
 /** `InviteInputSchema` (above) is the API's body: one invitation or a bulk list. */
 export type InviteInput = z.infer<typeof InviteInputSchema>;
-/** The web app's single-invite form: an email and a role, a valid `InvitationSchema` body. */
+/** An optional form field: blank ("" from an empty input or an unset select) is sent as absent. */
+const optionalField = <T extends z.ZodType<string>>(schema: T) =>
+  z
+    .union([z.literal(""), schema])
+    .optional()
+    .transform((value) => (value === "" ? undefined : value));
+/**
+ * The web app's single-invite form, a valid `InvitationSchema` body: an email and a role, plus the
+ * profile and placement that apply when they first sign in.
+ */
 export const InviteFormSchema = z
   .object({
     email: z.email("Enter a work email address."),
     role: InviteRoleSchema.default("member"),
+    name: optionalField(z.string().trim().max(200)),
+    jobTitle: optionalField(z.string().trim().max(200)),
+    departmentId: optionalField(IdSchema),
+    teamId: optionalField(IdSchema),
+    managerId: optionalField(z.string().min(1).max(200)),
+    startDate: optionalField(IsoDateSchema),
+    isNewHire: z.boolean().default(false),
   })
-  .strict();
+  .strict()
+  .refine((form) => !form.isNewHire || form.startDate, {
+    path: ["startDate"],
+    message: "Add a start date for a new hire.",
+  });
 export type InviteForm = z.infer<typeof InviteFormSchema>;
 /** A single invite's result. `status` is "pending", or "already_member" (then `id` is null). */
 export const InviteResultSchema = z.object({

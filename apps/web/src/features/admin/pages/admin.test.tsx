@@ -582,4 +582,56 @@ describe("Audit log", () => {
     await user.type(screen.getByRole("searchbox", { name: "Search the audit log" }), "elena");
     expect(await within(events).findByText("No events match these filters.")).toBeInTheDocument();
   });
+
+  it("shows HR the People Ops trail with its own wording and no area filters", async () => {
+    mockServer.use(
+      http.get(buildApiUrl("/v1/workspaces/current"), () =>
+        HttpResponse.json({
+          id: "ws",
+          name: "Tessellate",
+          role: "hr",
+          authentication: "development",
+        }),
+      ),
+      http.get(buildApiUrl("/v1/audit"), () =>
+        HttpResponse.json({
+          items: [
+            {
+              id: "h1",
+              projectId: null,
+              actorId: "u4",
+              actorName: "Elena Brooks",
+              action: "probation.decision",
+              targetType: "onboarding_record",
+              targetId: "r1",
+              metadata: { outcome: "confirmed" },
+              createdAt: new Date(Date.now() - 3_600_000).toISOString(),
+            },
+            {
+              id: "h2",
+              projectId: null,
+              actorId: "u4",
+              actorName: "Elena Brooks",
+              action: "onboarding.template.publish",
+              targetType: "onboarding_template",
+              targetId: "t1",
+              metadata: { version: "v2", note: "New security module" },
+              createdAt: new Date(Date.now() - 2 * 3_600_000).toISOString(),
+            },
+          ],
+        }),
+      ),
+    );
+    renderAt("/audit");
+
+    const events = await screen.findByRole("region", { name: /Events/ });
+    expect(
+      await within(events).findByRole("button", { name: /Recorded an employment decision/ }),
+    ).toBeInTheDocument();
+    expect(
+      within(events).getByRole("button", { name: /Published an onboarding template/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Every onboarding, probation and template change/)).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Filter by category" })).not.toBeInTheDocument();
+  });
 });

@@ -181,6 +181,14 @@ export function createPlatformStore(db: Db) {
       if (!updated) throw new AppError(409, "CONFLICT", "The resource changed; reload and retry");
       return updated;
     },
+    /** Permanently removes a record. Callers decide when that is allowed. */
+    remove(row: PlatformRecord) {
+      db.delete(platformRecords)
+        .where(
+          and(eq(platformRecords.workspaceId, row.workspaceId), eq(platformRecords.id, row.id)),
+        )
+        .run();
+    },
     /** System update using the row's current version (background sweeps, side effects). */
     patch(row: PlatformRecord, patch: { data?: Record<string, unknown>; status?: string }) {
       return this.updateVersioned(row.workspaceId, row, row.version, patch);

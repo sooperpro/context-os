@@ -60,6 +60,137 @@ describe("People Ops", () => {
     expect((await t.app.request("/api/v1/people-ops/overview")).status).toBe(200);
   });
 
+  it("lets HR read the People Ops audit trail only, and nobody below admin read it at all", async () => {
+    t = createTestApp();
+    const owner = { ...t.container.devActor };
+    member("hr1", "hr");
+    member("dana", "manager");
+    member("member1", "member");
+    // An admin's change (a role or workspace event) is not the People Ops trail.
+    expect(
+      (await t.app.request("/api/v1/org/departments", jsonRequest({ name: "Ops" }))).status,
+    ).toBe(201);
+    as("hr1", "hr");
+    const created = await t.app.request(
+      "/api/v1/people-ops/onboardings",
+      jsonRequest({
+        name: "Maya Chen",
+        title: "Backend engineer",
+        email: "maya@example.com",
+        team: "Platform",
+        startDate: dayFromToday(10),
+        managerId: "dana",
+        buddyId: null,
+        templateId: null,
+      }),
+    );
+    expect(created.status).toBe(201);
+
+    const trail = async (query = "") =>
+      json<{ items: Array<{ action: string }> }>(await t.app.request(`/api/v1/audit${query}`));
+    expect((await trail()).items.map((entry) => entry.action)).toEqual([
+      "onboarding.record.create",
+    ]);
+    // Filters narrow the trail but can't widen it past the People Ops events.
+    expect((await trail("?action=department.create")).items).toEqual([]);
+    expect((await trail("?targetType=onboarding_record")).items).toHaveLength(1);
+    const csv = await t.app.request("/api/v1/audit?format=csv");
+    expect(csv.status).toBe(200);
+    const csvText = await csv.text();
+    expect(csvText).toContain("onboarding.record.create");
+    expect(csvText).not.toContain("department.create");
+
+    as("dana", "manager");
+    expect((await t.app.request("/api/v1/audit")).status).toBe(403);
+    as("member1", "member");
+    expect((await t.app.request("/api/v1/audit")).status).toBe(403);
+    // Admins still see everything.
+    Object.assign(t.container.devActor, owner);
+    const all = (await trail()).items.map((entry) => entry.action);
+    expect(all).toEqual(expect.arrayContaining(["onboarding.record.create", "department.create"]));
+  });
+
+  it("lets HR message the new hire, manager and buddy of a record, and says who didn't get it", async () => {
+    t = createTestApp();
+    member("hr1", "hr");
+    member("dana", "manager");
+    member("buddy1");
+    member("member1", "member");
+    member("maya", "member", undefined, "maya@example.com");
+    as("hr1", "hr");
+    const create = async (body: Record<string, unknown>) =>
+      json<{ id: string }>(
+        await t.app.request(
+          "/api/v1/people-ops/onboardings",
+          jsonRequest({
+            name: "Maya Chen",
+            title: "Backend engineer",
+            team: "Platform",
+            startDate: dayFromToday(10),
+            managerId: "dana",
+            buddyId: null,
+            templateId: null,
+            ...body,
+          }),
+        ),
+      );
+    const send = (id: string, body: unknown) =>
+      t.app.request(`/api/v1/people-ops/onboardings/${id}/message`, jsonRequest(body));
+    const inbox = (userId: string) =>
+      t.container.db
+        .select()
+        .from(platformRecords)
+        .where(and(eq(platformRecords.kind, "notification"), eq(platformRecords.ownerId, userId)))
+        .all()
+        .filter((row) => row.data.type === "onboarding.message")
+        .map((row) => row.data);
+
+    // Not signed in yet (no account), and no buddy: only the manager can get it.
+    const waiting = await create({ email: "new.hire@example.com" });
+    const partial = await send(waiting.id, {
+      to: ["person", "manager", "buddy"],
+      message: "  Your laptop ships Friday.  ",
+    });
+    expect(partial.status).toBe(200);
+    expect(await json<{ delivered: Array<{ id: string }>; skipped: unknown[] }>(partial)).toEqual({
+      delivered: [expect.objectContaining({ id: "dana" })],
+      skipped: [
+        { name: "Maya Chen", reason: "Hasn't signed in yet" },
+        { name: "The buddy", reason: "No buddy is assigned" },
+      ],
+    });
+    expect(inbox("dana")).toEqual([
+      expect.objectContaining({
+        category: "onboarding",
+        title: "hr1 sent you a message about Maya Chen",
+        body: "Your laptop ships Friday.",
+        link: "/team",
+      }),
+    ]);
+
+    // Someone with an account gets it too.
+    const linked = await create({ email: "maya@example.com", buddyId: "buddy1" });
+    const all = await json<{ delivered: Array<{ id: string }>; skipped: unknown[] }>(
+      await send(linked.id, { to: ["person", "manager", "buddy"], message: "Welcome!" }),
+    );
+    expect(all.delivered.map((entry) => entry.id).sort()).toEqual(["buddy1", "dana", "maya"]);
+    expect(all.skipped).toEqual([]);
+    expect(inbox("maya")).toEqual([
+      expect.objectContaining({ title: "hr1 sent you a message", body: "Welcome!", link: "/" }),
+    ]);
+    expect(inbox("buddy1")[0]).toMatchObject({ link: "/people" });
+
+    // Bad requests, and nobody but HR may send.
+    expect((await send(linked.id, { to: [], message: "Hi" })).status).toBe(400);
+    expect((await send(linked.id, { to: ["person"], message: "   " })).status).toBe(400);
+    expect((await send(linked.id, { to: ["person"], message: "x".repeat(1001) })).status).toBe(400);
+    expect((await send("missing", { to: ["person"], message: "Hi" })).status).toBe(404);
+    as("dana", "manager");
+    expect((await send(linked.id, { to: ["person"], message: "Hi" })).status).toBe(403);
+    as("member1", "member");
+    expect((await send(linked.id, { to: ["person"], message: "Hi" })).status).toBe(403);
+  });
+
   it("creates a new hire's onboarding, invites them and tracks setup until they sign in", async () => {
     t = createTestApp();
     member("hr1", "hr");
@@ -152,6 +283,13 @@ describe("People Ops", () => {
       ),
     );
     expect(assigned).toMatchObject({ buddy: { id: "buddy" }, setup: { done: 2 } });
+    // Whether an account exists is not something to tick: it completes itself on sign-in.
+    const byHand = await t.app.request(
+      `/api/v1/people-ops/onboardings/${record.id}/setup/account`,
+      jsonRequest({}),
+    );
+    expect(byHand.status).toBe(409);
+    expect(JSON.stringify(await byHand.json())).toContain("completes by itself when they sign in");
     for (const step of ["laptop", "welcome", "calendar"])
       expect(
         (
@@ -377,6 +515,12 @@ describe("People Ops", () => {
     );
     expect(draft.roles).toEqual(["Platform engineer"]);
     expect(draft.stages[0]!.modules.at(-1)?.id).toBe("mod-incidents");
+    // Every saved draft is on the audit trail; the rejected save above is not.
+    expect(audits("onboarding.template.draft")).toHaveLength(1);
+    expect(audits("onboarding.template.draft")[0]!.metadata).toMatchObject({
+      version: "v1",
+      modules: stages.reduce((sum, stage) => sum + stage.moduleIds.length, 0),
+    });
     const published = await json<{
       status: string;
       version: string;
@@ -398,6 +542,9 @@ describe("People Ops", () => {
       ),
     );
     expect(v2).toMatchObject({ version: "v2", status: "draft", publishedVersion: "v1" });
+    // Editing a published template starts the next version, and the trail says which.
+    const drafts = audits("onboarding.template.draft").map((entry) => entry.metadata ?? {});
+    expect(drafts.map((entry) => entry.version)).toEqual(["v1", "v2"]);
     const republished = await json<{ history: Array<{ version: string }> }>(
       await t.app.request(
         `/api/v1/people-ops/templates/${created.id}/publish`,
@@ -406,5 +553,292 @@ describe("People Ops", () => {
     );
     expect(republished.history.map((entry) => entry.version)).toEqual(["v2", "v1"]);
     expect(audits("onboarding.template.publish")).toHaveLength(2);
+  });
+  it("archives, restores and deletes templates, and says why one can't be deleted", async () => {
+    t = createTestApp();
+    member("hr1", "hr");
+    member("dana", "manager");
+    as("hr1", "hr");
+    const base = "/api/v1/people-ops/templates";
+    type Summary = { id: string; archived: boolean };
+    const list = async (query = "") =>
+      (await json<{ items: Summary[] }>(await t.app.request(`${base}${query}`))).items;
+    const [used, spare] = await list();
+    const assignable = async () =>
+      (
+        await json<{ templates: Array<{ id: string }> }>(
+          await t.app.request("/api/v1/people-ops/onboarding-options"),
+        )
+      ).templates.map((entry) => entry.id);
+    const onboard = (templateId: string, name: string) =>
+      t.app.request(
+        "/api/v1/people-ops/onboardings",
+        jsonRequest({
+          name,
+          title: "Engineer",
+          team: "Platform",
+          startDate: dayFromToday(5),
+          managerId: "dana",
+          buddyId: null,
+          templateId,
+        }),
+      );
+    const record = await json<{ id: string }>(await onboard(used!.id, "Lee Park"));
+
+    // Archiving hides it from new onboardings but not from the people on it.
+    const archived = await t.app.request(`${base}/${used!.id}/archive`, jsonRequest({}));
+    expect(await json(archived)).toMatchObject({ archived: true, deletable: false });
+    expect(await list()).toHaveLength(5);
+    expect(await list("?archived=include")).toHaveLength(6);
+    expect((await list("?archived=include")).find((item) => item.id === used!.id)?.archived).toBe(
+      true,
+    );
+    expect(await assignable()).not.toContain(used!.id);
+    expect((await onboard(used!.id, "Kim Ode")).status).toBe(409);
+    expect(
+      await json(await t.app.request(`/api/v1/people-ops/onboardings/${record.id}`)),
+    ).toMatchObject({ template: { id: used!.id } });
+    expect(
+      (await t.app.request(`${base}/${used!.id}/draft`, jsonRequest({ stages: [] }))).status,
+    ).toBe(409);
+    expect(
+      (await t.app.request(`${base}/${used!.id}/publish`, jsonRequest({ stages: [], note: "" })))
+        .status,
+    ).toBe(409);
+    // A copy of an archived template starts live.
+    const copy = await json<{ archived: boolean }>(
+      await t.app.request(base, jsonRequest({ name: "Copy", baseId: used!.id })),
+    );
+    expect(copy.archived).toBe(false);
+
+    // A template people have used is archived, never deleted.
+    const refused = await t.app.request(`${base}/${used!.id}`, { method: "DELETE" });
+    expect(refused.status).toBe(409);
+    expect(JSON.stringify(await refused.json())).toContain("1 onboarding uses this template");
+
+    const restored = await t.app.request(`${base}/${used!.id}/restore`, jsonRequest({}));
+    expect(await json(restored)).toMatchObject({ archived: false });
+    expect(await assignable()).toContain(used!.id);
+
+    // One nobody used can be deleted for good.
+    expect((await t.app.request(`${base}/${spare!.id}`, { method: "DELETE" })).status).toBe(204);
+    expect((await t.app.request(`${base}/${spare!.id}`)).status).toBe(404);
+    expect(audits("onboarding.template.archive")).toHaveLength(1);
+    expect(audits("onboarding.template.restore")).toHaveLength(1);
+    expect(audits("onboarding.template.delete")).toHaveLength(1);
+
+    // Only HR.
+    as("dana", "manager");
+    for (const request of [
+      t.app.request(`${base}/${used!.id}/archive`, jsonRequest({})),
+      t.app.request(`${base}/${used!.id}/restore`, jsonRequest({})),
+      t.app.request(`${base}/${used!.id}`, { method: "DELETE" }),
+      t.app.request(`${base}/${used!.id}/versions/1`),
+    ])
+      expect((await request).status).toBe(403);
+  });
+
+  it("never deletes the last template, so the starter set does not come back", async () => {
+    t = createTestApp();
+    member("hr1", "hr");
+    as("hr1", "hr");
+    const base = "/api/v1/people-ops/templates";
+    const ids = (await json<{ items: Array<{ id: string }> }>(await t.app.request(base))).items.map(
+      (item) => item.id,
+    );
+    for (const id of ids.slice(0, -1))
+      expect((await t.app.request(`${base}/${id}`, { method: "DELETE" })).status).toBe(204);
+    const last = await t.app.request(`${base}/${ids.at(-1)}`, { method: "DELETE" });
+    expect(last.status).toBe(409);
+    expect(JSON.stringify(await last.json())).toContain("at least one template");
+    expect((await json<{ items: unknown[] }>(await t.app.request(base))).items).toHaveLength(1);
+  });
+
+  it("keeps a copy of each published version so an old one can be opened", async () => {
+    t = createTestApp();
+    member("hr1", "hr");
+    as("hr1", "hr");
+    const base = "/api/v1/people-ops/templates";
+    type Detail = {
+      id: string;
+      history: Array<{ version: string; saved: boolean }>;
+      stages: Array<{ id: string; modules: Array<{ id: string }> }>;
+    };
+    const [seeded, first] = (
+      await json<{ items: Array<{ id: string }> }>(await t.app.request(base))
+    ).items;
+    const created = await json<Detail>(
+      await t.app.request(base, jsonRequest({ name: "Platform engineer", baseId: first!.id })),
+    );
+    const stageId = created.stages[0]!.id;
+    const original = created.stages[0]!.modules.map((entry) => entry.id);
+    const withExtra = [...original, "mod-incidents"];
+
+    await t.app.request(
+      `${base}/${created.id}/publish`,
+      jsonRequest({ stages: [{ id: stageId, moduleIds: withExtra }], note: "First version" }),
+    );
+    // v2 drops the extra module again; v1's copy must not change.
+    await t.app.request(
+      `${base}/${created.id}/draft`,
+      jsonRequest({ stages: [{ id: stageId, moduleIds: original }] }),
+    );
+    const published = await json<Detail>(
+      await t.app.request(
+        `${base}/${created.id}/publish`,
+        jsonRequest({ stages: [{ id: stageId, moduleIds: original }], note: "Drop incidents" }),
+      ),
+    );
+    expect(published.history).toEqual([
+      expect.objectContaining({ version: "v2", saved: true }),
+      expect.objectContaining({ version: "v1", saved: true }),
+    ]);
+    // Work in progress on v3 does not touch what v1 and v2 were.
+    await t.app.request(
+      `${base}/${created.id}/draft`,
+      jsonRequest({ stages: [{ id: stageId, moduleIds: [] }] }),
+    );
+    const version = async (n: number | string) =>
+      t.app.request(`${base}/${created.id}/versions/${n}`);
+    const v1 = await json<{
+      version: string;
+      note: string;
+      publishedOn: string;
+      stages: Array<{ modules: Array<{ id: string }> }>;
+    }>(await version(1));
+    expect(v1).toMatchObject({ version: "v1", note: "First version" });
+    expect(v1.stages[0]!.modules.map((entry) => entry.id)).toEqual(withExtra);
+    const v2 = await json<{ stages: Array<{ modules: Array<{ id: string }> }> }>(await version(2));
+    expect(v2.stages[0]!.modules.map((entry) => entry.id)).toEqual(original);
+
+    // A version nobody saved a copy of, or that doesn't exist, can't be opened.
+    expect((await version(3)).status).toBe(404);
+    expect((await version("abc")).status).toBe(400);
+    const seededDetail = await json<Detail>(await t.app.request(`${base}/${seeded!.id}`));
+    expect(seededDetail.history[0]).toMatchObject({ version: "v1", saved: false });
+    expect((await t.app.request(`${base}/${seeded!.id}/versions/1`)).status).toBe(404);
+  });
+  it("lets HR change a person's job title, team and manager, and keeps their onboarding record in step", async () => {
+    t = createTestApp();
+    const owner = { ...t.container.devActor };
+    const org = async (path: string, body: unknown) =>
+      json<{ id: string }>(await t.app.request(`/api/v1/org/${path}`, jsonRequest(body)));
+    const engineering = await org("departments", { name: "Engineering" });
+    const finance = await org("departments", { name: "Finance" });
+    const billing = await org("teams", { name: "Billing", departmentId: engineering.id });
+    const payroll = await org("teams", { name: "Payroll", departmentId: finance.id });
+    member("hr1", "hr");
+    member("dana", "manager");
+    member("erin", "manager");
+    member("sam", "member", "dana", "sam@example.com");
+    as("hr1", "hr");
+    const path = "/api/v1/people-ops/people/sam/details";
+    type Details = {
+      jobTitle: string | null;
+      departmentId: string | null;
+      teamId: string | null;
+      manager: { id: string } | null;
+    };
+    const get = async () => json<Details>(await t.app.request(path));
+    const patch = (body: unknown) => t.app.request(path, jsonRequest(body, "PATCH"));
+
+    expect(await get()).toMatchObject({
+      jobTitle: null,
+      departmentId: null,
+      teamId: null,
+      manager: { id: "dana" },
+    });
+    // Picking a team puts them in its department.
+    expect(
+      await json(await patch({ jobTitle: "Staff Engineer", teamId: billing.id })),
+    ).toMatchObject({
+      jobTitle: "Staff Engineer",
+      departmentId: engineering.id,
+      teamId: billing.id,
+    });
+    // Moving the department drops a team that is not in it; the title stays.
+    expect(await json(await patch({ departmentId: finance.id }))).toMatchObject({
+      jobTitle: "Staff Engineer",
+      departmentId: finance.id,
+      teamId: null,
+    });
+    expect(await json(await patch({ teamId: payroll.id }))).toMatchObject({
+      departmentId: finance.id,
+      teamId: payroll.id,
+    });
+    // A team outside the chosen department, or a department that is not there, is refused.
+    expect((await patch({ departmentId: engineering.id, teamId: payroll.id })).status).toBe(400);
+    expect((await patch({ departmentId: "99999999-9999-4999-8999-999999999999" })).status).toBe(
+      400,
+    );
+    // Clearing the department clears the team with it; an empty title clears the title.
+    expect(await json(await patch({ departmentId: null, jobTitle: "" }))).toMatchObject({
+      jobTitle: null,
+      departmentId: null,
+      teamId: null,
+    });
+    expect((await patch({})).status).toBe(400);
+
+    // A new manager, but never themselves, HR, someone who isn't a member, or a reporting loop.
+    expect((await patch({ managerId: "sam" })).status).toBe(400);
+    expect((await patch({ managerId: "hr1" })).status).toBe(400);
+    expect((await patch({ managerId: "nobody" })).status).toBe(400);
+    member("loop", "member", "sam");
+    expect((await patch({ managerId: "loop" })).status).toBe(400);
+    expect(await json(await patch({ managerId: "erin" }))).toMatchObject({
+      manager: { id: "erin" },
+    });
+    const notified = (userId: string) =>
+      t.container.db
+        .select()
+        .from(platformRecords)
+        .where(and(eq(platformRecords.kind, "notification"), eq(platformRecords.ownerId, userId)))
+        .all()
+        .map((row) => row.data.title);
+    expect(notified("erin")).toContain("Sam Person is now on your team");
+    expect(notified("sam")).toContain("Your manager is now Erin Person");
+
+    // Their onboarding record follows: same title, team and manager.
+    const record = await json<{ id: string }>(
+      await t.app.request(
+        "/api/v1/people-ops/onboardings",
+        jsonRequest({
+          name: "Sam Person",
+          title: "Engineer",
+          email: "sam@example.com",
+          team: "Platform",
+          startDate: dayFromToday(3),
+          managerId: "erin",
+          buddyId: null,
+          templateId: null,
+        }),
+      ),
+    );
+    await patch({ jobTitle: "Lead Engineer", teamId: payroll.id, managerId: "dana" });
+    expect(
+      await json(await t.app.request(`/api/v1/people-ops/onboardings/${record.id}`)),
+    ).toMatchObject({ team: "Payroll", manager: { id: "dana" } });
+
+    // Every change is on the audit trail, and HR can read it.
+    expect(audits("user.organization.update").length).toBeGreaterThanOrEqual(6);
+    const trail = await json<{ items: Array<{ action: string }> }>(
+      await t.app.request("/api/v1/audit"),
+    );
+    expect(trail.items.map((entry) => entry.action)).toContain("user.organization.update");
+
+    // Not their own, and only HR.
+    expect(
+      (
+        await t.app.request(
+          "/api/v1/people-ops/people/hr1/details",
+          jsonRequest({ jobTitle: "Head of People" }, "PATCH"),
+        )
+      ).status,
+    ).toBe(403);
+    as("dana", "manager");
+    expect((await t.app.request(path)).status).toBe(403);
+    expect((await patch({ jobTitle: "Nope" })).status).toBe(403);
+    Object.assign(t.container.devActor, owner);
+    expect((await t.app.request(path)).status).toBe(403);
   });
 });

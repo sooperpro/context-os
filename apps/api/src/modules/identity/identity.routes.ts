@@ -12,7 +12,7 @@ import {
   UserUpdateSchema,
 } from "@contextos/shared";
 import { zValidator } from "@hono/zod-validator";
-import { and, count, desc, eq, inArray, or } from "drizzle-orm";
+import { and, count, desc, eq, inArray, like, or } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Container } from "../../container.js";
@@ -20,6 +20,7 @@ import {
   assignments,
   auditLog,
   connectorConnections,
+  departments,
   domainEvents,
   identityLinks,
   memberships,
@@ -28,6 +29,7 @@ import {
   projects,
   sourceAccess,
   sourceObjects,
+  teams,
   users,
   workspaces,
 } from "../../db/schema.js";
@@ -428,9 +430,35 @@ export function createIdentityRoutes(container: Container) {
               "FORBIDDEN",
               "Managers can invite members into their own team only",
             );
-      const results: Array<Record<string, unknown>> = [];
+      // Check every row before sending any, so a bad row in a bulk list leaves nothing half-sent.
       for (const invitation of invitations) {
         if (invitation.managerId) identity.requireMember(actor.workspaceId, invitation.managerId);
+        if (invitation.departmentId) {
+          const department = db
+            .select({ id: departments.id })
+            .from(departments)
+            .where(
+              and(
+                eq(departments.workspaceId, actor.workspaceId),
+                eq(departments.id, invitation.departmentId),
+              ),
+            )
+            .get();
+          if (!department) throw new BadRequestError("That department does not exist");
+        }
+        if (invitation.teamId) {
+          const team = db
+            .select({ departmentId: teams.departmentId })
+            .from(teams)
+            .where(and(eq(teams.workspaceId, actor.workspaceId), eq(teams.id, invitation.teamId)))
+            .get();
+          if (!team) throw new BadRequestError("That team does not exist");
+          if (invitation.departmentId && team.departmentId !== invitation.departmentId)
+            throw new BadRequestError("That team is not in the chosen department");
+        }
+      }
+      const results: Array<Record<string, unknown>> = [];
+      for (const invitation of invitations) {
         const email = invitation.email.toLowerCase();
         const existingMember = db
           .select({ id: users.id })
@@ -690,14 +718,27 @@ export function createIdentityRoutes(container: Container) {
     })
     .get("/audit", zValidator("query", AuditQuerySchema, validationHook), (c) => {
       const actor = c.get("actor");
-      requireRole(actor, ...adminRoles);
+      requireRole(actor, ...adminRoles, "hr");
       const { limit, offset, action, actorId, targetType, from, to, format } = c.req.valid("query");
+      // HR sees the People Ops trail only (role access spec §3): onboarding and probation events,
+      // including template publishes and employment decisions. Role, access and connector changes
+      // stay with admins. The scope is part of the query, so no filter can widen it.
+      const hrScope =
+        actor.role === "hr"
+          ? or(
+              like(auditLog.action, "onboarding.%"),
+              like(auditLog.action, "probation.%"),
+              // Changes to people's job title, team or manager are People Ops work too.
+              eq(auditLog.action, "user.organization.update"),
+            )
+          : undefined;
       const rows = db
         .select()
         .from(auditLog)
         .where(
           and(
             eq(auditLog.workspaceId, actor.workspaceId),
+            hrScope,
             action ? eq(auditLog.action, action) : undefined,
             actorId ? eq(auditLog.actorId, actorId) : undefined,
             targetType ? eq(auditLog.targetType, targetType) : undefined,

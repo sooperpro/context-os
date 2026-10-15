@@ -342,6 +342,8 @@ export const OnboardingTemplateSchema = z.object({
   family: TemplateFamilySchema,
   version: z.string(),
   activeCount: Count,
+  /** Archived templates are hidden from new onboardings; only listed when asked for. */
+  archived: z.boolean(),
   updatedAt: IsoDateTimeSchema,
   status: z.enum(["published", "draft"]),
   roles: z.array(z.string()),

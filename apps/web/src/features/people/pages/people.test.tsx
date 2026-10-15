@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { Route, Routes } from "react-router";
@@ -73,7 +73,16 @@ function renderAt(route: string, viewerId = "p-maya") {
     http.get(buildApiUrl("/v1/users"), () =>
       HttpResponse.json({ total: members.length, items: members }),
     ),
-    http.get(buildApiUrl("/v1/users/me"), () => HttpResponse.json({ id: viewerId })),
+    http.get(buildApiUrl("/v1/users/me"), () =>
+      HttpResponse.json({
+        id: viewerId,
+        name: "Viewer",
+        email: null,
+        role: "member",
+        workspaceId: "ws",
+        preferences: {},
+      }),
+    ),
     http.get(buildApiUrl("/v1/org/teams"), () =>
       HttpResponse.json({
         items: [
@@ -215,5 +224,109 @@ describe("People", () => {
       await screen.findByRole("heading", { level: 1, name: "Maya Okafor" }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: /Onboarding/ })).not.toBeInTheDocument();
+  });
+  describe("editing details", () => {
+    const platform = "22222222-2222-4222-8222-222222222221";
+    const sales = "22222222-2222-4222-8222-222222222222";
+    const asHr = (saved: unknown[] = []) => {
+      const details = {
+        id: "p-sana",
+        name: "Sana Iqbal",
+        jobTitle: "Staff Engineer",
+        departmentId: "d1",
+        teamId: platform,
+        manager: { id: "p-daniel", name: "Daniel Reyes", title: null },
+      };
+      mockServer.use(
+        http.get(buildApiUrl("/v1/workspaces/current"), () =>
+          HttpResponse.json({
+            id: "ws",
+            name: "Tessellate",
+            role: "hr",
+            authentication: "development",
+          }),
+        ),
+        http.get(buildApiUrl("/v1/org/departments"), () =>
+          HttpResponse.json({
+            items: [
+              { id: "d1", name: "Engineering" },
+              { id: "d2", name: "Sales" },
+            ],
+          }),
+        ),
+        http.get(buildApiUrl("/v1/people-ops/people/:id/details"), () =>
+          HttpResponse.json(details),
+        ),
+        http.patch(buildApiUrl("/v1/people-ops/people/:id/details"), async ({ request }) => {
+          saved.push(await request.json());
+          return HttpResponse.json(details);
+        }),
+      );
+    };
+
+    it("lets People Ops change a person's job title, team and manager", async () => {
+      const saved: unknown[] = [];
+      const user = userEvent.setup();
+      asHr(saved);
+      renderAt("/people/p-sana", "p-hr");
+
+      await user.click(await screen.findByRole("button", { name: "Edit details" }));
+      const dialog = await screen.findByRole("dialog", { name: "Edit Sana’s details" });
+      const title = await within(dialog).findByRole("textbox", { name: "Job title" });
+      expect(title).toHaveValue("Staff Engineer");
+      const save = within(dialog).getByRole("button", { name: "Save changes" });
+      expect(save).toBeDisabled();
+
+      await user.clear(title);
+      await user.type(title, "Principal Engineer");
+      await waitFor(() =>
+        expect(within(dialog).getByRole("combobox", { name: "Team" })).toBeEnabled(),
+      );
+      // Moving department drops the old team; the team list then shows that department's teams.
+      await user.click(within(dialog).getByRole("combobox", { name: "Department" }));
+      await user.click(await screen.findByRole("option", { name: "Sales" }));
+      expect(within(dialog).getByRole("combobox", { name: "Team" })).toHaveTextContent("Not set");
+      await user.click(within(dialog).getByRole("combobox", { name: "Team" }));
+      await user.click(await screen.findByRole("option", { name: "Sales" }));
+      await user.click(within(dialog).getByRole("combobox", { name: "Reports to" }));
+      // Not the person themselves.
+      expect(screen.queryByRole("option", { name: "Sana Iqbal" })).not.toBeInTheDocument();
+      await user.click(await screen.findByRole("option", { name: "Marcus Cole" }));
+      expect(save).toBeEnabled();
+      await user.click(save);
+
+      // Only what changed is sent.
+      await waitFor(() =>
+        expect(saved).toEqual([
+          {
+            jobTitle: "Principal Engineer",
+            departmentId: "d2",
+            teamId: sales,
+            managerId: "p-marcus",
+          },
+        ]),
+      );
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    });
+
+    it("shows everyone who is not People Ops no Edit details button", async () => {
+      renderAt("/people/p-sana", "p-hr");
+      expect(
+        await screen.findByRole("heading", { level: 1, name: "Sana Iqbal" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Edit details" })).not.toBeInTheDocument();
+    });
+
+    it("does not offer People Ops their own profile to edit", async () => {
+      asHr();
+      renderAt("/people/p-sana", "p-sana");
+      expect(
+        await screen.findByRole("heading", { level: 1, name: "Sana Iqbal" }),
+      ).toBeInTheDocument();
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: "Message" })).toBeInTheDocument(),
+      );
+      expect(screen.queryByRole("button", { name: "Edit details" })).not.toBeInTheDocument();
+    });
   });
 });

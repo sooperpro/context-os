@@ -1,4 +1,4 @@
-import type { ContextItem, ProjectWithStats } from "@contextos/shared";
+import type { ContextItem, ProjectWithStats, SystemRole } from "@contextos/shared";
 import { useBotContext } from "@/components/layout/bot-context";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -49,6 +49,7 @@ import { itemPath } from "@/features/hub/hub-paths";
 import { savedQuery } from "@/features/knowledge/api/saved.queries";
 import { projectsQuery } from "@/features/projects/api/projects.queries";
 import { CreateProjectDialog } from "@/features/projects/components/create-project-dialog";
+import { useViewer } from "@/features/workspace/hooks/use-viewer";
 import { ProjectCard } from "@/features/projects/components/project-card";
 import { formatCount, formatDate } from "@/lib/format";
 import { KIND_LABEL } from "@/lib/labels";
@@ -80,11 +81,16 @@ type Entry =
 
 const projectPath = (project: ProjectWithStats) => `/projects/${project.id}`;
 
+/** Who may create a project: the same roles the API allows (`POST /projects`). */
+const PROJECT_CREATORS: readonly SystemRole[] = ["owner", "admin", "manager"];
+
 export function KnowledgeHubPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const category = categoryById(searchParams.get("cat"));
   const [query, setQuery] = useState(searchParams.get("q") ?? "");
   const [createOpen, setCreateOpen] = useState(false);
+  const { role } = useViewer();
+  const canCreate = role !== undefined && PROJECT_CREATORS.includes(role);
   const { openAssistant } = useAssistant();
   useBotContext(
     {
@@ -180,10 +186,12 @@ export function KnowledgeHubPage() {
         description="Everything your company knows, organized by what it's about. You only see what you have access to."
         actions={
           <>
-            <Button variant="outline" onClick={() => setCreateOpen(true)}>
-              <AddIcon aria-hidden />
-              New project
-            </Button>
+            {canCreate ? (
+              <Button variant="outline" onClick={() => setCreateOpen(true)}>
+                <AddIcon aria-hidden />
+                New project
+              </Button>
+            ) : null}
             <Button variant="ai-tonal" onClick={() => openAssistant()}>
               <SmartToyFilledIcon aria-hidden />
               Ask Context Bot
@@ -249,14 +257,18 @@ export function KnowledgeHubPage() {
             </EmptyMedia>
             <EmptyTitle>No knowledge yet</EmptyTitle>
             <EmptyDescription>
-              Create a project, then add the documents, threads and tickets that describe it.
+              {canCreate
+                ? "Create a project, then add the documents, threads and tickets that describe it. "
+                : "An admin or manager can create a project and add the documents, threads and tickets that describe it. "}
               Decisions, systems, people and terms appear here as they are extracted.
             </EmptyDescription>
           </EmptyHeader>
-          <Button onClick={() => setCreateOpen(true)}>
-            <AddIcon aria-hidden />
-            Create your first project
-          </Button>
+          {canCreate ? (
+            <Button onClick={() => setCreateOpen(true)}>
+              <AddIcon aria-hidden />
+              Create your first project
+            </Button>
+          ) : null}
         </Empty>
       ) : filtering ? (
         <ResultsView
