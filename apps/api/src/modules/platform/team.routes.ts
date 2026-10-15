@@ -35,7 +35,6 @@ import {
   type RoadmapData,
   type RoadmapModule,
 } from "./onboarding-roadmap.js";
-import { workspaceSettings } from "./settings.js";
 import type { PlatformRecord } from "./store.js";
 
 const DAY = 86_400_000;
@@ -98,21 +97,7 @@ export function createTeamRoutes(container: Container) {
 
   /* ---- Scope ----------------------------------------------------------------------------- */
 
-  const reportsOf = (actor: Actor): string[] => {
-    const members = records.activeMembers(actor.workspaceId);
-    const direct = members.filter((row) => row.managerId === actor.id).map((row) => row.userId);
-    if (!workspaceSettings(db, actor.workspaceId).includeIndirectReports) return direct;
-    const all = new Set(direct);
-    let frontier = direct;
-    while (frontier.length) {
-      const next = members
-        .filter((row) => row.managerId && frontier.includes(row.managerId) && !all.has(row.userId))
-        .map((row) => row.userId);
-      for (const id of next) all.add(id);
-      frontier = next;
-    }
-    return [...all];
-  };
+  const { reportsOf } = records;
   /** Team views are for people who manage someone (the manager role, or anyone with reports). */
   const requireManager = (actor: Actor) => {
     const reports = reportsOf(actor);
@@ -934,6 +919,9 @@ export function createTeamRoutes(container: Container) {
         neutral: 3,
       };
       const items: AttentionItem[] = [];
+      const emails = new Map(
+        records.activeMembers(actor.workspaceId).map((member) => [member.userId, member.email]),
+      );
       for (const row of teamRecords(actor)) {
         const state = look(row);
         const { view, person } = state;
@@ -951,6 +939,16 @@ export function createTeamRoutes(container: Container) {
             actions: [
               { kind: "escalate", label: "Escalate" },
               { kind: "review_progress", label: "Review" },
+              // No messaging in the app yet: Message opens an email draft.
+              ...(emails.get(person.id)
+                ? [
+                    {
+                      kind: "message" as const,
+                      label: `Message ${name}`,
+                      href: `mailto:${emails.get(person.id)}`,
+                    },
+                  ]
+                : []),
             ],
           });
         else if (status === "at_risk")

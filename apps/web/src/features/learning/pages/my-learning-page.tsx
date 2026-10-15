@@ -34,8 +34,7 @@ import { meQuery } from "@/features/account/api/account.queries";
 import { LEARNING_ENDPOINTS as E } from "@/features/learning/api/learning.api";
 import { useViewer } from "@/features/workspace/hooks/use-viewer";
 import { myLearningQuery, useAddCourse } from "@/features/learning/api/learning.queries";
-import { modulePath } from "@/features/learning/learning-meta";
-import { comingSoon } from "@/lib/coming-soon";
+import { coursePath, modulePath } from "@/features/learning/learning-meta";
 import { formatShortDate } from "@/lib/format";
 
 const KIND_ICON: Record<MyLearning["assigned"][number]["kind"], MaterialIcon> = {
@@ -154,7 +153,8 @@ export function MyLearningPage() {
                         <Button
                           size="xs"
                           variant={started ? "default" : "secondary"}
-                          onClick={() => comingSoon("Courses")}
+                          nativeButton={false}
+                          render={<Link to={coursePath(course.id)} />}
                         >
                           {started ? "Resume" : "Start"}
                         </Button>

@@ -7,7 +7,7 @@ import { createMailer, type Mailer } from "./lib/mailer.js";
 import { createAskRepository } from "./modules/ask/ask.repository.js";
 import { createAskService } from "./modules/ask/ask.service.js";
 import { createAuditService } from "./modules/audit/audit.service.js";
-import { createAuth } from "./modules/auth/auth.js";
+import { createAuth, publicOrigin } from "./modules/auth/auth.js";
 import { createConflictService } from "./modules/context/conflicts.js";
 import { createContextRepository } from "./modules/context/context.repository.js";
 import { createContextService } from "./modules/context/context.service.js";
@@ -138,7 +138,14 @@ export function createContainer({ env, db, gemini, logger, mailer: mailerDep }: 
     connectors,
     extractionSections: env.EXTRACTION_MAX_WINDOWS,
   });
-  const sweeps = createSweeps({ db, bounties, logger, queue });
+  const sweeps = createSweeps({
+    db,
+    bounties,
+    logger,
+    queue,
+    mailer,
+    appUrl: publicOrigin(env),
+  });
   const worker = createWorker({
     queue,
     handlers,

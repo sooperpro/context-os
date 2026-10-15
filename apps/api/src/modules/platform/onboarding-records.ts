@@ -302,7 +302,27 @@ export function createOnboardingRecords(container: Container) {
       .all()
       .filter((row) => row.userId !== "system");
 
-  const personRef = (workspaceId: string, userId: string | null): PersonRef | null => {
+  /**
+   * The manager's team: direct reports (`memberships.managerId`), or the whole reporting line when
+   * the workspace turns on indirect reports (role access spec decision 8). Every team view uses this.
+   */
+  const reportsOf = (actor: Actor): string[] => {
+    const members = activeMembers(actor.workspaceId);
+    const direct = members.filter((row) => row.managerId === actor.id).map((row) => row.userId);
+    if (!workspaceSettings(db, actor.workspaceId).includeIndirectReports) return direct;
+    const all = new Set(direct);
+    let frontier = direct;
+    while (frontier.length) {
+      const next = members
+        .filter((row) => row.managerId && frontier.includes(row.managerId) && !all.has(row.userId))
+        .map((row) => row.userId);
+      for (const id of next) all.add(id);
+      frontier = next;
+    }
+    return [...all];
+  };
+
+  const personRef =(workspaceId: string, userId: string | null): PersonRef | null => {
     if (!userId) return null;
     const user = db.select({ name: users.name }).from(users).where(eq(users.id, userId)).get();
     if (!user) return null;
@@ -1314,6 +1334,7 @@ export function createOnboardingRecords(container: Container) {
   return {
     store,
     activeMembers,
+    reportsOf,
     personRef,
     requirePerson,
     teamName,

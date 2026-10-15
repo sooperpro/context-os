@@ -39,6 +39,20 @@ const CheckinInput = z
     supportNeeded: z.string().trim().max(4000),
   })
   .strict();
+/** Check-in fields the person may see once it is shared with them. */
+const SHARED_CHECKIN_FIELDS = new Set([
+  "type",
+  "pulse",
+  "notes",
+  "nextSteps",
+  "wentWell",
+  "toImprove",
+  "supportNeeded",
+  "authorId",
+  "publishedAt",
+  "employeeResponse",
+  "respondedAt",
+]);
 const ResponseInput = z
   .object({ version: z.number().int().positive(), response: z.string().trim().min(1).max(4000) })
   .strict();
@@ -361,7 +375,10 @@ export function createOnboardingRoutes(container: Container) {
       (c) => {
         const actor = c.get("actor");
         const row = store.get(actor, "checkin", c.req.param("id"));
-        if (row.ownerId !== actor.id) throw new NotFoundError("Check-in");
+        // Only a check-in shared with the person can be answered (Spec §3: check-in notes are
+        // the manager's unless shared).
+        if (row.ownerId !== actor.id || row.status !== "published")
+          throw new NotFoundError("Check-in");
         const input = c.req.valid("json");
         const updated = store.update(actor, row, input.version, {
           data: {
@@ -376,7 +393,12 @@ export function createOnboardingRoutes(container: Container) {
           title: `${actor.name} responded to your check-in`,
           link: `/onboarding/checkins/${row.id}`,
         });
-        return c.json(updated);
+        // Echo only what the person was shown: ratings, blockers and the probation recommendation
+        // go to People Ops, never back to the person.
+        const data = Object.fromEntries(
+          Object.entries(updated.data).filter(([key]) => SHARED_CHECKIN_FIELDS.has(key)),
+        );
+        return c.json({ ...updated, data });
       },
     )
     .post(

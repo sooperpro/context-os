@@ -201,6 +201,8 @@ export const AttentionActionSchema = z.object({
     "start_recommendation",
   ]),
   label: z.string(),
+  /** For "message": a mailto link to the person's work email. */
+  href: z.string().optional(),
 });
 
 export const AttentionItemSchema = z.object({
