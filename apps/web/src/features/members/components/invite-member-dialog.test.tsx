@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
@@ -49,17 +49,26 @@ function inviteApi() {
 }
 
 describe("InviteMemberDialog", () => {
-  it("offers every invitable role, HR included", () => {
+  it("offers every invitable role in a dropdown, HR included, and says what each can do", async () => {
     inviteApi();
+    const user = userEvent.setup();
     renderWithProviders(<InviteMemberDialog open onOpenChange={vi.fn()} />);
-    const roles = within(screen.getByRole("group", { name: "Role" }));
-    expect(roles.getAllByRole("radio").map((radio) => (radio as HTMLInputElement).value)).toEqual([
-      "member",
-      "manager",
-      "hr",
-      "admin",
-      "guest",
+
+    const role = screen.getByRole("combobox", { name: "Role" });
+    expect(role).toHaveTextContent("Member");
+    expect(screen.getByText(/Reads the hub, asks questions/)).toBeInTheDocument();
+    await user.click(role);
+    const options = await screen.findAllByRole("option");
+    expect(options.map((option) => option.textContent)).toEqual([
+      "Member",
+      "Manager",
+      "HR",
+      "Admin",
+      "Guest",
     ]);
+    await user.click(screen.getByRole("option", { name: "HR" }));
+    expect(role).toHaveTextContent("HR");
+    expect(screen.getByText(/Also runs onboarding templates/)).toBeInTheDocument();
   });
 
   it("sends the role and details, leaving out what was not set", async () => {
@@ -70,7 +79,8 @@ describe("InviteMemberDialog", () => {
     await user.type(screen.getByLabelText("Work email"), "noor@tessellate.io");
     await user.type(screen.getByLabelText("Full name (optional)"), "Noor Hassan");
     await user.type(screen.getByLabelText("Job title (optional)"), "People Partner");
-    await user.click(screen.getByRole("radio", { name: /^HR/ }));
+    await user.click(screen.getByRole("combobox", { name: "Role" }));
+    await user.click(await screen.findByRole("option", { name: "HR" }));
     // Picking a team fills in its department.
     await waitFor(() => expect(screen.getByRole("combobox", { name: "Team" })).toBeEnabled());
     await user.click(screen.getByRole("combobox", { name: "Team" }));
@@ -110,7 +120,8 @@ describe("InviteMemberDialog", () => {
     expect(posted).toEqual([]);
 
     // Guests are never new hires: the switch goes away and resets.
-    await user.click(screen.getByRole("radio", { name: /^Guest/ }));
+    await user.click(screen.getByRole("combobox", { name: "Role" }));
+    await user.click(await screen.findByRole("option", { name: "Guest" }));
     expect(screen.queryByRole("switch", { name: /New hire/ })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Send invitation" }));
     await waitFor(() =>

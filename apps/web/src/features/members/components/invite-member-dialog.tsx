@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { OptionList, OptionTile } from "@/components/ui/option-tile";
 import {
   Select,
   SelectContent,
@@ -61,6 +60,8 @@ const ROLES: Array<{ value: InviteForm["role"]; title: string; description: stri
     description: "Limited to the projects they are explicitly added to",
   },
 ];
+
+const ROLE_ITEMS = Object.fromEntries(ROLES.map((option) => [option.value, option.title]));
 
 /** "Not set" in the optional selects; the form holds "" for it. */
 const NONE = "none";
@@ -178,32 +179,39 @@ function InviteMemberForm({ close }: { close: () => void }) {
             {...form.register("jobTitle")}
           />
         </div>
+        <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor={`${id}-role`}>Role</Label>
+          <Controller
+            control={form.control}
+            name="role"
+            render={({ field }) => (
+              <Select
+                items={ROLE_ITEMS}
+                value={field.value}
+                onValueChange={(next) => {
+                  field.onChange(next);
+                  // Guests are not onboarded as new hires.
+                  if (next === "guest") form.setValue("isNewHire", false);
+                }}
+              >
+                <SelectTrigger id={`${id}-role`} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ROLES.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+          <p className="text-xs text-on-surface-variant">
+            {ROLES.find((option) => option.value === role)?.description}
+          </p>
+        </div>
       </div>
-
-      <fieldset className="space-y-2">
-        <legend className="text-sm font-medium">Role</legend>
-        <OptionList>
-          {ROLES.map((option) => (
-            <OptionTile
-              key={option.value}
-              title={option.title}
-              description={option.description}
-              input={
-                <input
-                  type="radio"
-                  value={option.value}
-                  {...form.register("role", {
-                    // Guests are not onboarded as new hires.
-                    onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
-                      if (event.target.value === "guest") form.setValue("isNewHire", false);
-                    },
-                  })}
-                />
-              }
-            />
-          ))}
-        </OptionList>
-      </fieldset>
 
       <fieldset className="space-y-3">
         <legend className="text-sm font-medium">Where they fit (optional)</legend>
