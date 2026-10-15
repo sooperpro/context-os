@@ -5,8 +5,8 @@ Living log of material decisions. Keep entries short; link to the implementation
 ## Current PRD implementation decisions
 
 - 2026-10-13, owner: target **Phase 1 first; later phases deferred**. Production Clerk and Google projects will be configured later.
-- Current role contract follows the PRD: Owner/Admin/Manager/Member/Guest, with independent scoped assignments and source ACLs. This supersedes the earlier proposed Editor/Viewer roles.
-- Authentication is implemented in Clerk mode; development actor remains local-only and is rejected by production configuration. Private source imports default to restricted; unverified/unlocatable quotes are discarded; answers retain source dependencies and are withheld after access loss.
+- Current role contract follows the PRD and the [role access spec](../ContextOS_Role_Access_Spec.md): Owner/Admin/Manager/HR (People Ops)/Member/Guest, with independent scoped assignments and source ACLs. This supersedes the earlier proposed Editor/Viewer roles.
+- Authentication is our own sign-in (Better Auth, `AUTH_MODE=accounts`; it replaced Clerk on 2026-10-15, see below); development actor remains local-only and is rejected by production configuration. Private source imports default to restricted; unverified/unlocatable quotes are discarded; answers retain source dependencies and are withheld after access loss.
 - SQLite/FTS5 remains the implementation stack, **not an approved substitute for the PRD's production scale/pgvector requirements**. Full Phase 1/production readiness is not claimed. See [release gates](backend-production-readiness.md).
 
 - 2026-10-14, frontend: **Material 3 Expressive design tokens on top of shadcn/Base UI.** Tokens live in `packages/design-tokens` (reference → semantic → Tailwind theme); shadcn's variable contract is fed from Material roles so existing components retheme without edits. Theme is `data-theme` on `<html>`. Fonts are Google Sans Flex / Google Sans Code. Icons move to Material Symbols in a separate change. Lint blocks raw colors and Tailwind palette classes in component and feature code. See [frontend plan](frontend-plan.md).

@@ -1,6 +1,6 @@
 # ContextOS API reference
 
-Updated: 14 October 2026. Base URL: `http://localhost:3000/api/v1`. Requirements source: [ContextOS_PRD.md](../ContextOS_PRD.md) §20 (API Specification) with the business rules of §6, §8, §13, §18 and §19.
+Updated: 16 October 2026. Base URL: `http://localhost:3000/api/v1`. Requirements source: [ContextOS_PRD.md](../ContextOS_PRD.md) §20 (API Specification) with the business rules of §6, §8, §13, §18 and §19.
 
 This document lists every HTTP endpoint the backend serves, what it is for, which product surface uses it, who may call it, and the request and response shapes. It is written for frontend, Slack-app and extension integrators. Shapes marked with a schema name live in `packages/shared/src/schemas` and are validated on both sides.
 
@@ -10,14 +10,17 @@ Related guides: [backend-api-use-cases.md](backend-api-use-cases.md) (workflow w
 
 ### Authentication and tenancy
 
-- `AUTH_MODE=development` uses one configured local actor (owner of the default workspace). `AUTH_MODE=clerk` requires `Authorization: Bearer <Clerk session token>` with an active Clerk Organization; the organization maps to one workspace. Production rejects development mode.
+- `AUTH_MODE=development` uses one configured local actor (owner of the default workspace). Production rejects it.
+- `AUTH_MODE=accounts` is real sign-in, run by Better Auth inside the API under `/auth/*`: email and password (after the address is confirmed), an emailed sign-in link, Google, Microsoft, and company SSO (OIDC or SAML) for a workspace that has verified its email domain. `GET /auth-options` lists the methods this deployment offers. Sessions are stored in the database and carried by an HttpOnly `contextos.*` cookie; browsers send it with `credentials: "include"`. There is no bearer token.
+- A session has one active workspace, chosen with `PUT /session/workspace`. Requests act there with the caller's membership. With no active workspace, or a suspended, offboarded or expired membership, protected routes answer `403 WORKSPACE_REQUIRED`. A workspace that requires SSO answers `403 SSO_REQUIRED` to sessions that signed in another way.
+- State-changing requests must come from a trusted origin (`CORS_ORIGINS` or `AUTH_URL`); others answer `403`.
 - Every request is scoped to the caller's workspace. Resources from other workspaces answer `404`, never `403`, so their existence is not revealed.
-- Public routes (no bearer): `GET /health`, `GET /health/ready`, `GET /connectors/google-drive/callback`, `POST /webhooks/:provider`.
-- `POST /workspaces` needs a signed-in user but not a selected organization.
+- Public routes (no session): `GET /health`, `GET /health/ready`, `GET /auth-options`, `/auth/*` (sign-in, callbacks, sign-out), `GET /connectors/google-drive/callback`, `POST /webhooks/:provider`.
+- `GET /session`, `PUT /session/workspace` and `POST /workspaces` need a signed-in user but not an active workspace.
 
 ### Roles, assignments and source parity
 
-- System roles (exactly one per member): `owner`, `admin`, `manager`, `member`, `guest` (PRD §6.2).
+- System roles (exactly one per member): `owner`, `admin`, `manager`, `hr` (People Ops), `member`, `guest` (PRD §6.2 and the [role access spec](../ContextOS_Role_Access_Spec.md)). HR reads company-wide onboarding, probation and template records and none of the admin screens; admins get no people data.
 - Assignments are additive grants (PRD §6.3): `mentor` (scope: user), `domain_owner` (scope: workspace, project or `section` = `<projectId>:<sectionKey>`), `path_curator` (project/workspace), `bounty_sponsor`, `department_head`, `rewards_approver`, `review_cycle_admin` (workspace).
 - **Permission parity (PRD §19, PP-1..PP-10)**: a role never widens content access. Every derived item (claim, hub section, answer, flag, learning item, conflict) is shown only when the caller can read the sources it rests on. Owners and admins get no bypass. Inaccessible content answers `404` or is filtered out silently.
 - Manual sources are private to their creator until shared (`POST /projects/:ref/sources/:sourceId/access`); Google Drive sources are re-checked against the reader's own Google access before each protected request.
@@ -25,7 +28,7 @@ Related guides: [backend-api-use-cases.md](backend-api-use-cases.md) (workflow w
 ### Identifiers
 
 - Ids are UUIDs. Project routes accept the UUID **or the project slug** (`/projects/payments-platform/hub`). A malformed reference answers `400`; an unknown one `404`.
-- Users are identified by the provider user id (Clerk) or the configured development actor id.
+- Users are identified by their account id (shared by the sign-in account and the application profile) or the configured development actor id.
 
 ### Request and response rules
 
@@ -63,14 +66,14 @@ Every non-2xx response uses one envelope (`ApiErrorResponseSchema`):
 | ------ | ------------------- | ------------------------------------------------------------------------ |
 | 400    | `VALIDATION_ERROR`  | Body, query or path failed schema validation (`details.issues`).         |
 | 400    | `BAD_REQUEST`       | Semantically invalid request (for example a cycle in reporting lines).   |
-| 401    | `UNAUTHENTICATED`   | Missing or invalid bearer token / webhook signature.                     |
+| 401    | `UNAUTHENTICATED`   | No valid session, or an invalid webhook signature.                       |
 | 403    | `FORBIDDEN`         | Role, assignment or anti-gaming rule denies the action.                  |
 | 404    | `NOT_FOUND`         | Unknown, foreign-tenant or not-accessible resource.                      |
 | 409    | `CONFLICT`          | Stale `version`, invalid state transition, duplicate or disabled module. |
 | 413    | `PAYLOAD_TOO_LARGE` | Body above 2 MiB.                                                        |
 | 429    | `RATE_LIMITED`      | Per-IP limit, flag/kudos/quiz/companion caps, sync cooldown.             |
 | 502    | `UPSTREAM_ERROR`    | Model or provider call failed.                                           |
-| 503    | `NOT_CONFIGURED`    | Clerk, Google, encryption key or a webhook secret is not configured.     |
+| 503    | `NOT_CONFIGURED`    | Sign-in, Google, encryption key or a webhook secret is not configured.   |
 | 504    | `TIMEOUT`           | Request exceeded 90 s.                                                   |
 
 Rate limiting: 120 requests per minute per client IP by default (`RateLimit` headers are exposed).
@@ -83,6 +86,7 @@ Rate limiting: 120 requests per minute per client IP by default (`RateLimit` hea
 
 | Area                     | Endpoints                                                                                                                                                                                                                                                                                                                                                              |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sign-in and sessions     | `/auth/*` (Better Auth), `GET /auth-options`, `GET /session`, `PUT /session/workspace`, `GET/DELETE /session/devices`, `DELETE /session/devices/:id`, `GET /admin/sso`, `POST /admin/sso/providers`, `POST /admin/sso/providers/:providerId/verify`, `DELETE /admin/sso/providers/:providerId`                                                                         |
 | Health                   | `GET /health`, `GET /health/ready`                                                                                                                                                                                                                                                                                                                                     |
 | Workspace                | `GET /workspaces/current`, `POST /workspaces`, `PATCH /workspaces/current`, `PATCH /workspaces/current/settings`, `GET/PATCH /workspaces/current/setup`, `POST/DELETE /workspaces/current/deletion`                                                                                                                                                                    |
 | Org structure            | `GET/POST /org/departments`, `PATCH/DELETE /org/departments/:id`, `GET/POST /org/teams`, `PATCH/DELETE /org/teams/:id`, `GET/PATCH /users/:id/organization`                                                                                                                                                                                                            |
@@ -185,7 +189,7 @@ Workspace metadata, **resolved settings** (every default applied, `WorkspaceSett
 
 ### `POST /workspaces`
 
-Create a workspace during the setup wizard (FR-WS-001). Body `WorkspaceCreateSchema`: `name`, `slug` (lowercase, hyphens), optional `primaryDomain` (stored unverified), `region` (only `us-east-1` is served by this deployment; others answer `503`). Clerk mode also creates the Organization and returns `organizationId`. Response `201`: the workspace row plus `organizationId`, `primaryDomainVerified: false`, `authentication`.
+Create a workspace during the setup wizard (FR-WS-001). Body `WorkspaceCreateSchema`: `name`, `slug` (lowercase, hyphens), optional `primaryDomain` (stored unverified), `region` (only `us-east-1` is served by this deployment; others answer `503`). The creator becomes its owner and their session switches to it. Response `201`: the workspace row plus `primaryDomainVerified: false` and `authentication`.
 
 ### `PATCH /workspaces/current` and `PATCH /workspaces/current/settings`
 
@@ -220,15 +224,15 @@ Owner only (FR-ADM-008). POST body `{ "confirm": "<slug or name>" }` schedules a
 
 ### `GET /users/me`
 
-Profile for Personal Settings and the app shell: user row (`id`, `name`, `email`, `preferences`), `role`, `workspaceId`, `managerId`, `organization`, `assignments[]`, `identities[]` (`provider`, `status`, `externalLogin`, `linkedAt`).
+Profile for Personal Settings and the app shell: user row (`id`, `name`, `email`, `preferences`), `profile` (`PersonalProfileSchema`: `pronouns`, `location`, `bio`, `skills[]`, `avatarShape`), `role`, `workspaceId`, `managerId`, `organization`, `guestExpiresAt`, `assignments[]`, `identities[]` (`provider`, `status`, `externalLogin`, `linkedAt`).
 
 ### `PATCH /users/me`
 
-`ProfileUpdateSchema`: `name`, `timezone`, `leaderboardOptOut` (symmetric opt-out, §8.5), `hideTier` (hides tier/RP on the public profile). Response: user row.
+`ProfileUpdateSchema`: `name`, `timezone`, `leaderboardOptOut` (symmetric opt-out, §8.5), `hideTier` (hides tier/RP on the public profile), and the fields Settings › Profile edits (role access spec §4.9): `pronouns` (≤ 40), `location` (≤ 100, also written to the workspace placement the directory shows), `bio` (≤ 600), `skills` (≤ 20 of ≤ 40 characters, duplicates dropped), `avatarShape` (one of the eight expressive shapes; `null` returns to the one picked from the id). An empty string clears a text field. Response: user row plus `profile`.
 
 ### `GET /users`
 
-Directory (People page, invite pickers, Admin → Users). Guests are refused. Query `UserDirectoryQuerySchema`: `q` (name, email, job title), `role`, `status`, `departmentId`, `teamId`, `limit`, `offset`.
+Directory (People page, invite pickers, Admin → Users). Guests are refused. Query `UserDirectoryQuerySchema`: `q` (name, email, job title, skills), `role`, `status`, `departmentId`, `teamId`, `limit`, `offset`. Each item carries `profile` (`pronouns`, `skills`, `avatarShape`).
 
 ```json
 {
@@ -256,7 +260,7 @@ Owner/admin (Admin → Users, FR-ADM-002). `UserUpdateSchema`: `role`, `status` 
 
 ### `POST /users/invite`
 
-Owner/admin, or manager for `member` invites into their own team (FR-WS-003). Body is one `InvitationSchema` (`email`, `role`, `name?`, `departmentId?`, `teamId?`, `managerId?`, `startDate?`, `isNewHire`) or `{ "invitations": [...] }` (≤ 200, CSV rows parsed client-side). Each invitation is recorded locally (`invitation` record, 14-day expiry) and, in Clerk mode, delivered as an Organization invitation. On the invitee's first sign-in the requested role, department, team, manager and start date are applied automatically. Response `201`:
+Owner/admin, or manager for `member` invites into their own team (FR-WS-003). Body is one `InvitationSchema` (`email`, `role`, `name?`, `departmentId?`, `teamId?`, `managerId?`, `startDate?`, `isNewHire`) or `{ "invitations": [...] }` (≤ 200, CSV rows parsed client-side). Each invitation is recorded locally (`invitation` record, 14-day expiry) and, with `AUTH_MODE=accounts`, emailed with a sign-in link (`delivery: "email"`; `"local"` in development mode). On the invitee's first sign-in the requested role, department, team, manager and start date are applied automatically. Response `201`:
 
 ```json
 {
@@ -265,7 +269,6 @@ Owner/admin, or manager for `member` invites into their own team (FR-WS-003). Bo
       "email": "new@acme.com",
       "status": "pending",
       "invitationId": "uuid",
-      "providerInvitationId": null,
       "requestedRole": "member",
       "delivery": "local"
     }
@@ -277,11 +280,11 @@ Owner/admin, or manager for `member` invites into their own team (FR-WS-003). Bo
 
 ### `GET /users/invitations`, `DELETE /users/invitations/:id`
 
-Owner/admin: list invitation records; revoke a pending one (`204`, also revoked in Clerk).
+Owner/admin: list invitation records; revoke a pending one (`204`; its link stops working).
 
 ### `GET /people/:id`
 
-Public profile card for the People directory: `id`, `name`, `role`, `organization`, active domain-owner assignments. Guests refused.
+Public profile card for the People directory: `id`, `name`, `role`, `organization` (public placement fields), `profile` (`pronouns`, `location`, `bio`, `skills[]`, `avatarShape`), active domain-owner assignments, and `onboarding` for the person's manager only. Guests refused.
 
 ## 7. Identity links (PRD §6.6)
 
@@ -322,15 +325,15 @@ Knowledge continuity after offboarding (PRD §8.11). Managers see their own chec
 
 ## 10. Projects
 
-`ProjectSchema`: `id`, `workspaceId`, `name`, `slug`, `description`, `createdAt`, `updatedAt`; with stats (`ProjectWithStatsSchema`): `stats.sources`, `readySources`, `contextItems`, `questions`, `lastProcessedAt` (all computed for the caller's access).
+`ProjectSchema`: `id`, `workspaceId`, `name`, `slug`, `description`, `category` (the Knowledge Hub collection: `company | product | project | process`, default `project`), `createdAt`, `updatedAt`; with stats (`ProjectWithStatsSchema`): `stats.sources`, `readySources`, `contextItems`, `questions`, `lastProcessedAt` (all computed for the caller's access).
 
-| Endpoint                | Who                            | Notes                                                                                                                                                 |
-| ----------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /projects`         | any (guests: granted projects) | `{ items: ProjectWithStats[] }`.                                                                                                                      |
-| `POST /projects`        | owner/admin/manager            | `CreateProjectInputSchema` `{ name, description?, slug? }`; the slug is generated from the name when omitted (`payments-platform`, `-2`, ...). `201`. |
-| `GET /projects/:ref`    | any with access                | Project with stats.                                                                                                                                   |
-| `PATCH /projects/:ref`  | owner/admin/manager            | `{ name?, description?, slug? }`; duplicate slug `409`.                                                                                               |
-| `DELETE /projects/:ref` | owner/admin/manager            | Cascades sources, items, hub, jobs. `204`.                                                                                                            |
+| Endpoint                | Who                            | Notes                                                                                                                                                            |
+| ----------------------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /projects`         | any (guests: granted projects) | `{ items: ProjectWithStats[] }`.                                                                                                                                 |
+| `POST /projects`        | owner/admin/manager            | `CreateProjectInputSchema` `{ name, description?, slug?, category? }`; the slug is generated from the name when omitted (`payments-platform`, `-2`, ...). `201`. |
+| `GET /projects/:ref`    | any with access                | Project with stats.                                                                                                                                              |
+| `PATCH /projects/:ref`  | owner/admin/manager            | `{ name?, description?, slug?, category? }`; duplicate slug `409`.                                                                                               |
+| `DELETE /projects/:ref` | owner/admin/manager            | Cascades sources, items, hub, jobs. `204`.                                                                                                                       |
 
 ## 11. Sources and jobs
 

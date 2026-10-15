@@ -1,8 +1,8 @@
 # Backend API use cases and feature guide
 
-Updated: 14 October 2026. Requirements source: [ContextOS_PRD.md](../ContextOS_PRD.md). The five-day roadmap is not used. The complete endpoint catalogue with request and response shapes is [api-reference.md](api-reference.md); this guide explains the workflows.
+Updated: 16 October 2026 (sign-in). Requirements source: [ContextOS_PRD.md](../ContextOS_PRD.md). The five-day roadmap is not used. The complete endpoint catalogue with request and response shapes is [api-reference.md](api-reference.md); this guide explains the workflows.
 
-Release target confirmed by the owner: **complete Phase 1 first; defer subsequent phases**. Production Clerk/Google accounts will be configured later. Missing accounts do not enable bypass authentication in production or certify live integrations.
+Release target confirmed by the owner: **complete Phase 1 first; defer subsequent phases**. Production sign-in (SMTP, Google and Microsoft OAuth clients) and Google Drive accounts will be configured later. Missing accounts do not enable bypass authentication in production or certify live integrations.
 
 The backend now implements the workflows below in the existing Node/Hono, Drizzle/SQLite and Gemini stack. This is a substantial implementation extension, **not completion of the entire PRD or a production-readiness certification**. See [production readiness and remaining work](backend-production-readiness.md) for the outstanding requirements and external validation.
 
@@ -12,11 +12,11 @@ Base URL: `http://localhost:3000/api/v1`.
 
 `AUTH_MODE=development` uses the explicitly configured development actor. It seeds an owner membership and a workspace Domain Owner assignment for local testing. Never expose this mode to external users; production startup rejects it.
 
-`AUTH_MODE=clerk` verifies Clerk session bearer tokens and current organization membership. Select a Clerk Organization before making protected requests. The first organization administrator to access an unlinked organization initializes its ContextOS workspace; subsequent members enter with the mapped admin/member role. Local system roles are managed through the user administration API. Existing default-workspace data is not automatically reassigned to a new organization.
+`AUTH_MODE=accounts` is real sign-in with Better Auth inside the API (`/api/v1/auth/*`): email and password after confirming the address, an emailed sign-in link, Google, Microsoft, and company SSO (OIDC or SAML) once a workspace verifies its email domain. People who sign in through a workspace's SSO join it as members; everyone else joins through an invitation, whose role and placement apply on first sign-in. Local system roles are managed through the user administration API.
 
-Protected requests use `Authorization: Bearer <Clerk session token>`. Health endpoints remain public. `CORS_ORIGINS` is also the Clerk authorized-party origin allowlist. Production origins must be HTTPS.
+Sessions are stored in the database and carried by an HttpOnly `contextos.*` cookie, so protected requests need no bearer token; Bruno and scripts reuse the cookie from a sign-in. A session has one active workspace (`PUT /session/workspace`); without one, protected routes answer `403 WORKSPACE_REQUIRED`. State-changing requests must come from `CORS_ORIGINS` or `AUTH_URL`. Health and sign-in endpoints remain public. Production origins must be HTTPS.
 
-`POST /workspaces` is the one protected operation that does not require an already-selected organization. It requires a valid Clerk user session, creates the provider Organization plus local owner membership, and returns `organizationId`. Activate that Organization in the frontend before using its other APIs. Development mode creates a local workspace without changing the configured development actor's workspace; it is not a multi-user/workspace-switching UI.
+`POST /workspaces` needs a signed-in user but no active workspace. It creates the workspace with the caller as owner and switches their session to it. Development mode creates a local workspace without changing the configured development actor's workspace; it is not a multi-user/workspace-switching UI.
 
 Errors retain the existing shared envelope:
 
@@ -44,25 +44,25 @@ The full run creates test data and deletes the test thread, source and project i
 
 ## 1. Workspace, users and source access
 
-| API                                                            | Use case and access rule                                                                                                                                  |
-| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /workspaces/current`                                      | Read the current workspace and your role.                                                                                                                 |
-| `GET /users/me`                                                | Read your profile, preferences and scoped assignments.                                                                                                    |
-| `PATCH /users/me`                                              | Update name, timezone and leaderboard preference.                                                                                                         |
-| `GET /users?limit=50&offset=0`                                 | Read the workspace directory; guests cannot browse it.                                                                                                    |
-| `POST /users/invite`                                           | Owner/admin delivers a Clerk Organization invitation. Requested application role is returned as metadata; it is not automatically elevated at acceptance. |
-| `PATCH /users/:id`                                             | Owner/admin changes application role, status, manager and guest expiry. The last active owner cannot be removed; only owners can manage ownership.        |
-| `GET /assignments`                                             | Owner/admin reviews assignments.                                                                                                                          |
-| `POST /assignments`                                            | Owner/admin grants a supported project/user/workspace assignment with optional expiry.                                                                    |
-| `DELETE /assignments/:id`                                      | Owner/admin revokes an assignment.                                                                                                                        |
-| `POST /projects/:projectId/memberships`                        | Grant a current workspace member access to a project; required for guests.                                                                                |
-| `POST /projects/:projectId/sources/:sourceId/access`           | Owner/admin who already has access grants access to a manually imported source.                                                                           |
-| `DELETE /projects/:projectId/sources/:sourceId/access/:userId` | Revoke a manual-source grant. Provider-controlled sources cannot be shared using this endpoint.                                                           |
-| `GET /audit?limit=50&offset=0`                                 | Owner/admin reads workspace audit entries, subject to source access. New audit records are hash-linked and database triggers block updates/deletes.       |
+| API                                                            | Use case and access rule                                                                                                                            |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /workspaces/current`                                      | Read the current workspace and your role.                                                                                                           |
+| `GET /users/me`                                                | Read your profile, preferences and scoped assignments.                                                                                              |
+| `PATCH /users/me`                                              | Update name, timezone, leaderboard preference, pronouns, location, bio, skills and avatar shape.                                                    |
+| `GET /users?limit=50&offset=0`                                 | Read the workspace directory; guests cannot browse it.                                                                                              |
+| `POST /users/invite`                                           | Owner/admin invites by email (a sign-in link). The requested role, placement and guest projects apply on the invitee's first sign-in.               |
+| `PATCH /users/:id`                                             | Owner/admin changes application role, status, manager and guest expiry. The last active owner cannot be removed; only owners can manage ownership.  |
+| `GET /assignments`                                             | Owner/admin reviews assignments.                                                                                                                    |
+| `POST /assignments`                                            | Owner/admin grants a supported project/user/workspace assignment with optional expiry.                                                              |
+| `DELETE /assignments/:id`                                      | Owner/admin revokes an assignment.                                                                                                                  |
+| `POST /projects/:projectId/memberships`                        | Grant a current workspace member access to a project; required for guests.                                                                          |
+| `POST /projects/:projectId/sources/:sourceId/access`           | Owner/admin who already has access grants access to a manually imported source.                                                                     |
+| `DELETE /projects/:projectId/sources/:sourceId/access/:userId` | Revoke a manual-source grant. Provider-controlled sources cannot be shared using this endpoint.                                                     |
+| `GET /audit?limit=50&offset=0`                                 | Owner/admin reads workspace audit entries, subject to source access. New audit records are hash-linked and database triggers block updates/deletes. |
 
-System roles are `owner`, `admin`, `manager`, `member`, `guest`. Roles permit actions; they do not override source access. Current assignment scope types are project, user and workspace. Team/department/section/topic scopes from the PRD remain outstanding.
+System roles are `owner`, `admin`, `manager`, `hr` (People Ops), `member`, `guest`. Roles permit actions; they do not override source access. Current assignment scope types are project, user and workspace. Team/department/section/topic scopes from the PRD remain outstanding.
 
-Invitations require configured Clerk credentials and an organization mapping. Suspending/offboarding a local membership blocks future authenticated requests, removes current-workspace source/project grants and assignments, invalidates pending OAuth state and requires connector re-authentication. Offboarding also erases that member's stored connector credentials and emits an outbox event with removed assignment metadata for continuity work. Reactivation does not restore grants automatically. Provider-side token/session revocation and the continuity consumer are not implemented. Guests require a future expiry within 180 days; expiry cannot be cleared while the role remains Guest. Reporting lines cannot contain cycles.
+With `AUTH_MODE=accounts`, invitations are emailed (SMTP, or the API log without `SMTP_URL`). Suspending/offboarding a local membership blocks future authenticated requests, removes current-workspace source/project grants and assignments, invalidates pending OAuth state and requires connector re-authentication. Offboarding also erases that member's stored connector credentials and emits an outbox event with removed assignment metadata for continuity work. Reactivation does not restore grants automatically. Provider-side token/session revocation and the continuity consumer are not implemented. Guests require a future expiry within 180 days; expiry cannot be cleared while the role remains Guest. Reporting lines cannot contain cycles.
 
 ### Workspace and organization APIs
 
@@ -80,7 +80,7 @@ These are in Bruno folder `16`:
 | `GET /users/:id/organization`         | Self, direct manager or owner/admin reads the workspace-specific employment profile. Other callers receive `404`.                                                                                                                                                                           |
 | `PATCH /users/:id/organization`       | Owner/admin sets department/team, job title, role family, location, IANA timezone, start date and new-hire flag. Team and department must match.                                                                                                                                            |
 
-Setup steps are `connect_source`, `select_scopes`, `create_project`, `invite_team`, `assign_new_hire`. This API persists backend progress; the frontend wizard, domain verification, identity-link review and CSV/directory imports still need implementation. Clerk Organization display names are not synchronized by the workspace settings update.
+Setup steps are `connect_source`, `select_scopes`, `create_project`, `invite_team`, `assign_new_hire`. This API persists backend progress; the frontend wizard, domain verification, identity-link review and CSV/directory imports still need implementation.
 
 Bruno workspace creation (`enableWorkspaceCreation=true`) and member organization edits (`enableOrgMutation=true`, `managedUserId`) are opt-in. Use only disposable members: cleanup clears their team/department instead of restoring prior organization assignments. Workspace creation leaves a workspace behind; no workspace-deletion workflow is implemented yet.
 
@@ -215,7 +215,7 @@ These are backend capabilities. The animated widget, browser extension and their
 Configure the API-only variables in `apps/api/.env.example`: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, and a 64-character hexadecimal `CONNECTOR_TOKEN_ENCRYPTION_KEY`. Keep real values out of source control. Register the exact callback URL with a Google web OAuth client and configure the consent screen/Drive API. This implementation requests `openid`, `email` and restricted `drive.readonly` access; obtain the required Google approval for your deployment.
 
 1. `POST /connectors/google-drive/authorize` returns the Google consent URL, with expiring single-use state bound to the user/workspace.
-2. Open it in a browser and complete consent. Google returns to `GET /connectors/google-drive/callback`; code exchange verifies Google identity and records an encrypted connection. The callback redirects the browser to the configured web origin's `/setup?google_drive=connected` page (or `google_drive=error` if the grant fails). It does not require a bearer header; its state is the authorization binding.
+2. Open it in a browser and complete consent. Google returns to `GET /connectors/google-drive/callback`; code exchange verifies Google identity and records an encrypted connection. The callback redirects the browser to the configured web origin's `/setup?google_drive=connected` page (or `google_drive=error` if the grant fails). It does not require a session; its state is the authorization binding.
 3. `GET /connectors` lists your connections without token material.
 4. `GET /connectors/:id/files?folderId=...&pageToken=...` lists a bounded page of accessible files, including shared-drive support.
 5. `POST /connectors/:id/import` with `projectId` and `fileId` imports one explicitly selected document (owner/admin/manager).
@@ -236,7 +236,7 @@ The backend now serves every endpoint group in PRD §20. Workflows added since t
 | Area                      | Workflow                                                                                                                                                                                                                                                    |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Workspace settings        | `PATCH /workspaces/current/settings` merges gamification, rewards, policies, EPM and source-authority sections with defaults resolved on read; owners schedule deletion with a 7-day grace.                                                                 |
-| Directory and invites     | `GET /users` filters by query, role, status, department and team; `POST /users/invite` accepts single or bulk rows, records invitations locally (Clerk delivers them when configured) and applies requested role/org data on first sign-in.                 |
+| Directory and invites     | `GET /users` filters by query, role, status, department and team; `POST /users/invite` accepts single or bulk rows, records invitations locally (emailed with a sign-in link in accounts mode) and applies requested role/org data on first sign-in.        |
 | Identity links            | Google links are OAuth-verified through the Drive connection; other providers are user-requested and admin-confirmed; admins review unlinked identities. Webhooks only attribute events through confirmed links.                                            |
 | Projects by slug          | Every `/projects/:ref` route accepts the slug generated from the project name.                                                                                                                                                                              |
 | Hub sections and KHS      | Ten rendered sections with status chips, coverage, domain owner, honest empty states, the Knowledge Health Score and the project team; `GET /evidence/:id` backs the Source Drawer.                                                                         |
@@ -268,4 +268,4 @@ bru run . -r --env Local \
   --env-var baseUrl=http://127.0.0.1:3001/api/v1 --bail
 ```
 
-The fixture is not a production entry point. Multi-user workflows are covered by API tests and need real distinct Clerk sessions for Bruno's corresponding optional requests. The fixture does not validate Google/Clerk credentials, real Gemini quality, deployment availability or PRD performance targets.
+The fixture is not a production entry point. Multi-user workflows are covered by API tests and need real distinct signed-in sessions for Bruno's corresponding optional requests. The fixture does not validate Google or sign-in credentials, real Gemini quality, deployment availability or PRD performance targets.

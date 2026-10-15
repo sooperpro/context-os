@@ -2,7 +2,8 @@
 
 **Document purpose:** A portable source of truth for AI agents, product
 designers, engineers, researchers, and founders working on ContextOS.\
-**Prepared:** 13 October 2026\
+**Prepared:** 13 October 2026 (stack suggestions are historical: sign-in is our own Better Auth,
+not Clerk; see [decisions.md](decisions.md))\
 **Status:** Working brief --- combines prior discussion and proposed
 implementation guidance. It is not a final technical specification.
 

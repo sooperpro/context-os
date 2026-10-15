@@ -332,8 +332,8 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
   <h1>What ContextOS does for each role</h1>
   <p class="lede">ContextOS helps a company onboard people and keep its knowledge findable. It reads your connected sources, builds a cited Knowledge Hub, answers questions through Context Bot, and runs onboarding from first day to the end of probation. This guide walks through the app as each role sees it, says what works today, and lists what is still missing.</p>
   <div class="meta">
-    <span>Checked against the code on 15 Oct 2026</span>
-    <span>Branch <code>subhajit-fixes</code>, including uncommitted work</span>
+    <span>Checked against the code on 16 Oct 2026</span>
+    <span>Branch <code>chore/docs-status-review</code>, after fix batches 1 to 6 and <code>origin/dev</code></span>
     <span>Compared with <code>ContextOS_Role_Access_Spec.md</code></span>
   </div>
   <div class="legend" aria-label="Status legend">
@@ -392,23 +392,23 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
       <thead><tr><th>Role</th><th>Left navigation, in order</th><th>Phone bottom bar</th></tr></thead>
       <tbody>
         <tr><th>Member</th><td><div class="nav-pills"><span>Home</span><span>My roadmap</span><span>Knowledge Hub</span><span>People</span></div></td><td>Same four</td></tr>
-        <tr><th>Guest</th><td><div class="nav-pills"><span>Home</span><span>My roadmap</span><span>Knowledge Hub</span></div></td><td>Same three</td></tr>
+        <tr><th>Guest</th><td><div class="nav-pills"><span>Home</span><span>Knowledge Hub</span></div></td><td>Same two</td></tr>
         <tr><th>Manager</th><td><div class="nav-pills"><span>Home</span><span>Team onboarding</span><span>Knowledge Hub</span><span>Review queue</span><span>People</span><span>My learning</span></div></td><td>First four</td></tr>
-        <tr><th>HR</th><td><div class="nav-pills"><span>Home</span><span>Onboarding</span><span>Probation reviews</span><span>Templates</span><span>People</span><span>Knowledge Hub</span></div></td><td>First four</td></tr>
-        <tr><th>Admin · Owner</th><td><div class="nav-pills"><span>Overview</span><span>Members &amp; roles</span><span>Connectors</span><span>Access policies</span><span>AI settings</span><span>Audit log</span><span>Knowledge Hub</span><span>Workspace setup</span></div></td><td>First four</td></tr>
+        <tr><th>HR</th><td><div class="nav-pills"><span>Home</span><span>Onboarding</span><span>Probation reviews</span><span>Templates</span><span>People</span><span>Knowledge Hub</span><span>My learning</span><span>Audit log</span><span>Tutorials</span></div></td><td>First four</td></tr>
+        <tr><th>Admin · Owner</th><td><div class="nav-pills"><span>Overview</span><span>Tutorials</span><span>Members &amp; roles</span><span>Connectors</span><span>Access policies</span><span>AI settings</span><span>Audit log</span><span>Workspace</span><span>Knowledge Hub</span><span>Workspace setup</span></div></td><td>First four</td></tr>
       </tbody>
     </table>
   </div>
-  <p class="intro">Every role also gets Settings (pinned at the bottom of the rail), the Context Bot button and <code>⌘J</code>, the search box, notifications and the account menu. Contributions is built for members but hidden for the 18 Oct demo.</p>
+  <p class="intro">Every role also gets Settings (pinned at the bottom of the rail), the Context Bot button and <code>⌘J</code>, the search box with its results page, notifications and the account menu. A path curator of any role except Guest also gets Tutorials. Contributions is built for members but hidden for the 18 Oct demo.</p>
 
   <figure class="flow-fig">
     <figcaption><b>How anyone gets in</b><span>Same path for every role. The role on the person's workspace membership decides which Home they land on.</span></figcaption>
     <div class="flow">
       <div class="node live"><div class="who">Anyone</div><b>Open ContextOS</b><small>Sign-in screen shows only the methods this server has set up.</small><i class="s live">Works</i></div>
       <div class="arr"></div>
-      <div class="node live"><div class="who">Anyone</div><b>Sign in</b><small>Email link (15 min, single use), Google, Microsoft or company SSO.</small><i class="s live">Works</i></div>
+      <div class="node live"><div class="who">Anyone</div><b>Sign in</b><small>Email and password, an email link (15 min, single use), Google, Microsoft or company SSO.</small><i class="s live">Works</i></div>
       <div class="arr"></div>
-      <div class="node live"><div class="who">System</div><b>Apply pending invitation</b><small>Role, manager, team and start date come from the invite.</small><i class="s live">Works</i></div>
+      <div class="node live"><div class="who">System</div><b>Apply pending invitation</b><small>Role, manager, team, start date and a guest's projects come from the invite.</small><i class="s live">Works</i></div>
       <div class="arr"></div>
       <div class="node live"><div class="who">Anyone</div><b>Pick or create a workspace</b><small>The person who creates a workspace becomes its Owner.</small><i class="s live">Works</i></div>
       <div class="arr"></div>
@@ -416,10 +416,10 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
         <div class="opt"><small>Owner / Admin → Workspace overview</small></div>
         <div class="opt"><small>Manager → Team home</small></div>
         <div class="opt"><small>HR → People Ops home</small></div>
-        <div class="opt"><small>Member / Guest → Employee home</small></div>
+        <div class="opt"><small>Member → Employee home · Guest → Guest home</small></div>
         <i class="s live">Works</i></div>
       <div class="arr"></div>
-      <div class="node prev"><div class="who">New hire</div><b>First-day welcome</b><small>Not opened automatically. Reached from a Home banner only.</small><i class="s prev">Preview data</i></div>
+      <div class="node live"><div class="who">New hire</div><b>First-day welcome</b><small>Opens on their first visit each session until they finish or skip it.</small><i class="s live">Works</i></div>
     </div>
   </figure>
 </section>
@@ -429,32 +429,36 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
   <div class="sec-head">
     <div class="kicker">Overview</div>
     <h2>Who can do what</h2>
-    <p class="intro">One row per area of the app. A dash means the role is not meant to have access, and the server refuses it.</p>
+    <p class="intro">One row per area of the app. A dash means the role is not meant to have access, and the server refuses it. Pages a role may not open also stay closed in the web app when someone types their address.</p>
   </div>
   <div class="tbl">
     <table class="matrix">
       <thead><tr><th>Area</th><th>Member</th><th>Guest</th><th>Manager</th><th>HR</th><th>Admin</th><th>Owner</th></tr></thead>
       <tbody>
         <tr><th>Context Bot</th><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s live">Works</i></td></tr>
-        <tr><th>Knowledge Hub and project pages</th><td class="c"><i class="s part">Partly</i></td><td class="c"><i class="s part">Own projects</i></td><td class="c"><i class="s part">Partly</i></td><td class="c"><i class="s part">Partly</i></td><td class="c"><i class="s part">Partly</i></td><td class="c"><i class="s part">Partly</i></td></tr>
-        <tr><th>Create projects, add and sync sources</th><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s live">Works</i></td></tr>
-        <tr><th>People directory and profiles</th><td class="c"><i class="s part">Partly</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s part">Partly</i></td><td class="c"><i class="s part">Partly</i></td><td class="c"><i class="s part">No nav item</i></td><td class="c"><i class="s part">No nav item</i></td></tr>
-        <tr><th>Own onboarding roadmap, lessons, checks</th><td class="c"><i class="s prev">Preview</i></td><td class="c"><i class="s prev">Preview</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s miss">Not built</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td></tr>
-        <tr><th>My learning (assigned and suggested courses)</th><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td></tr>
+        <tr><th>Knowledge Hub, project pages, search</th><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s live">Own projects</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s live">Works</i></td></tr>
+        <tr><th>Create, rename projects; add and sync sources</th><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s live">Works</i></td></tr>
+        <tr><th>People directory and profiles</th><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s part">No nav item</i></td><td class="c"><i class="s part">No nav item</i></td></tr>
+        <tr><th>Own onboarding roadmap, lessons, checks</th><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td></tr>
+        <tr><th>My learning (assigned and suggested courses)</th><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td></tr>
+        <tr><th>Tutorials (build learning content)</th><td class="c"><i class="s part">Curators</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s part">Curators</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s live">Works</i></td></tr>
         <tr><th>Team onboarding, check-ins, assign learning</th><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s part">Read only</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td></tr>
         <tr><th>Probation recommendation</th><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td></tr>
         <tr><th>Onboarding records, probation decisions, templates</th><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td></tr>
         <tr><th>Review queue (answers proposed for the Hub)</th><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td></tr>
         <tr><th>Contributions (write knowledge)</th><td class="c"><i class="s prev">Hidden</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td></tr>
-        <tr><th>Members, roles, invites, teams</th><td class="c"><i class="s part">View list</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s part">View list</i></td><td class="c"><i class="s part">View list</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s live">Works</i></td></tr>
+        <tr><th>Invite people, members and roles, teams</th><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s live">Own team</i></td><td class="c"><i class="s live">Via onboarding</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s live">Works</i></td></tr>
+        <tr><th>Grant responsibilities (domain owner, curator, mentor)</th><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s live">Own reports</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s live">Works</i></td></tr>
         <tr><th>Request a different role</th><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s live">Approves</i></td><td class="c"><i class="s live">Approves</i></td></tr>
         <tr><th>Connectors</th><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s part">Drive only</i></td><td class="c"><i class="s part">Drive only</i></td></tr>
-        <tr><th>Access policies and single sign-on</th><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s live">Works</i></td></tr>
-        <tr><th>AI settings</th><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s part">Digest only</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s part">Partly</i></td><td class="c"><i class="s part">Partly</i></td></tr>
-        <tr><th>Audit log</th><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s miss">Not built</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s live">Works</i></td></tr>
-        <tr><th>Workspace setup checklist</th><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s part">4 of 5 steps</i></td><td class="c"><i class="s part">4 of 5 steps</i></td></tr>
-        <tr><th>Delete the workspace</th><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s api">Server only</i></td></tr>
-        <tr><th>Personal settings and security</th><td class="c"><i class="s part">Partly</i></td><td class="c"><i class="s part">Partly</i></td><td class="c"><i class="s part">Partly</i></td><td class="c"><i class="s part">Partly</i></td><td class="c"><i class="s part">Partly</i></td><td class="c"><i class="s part">Partly</i></td></tr>
+        <tr><th>Access policies, source sharing and single sign-on</th><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s live">Works</i></td></tr>
+        <tr><th>AI settings</th><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s live">Digest</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s live">Works</i></td></tr>
+        <tr><th>Audit log and CSV export</th><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s live">People Ops events</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s live">Works</i></td></tr>
+        <tr><th>Workspace page: export, analytics</th><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s live">Works</i></td></tr>
+        <tr><th>Workspace setup checklist</th><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s live">5 of 5 steps</i></td><td class="c"><i class="s live">5 of 5 steps</i></td></tr>
+        <tr><th>Delete the workspace</th><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s live">Works</i></td></tr>
+        <tr><th>Personal settings and security</th><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s live">Works</i></td><td class="c"><i class="s live">Works</i></td></tr>
+        <tr><th>Message someone, book time</th><td class="c"><i class="s stub">Placeholder</i></td><td class="c"><i class="s none">—</i></td><td class="c"><i class="s stub">Placeholder</i></td><td class="c"><i class="s part">Record only</i></td><td class="c"><i class="s stub">Placeholder</i></td><td class="c"><i class="s stub">Placeholder</i></td></tr>
       </tbody>
     </table>
   </div>
@@ -473,24 +477,25 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
       <ul class="feats">
         <li data-s="live"><i class="s live">Works</i><div><b>Ask Context Bot from any page</b><p>Button in the rail, floating button on phones, or <code>⌘J</code>. Suggested questions change by role. Inside a project, conversations are saved privately and answers stream in with citations.</p></div></li>
         <li data-s="live"><i class="s live">Works</i><div><b>Answers only from sources you can open</b><p>Google Drive sharing is copied onto every file and passage. Access policies can hide a source or keep it out of answers.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Answers follow the admin's AI settings</b><p>Strictness, citing sources and the stale-source warning shape every answer. A question many people ask without an answer goes to its knowledge owners.</p></div></li>
         <li data-s="live"><i class="s live">Works</i><div><b>Pay, bonus, performance and disciplinary questions are refused</b><p>Same for every role. The bot points the person to their People partner.</p></div></li>
-        <li data-s="live"><i class="s live">Works</i><div><b>Rate an answer, report a knowledge gap</b><p>Helpful or not helpful with a reason. "Report a knowledge gap" notifies admins. Inside a project it raises a flag on the project.</p></div></li>
-        <li data-s="part"><i class="s part">Partly works</i><div><b>Knowledge Hub</b><p>Search, saved items, "Start here" and seven category chips. Projects have no stored category, so Company, Products and Processes are always empty and everything shows under Projects.</p></div></li>
-        <li data-s="live"><i class="s live">Works</i><div><b>Project hub</b><p>Cited overview, decisions, current state, people, systems, terms, timeline and sources. Each claim links to its evidence. Items can be flagged as incorrect, outdated or conflicting.</p></div></li>
-        <li data-s="part"><i class="s part">Partly works</i><div><b>Confirm, mark stale or dispute an item</b><p>Buttons show for everyone but only a "domain owner" can use them, and there is no screen to make someone a domain owner.</p></div></li>
-        <li data-s="part"><i class="s part">Partly works</i><div><b>Search box in the top bar</b><p>Opens Context Bot with the text. The server has a full search, but there is no results page.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Rate an answer, report a knowledge gap</b><p>Helpful or not helpful with a reason. A reported gap goes to the domain owners of the project it's most likely about, and to admins only when nobody owns it.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Knowledge Hub</b><p>Search, saved items, "Start here" and seven collection chips. Each project is filed under Company, Products, Projects or Processes when it's created, and can be moved later.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Project hub</b><p>Cited overview, decisions, current state, people, systems, terms, timeline and sources. Each claim links to its evidence. Items can be flagged as incorrect, outdated or conflicting. Owners, admins and managers rename a project from its header; owners and admins delete it.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Confirm, mark stale or dispute an item</b><p>Shown only to the project's or the workspace's domain owners, who admins appoint on Members &amp; roles.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Search</b><p>The top-bar search opens a results page with knowledge items, sources, projects and people, type filters and "Ask Context Bot".</p></div></li>
       </ul>
     </div>
     <div class="group">
       <h4>People, settings, notifications</h4>
       <ul class="feats">
-        <li data-s="part"><i class="s part">Partly works</i><div><b>People directory and profiles</b><p>Search, filters (my team, experts, new), teams view, reporting line, "Ask an expert". Not for guests. Skills, bio and pronouns aren't stored yet.</p></div></li>
-        <li data-s="stub"><i class="s stub">Placeholder</i><div><b>Message someone, book time</b><p>The buttons appear on profiles, Home cards and item pages, but only say "coming soon".</p></div></li>
-        <li data-s="part"><i class="s part">Partly works</i><div><b>Settings · Profile</b><p>Name and time zone can be edited. Pronouns, location, bio, skills and avatar from the spec are missing.</p></div></li>
-        <li data-s="part"><i class="s part">Partly works</i><div><b>Settings · Notifications</b><p>In-app and email switches per event, quiet hours. Only in-app notifications are delivered. Email and Slack are not sent.</p></div></li>
-        <li data-s="part"><i class="s part">Partly works</i><div><b>Settings · Preferences</b><p>Theme and reduce motion work. The Context Bot options use preview data.</p></div></li>
-        <li data-s="part"><i class="s part">Partly works</i><div><b>Settings · Security</b><p>Sign-in method, devices (sign out one or all others) and connected apps work. "Request a copy of your data" uses preview data.</p></div></li>
-        <li data-s="part"><i class="s part">Partly works</i><div><b>Notifications</b><p>Bell menu with the latest 8, mark read, mark all read. There is no full notifications page.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>People directory and profiles</b><p>Search (including skills), filters (my team, experts, new), teams view, reporting line, "Ask an expert". Profiles show pronouns, bio and skills. Not for guests.</p></div></li>
+        <li data-s="stub"><i class="s stub">Placeholder</i><div><b>Message someone, book time</b><p>The buttons on profiles, Home cards, item pages and bot answers only say "coming soon". The onboarding record's Message is the exception: it sends an in-app message.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Settings · Profile</b><p>Name, time zone, pronouns, location, bio, skills and avatar shape. Job title and team are shown read-only, from the HR system.</p></div></li>
+        <li data-s="part"><i class="s part">Partly works</i><div><b>Settings · Notifications</b><p>In-app and email switches per event, quiet hours. Email arrives as one summary per person, security alerts straight away. Slack isn't built.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Settings · Preferences</b><p>Theme, reduce motion and the Context Bot options.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Settings · Security</b><p>Sign-in method, devices (sign out one or all others), connected apps and "Request a copy of your data".</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Notifications</b><p>Bell menu with the latest 8, and a full page with the latest 100, an unread filter, mark read and mark all read.</p></div></li>
         <li data-s="live"><i class="s live">Works</i><div><b>Switch workspace, sign out</b><p>From the account menu, when the person belongs to more than one workspace.</p></div></li>
       </ul>
     </div>
@@ -508,20 +513,20 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     </div>
   </div>
 
-  <div class="callout warn"><b>Biggest gap in the product.</b> The employee screens are fully designed and built, but the server doesn't provide their data yet. In development they show sample data. In production, the employee Home cards, roadmap, lessons, knowledge checks and first-day welcome show "could not be loaded".</div>
+  <div class="callout">The employee screens now come from the server: Home, the roadmap, modules, lessons, knowledge checks and the first-day welcome, and progress is saved. Contributions is the only screen still on sample data, and it's hidden.</div>
 
   <div class="cols">
     <div class="group">
       <h4>Features</h4>
       <ul class="feats">
-        <li data-s="prev"><i class="s prev">Preview data</i><div><b>First-day welcome</b><p>Three steps: who's supporting you (manager, buddy, People partner), set up your profile, your first 90 days. Not opened automatically on first sign-in.</p></div></li>
-        <li data-s="prev"><i class="s prev">Preview data</i><div><b>Home</b><p>Up next (resume a module), your onboarding progress, this week's tasks (to do, overdue, done), milestones, ask band, knowledge updates for you, your people.</p></div></li>
-        <li data-s="prev"><i class="s prev">Preview data</i><div><b>My roadmap</b><p>Stages, modules and status, progress, completed list. "Request a change" goes to the manager and "Request clarification" to the module owner.</p></div></li>
-        <li data-s="prev"><i class="s prev">Preview data</i><div><b>Module and lesson pages</b><p>Lessons, outcomes, sources, people, rating. Select text in a lesson to ask Context Bot about it. Mark complete and continue.</p></div></li>
-        <li data-s="stub"><i class="s stub">Placeholder</i><div><b>Request access, open source, open decision record, play video</b><p>Buttons inside modules and lessons that only say "coming soon".</p></div></li>
-        <li data-s="prev"><i class="s prev">Preview data</i><div><b>Knowledge check</b><p>Multiple choice, submit, see explanations, retake. Context Bot pauses during the check in the app, but the server doesn't enforce the pause.</p></div></li>
-        <li data-s="api"><i class="s api">Server only</i><div><b>See learning a manager assigned</b><p>The server stores assignments, but the employee roadmap and "This week" don't read them yet.</p></div></li>
-        <li data-s="miss"><i class="s miss">Not built</i><div><b>See upcoming and shared check-ins</b><p>Managers can share a check-in with the person, but there is no way for the employee to read it.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>First-day welcome</b><p>Three steps: who's supporting you (manager, buddy, People partner), set up your profile, your first 90 days. Opens on a new hire's first visit each session until they finish it.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Home</b><p>Up next (resume a module), your onboarding progress, this week's tasks (to do, overdue, done), milestones, check-ins, ask band, knowledge updates for you, your people.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>My roadmap</b><p>Stages, modules and status, progress, completed list. "Request a change" goes to the manager and "Request clarification" to the module owner.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Module and lesson pages</b><p>Lessons, outcomes, sources, people, rating. Select text in a lesson to ask Context Bot about it. Mark complete and continue.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Request access, open source, open decision record, play video</b><p>"Request access" on restricted lessons goes to admins, without showing the person titles they can't open. Buttons with nothing to open are hidden.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Knowledge check</b><p>Multiple choice, submit, see explanations, retake. The server pauses Context Bot while the check is open.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>See learning a manager assigned</b><p>On the roadmap and in "This week", marked "Assigned by". Needs an onboarding record.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>See upcoming and shared check-ins</b><p>A Check-ins card on Home with upcoming dates and the notes the manager shared, never ratings. Replying from the app isn't built yet.</p></div></li>
         <li data-s="prev"><i class="s prev">Preview data</i><div><b>Contributions</b><p>Write knowledge, draft from sources, pick a reviewer. Hidden for the 18 Oct demo, and the server doesn't provide it yet.</p></div></li>
         <li data-s="live"><i class="s live">Works</i><div><b>Propose a bot answer for the Knowledge Hub</b><p>From any answer in a project. It goes to the Review queue.</p></div></li>
         <li data-s="live"><i class="s live">Works</i><div><b>Request a different role</b><p>From Settings: member, manager, HR or admin, with a reason. One open request at a time.</p></div></li>
@@ -532,32 +537,27 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     <div class="group">
       <h4>What's missing for members</h4>
       <ol class="missing">
-        <li>Server support for Home, roadmap, modules, lessons, checks and welcome. <span>Until then the core employee experience fails in production.</span></li>
-        <li>Assigned learning showing up on the roadmap and "This week".</li>
-        <li>Welcome opening automatically on a new hire's first sign-in.</li>
-        <li>Reading check-ins the manager shared, and seeing upcoming check-in dates.</li>
-        <li>Requesting access to a restricted source.</li>
+        <li>Server support for Contributions. <span>Hidden until the team decides whether it comes back after the demo.</span></li>
         <li>Messaging and booking time with people.</li>
-        <li>Profile fields: pronouns, location, bio, skills, avatar.</li>
-        <li>Requesting a copy of your own data.</li>
+        <li>Replying to a shared check-in from the app.</li>
       </ol>
     </div>
   </div>
 
   <figure class="flow-fig">
-    <figcaption><b>Member: a learning day</b><span>The path is designed end to end, but nothing after sign-in is saved on the server yet.</span></figcaption>
+    <figcaption><b>Member: a learning day</b><span>Every step is saved on the server.</span></figcaption>
     <div class="flow">
       <div class="node live"><div class="who">Member</div><b>Sign in</b><small>Lands on the employee Home.</small><i class="s live">Works</i></div>
       <div class="arr"></div>
-      <div class="node prev"><div class="who">Member</div><b>Home · Up next</b><small>Current module, progress, this week's tasks.</small><i class="s prev">Preview data</i></div>
+      <div class="node live"><div class="who">Member</div><b>Home · Up next</b><small>Current module, progress, this week's tasks.</small><i class="s live">Works</i></div>
       <div class="arr"></div>
-      <div class="node prev"><div class="who">Member</div><b>Open module and lesson</b><small>Select text to ask Context Bot.</small><i class="s prev">Preview data</i></div>
+      <div class="node live"><div class="who">Member</div><b>Open module and lesson</b><small>Select text to ask Context Bot.</small><i class="s live">Works</i></div>
       <div class="arr"></div>
-      <div class="node prev"><div class="who">Member</div><b>Take the knowledge check</b><small>Bot paused, explanations after submit.</small><i class="s prev">Preview data</i></div>
+      <div class="node live"><div class="who">Member</div><b>Take the knowledge check</b><small>Bot paused, explanations after submit.</small><i class="s live">Works</i></div>
       <div class="arr"></div>
-      <div class="node miss"><div class="who">System</div><b>Progress saved</b><small>Lesson completion and check attempts aren't stored on the server.</small><i class="s miss">Not built</i></div>
+      <div class="node live"><div class="who">System</div><b>Progress saved</b><small>Lesson completion and check attempts are stored and audited.</small><i class="s live">Works</i></div>
       <div class="arr"></div>
-      <div class="node part"><div class="who">Manager</div><b>Sees progress on Team onboarding</b><small>Works, but reads the server roadmap record, not the member's activity.</small><i class="s part">Partly works</i></div>
+      <div class="node live"><div class="who">Manager</div><b>Sees progress on Team onboarding</b><small>Finished modules count on the member's roadmap.</small><i class="s live">Works</i></div>
     </div>
   </figure>
 </section>
@@ -568,8 +568,8 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     <span class="mono-badge">GU</span>
     <div>
       <div class="sec-head"><div class="kicker">Role · <code>guest</code></div><h2>Guest</h2></div>
-      <p class="intro">A contractor, agency or partner who needs a narrow, time-limited view. This role is not in the spec. Guests get the employee screens, limited to the projects they've been added to.</p>
-      <div class="facts"><span>Nav: <b>Home · My roadmap · Knowledge Hub</b></span><span>Data scope: <b>member projects only</b></span><span>Access ends: <b>within 180 days</b></span></div>
+      <p class="intro">A contractor, agency or partner who needs a narrow, time-limited view. This role is not in the spec. Guests see only the projects they've been added to, on a Home of their own.</p>
+      <div class="facts"><span>Nav: <b>Home · Knowledge Hub</b></span><span>Data scope: <b>member projects only</b></span><span>Access ends: <b>within 180 days</b></span></div>
     </div>
   </div>
 
@@ -577,11 +577,11 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     <div class="group">
       <h4>Features</h4>
       <ul class="feats">
-        <li data-s="live"><i class="s live">Works</i><div><b>Invited with an end date</b><p>An owner or admin invites a guest. The server requires an access end date within 180 days.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Invited with an end date and projects</b><p>An owner or admin invites a guest, picks the projects they may see and sets an access end date within 180 days.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Change a guest's projects</b><p>From the guest's row on Members &amp; roles. Both changes are audited.</p></div></li>
         <li data-s="live"><i class="s live">Works</i><div><b>Access ends automatically</b><p>After the end date the guest can no longer sign in to the workspace.</p></div></li>
-        <li data-s="api"><i class="s api">Server only</i><div><b>Added to specific projects</b><p>A guest sees nothing until they're added to a project, and there's no screen to add them.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Guest Home</b><p>Their projects, when their access ends, and Context Bot. No onboarding roadmap.</p></div></li>
         <li data-s="live"><i class="s live">Works</i><div><b>Knowledge Hub and Context Bot</b><p>Limited to their projects and to sources they can open.</p></div></li>
-        <li data-s="prev"><i class="s prev">Preview data</i><div><b>Home and My roadmap</b><p>The same onboarding screens as a member, which rarely fit a guest.</p></div></li>
         <li data-s="live"><i class="s live">Works</i><div><b>Kept out of the directory</b><p>No People page, no member list, no person facets in search.</p></div></li>
         <li data-s="live"><i class="s live">Works</i><div><b>Kept out of contributing</b><p>Can't propose answers to the Hub, request a role, connect apps or give kudos.</p></div></li>
       </ul>
@@ -589,23 +589,21 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     <div class="group">
       <h4>What's missing for guests</h4>
       <ol class="missing">
-        <li>A screen for admins to add a guest to a project. <span>Without it, a guest sees an empty workspace.</span></li>
-        <li>A guest Home that fits the role, instead of an onboarding roadmap.</li>
         <li>A decision in the spec on whether guests exist and what they may see.</li>
       </ol>
     </div>
   </div>
 
   <figure class="flow-fig">
-    <figcaption><b>Guest: from invite to expiry</b><span>The second step has no screen yet.</span></figcaption>
+    <figcaption><b>Guest: from invite to expiry</b><span>Works end to end.</span></figcaption>
     <div class="flow">
-      <div class="node live"><div class="who">Admin</div><b>Invite as Guest</b><small>Email, role Guest and an end date.</small><i class="s live">Works</i></div>
+      <div class="node live"><div class="who">Admin</div><b>Invite as Guest</b><small>Email, an end date and their projects.</small><i class="s live">Works</i></div>
       <div class="arr"></div>
-      <div class="node api"><div class="who">Admin</div><b>Add guest to a project</b><small>Only possible through the server API today.</small><i class="s api">Server only</i></div>
+      <div class="node live"><div class="who">Guest</div><b>Sign in</b><small>Invitation and projects applied on first sign-in.</small><i class="s live">Works</i></div>
       <div class="arr"></div>
-      <div class="node live"><div class="who">Guest</div><b>Sign in</b><small>Invitation applied on first sign-in.</small><i class="s live">Works</i></div>
+      <div class="node live"><div class="who">Guest</div><b>Use the project hub and bot</b><small>Only those projects' permitted sources.</small><i class="s live">Works</i></div>
       <div class="arr"></div>
-      <div class="node live"><div class="who">Guest</div><b>Use the project hub and bot</b><small>Only that project's permitted sources.</small><i class="s live">Works</i></div>
+      <div class="node live"><div class="who">Admin</div><b>Change their projects</b><small>Add or remove from their row.</small><i class="s live">Works</i></div>
       <div class="arr"></div>
       <div class="node live"><div class="who">System</div><b>Access ends</b><small>Membership expires on the end date.</small><i class="s live">Works</i></div>
     </div>
@@ -618,12 +616,12 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     <span class="mono-badge">MG</span>
     <div>
       <div class="sec-head"><div class="kicker">Role · <code>manager</code></div><h2>Manager</h2></div>
-      <p class="intro">People managers. They track and support their own team's onboarding, run check-ins and recommend probation outcomes. Team means direct reports. A workspace setting can include indirect reports.</p>
+      <p class="intro">People managers. They track and support their own team's onboarding, run check-ins and recommend probation outcomes. Team means direct reports, or the whole tree when the workspace setting includes indirect reports. Every manager page follows the same setting.</p>
       <div class="facts"><span>Nav: <b>Home · Team onboarding · Knowledge Hub · Review queue · People · My learning</b></span><span>Data scope: <b>own + team</b></span></div>
     </div>
   </div>
 
-  <div class="callout">The manager experience is the most complete in the app. Almost every screen is backed by the server.</div>
+  <div class="callout">Every manager screen is backed by the server. What's left is shared with other roles: messaging, and Slack delivery.</div>
 
   <div class="cols">
     <div class="group">
@@ -632,34 +630,32 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
         <li data-s="live"><i class="s live">Works</i><div><b>Home</b><p>Needs your attention (blocked, at risk, overdue), upcoming check-ins with "Summarize", team roster, knowledge gaps on your team, team knowledge. Quick "Assign learning" and "Record check-in" for whoever needs it most.</p></div></li>
         <li data-s="live"><i class="s live">Works</i><div><b>Team onboarding</b><p>A card per team member with stage, progress and status, plus knowledge-check results by topic across the team.</p></div></li>
         <li data-s="live"><i class="s live">Works</i><div><b>Member page</b><p>Progress against plan, editable current stage of the roadmap, check results, what's coming up, check-in history, probation section and an AI insight with suggested actions.</p></div></li>
-        <li data-s="live"><i class="s live">Works</i><div><b>Assign learning or a whole roadmap</b><p>Pick a team member, a module, task or check, a due date and a note. Or assign a roadmap from a template with a buddy.</p></div></li>
-        <li data-s="live"><i class="s live">Works</i><div><b>Record a check-in</b><p>Weekly 1:1, 30-day review, 60-day readiness or probation recommendation. Pulse, ratings, blockers, notes, next steps, and an option to share with the person.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Assign learning or a whole roadmap</b><p>Pick a team member, a module, task or check, a due date and a note. Or assign a roadmap from a template with a buddy. The person sees it on their roadmap.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Record a check-in</b><p>Weekly 1:1, 30-day review, 60-day readiness or probation recommendation. Pulse, ratings, blockers, notes, next steps, and an option to share the notes with the person.</p></div></li>
         <li data-s="live"><i class="s live">Works</i><div><b>Recommend a probation outcome</b><p>A probation check-in sends the recommendation to HR as "Ready for approval".</p></div></li>
         <li data-s="live"><i class="s live">Works</i><div><b>Escalate a blocker</b><p>Access problems go to admins, everything else to HR.</p></div></li>
         <li data-s="live"><i class="s live">Works</i><div><b>Knowledge gaps on your team</b><p>Questions the team asked without a good answer, shown only above a minimum count so no one is singled out. "Request update" flags the source.</p></div></li>
         <li data-s="live"><i class="s live">Works</i><div><b>Review queue</b><p>Approve or request changes on bot answers people proposed for the Hub. The reviewer is the project's domain owner, otherwise the author's manager.</p></div></li>
-        <li data-s="part"><i class="s part">Partly works</i><div><b>My learning</b><p>Assigned, suggested (with Add) and completed courses. "Continue" on a course is a placeholder.</p></div></li>
-        <li data-s="live"><i class="s live">Works</i><div><b>Create projects and manage sources</b><p>Add or paste sources, import or sync from Google Drive, reprocess, delete.</p></div></li>
-        <li data-s="part"><i class="s part">Partly works</i><div><b>Weekly team digest</b><p>Sent when the admin turns it on, as an in-app notification only.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>My learning</b><p>Assigned, suggested (with Add) and completed courses. Every course listed opens.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Create projects and manage sources</b><p>Add or paste sources, import or sync from Google Drive, reprocess, delete. Rename a project from its header.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Weekly team digest</b><p>Sent when the admin turns it on, in the app and by email.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Invite someone to your team</b><p>"Invite to my team" on Team onboarding. They join as a Member who reports to you.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Make a report a mentor or path curator</b><p>"Mentor or curator" on a report's page.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Build learning paths</b><p>Tutorials are the app's learning paths. A manager who is a path curator creates, AI-drafts, publishes and assigns them in Tutorial Studio.</p></div></li>
         <li data-s="stub"><i class="s stub">Placeholder</i><div><b>Message a team member</b><p>From Home and the attention list.</p></div></li>
-        <li data-s="api"><i class="s api">Server only</i><div><b>Invite someone to your team, make a report a mentor or path curator</b><p>The server allows it. The Members page is read-only for managers.</p></div></li>
-        <li data-s="api"><i class="s api">Server only</i><div><b>Build learning paths</b><p>Create, AI-generate, publish and assign paths. No screens.</p></div></li>
       </ul>
     </div>
     <div class="group">
       <h4>What's missing for managers</h4>
       <ol class="missing">
-        <li>Assigned learning reaching the employee's screens. <span>Managers can assign, but the employee can't see it in production.</span></li>
         <li>Messaging team members.</li>
-        <li>Screens to invite into their team and to build learning paths.</li>
-        <li>A consistent rule for indirect reports. <span>Some pages honour the workspace setting, others only count direct reports.</span></li>
-        <li>Email delivery for the weekly digest.</li>
+        <li>Slack delivery for the weekly digest and notifications.</li>
       </ol>
     </div>
   </div>
 
   <figure class="flow-fig">
-    <figcaption><b>Manager: support a new hire through probation</b><span>Every step works. The hand-off to the employee is the weak link.</span></figcaption>
+    <figcaption><b>Manager: support a new hire through probation</b><span>Every step works, and the employee sees shared check-ins and assigned learning.</span></figcaption>
     <div class="flow">
       <div class="node live"><div class="who">Manager</div><b>Needs your attention</b><small>Blocked, at risk or overdue team members.</small><i class="s live">Works</i></div>
       <div class="arr"></div>
@@ -687,7 +683,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     <div>
       <div class="sec-head"><div class="kicker">Role · <code>hr</code></div><h2>HR (People Ops)</h2></div>
       <p class="intro">People partners. They run onboarding across the company, manage onboarding templates and record employment status decisions. HR is its own role, so an HR person can't also be a manager or admin.</p>
-      <div class="facts"><span>Nav: <b>Home · Onboarding · Probation reviews · Templates · People · Knowledge Hub</b></span><span>Data scope: <b>whole organisation, onboarding only</b></span></div>
+      <div class="facts"><span>Nav: <b>Home · Onboarding · Probation reviews · Templates · People · Knowledge Hub · My learning · Audit log · Tutorials</b></span><span>Data scope: <b>whole organisation, onboarding only</b></span></div>
     </div>
   </div>
 
@@ -697,41 +693,37 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
       <ul class="feats">
         <li data-s="live"><i class="s live">Works</i><div><b>Home</b><p>Active onboardings, at risk or blocked, probation reviews in the next 30 days, people starting in the next 14 days, onboarding by team, overdue milestones with "Follow up", templates in use.</p></div></li>
         <li data-s="live"><i class="s live">Works</i><div><b>Onboarding list and "New onboarding"</b><p>Everyone onboarding, with search and filters. New onboarding takes name, job title, email, team, start date, manager, buddy and template, and sends the invitation.</p></div></li>
-        <li data-s="live"><i class="s live">Works</i><div><b>Onboarding record</b><p>Change manager, buddy, template or People partner. Setup checklist: Google account, laptop, roadmap, buddy, welcome message, first-week calendar. Progress and milestones.</p></div></li>
-        <li data-s="part"><i class="s part">Partly works</i><div><b>Setup checklist is ticked by hand</b><p>"Google account created" is meant to come from directory sync (SCIM), which isn't built.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Onboarding record</b><p>Change manager, buddy, template or People partner. Setup checklist, progress and milestones. Message sends an in-app message to the new hire, manager or buddy.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Setup checklist</b><p>"Account active" ticks itself when the person first signs in. Laptop, calendar and the other steps are ticked by hand.</p></div></li>
         <li data-s="live"><i class="s live">Works</i><div><b>Probation reviews</b><p>Filters (all, needs you, awaiting manager, at risk, completed) and reminders to managers in bulk.</p></div></li>
         <li data-s="live"><i class="s live">Works</i><div><b>Record the employment decision</b><p>Read the manager's recommendation, milestones and activity, then confirm employment, extend probation, or ask the manager to discuss first. Written to the audit log.</p></div></li>
-        <li data-s="part"><i class="s part">Partly works</i><div><b>Onboarding templates</b><p>New template (copied from an existing one), modules by stage, reorder, add from library, audience, save draft, publish a new version, version history. You can't archive, delete or open an old version, and draft saves aren't audited.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Onboarding templates</b><p>New template (copied from an existing one), modules by stage, reorder, add from library, audience, save draft, publish a new version, version history. Archive, delete and reopen, and open published versions. Draft saves are audited.</p></div></li>
         <li data-s="live"><i class="s live">Works</i><div><b>Onboarding card on people's profiles</b><p>For anyone currently onboarding, with a link to the record.</p></div></li>
-        <li data-s="stub"><i class="s stub">Placeholder</i><div><b>Message from the onboarding record</b><p>Shows "coming soon".</p></div></li>
-        <li data-s="miss"><i class="s miss">Not built</i><div><b>HR-relevant audit log</b><p>The spec says HR can view HR events. The audit log is admin only, and the in-app role table still says HR can see it.</p></div></li>
-        <li data-s="miss"><i class="s miss">Not built</i><div><b>Invite someone directly as HR</b><p>The invite dialog offers Member, Manager, Admin and Guest. HR has to be set afterwards by changing the role.</p></div></li>
-        <li data-s="miss"><i class="s miss">Not built</i><div><b>HR's own learning roadmap</b><p>HR has no learning pages. Open decision 6.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Edit people's job details</b><p>Job title, team and manager, from their profile. Not their own. Roles stay with admins.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Audit log of People Ops events</b><p>Check-ins, recommendations, decisions and template changes, with their details.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Invited directly as HR</b><p>Admins can invite someone as HR, with job title, team, manager and start date.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>My learning and Tutorials</b><p>HR's own courses, and Tutorial Studio to build and assign learning content.</p></div></li>
       </ul>
     </div>
     <div class="group">
       <h4>What's missing for HR</h4>
       <ol class="missing">
-        <li>An audit view filtered to HR events.</li>
-        <li>Automatic setup steps once directory sync (SCIM) exists.</li>
-        <li>Template archive, delete and past-version view. Auditing of draft saves.</li>
-        <li>HR as an invite option.</li>
-        <li>Messaging new hires and managers.</li>
-        <li>A clear rule on HR changing someone's manager. <span>The onboarding record can do it, but HR can't edit org details anywhere else.</span></li>
+        <li>Automatic setup steps and job details once directory sync (SCIM) exists.</li>
+        <li>Messaging from places other than the onboarding record.</li>
       </ol>
     </div>
   </div>
 
   <figure class="flow-fig">
-    <figcaption><b>HR: from new hire to confirmed employment</b><span>HR owns both ends. The middle depends on the manager and on the employee screens.</span></figcaption>
+    <figcaption><b>HR: from new hire to confirmed employment</b><span>HR owns both ends, and the middle now runs on real data.</span></figcaption>
     <div class="flow">
       <div class="node live"><div class="who">HR</div><b>New onboarding</b><small>Manager, buddy, template, start date.</small><i class="s live">Works</i></div>
       <div class="arr"></div>
       <div class="node live"><div class="who">System</div><b>Invitation emailed</b><small>Needs email set up on the server. In development it's only logged.</small><i class="s live">Works</i></div>
       <div class="arr"></div>
-      <div class="node part"><div class="who">HR</div><b>Setup checklist</b><small>Account, laptop, roadmap, buddy, welcome, calendar. Ticked by hand.</small><i class="s part">Partly works</i></div>
+      <div class="node live"><div class="who">HR</div><b>Setup checklist</b><small>Account ticks itself on first sign-in; the rest by hand.</small><i class="s live">Works</i></div>
       <div class="arr"></div>
-      <div class="node prev"><div class="who">New hire</div><b>Welcome and roadmap</b><small>Employee screens on preview data.</small><i class="s prev">Preview data</i></div>
+      <div class="node live"><div class="who">New hire</div><b>Welcome and roadmap</b><small>Opens on their first visit; progress is saved.</small><i class="s live">Works</i></div>
       <div class="arr"></div>
       <div class="node live"><div class="who">Manager</div><b>Check-ins and recommendation</b><small>Arrives as "Ready for approval".</small><i class="s live">Works</i></div>
       <div class="arr"></div>
@@ -741,7 +733,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
         <div class="opt"><small>Discuss with manager first</small></div>
         <i class="s live">Works</i></div>
       <div class="arr"></div>
-      <div class="node live"><div class="who">System</div><b>Audit log entry</b><small>Visible to admins, not HR.</small><i class="s live">Works</i></div>
+      <div class="node live"><div class="who">System</div><b>Audit log entry</b><small>HR sees the details; admins see only that it happened.</small><i class="s live">Works</i></div>
     </div>
   </figure>
 </section>
@@ -753,7 +745,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     <div>
       <div class="sec-head"><div class="kicker">Role · <code>admin</code></div><h2>Admin</h2></div>
       <p class="intro">IT and workspace admins. They govern the workspace: members and roles, connected sources, who can see what, sign-in, AI behaviour and the audit trail. They don't see onboarding records or check-in notes.</p>
-      <div class="facts"><span>Nav: <b>Overview · Members &amp; roles · Connectors · Access policies · AI settings · Audit log · Knowledge Hub · Workspace setup</b></span><span>Data scope: <b>whole workspace, no onboarding data</b></span></div>
+      <div class="facts"><span>Nav: <b>Overview · Tutorials · Members &amp; roles · Connectors · Access policies · AI settings · Audit log · Workspace · Knowledge Hub · Workspace setup</b></span><span>Data scope: <b>whole workspace, no onboarding data</b></span></div>
     </div>
   </div>
 
@@ -763,32 +755,28 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
       <ul class="feats">
         <li data-s="live"><i class="s live">Works</i><div><b>Workspace overview</b><p>Connector health with Reconnect, access and security checks, sync activity, AI answer quality with quick switches, latest audit events, member counts.</p></div></li>
         <li data-s="live"><i class="s live">Works</i><div><b>Members &amp; roles</b><p>Search and filter, change a role (never your own, never to Owner), suspend, reactivate or offboard. Offboarding removes access and creates a hand-over checklist for the manager.</p></div></li>
-        <li data-s="live"><i class="s live">Works</i><div><b>Invite people and approve role requests</b><p>Invite by email as Member, Manager, Admin or Guest. Approve or decline role requests, with an extra confirmation for Admin.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Invite people, see pending invites, approve role requests</b><p>Invite by email as Member, Manager, HR, Admin or Guest. A Pending invitations card lists unanswered invites with Revoke. Approve or decline role requests, with an extra confirmation for Admin.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Grant responsibilities</b><p>A Responsibilities tab lists who owns what, grants domain owner, path curator or mentor, and removes them.</p></div></li>
         <li data-s="live"><i class="s live">Works</i><div><b>Departments and teams</b><p>Create, rename, nest and delete.</p></div></li>
         <li data-s="miss"><i class="s miss">Not built</i><div><b>Directory sync (SCIM)</b><p>"Sync now" records an empty run. Names, titles, teams and managers don't come from the HR system.</p></div></li>
         <li data-s="live"><i class="s live">Works</i><div><b>Connect Google Drive</b><p>Authorize, choose folders or shared drives, share with everyone or not, pick a project, sync frequency and age cut-off. Manage, sync now, reconnect.</p></div></li>
         <li data-s="miss"><i class="s miss">Not built</i><div><b>Every other connector</b><p>Slack, Jira, GitHub, OneDrive, Teams, Confluence, Notion and others are listed but answer "isn't available yet". "Request a connector" works.</p></div></li>
         <li data-s="live"><i class="s live">Works</i><div><b>Access policies</b><p>Source permissions are always mirrored. Add Restrict (hide) or Exclude (never used in answers) policies by team or department, resolve conflicts, preview what one person can access.</p></div></li>
-        <li data-s="live"><i class="s live">Works</i><div><b>Single sign-on</b><p>Add an OIDC or SAML connection, verify the domain with a DNS record, require SSO. New, not yet committed.</p></div></li>
-        <li data-s="part"><i class="s part">Partly works</i><div><b>AI settings</b><p>Every setting saves, but only "weekly digest to managers" changes anything. Strictness, pause answers, stale-source warning, route to owner and pause during checks are stored and ignored.</p></div></li>
-        <li data-s="live"><i class="s live">Works</i><div><b>Audit log</b><p>Search, date range, category filters, expand for details.</p></div></li>
-        <li data-s="api"><i class="s api">Server only</i><div><b>Export the audit log, export workspace data, analytics</b><p>The server supports CSV audit export, a full workspace export and an analytics overview. No screens.</p></div></li>
-        <li data-s="part"><i class="s part">Partly works</i><div><b>Workspace setup checklist</b><p>Connect a source, choose content, create a project, invite your team. Step 5, "Assign a new hire", says it isn't in the app yet.</p></div></li>
-        <li data-s="api"><i class="s api">Server only</i><div><b>Grant special responsibilities</b><p>Domain owner, mentor, path curator, bounty sponsor and others. Without a screen, nobody in production can verify knowledge items or resolve conflicts.</p></div></li>
-        <li data-s="api"><i class="s api">Server only</i><div><b>Add guests to projects, give one person access to one source, see and revoke pending invites</b><p>No screens.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Share one source with one person</b><p>Share on a pasted or uploaded source lists who can open it, adds someone with an optional end date, and removes them. Connected sources follow their provider.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Single sign-on</b><p>Add an OIDC or SAML connection, verify the domain with a DNS record, require SSO.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>AI settings</b><p>Strictness, citing sources, the stale-source warning, routing unanswered questions to owners and the pause during knowledge checks all take effect. The weekly digest goes to managers in the app and by email.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Audit log</b><p>Search, date range, category filters, expand for details, and Export CSV for the chosen range. People Ops details are left out.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Workspace page</b><p>Download the workspace's data (no people data or conversations) and aggregate analytics for 30 or 90 days, with rates hidden below the privacy threshold.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Workspace setup checklist</b><p>Connect a source, choose content, create a project, invite your team, start a new hire's onboarding.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Tutorials</b><p>Create, AI-draft, publish and assign learning content in Tutorial Studio.</p></div></li>
         <li data-s="api"><i class="s api">Server only</i><div><b>Rewards catalog, points adjustments, anomaly review</b><p>Later phase. No screens.</p></div></li>
       </ul>
     </div>
     <div class="group">
       <h4>What's missing for admins</h4>
       <ol class="missing">
-        <li>AI settings that actually change Context Bot's behaviour.</li>
-        <li>Connectors beyond Google Drive.</li>
-        <li>Directory sync (SCIM).</li>
-        <li>A screen to grant domain owner and other responsibilities. <span>Several knowledge features depend on it.</span></li>
-        <li>Screens for guest project access, pending invites, exports and analytics.</li>
-        <li>Step 5 of workspace setup.</li>
-        <li>Fix the workspace export so it leaves out check-in notes. <span>It currently includes them, breaking the "admins don't see check-ins" rule.</span></li>
+        <li>Connectors beyond Google Drive. <span>Slack and Jira first.</span></li>
+        <li>Directory sync (SCIM), or hiding "Sync now" until it exists.</li>
         <li>A People item in the admin navigation, if admins should browse the directory.</li>
       </ol>
     </div>
@@ -818,11 +806,11 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
       <div class="arr"></div>
       <div class="node live"><div class="who">Step 2</div><b>Choose content</b><small>Folders into a project.</small><i class="s live">Works</i></div>
       <div class="arr"></div>
-      <div class="node live"><div class="who">Step 3</div><b>Create a project</b><small>Name and description.</small><i class="s live">Works</i></div>
+      <div class="node live"><div class="who">Step 3</div><b>Create a project</b><small>Name, collection and description.</small><i class="s live">Works</i></div>
       <div class="arr"></div>
       <div class="node live"><div class="who">Step 4</div><b>Invite your team</b><small>Email and role.</small><i class="s live">Works</i></div>
       <div class="arr"></div>
-      <div class="node miss"><div class="who">Step 5</div><b>Assign a new hire</b><small>Page says it isn't in the app yet.</small><i class="s miss">Not built</i></div>
+      <div class="node live"><div class="who">Step 5</div><b>Start a new hire's onboarding</b><small>Done when the first onboarding exists. Offers to invite People Ops.</small><i class="s live">Works</i></div>
     </div>
   </figure>
 </section>
@@ -846,14 +834,13 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
         <li data-s="live"><i class="s live">Works</i><div><b>Create a workspace</b><p>Company name and address. The creator becomes Owner.</p></div></li>
         <li data-s="live"><i class="s live">Works</i><div><b>Make someone an Owner, or remove ownership</b><p>Only owners can. The last owner can't be removed.</p></div></li>
         <li data-s="live"><i class="s live">Works</i><div><b>Can always sign in when SSO is required</b><p>So a broken SSO setup can't lock the workspace out.</p></div></li>
-        <li data-s="api"><i class="s api">Server only</i><div><b>Schedule or cancel workspace deletion</b><p>No screen.</p></div></li>
+        <li data-s="live"><i class="s live">Works</i><div><b>Schedule or cancel workspace deletion</b><p>On the Workspace page: type the workspace's slug to schedule deletion in 7 days, and cancel any time before.</p></div></li>
         <li data-s="api"><i class="s api">Server only</i><div><b>Run performance review cycles</b><p>Part of a later add-on. No screens.</p></div></li>
       </ul>
     </div>
     <div class="group">
       <h4>What's missing for owners</h4>
       <ol class="missing">
-        <li>A screen to delete the workspace, with its grace period.</li>
         <li>The Owner role in the spec, so the team agrees on what only owners may do.</li>
       </ol>
     </div>
@@ -864,13 +851,13 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     <div class="flow">
       <div class="node live"><div class="who">Owner</div><b>Sign in, create workspace</b><small>Becomes Owner.</small><i class="s live">Works</i></div>
       <div class="arr"></div>
-      <div class="node part"><div class="who">Owner</div><b>Workspace setup</b><small>4 of 5 steps.</small><i class="s part">Partly works</i></div>
+      <div class="node live"><div class="who">Owner</div><b>Workspace setup</b><small>All 5 steps.</small><i class="s live">Works</i></div>
       <div class="arr"></div>
-      <div class="node live"><div class="who">Owner</div><b>Invite admins and managers</b><small>HR set by role change afterwards.</small><i class="s live">Works</i></div>
+      <div class="node live"><div class="who">Owner</div><b>Invite admins, managers and HR</b><small>HR with job title, team, manager and start date.</small><i class="s live">Works</i></div>
       <div class="arr"></div>
       <div class="node live"><div class="who">Owner</div><b>Set up SSO and policies</b><small>Verify domain, require SSO.</small><i class="s live">Works</i></div>
       <div class="arr"></div>
-      <div class="node api"><div class="who">Owner</div><b>Delete workspace</b><small>Only through the server API.</small><i class="s api">Server only</i></div>
+      <div class="node live"><div class="who">Owner</div><b>Delete workspace</b><small>7 days' grace, cancel any time before.</small><i class="s live">Works</i></div>
     </div>
   </figure>
 </section>
@@ -885,13 +872,13 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
   <div class="wf-grid">
 
     <figure class="flow-fig">
-      <figcaption><b>Assign learning</b><span>Manager to member. Breaks at the last step.</span></figcaption>
+      <figcaption><b>Assign learning</b><span>Manager to member. Works end to end.</span></figcaption>
       <div class="flow">
         <div class="node live"><div class="who">Manager</div><b>Assign a module, task or check</b><small>Due date and note.</small><i class="s live">Works</i></div>
         <div class="arr"></div>
         <div class="node live"><div class="who">System</div><b>Saved and notified</b><small>Stored against the member's roadmap.</small><i class="s live">Works</i></div>
         <div class="arr"></div>
-        <div class="node miss"><div class="who">Member</div><b>Appears on roadmap and "This week"</b><small>Employee screens don't read it yet.</small><i class="s miss">Not built</i></div>
+        <div class="node live"><div class="who">Member</div><b>Appears on roadmap and "This week"</b><small>Marked "Assigned by". Needs an onboarding record.</small><i class="s live">Works</i></div>
       </div>
     </figure>
 
@@ -900,7 +887,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
       <div class="flow">
         <div class="node live"><div class="who">Anyone</div><b>Ask Context Bot</b><small>No reliable answer.</small><i class="s live">Works</i></div>
         <div class="arr"></div>
-        <div class="node part"><div class="who">Anyone</div><b>Report a knowledge gap</b><small>Notifies admins. The spec says knowledge owners.</small><i class="s part">Partly works</i></div>
+        <div class="node live"><div class="who">Anyone</div><b>Report a knowledge gap</b><small>Goes to the project's domain owners, or admins when nobody owns it.</small><i class="s live">Works</i></div>
         <div class="arr"></div>
         <div class="node prev"><div class="who">Member</div><b>Write the answer</b><small>Contributions: hidden and on preview data.</small><i class="s prev">Preview data</i></div>
         <div class="arr"></div>
@@ -926,22 +913,24 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
       <div class="flow">
         <div class="node live"><div class="who">HR</div><b>Edit template</b><small>Modules, order, audience. Save draft.</small><i class="s live">Works</i></div>
         <div class="arr"></div>
-        <div class="node live"><div class="who">HR</div><b>Publish new version</b><small>Version history kept.</small><i class="s live">Works</i></div>
+        <div class="node live"><div class="who">HR</div><b>Publish new version</b><small>Version history kept; published versions open.</small><i class="s live">Works</i></div>
         <div class="arr"></div>
         <div class="node live"><div class="who">HR · Manager</div><b>New onboardings use it</b><small>Chosen on the record or by "Assign roadmap".</small><i class="s live">Works</i></div>
         <div class="arr"></div>
-        <div class="node live"><div class="who">System</div><b>Audit log entry</b><small>Publishing only, not drafts.</small><i class="s live">Works</i></div>
+        <div class="node live"><div class="who">System</div><b>Audit log entry</b><small>Drafts and publishing.</small><i class="s live">Works</i></div>
       </div>
     </figure>
 
     <figure class="flow-fig">
-      <figcaption><b>Offboard someone</b><span>Admin to manager.</span></figcaption>
+      <figcaption><b>Offboard someone</b><span>Admin to manager, and back to admin.</span></figcaption>
       <div class="flow">
         <div class="node live"><div class="who">Admin</div><b>Offboard from Members</b><small>Or suspend for now.</small><i class="s live">Works</i></div>
         <div class="arr"></div>
         <div class="node live"><div class="who">System</div><b>Access removed</b><small>Source grants and responsibilities revoked.</small><i class="s live">Works</i></div>
         <div class="arr"></div>
-        <div class="node api"><div class="who">Manager</div><b>Hand-over checklist</b><small>Created, but there's no screen to see it.</small><i class="s api">Server only</i></div>
+        <div class="node live"><div class="who">Manager</div><b>Hand-over checklist</b><small>Picks a new owner for each area.</small><i class="s live">Works</i></div>
+        <div class="arr"></div>
+        <div class="node live"><div class="who">Admin</div><b>Apply the hand-over</b><small>Grants every pick in one step.</small><i class="s live">Works</i></div>
       </div>
     </figure>
 
@@ -953,34 +942,20 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
   <div class="sec-head">
     <div class="kicker">Across roles</div>
     <h2>What's missing, in priority order</h2>
-    <p class="intro">High means a role can't do its main job in production, or a privacy rule is broken. File references are for the engineering team.</p>
+    <p class="intro">High means a role can't do its main job in production, or a privacy rule is broken. The privacy gaps and the employee-screen gaps from the 15 Oct check are fixed and no longer listed. File references are for the engineering team.</p>
   </div>
   <div class="tbl">
     <table>
       <thead><tr><th>Priority</th><th>Gap</th><th>Who is affected</th></tr></thead>
       <tbody>
-        <tr><td><span class="sev h">High</span></td><td>Employee Home, roadmap, modules, lessons, knowledge checks and welcome have no server support. They only work with development sample data.<span class="where">apps/web/src/mocks/endpoints.ts · docs/api-change-requests.md</span></td><td>Member, Guest, new hires</td></tr>
-        <tr><td><span class="sev h">High</span></td><td>Learning a manager assigns never reaches the employee's screens.<span class="where">team.routes.ts /assignments → mocked /me/roadmap</span></td><td>Manager, Member</td></tr>
-        <tr><td><span class="sev h">High</span></td><td>The workspace data export includes check-in notes, so admins can read what the spec says they must not.<span class="where">apps/api/src/modules/platform/admin.routes.ts:64-65</span></td><td>Admin, Owner</td></tr>
-        <tr><td><span class="sev h">High</span></td><td>An employee who knows a check-in's id can read its private ratings and notes.<span class="where">onboarding.routes.ts:358-381 (POST /probation/checkins/:id/respond)</span></td><td>Member, Manager</td></tr>
-        <tr><td><span class="sev h">High</span></td><td>AI settings are saved but ignored, apart from the weekly digest.<span class="where">admin-overview.routes.ts:412-467</span></td><td>Admin, everyone using the bot</td></tr>
-        <tr><td><span class="sev h">High</span></td><td>Only Google Drive can be connected. Slack, Jira, GitHub and Microsoft sources aren't built.<span class="where">admin-connectors.routes.ts:49-60</span></td><td>Admin, everyone</td></tr>
-        <tr><td><span class="sev m">Medium</span></td><td>No screen to make someone a domain owner, so verifying items and resolving conflicts fails for everyone in production.<span class="where">POST /assignments (identity.routes.ts:503)</span></td><td>Admin, all readers</td></tr>
-        <tr><td><span class="sev m">Medium</span></td><td>Directory sync (SCIM) isn't built, so names, titles and teams aren't taken from the HR system.<span class="where">identity.service.ts:339-348</span></td><td>Admin, HR</td></tr>
-        <tr><td><span class="sev m">Medium</span></td><td>Admin and manager pages have no route guard in the web app. Other roles can open them by URL and see empty pages or errors. The server still refuses the data.<span class="where">apps/web/src/app/router.tsx</span></td><td>All roles</td></tr>
-        <tr><td><span class="sev m">Medium</span></td><td>Any non-guest can list every member's start date, new-hire flag, role and manager.<span class="where">GET /users (identity.routes.ts:149-198)</span></td><td>All roles</td></tr>
-        <tr><td><span class="sev m">Medium</span></td><td>No screen to add a guest to a project.<span class="where">POST /projects/:id/memberships</span></td><td>Admin, Guest</td></tr>
-        <tr><td><span class="sev m">Medium</span></td><td>HR has no audit view, and the in-app role table wrongly says it does.<span class="where">apps/web/src/features/admin/admin-meta.ts:111-121</span></td><td>HR</td></tr>
-        <tr><td><span class="sev m">Medium</span></td><td>Email and Slack notifications aren't sent. Only in-app notifications are delivered.<span class="where">docs/api-reference.md:714</span></td><td>All roles</td></tr>
-        <tr><td><span class="sev m">Medium</span></td><td>Messaging and booking time are placeholders in eight places.<span class="where">apps/web/src/lib/coming-soon.ts callers</span></td><td>All roles</td></tr>
-        <tr><td><span class="sev m">Medium</span></td><td>"New project" shows for every role, but only owners, admins and managers can create one.<span class="where">knowledge-hub-page.tsx</span></td><td>Member, Guest, HR</td></tr>
-        <tr><td><span class="sev m">Medium</span></td><td>Indirect reports are counted on some manager pages and not on others.<span class="where">team.routes.ts:101-114 vs manager.routes.ts:48-52</span></td><td>Manager</td></tr>
-        <tr><td><span class="sev l">Low</span></td><td>Profile fields (pronouns, location, bio, skills, avatar) aren't stored.</td><td>All roles</td></tr>
-        <tr><td><span class="sev l">Low</span></td><td>Knowledge Hub categories other than Projects are always empty.<span class="where">no category column on projects</span></td><td>All roles</td></tr>
-        <tr><td><span class="sev l">Low</span></td><td>Invite as HR, workspace setup step 5, template archive and old-version view.</td><td>Admin, HR</td></tr>
-        <tr><td><span class="sev l">Low</span></td><td>No screens for renaming or deleting projects, a notifications page, audit export, workspace deletion or analytics.</td><td>Admin, Owner, Manager</td></tr>
+        <tr><td><span class="sev h">High</span></td><td>Only Google Drive can be connected. Slack, Jira, GitHub and Microsoft sources aren't built.<span class="where">admin-connectors.routes.ts · connectors.routes.ts</span></td><td>Admin, everyone</td></tr>
+        <tr><td><span class="sev m">Medium</span></td><td>Directory sync (SCIM) isn't built, so names, titles, teams and managers aren't taken from the HR system, and "Sync now" records an empty run.<span class="where">identity.service.ts (directory) · members-admin.routes.ts</span></td><td>Admin, HR</td></tr>
+        <tr><td><span class="sev m">Medium</span></td><td>Messaging and booking time are placeholders in eight places. Only the onboarding record's Message works, in the app.<span class="where">apps/web/src/lib/coming-soon.ts callers</span></td><td>All roles</td></tr>
+        <tr><td><span class="sev m">Medium</span></td><td>Contributions has no server, so members can't write knowledge. Hidden for the demo.<span class="where">apps/web/src/mocks/contributions.ts · apps/web/src/lib/hidden.ts</span></td><td>Member</td></tr>
+        <tr><td><span class="sev l">Low</span></td><td>Slack notifications and digests aren't sent. In-app and email are.<span class="where">apps/api/src/modules/platform/email-delivery.ts</span></td><td>All roles</td></tr>
+        <tr><td><span class="sev l">Low</span></td><td>The stale-source warning's longest threshold (24 hours) is shorter than Drive's 2-day sync, so most answers citing Drive carry the warning.<span class="where">answer-policy.ts · AI settings</span></td><td>Admin, everyone using the bot</td></tr>
+        <tr><td><span class="sev l">Low</span></td><td>Employees can read a shared check-in but not reply to it from the app.<span class="where">employee-home.tsx · POST /probation/checkins/:id/respond</span></td><td>Member</td></tr>
         <tr><td><span class="sev l">Low</span></td><td>Kudos, badges, leaderboards, rewards, bounties and review cycles exist on the server with no screens. Planned for a later phase.</td><td>All roles</td></tr>
-        <tr><td><span class="sev l">Low</span></td><td>The API reference and production-readiness docs still describe Clerk sign-in and leave out the HR role.<span class="where">docs/api-reference.md · docs/backend-production-readiness.md</span></td><td>Engineering</td></tr>
       </tbody>
     </table>
   </div>
@@ -991,29 +966,29 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
   <div class="sec-head">
     <div class="kicker">Across roles</div>
     <h2>Open decisions and what the app does today</h2>
-    <p class="intro">The ten open questions from section 8 of the role access spec, with the behaviour the code has settled on so far.</p>
+    <p class="intro">The ten open questions from section 8 of the role access spec, with the behaviour the code has settled on so far. Questions 5, 6 and 8 are now decided.</p>
   </div>
   <div class="tbl">
     <table>
       <thead><tr><th>#</th><th>Question</th><th>What the app does today</th></tr></thead>
       <tbody>
-        <tr><td>1</td><td>Can Admin see onboarding progress?</td><td>No. All People Ops pages refuse admins. The workspace export is the exception and should be fixed.</td></tr>
+        <tr><td>1</td><td>Can Admin see onboarding progress?</td><td>No. All People Ops pages refuse admins, and the audit log, its CSV and the workspace export leave out People Ops details.</td></tr>
         <tr><td>2</td><td>Who changes probation to full-time?</td><td>The manager recommends and HR decides. Matches the prototype.</td></tr>
-        <tr><td>3</td><td>Can a manager edit or remove team members?</td><td>No. The server lets a manager invite a member into their own team, but there's no screen for it.</td></tr>
-        <tr><td>4</td><td>Can HR add, edit and remove people and change roles?</td><td>HR creates onboarding records, which send the invite, and can change a new hire's manager. Only admins change roles.</td></tr>
-        <tr><td>5</td><td>Does HR get an audit log page?</td><td>No.</td></tr>
-        <tr><td>6</td><td>Do HR and Admin get their own learning roadmap?</td><td>No. Only managers have "My learning".</td></tr>
+        <tr><td>3</td><td>Can a manager edit or remove team members?</td><td>No. Managers invite members into their own team and make reports mentors or path curators, but can't edit or remove people.</td></tr>
+        <tr><td>4</td><td>Can HR add, edit and remove people and change roles?</td><td>HR creates onboarding records, which send the invite, and edits people's job title, team and manager from their profile (not their own). Only admins change roles.</td></tr>
+        <tr><td>5</td><td>Does HR get an audit log page?</td><td>Decided: yes, an audit log of People Ops events.</td></tr>
+        <tr><td>6</td><td>Do HR and Admin get their own learning roadmap?</td><td>Decided: HR has My learning. Admins have none, but build tutorials.</td></tr>
         <tr><td>7</td><td>Can employees publish knowledge directly?</td><td>No. Proposed answers go to the Review queue.</td></tr>
-        <tr><td>8</td><td>Manager scope: direct reports or the whole tree?</td><td>Direct reports by default. A workspace setting adds indirect reports, but only some pages honour it.</td></tr>
+        <tr><td>8</td><td>Manager scope: direct reports or the whole tree?</td><td>Decided: the workspace setting, everywhere. Direct reports by default, the whole tree when indirect reports are on.</td></tr>
         <tr><td>9</td><td>One role per user, or several?</td><td>One. An HR person can't also be a manager.</td></tr>
-        <tr><td>10</td><td>Hide the manager Review queue for the demo?</td><td>Still visible. It's no longer empty: it now holds bot answers proposed for the Hub, not only contributions.</td></tr>
+        <tr><td>10</td><td>Hide the manager Review queue for the demo?</td><td>Still visible. It holds bot answers proposed for the Hub, not only contributions.</td></tr>
       </tbody>
     </table>
   </div>
 </section>
 
 <footer>
-  <span>Built from a read of <code>apps/web</code>, <code>apps/api</code> and <code>packages/shared</code> on 15 Oct 2026, including uncommitted changes (the move from Clerk to the app's own sign-in, and single sign-on).</span>
+  <span>Built from a read of <code>apps/web</code>, <code>apps/api</code> and <code>packages/shared</code> on 15 Oct 2026, and updated on 16 Oct 2026 after fix batches 1 to 6 on <code>chore/docs-status-review</code> and the fixes merged from <code>origin/dev</code>.</span>
   <span>"Preview data" screens run only when the web app starts with <code>VITE_MOCK_API=true</code> in development.</span>
 </footer>
 

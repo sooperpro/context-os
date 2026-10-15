@@ -1,10 +1,10 @@
 # Backend production readiness and PRD coverage
 
-Updated: 14 October 2026. **Status: every PRD §20 endpoint group is implemented and tested locally; the system is still not certified for production** (infrastructure, live providers and SLOs remain unverified). The implementation adds real backend workflows and security controls, but a passing local test suite does not demonstrate the PRD's production requirements.
+Updated: 16 October 2026 (sign-in and roles). **Status: every PRD §20 endpoint group is implemented and tested locally; the system is still not certified for production** (infrastructure, live providers and SLOs remain unverified). The implementation adds real backend workflows and security controls, but a passing local test suite does not demonstrate the PRD's production requirements.
 
 ## Confirmed release scope
 
-The owner selected **Phase 1 first, subsequent phases later**. Production Clerk and Google projects do not exist yet and will be configured later. Local development and mocked provider tests can proceed; live authentication/provider acceptance and production deployment remain unverified.
+The owner selected **Phase 1 first, subsequent phases later**. Sign-in no longer uses Clerk: since 15 October it is Better Auth inside the API (`AUTH_MODE=accounts`; see [decisions.md](decisions.md)). The production sign-in setup (an SMTP account, Google and Microsoft OAuth clients, any customer's SSO) and the Google Drive project do not exist yet and will be configured later. Local development and mocked provider tests can proceed; live authentication/provider acceptance and production deployment remain unverified.
 
 Phase 1 remains **in progress**, including these backend exit requirements:
 
@@ -17,6 +17,11 @@ Phase 1 remains **in progress**, including these backend exit requirements:
 
 Phase 1.5 rewards/kudos/bounties/leaderboards/billing/extension and analytics; Phase 2 EPM/reviews/SCIM; Phase 3 agent/MCP/media/desktop and extra connectors are **deferred**, not current Phase 1 release requirements. Some backend check-in/outcome/preferences foundations already exist from the initial broader request; they do not mean later phases are complete.
 
+## Sign-in and roles (15 and 16 October 2026)
+
+- Our own sign-in replaced Clerk: Better Auth inside the API with email and password, emailed sign-in links, Google, Microsoft, and company SSO (OIDC or SAML) once a workspace verifies its email domain. Sessions are stored in SQLite behind an HttpOnly cookie, with sign-out per device; workspaces, memberships, roles and invitations stay in the application tables. Invitations are emailed with a sign-in link. A workspace can require SSO.
+- A sixth system role, `hr` (People Ops), reads company-wide onboarding, probation and template records; admins no longer see people data. Server-side route guards follow the [role access spec](../ContextOS_Role_Access_Spec.md).
+
 ## Implemented on 14 October 2026 (PRD §20 completion)
 
 - Every endpoint listed in PRD §20 now exists, with the deviations table in [api-reference.md](api-reference.md#28-prd-20-mapping-and-deviations). 86 backend tests pass (24 new) covering settings, directory and invitations, identity links, slugs, hub sections and KHS, evidence, conflicts (open, auto-resolved, disputed, resolved), flags with co-reporters and bounty conversion, bounty rules, Ask feedback and promotion, leaderboards, kudos, clawbacks, rewards redemption, EPM footprints/brag docs/review cycles, learning credit and completion, quiz awards, onboarding health and mentor capacity, companion caps, maintenance sweeps, connector scopes/sync/disconnect modes and webhook signature/trigger matching.
@@ -25,7 +30,7 @@ Phase 1.5 rewards/kudos/bounties/leaderboards/billing/extension and analytics; P
 
 ## Implemented in the previous extension (13 October 2026)
 
-- Clerk backend session verification and current organization membership checks; explicit application roles, membership lifecycle/guest expiry, supported assignments and organization invitations.
+- Clerk backend session verification and current organization membership checks (replaced by Better Auth on 15 October); explicit application roles, membership lifecycle/guest expiry, supported assignments and organization invitations.
 - Workspace creation/settings, resumable setup progress, departments and three-level nested teams, tenant-checked employment profiles, reporting-cycle rejection and transactional local offboarding/revocation.
 - Private-by-default manual sources; source grants; SQL candidate restrictions for keyword/vector retrieval; private Ask history and threads; stored answer source dependencies and revocation checks.
 - Exact quote rejection and citation regeneration/fallback; conservative protection of merged context and global overview prose.
@@ -56,13 +61,13 @@ On 13 October 2026, using Node 24:
 - API/shared lint and type checks, frontend type check, API production build and formatting checks passed.
 - Bruno CLI 4.2.1: **117 requests: 82 passed, 35 skipped; 82/82 executed tests passed**, against an isolated in-memory HTTP fixture with fake Gemini, not the user's development database.
 
-Skipped requests require provider configuration, separate user sessions, supplied workflow resources or explicit mutation opt-ins. They are not verified successes. Live Clerk/Google acceptance, real Gemini answer quality and production SLOs remain unverified. Test fixtures ignore real Clerk/Google secrets unless synthetic Google test configuration is explicitly supplied.
+Skipped requests require provider configuration, separate user sessions, supplied workflow resources or explicit mutation opt-ins. They are not verified successes. Live sign-in and Google acceptance, real Gemini answer quality and production SLOs remain unverified. Test fixtures ignore real sign-in and Google secrets unless synthetic Google test configuration is explicitly supplied.
 
 ## Full-PRD backlog inventory (includes deferred phases)
 
 | PRD area               | Remaining implementation/verification                                                                                                                                                                                                                                                              |
 | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| WS / §6                | Frontend workspace wizard/Clerk login, domain verification/auto-join, CSV invites and org imports, identity-link review, section/topic/team/department assignment scopes, complete role/action matrix, indirect-report policy enforcement, SSO/SCIM phases and offboarding continuity.             |
+| WS / §6                | Live verification of sign-in and SSO domain verification/auto-join, CSV invites and org imports, identity-link review, section/topic/team/department assignment scopes, complete role/action matrix, indirect-report policy enforcement, SSO/SCIM phases and offboarding continuity.               |
 | INT                    | Slack, Jira and GitHub connectors; Drive Sheets/Slides/comments/revisions, selected folder/shared-drive backfill, provider exclusion rules, durable cursors, signed webhooks, scheduler/quota controls and tombstone lifecycle.                                                                    |
 | CTX                    | Atomic subject/predicate/object claims, full entity/edge model, aliases and identity-based resolution, valid-from/to windows, automatic supersession, authority hierarchy, full conflict objects/resolution, staleness scheduler and incremental graph updates.                                    |
 | HUB                    | Full ten-section contract and metadata, Domain Owners per section, permission-fingerprint generation/cache, alternative accessible evidence handling, filters/pagination, canonical sources, pinned/versioned notes, graph map and export phases.                                                  |
@@ -81,9 +86,9 @@ The existing SQLite/FTS5 and brute-force vector implementation differs from the 
 
 ## External configuration and release gates
 
-1. Configure a production Clerk application, Organizations, frontend token acquisition and allowed origins. Test genuine signed-in/out, expired tokens, organization switching and membership removal. The frontend auth UI is not added by this backend implementation.
+1. Configure production sign-in: `AUTH_SECRET`, `AUTH_URL`, `SMTP_URL` and `EMAIL_FROM`, the Google and Microsoft OAuth clients, and allowed origins. Test genuine sign-in and sign-out with each method, expired sessions, workspace switching, SSO-required workspaces and membership removal.
 2. Configure and obtain approval for Google OAuth scopes. Test consent denial, partial scopes, refresh/reconnect, separate reader identities, shared-drive permissions, revocation and deletion using real accounts. Validate provider requirements against current official documentation.
-3. Migrate the legacy default workspace and its access grants deliberately. New Clerk organizations do not automatically inherit local prototype data. Review the privacy-changing migrations on a backup before deployment.
+3. Migrate the legacy default workspace and its access grants deliberately. New workspaces do not automatically inherit local prototype data. Review the privacy-changing migrations on a backup before deployment.
 4. Complete the required modules above and run the PRD acceptance/permission/evaluation suites. Audit triggers protect new writes; old audit entries lack integrity hashes and are not retroactively certified.
 5. Supply encrypted database/storage, secret management/rotation, TLS, backup/restore, observability and deployment infrastructure. Exercise rollbacks and worker recovery. Outbox records currently have no dispatch consumer.
 6. Benchmark real model/provider behavior and corpus/concurrency targets. Validate streaming, citation support, document parsers and rate limits. No production SLO or vendor data-processing guarantee follows from the local fixture.

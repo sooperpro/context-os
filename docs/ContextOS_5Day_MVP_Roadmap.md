@@ -1,5 +1,9 @@
 # ContextOS — 5-Day MVP Roadmap
 
+> **Historical (October 2026).** This early plan is not used. It names Clerk, FastAPI and PostgreSQL; the
+> app is built on Hono, SQLite and our own sign-in (Better Auth). See [decisions.md](decisions.md) and
+> [api-reference.md](api-reference.md) for the current stack.
+
 > **Goal:** A working demo that connects to real tools, reconstructs project context, renders a Knowledge Hub, answers questions with citations, and shows a basic learning path — in 5 days.
 
 ---
