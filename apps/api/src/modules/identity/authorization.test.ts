@@ -237,6 +237,54 @@ describe("Authorization: role and access checks that must hold", () => {
     expect(row.guestExpiresAt!.getTime()).toBeLessThanOrEqual(Date.now() + 180 * 86_400_000);
   });
 
+  it("invites HR with a job title and placement, checked against the org structure", async () => {
+    t = createTestApp();
+    owner = { ...t.container.devActor };
+    const create = async (path: string, body: unknown) =>
+      json<{ id: string }>(await t.app.request(`/api/v1/org/${path}`, jsonRequest(body)));
+    const people = await create("departments", { name: "People" });
+    const engineering = await create("departments", { name: "Engineering" });
+    const partners = await create("teams", { name: "Partners", departmentId: people.id });
+    const invite = (body: Record<string, unknown>) =>
+      t.app.request("/api/v1/users/invite", jsonRequest({ email: "noor@example.com", ...body }));
+
+    const unknownTeam = "99999999-9999-4999-8999-999999999999";
+    expect((await invite({ teamId: unknownTeam })).status).toBe(400);
+    expect((await invite({ departmentId: engineering.id, teamId: partners.id })).status).toBe(400);
+    expect(
+      t.container.store.listWhere(t.container.workspace.id, "invitation", {}, 10),
+    ).toHaveLength(0);
+
+    const sent = await invite({
+      role: "hr",
+      name: "Noor Hassan",
+      jobTitle: "People Partner",
+      departmentId: people.id,
+      teamId: partners.id,
+      managerId: owner.id,
+      startDate: "2026-11-02",
+      isNewHire: true,
+    });
+    expect(sent.status).toBe(201);
+    expect(await json(sent)).toMatchObject({ status: "pending", requestedRole: "hr" });
+
+    t.container.db.insert(users).values({ id: "noor", name: "Noor Hassan" }).run();
+    expect(t.container.identity.acceptInvitations("noor", "noor@example.com")).toBe(1);
+    const row = t.container.db
+      .select()
+      .from(memberships)
+      .all()
+      .find((entry) => entry.userId === "noor")!;
+    expect(row).toMatchObject({ role: "hr", managerId: owner.id });
+    expect(row.organization).toEqual({
+      jobTitle: "People Partner",
+      departmentId: people.id,
+      teamId: partners.id,
+      startDate: "2026-11-02",
+      isNewHire: true,
+    });
+  });
+
   it("hides bounties about knowledge the viewer can't open", async () => {
     t = createTestApp();
     owner = { ...t.container.devActor };

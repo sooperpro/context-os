@@ -20,6 +20,7 @@ import {
   assignments,
   auditLog,
   connectorConnections,
+  departments,
   domainEvents,
   identityLinks,
   memberships,
@@ -28,6 +29,7 @@ import {
   projects,
   sourceAccess,
   sourceObjects,
+  teams,
   users,
   workspaces,
 } from "../../db/schema.js";
@@ -428,9 +430,35 @@ export function createIdentityRoutes(container: Container) {
               "FORBIDDEN",
               "Managers can invite members into their own team only",
             );
-      const results: Array<Record<string, unknown>> = [];
+      // Check every row before sending any, so a bad row in a bulk list leaves nothing half-sent.
       for (const invitation of invitations) {
         if (invitation.managerId) identity.requireMember(actor.workspaceId, invitation.managerId);
+        if (invitation.departmentId) {
+          const department = db
+            .select({ id: departments.id })
+            .from(departments)
+            .where(
+              and(
+                eq(departments.workspaceId, actor.workspaceId),
+                eq(departments.id, invitation.departmentId),
+              ),
+            )
+            .get();
+          if (!department) throw new BadRequestError("That department does not exist");
+        }
+        if (invitation.teamId) {
+          const team = db
+            .select({ departmentId: teams.departmentId })
+            .from(teams)
+            .where(and(eq(teams.workspaceId, actor.workspaceId), eq(teams.id, invitation.teamId)))
+            .get();
+          if (!team) throw new BadRequestError("That team does not exist");
+          if (invitation.departmentId && team.departmentId !== invitation.departmentId)
+            throw new BadRequestError("That team is not in the chosen department");
+        }
+      }
+      const results: Array<Record<string, unknown>> = [];
+      for (const invitation of invitations) {
         const email = invitation.email.toLowerCase();
         const existingMember = db
           .select({ id: users.id })

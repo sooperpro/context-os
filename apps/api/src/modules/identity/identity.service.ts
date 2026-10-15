@@ -182,6 +182,7 @@ export function createIdentityService(db: Db, devActor: Actor, auth: Auth | null
     for (const invitation of pending) {
       const data = invitation.data as {
         role?: "admin" | "manager" | "hr" | "member" | "guest";
+        jobTitle?: string;
         departmentId?: string;
         teamId?: string;
         managerId?: string;
@@ -206,6 +207,7 @@ export function createIdentityService(db: Db, devActor: Actor, auth: Auth | null
             : null,
         managerId: data.managerId ?? null,
         organization: {
+          ...(data.jobTitle ? { jobTitle: data.jobTitle } : {}),
           ...(data.departmentId ? { departmentId: data.departmentId } : {}),
           ...(data.teamId ? { teamId: data.teamId } : {}),
           ...(data.startDate ? { startDate: data.startDate } : {}),
