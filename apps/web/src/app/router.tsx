@@ -2,7 +2,9 @@ import { createBrowserRouter } from "react-router";
 import { RootLayout } from "@/app/root-layout";
 import { RedirectHome } from "@/components/redirect-home";
 import { RouteErrorBoundary } from "@/components/route-error-boundary";
+import { AdminOnly } from "@/features/admin/components/admin-only";
 import { HrOnly } from "@/features/people-ops/components/hr-only";
+import { ManagerOnly } from "@/features/team/components/manager-only";
 import { CuratorOnly } from "@/features/tutorials/components/curator-only";
 import { HIDDEN } from "@/lib/hidden";
 import { NotFoundPage } from "@/pages/not-found-page";
@@ -90,24 +92,44 @@ const appChildren = [
     path: "team",
     lazy: async () => {
       const { TeamPage } = await import("@/features/team/pages/team-page");
-      return { Component: TeamPage };
+      return {
+        Component: () => (
+          <ManagerOnly>
+            <TeamPage />
+          </ManagerOnly>
+        ),
+      };
     },
   },
   {
     path: "team/:personId",
     lazy: async () => {
       const { MemberPage } = await import("@/features/team/pages/member-page");
-      return { Component: MemberPage };
+      return {
+        Component: () => (
+          <ManagerOnly hrMayRead>
+            <MemberPage />
+          </ManagerOnly>
+        ),
+      };
     },
   },
   {
     path: "team/:personId/check-in",
     lazy: async () => {
       const { CheckinPage } = await import("@/features/team/pages/checkin-page");
-      return { Component: CheckinPage };
+      return {
+        Component: () => (
+          <ManagerOnly>
+            <CheckinPage />
+          </ManagerOnly>
+        ),
+      };
     },
   },
   {
+    // Not manager-only: a proposed answer goes to the project's domain owner first, who may hold
+    // any role, and the API lists only what the caller may review.
     path: "reviews",
     lazy: async () => {
       const { ReviewQueuePage } = await import("@/features/contributions/pages/review-queue-page");
@@ -118,28 +140,52 @@ const appChildren = [
     path: "connectors",
     lazy: async () => {
       const { ConnectorsPage } = await import("@/features/admin/pages/connectors-page");
-      return { Component: ConnectorsPage };
+      return {
+        Component: () => (
+          <AdminOnly>
+            <ConnectorsPage />
+          </AdminOnly>
+        ),
+      };
     },
   },
   {
     path: "access",
     lazy: async () => {
       const { AccessPage } = await import("@/features/admin/pages/access-page");
-      return { Component: AccessPage };
+      return {
+        Component: () => (
+          <AdminOnly>
+            <AccessPage />
+          </AdminOnly>
+        ),
+      };
     },
   },
   {
     path: "ai",
     lazy: async () => {
       const { AiSettingsPage } = await import("@/features/admin/pages/ai-settings-page");
-      return { Component: AiSettingsPage };
+      return {
+        Component: () => (
+          <AdminOnly>
+            <AiSettingsPage />
+          </AdminOnly>
+        ),
+      };
     },
   },
   {
     path: "audit",
     lazy: async () => {
       const { AuditPage } = await import("@/features/admin/pages/audit-page");
-      return { Component: AuditPage };
+      return {
+        Component: () => (
+          <AdminOnly>
+            <AuditPage />
+          </AdminOnly>
+        ),
+      };
     },
   },
   {
@@ -276,7 +322,13 @@ const appChildren = [
     path: "members",
     lazy: async () => {
       const { MembersPage } = await import("@/features/members/pages/members-page");
-      return { Component: MembersPage };
+      return {
+        Component: () => (
+          <AdminOnly>
+            <MembersPage />
+          </AdminOnly>
+        ),
+      };
     },
   },
   {
@@ -290,7 +342,13 @@ const appChildren = [
     path: "setup",
     lazy: async () => {
       const { SetupPage } = await import("@/features/setup/pages/setup-page");
-      return { Component: SetupPage };
+      return {
+        Component: () => (
+          <AdminOnly>
+            <SetupPage />
+          </AdminOnly>
+        ),
+      };
     },
   },
   {

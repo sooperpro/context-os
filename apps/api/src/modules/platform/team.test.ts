@@ -417,6 +417,67 @@ describe("Manager: team onboarding, member pages, check-ins and assigning", () =
     expect(review.recommendation).toBe("confirm");
   });
 
+  it("lets the person respond only to check-ins shared with them, without ratings or the recommendation", async () => {
+    t = createTestApp();
+    team();
+    as("dan", "manager");
+    const record = (shareWithPerson: boolean, notes: string) =>
+      t.app.request(
+        "/api/v1/team/members/leah/checkins",
+        jsonRequest({
+          type: "probation",
+          pulse: "off_track",
+          agendaCovered: [],
+          ratings: { products: 1, systems: 2, practices: 1, delivery: 1 },
+          blockers: ["workload"],
+          notes,
+          nextSteps: "Pair on the billing service.",
+          recommendation: "extend",
+          shareWithPerson,
+        }),
+      );
+    expect((await record(false, "Manager-only note.")).status).toBe(201);
+    expect((await record(true, "Shared note.")).status).toBe(201);
+    const checkin = (status: string) =>
+      t.container.db
+        .select()
+        .from(platformRecords)
+        .where(and(eq(platformRecords.kind, "checkin"), eq(platformRecords.status, status)))
+        .get()!;
+    const kept = checkin("private");
+    const shared = checkin("published");
+    const respond = (id: string, version: number) =>
+      t.app.request(
+        `/api/v1/probation/checkins/${id}/respond`,
+        jsonRequest({ version, response: "Thanks, that helps." }),
+      );
+
+    // A private check-in doesn't exist for Leah, and nothing is written to it.
+    as("leah", "member");
+    expect((await respond(kept.id, kept.version)).status).toBe(404);
+    expect(checkin("private").data.employeeResponse).toBeNull();
+
+    const response = await respond(shared.id, shared.version);
+    expect(response.status).toBe(200);
+    const { data } = await json<{ data: Record<string, unknown> }>(response);
+    expect(data).toMatchObject({
+      notes: "Shared note.",
+      nextSteps: "Pair on the billing service.",
+      employeeResponse: "Thanks, that helps.",
+    });
+    for (const key of ["ratings", "recommendation", "pulse", "blockers"])
+      expect(data, key).not.toHaveProperty(key);
+    // The stored check-in keeps everything for the manager and People Ops.
+    expect(checkin("published").data).toMatchObject({
+      recommendation: "extend",
+      employeeResponse: "Thanks, that helps.",
+    });
+
+    // Nobody else can respond to it.
+    as("sana", "member");
+    expect((await respond(shared.id, shared.version + 1)).status).toBe(404);
+  });
+
   it("lists who needs attention, upcoming check-ins and the knowledge-check matrix", async () => {
     t = createTestApp();
     team();

@@ -119,13 +119,22 @@ const PUBLIC_ORGANIZATION_KEYS = [
   "roleFamily",
   "location",
   "timezone",
-  "startDate",
-  "isNewHire",
 ] as const;
+/** How long after (or before) their start date someone counts as a new joiner in the directory. */
+const NEW_JOINER_DAYS = 90;
+
+const isNewJoiner = (organization: Record<string, unknown>) => {
+  if (organization.isNewHire === true) return true;
+  if (typeof organization.startDate !== "string") return false;
+  const age = Date.now() - Date.parse(`${organization.startDate}T00:00:00Z`);
+  return Number.isFinite(age) && Math.abs(age) <= NEW_JOINER_DAYS * 86_400_000;
+};
 
 /**
- * A member's organization as a viewer may see it: everything for admins, the person and their
- * manager; only the public profile fields for everyone else.
+ * A member's organization as a viewer may see it: everything for admins, People Ops, the person
+ * and their manager; only the public profile fields for everyone else. A start date is onboarding
+ * record data (role access spec §3), so others learn only whether someone is a new joiner, which
+ * the directory's "New joiners" filter needs.
  */
 export function organizationFor(
   viewer: Pick<Actor, "id" | "role">,
@@ -134,15 +143,18 @@ export function organizationFor(
   if (
     viewer.role === "owner" ||
     viewer.role === "admin" ||
+    viewer.role === "hr" ||
     viewer.id === member.userId ||
     viewer.id === member.managerId
   )
     return member.organization;
-  return Object.fromEntries(
+  const visible: Record<string, unknown> = Object.fromEntries(
     PUBLIC_ORGANIZATION_KEYS.flatMap((key) =>
       key in member.organization ? [[key, member.organization[key]]] : [],
     ),
   );
+  if (isNewJoiner(member.organization)) visible.isNewHire = true;
+  return visible;
 }
 
 export function requireRole(actor: Actor, ...roles: Array<Actor["role"]>): void {

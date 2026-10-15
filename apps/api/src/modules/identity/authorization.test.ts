@@ -181,38 +181,60 @@ describe("Authorization: role and access checks that must hold", () => {
     ).toBe(false);
   });
 
-  it("shows HR-only profile details to admins, the person and their manager only", async () => {
+  it("shows HR-only profile details to admins, People Ops, the person and their manager only", async () => {
     t = createTestApp();
     owner = { ...t.container.devActor };
     member("dan", "manager");
     member("leah", "member", "dan");
     member("sam", "member");
-    t.container.db
-      .update(memberships)
-      .set({
-        organization: { jobTitle: "Engineer", lastDay: "2026-12-31", suspendedBy: "directory" },
-      })
-      .run();
+    member("hana", "hr");
+    const organization = (startDate: string) =>
+      t.container.db
+        .update(memberships)
+        .set({
+          organization: {
+            jobTitle: "Engineer",
+            lastDay: "2026-12-31",
+            suspendedBy: "directory",
+            startDate,
+            isNewHire: false,
+          },
+        })
+        .run();
+    const daysAgo = (days: number) =>
+      new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+    organization(daysAgo(20));
     const leah = async () =>
       (
         await json<{ items: Array<{ id: string; organization: Record<string, unknown> }> }>(
           await t.app.request("/api/v1/users"),
         )
       ).items.find((entry) => entry.id === "leah")!.organization;
+    // Others learn that she's new, for the directory's filter, but not her start date.
     as("sam", "member");
-    expect(await leah()).toEqual({ jobTitle: "Engineer" });
+    expect(await leah()).toEqual({ jobTitle: "Engineer", isNewHire: true });
     expect(
       (
         await json<{ organization: Record<string, unknown> }>(
           await t.app.request("/api/v1/people/leah"),
         )
       ).organization,
-    ).toEqual({ jobTitle: "Engineer" });
+    ).toEqual({ jobTitle: "Engineer", isNewHire: true });
     expect((await t.app.request("/api/v1/users?status=suspended")).status).toBe(403);
-    as("dan", "manager");
-    expect(await leah()).toMatchObject({ lastDay: "2026-12-31" });
+    for (const [id, role] of [
+      ["leah", "member"],
+      ["dan", "manager"],
+      ["hana", "hr"],
+    ] as const) {
+      as(id, role);
+      expect(await leah()).toMatchObject({ lastDay: "2026-12-31", startDate: daysAgo(20) });
+    }
     asOwner();
-    expect(await leah()).toMatchObject({ lastDay: "2026-12-31" });
+    expect(await leah()).toMatchObject({ lastDay: "2026-12-31", startDate: daysAgo(20) });
+    // A year in, she's no longer a new joiner.
+    organization(daysAgo(365));
+    as("sam", "member");
+    expect(await leah()).toEqual({ jobTitle: "Engineer" });
   });
 
   it("gives invited guests an expiry", () => {

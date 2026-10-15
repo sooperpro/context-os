@@ -70,6 +70,29 @@ export const DEFAULT_MILESTONES = (lengthDays: number) => [
   { key: "day90", title: "Probation review", dueOffsetDays: lengthDays },
 ];
 const MENTOR_GRACE_DAYS = 14;
+/**
+ * What the person a check-in is about may read of it: what their manager wrote for them and their
+ * own response. Ratings, pulse, blockers and the probation recommendation are for the manager and
+ * People Ops only (role access spec §3).
+ */
+const PERSON_CHECKIN_KEYS = [
+  "type",
+  "wentWell",
+  "toImprove",
+  "supportNeeded",
+  "notes",
+  "nextSteps",
+  "authorId",
+  "publishedAt",
+  "employeeResponse",
+  "respondedAt",
+] as const;
+const checkinForPerson = (row: PlatformRecord): PlatformRecord => ({
+  ...row,
+  data: Object.fromEntries(
+    PERSON_CHECKIN_KEYS.flatMap((key) => (key in row.data ? [[key, row.data[key]]] : [])),
+  ),
+});
 
 export function createOnboardingRoutes(container: Container) {
   const { db, identity, audit } = container;
@@ -99,6 +122,12 @@ export function createOnboardingRoutes(container: Container) {
       verifiedBy?: string;
       achievedAt?: string;
     }>;
+  /** A plan's check-ins as the caller may see them: the person gets only the shared ones, trimmed. */
+  const checkinsFor = (actor: Actor, plan: PlatformRecord) => {
+    const rows = store.listChildren(actor, "checkin", plan.id);
+    if (plan.ownerId !== actor.id) return rows;
+    return rows.filter((row) => row.status === "published").map(checkinForPerson);
+  };
   const withHealth = (actor: Actor, plan: PlatformRecord) => ({
     ...plan,
     health: computeOnboardingHealth(db, plan, workspaceSettings(db, actor.workspaceId)),
@@ -353,7 +382,7 @@ export function createOnboardingRoutes(container: Container) {
     .get("/probation/employees/:userId/checkins", (c) => {
       const actor = c.get("actor");
       const plan = planFor(actor, c.req.param("userId"));
-      return c.json({ items: store.listChildren(actor, "checkin", plan.id) });
+      return c.json({ items: checkinsFor(actor, plan) });
     })
     .post(
       "/probation/checkins/:id/respond",
@@ -361,7 +390,9 @@ export function createOnboardingRoutes(container: Container) {
       (c) => {
         const actor = c.get("actor");
         const row = store.get(actor, "checkin", c.req.param("id"));
-        if (row.ownerId !== actor.id) throw new NotFoundError("Check-in");
+        // A check-in the manager kept private doesn't exist for the person it's about.
+        if (row.ownerId !== actor.id || row.status !== "published")
+          throw new NotFoundError("Check-in");
         const input = c.req.valid("json");
         const updated = store.update(actor, row, input.version, {
           data: {
@@ -376,7 +407,7 @@ export function createOnboardingRoutes(container: Container) {
           title: `${actor.name} responded to your check-in`,
           link: `/onboarding/checkins/${row.id}`,
         });
-        return c.json(updated);
+        return c.json(checkinForPerson(updated));
       },
     )
     .post(
@@ -527,7 +558,7 @@ export function createOnboardingRoutes(container: Container) {
           completedAt: row.data.completedAt ?? null,
         })),
         contributions: Object.fromEntries(counts),
-        checkins: store.listChildren(actor, "checkin", plan.id),
+        checkins: checkinsFor(actor, plan),
         outcome: plan.data.outcome ?? null,
         decision:
           "A human manager makes the probation decision; ContextOS does not recommend pass or fail.",
