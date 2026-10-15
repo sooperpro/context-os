@@ -30,8 +30,10 @@ import {
   assignOptionsQuery,
   useAssignLearning,
   useAssignRoadmap,
+  useUnassignLearning,
 } from "@/features/team/api/team.queries";
 import { dateInputToIso, firstName } from "@/lib/format";
+import { toastWithUndo } from "@/lib/undo-toast";
 
 interface Person {
   id: string;
@@ -73,6 +75,7 @@ function AssignLearningForm({ person: opener, close }: { person: Person; close: 
   const person = team.find((entry) => entry.id === personId) ?? opener;
   const options = useQuery(assignOptionsQuery(person.id));
   const assign = useAssignLearning(person.id);
+  const unassign = useUnassignLearning();
   const ids = { person: useId(), due: useId(), note: useId() };
   const items = options.data?.learning.items ?? [];
   const [chosen, setChosen] = useState<string | null>(null);
@@ -90,8 +93,13 @@ function AssignLearningForm({ person: opener, close }: { person: Person; close: 
         assign.mutate(
           { itemId: selected, dueOn: due, note },
           {
-            onSuccess: () => {
-              toast.success(`Assigned “${title}” to ${person.name}`);
+            onSuccess: (created) => {
+              toastWithUndo(`Assigned “${title}” to ${person.name}`, () => {
+                unassign(person.id, created.id).then(
+                  () => toast.success(`Took back “${title}”`),
+                  () => toast.error("The task could not be taken back. Edit the roadmap instead."),
+                );
+              });
               close();
             },
             onError: () => toast.error("The task could not be assigned. Please try again."),

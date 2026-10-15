@@ -17,37 +17,37 @@ switch each mock off once the real endpoint ships.
 
 | What                                                    |  Count | Where                 |
 | ------------------------------------------------------- | -----: | --------------------- |
-| Endpoints the web app fakes with mock data (to build)   | **72** | Section 7, Appendix A |
-| Live API routes the web app already uses                |     76 | Appendix B            |
+| Endpoints the web app fakes with mock data (to build)   | **27** | Section 7, Appendix A |
+| Live API routes the web app already uses                |    130 | Appendix B            |
 | Live API routes the web app doesn't use yet             |     55 | Appendix C            |
 | Changes needed on live endpoints                        |     10 | Section 5             |
 | Decisions needed before building                        |     11 | Section 6             |
-| Features with no contract yet ("coming soon" in the UI) |     18 | Section 8             |
+| Features with no contract yet ("coming soon" in the UI) |     14 | Section 8             |
 
 Every web call to a literal path hits a live route, and every call through an endpoint descriptor is
 mocked except the live `GET /v1/audit`: the web app calls **no endpoint that is neither live nor
 mocked**.
 
 **Important for production.** The mock layer exists only in development. A production build doesn't
-contain it, so **the 72 endpoints simply 404 in production today** and the screens built on them show
+contain it, so **the 27 endpoints simply 404 in production today** and the screens built on them show
 their error states. Shipping these endpoints is what makes those screens real.
 
-The 72 endpoints by area:
+The 27 endpoints by area:
 
-| Section | Area                                                          | Endpoints | Mock file(s)                          |
-| ------- | ------------------------------------------------------------- | --------: | ------------------------------------- |
-| 7.1     | Learner: roadmap, modules, lessons, checks, Home summaries    |        12 | `learning.ts`                         |
-| 7.2     | Employee Home cards                                           |         5 | `home/employee.ts`                    |
-| 7.3     | First-day welcome                                             |         2 | `welcome.ts`                          |
-| 7.4     | Saved knowledge                                               |         0 | — (live, `platform/saved.routes.ts`)  |
-| 7.5     | Personal settings: Context Bot preferences and data export    |         3 | `account.ts`                          |
-| 7.6     | Manager: team, member pages, check-ins, assigning, Home cards |        13 | `team.ts`, `home/manager.ts`          |
-| 7.7     | People directory                                              |         0 | —                                     |
-| 7.8     | Contributions and the review queue                            |         9 | `contributions.ts`                    |
-| 7.9     | HR (People Ops): onboarding, probation, templates             |        19 | `people-ops.ts`, `home/people-ops.ts` |
-| 7.10    | Admin: members, role requests, access policies                |         9 | `admin.ts`                            |
-| 7.11    | Context Bot outside projects                                  |         0 | — (live, `ask/assistant.routes.ts`)   |
-|         | **Total**                                                     |    **72** |                                       |
+| Section | Area                                                          | Endpoints | Mock file(s)                              |
+| ------- | ------------------------------------------------------------- | --------: | ----------------------------------------- |
+| 7.1     | Learner: roadmap, modules, lessons, checks, Home summaries    |        10 | `learning.ts` (My learning is live)       |
+| 7.2     | Employee Home cards                                           |         5 | `home/employee.ts`                        |
+| 7.3     | First-day welcome                                             |         2 | `welcome.ts`                              |
+| 7.4     | Saved knowledge                                               |         0 | — (live, `platform/saved.routes.ts`)      |
+| 7.5     | Personal settings: Context Bot preferences and data export    |         3 | `account.ts`                              |
+| 7.6     | Manager: team, member pages, check-ins, assigning, Home cards |         0 | — (live, `platform/team.routes.ts`)       |
+| 7.7     | People directory                                              |         0 | —                                         |
+| 7.8     | Contributions and the review queue                            |         7 | `contributions.ts` (review queue is live) |
+| 7.9     | HR (People Ops): onboarding, probation, templates             |         0 | — (live, `platform/people-ops.routes.ts`) |
+| 7.10    | Admin                                                         |         0 | — (live)                                  |
+| 7.11    | Context Bot outside projects                                  |         0 | — (live, `ask/assistant.routes.ts`)       |
+|         | **Total**                                                     |    **27** |                                           |
 
 ## 1. How the web app talks to the API
 
@@ -84,14 +84,14 @@ requestId? } }` (`ApiErrorResponseSchema`). The UI shows `message` to people, so
 | ----------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Switch      | `apps/web/.env` → `VITE_MOCK_API=true`                          | Turns the mock layer on in development. Ignored by production builds.                                                                                                                                                                             |
 | Start-up    | `apps/web/src/main.tsx` → `mocks/browser.ts`                    | Starts an MSW service worker before the app renders. Unmocked requests pass through to the API (`onUnhandledRequest: "bypass"`).                                                                                                                  |
-| Registry    | `apps/web/src/mocks/endpoints.ts`                               | The list of all 84 mocked endpoints. Only endpoints the API doesn't serve belong here.                                                                                                                                                            |
+| Registry    | `apps/web/src/mocks/endpoints.ts`                               | The list of all 27 mocked endpoints. Only endpoints the API doesn't serve belong here.                                                                                                                                                            |
 | Helpers     | `apps/web/src/mocks/define.ts`                                  | `mockGet/mockPost/mockPatch/mockPut(descriptor)(resolver)`. Bodies are validated with the input schema (400 on failure); responses are parsed with the response schema, so a mock can't drift from its contract. `MockNotFoundError` answers 404. |
 | Mock data   | `apps/web/src/mocks/*.ts`, `mocks/home/*.ts`, `mocks/fixtures/` | Fixtures and in-memory state (writes last for the browser session). Dates are relative to today.                                                                                                                                                  |
 | Contracts   | `packages/shared/src/schemas/*.ts`                              | The request and response schemas you implement.                                                                                                                                                                                                   |
 | Descriptors | `apps/web/src/features/*/api/*.api.ts`                          | Each endpoint's `path`, `schema` and `input`, used by both the screens and the mocks.                                                                                                                                                             |
 | Marker      | `components/preview-data-chip.tsx`, `lib/preview-data.ts`       | Cards built on a mocked endpoint show a **"Preview data"** chip. It disappears by itself once the endpoint isn't mocked.                                                                                                                          |
 | Header      | every mock response                                             | `X-ContextOS-Mock: 1`.                                                                                                                                                                                                                            |
-| Console     | browser dev tools                                               | `[mocks] 72 endpoints answered with preview data: [...]` lists exactly what never reached the API.                                                                                                                                                |
+| Console     | browser dev tools                                               | `[mocks] 27 endpoints answered with preview data: [...]` lists exactly what never reached the API.                                                                                                                                                |
 | Tests       | `apps/web/src/test/msw.ts`, `mocks/endpoints.test.ts`           | Tests use the same mocks under Node (`setupMockApi()`), with `onUnhandledRequest: "error"`. `endpoints.test.ts` checks every mock against its schema.                                                                                             |
 
 Mocks that share state (so they must be retired together, see 3.3):
@@ -109,7 +109,7 @@ Mocks that share state (so they must be retired together, see 3.3):
 ### 3.1 All at once
 
 Set `VITE_MOCK_API=false` (or remove it) in `apps/web/.env` and restart the web dev server. Every
-request then goes to the API, so the screens on the 72 endpoints show error states until those
+request then goes to the API, so the screens on the 27 endpoints show error states until those
 endpoints exist. That's the same as production today. Use it to check which screens are fully real.
 
 ### 3.2 One endpoint at a time (the normal way)
@@ -217,6 +217,8 @@ and `GET /v1/workspaces/current`, and the audit log.
 7. **Connector authorization.** The admin wizard's `authorize` contract returns an account at once;
    real OAuth redirects. Pick a flow (redirect plus status poll, or a popup) and we update the wizard.
 8. **Where check-ins come from** (`GET /v1/team/checkins`): a calendar, or a cadence on the plan.
+   _Decided for now:_ a cadence on the plan (weekly 1:1s, then the 30-day, 60-day and probation
+   check-ins); a calendar can replace it later.
 9. **Server-written text vs structured fields** (section 1), and localisation.
 10. **Team vocabulary.** Mocks use three different team lists; use `/v1/org/teams` everywhere.
 11. **Empty states for people without a plan.** `GET /v1/me/roadmap` and `GET /v1/me/onboarding`
@@ -378,6 +380,9 @@ startsOn, modules {done, total}, progress}`.
 lessonCount, lessonsDone, minutes}, suggested[] {id, title, kind, reason, minutes}, completed[]`.
 - **Who:** people past onboarding (the manager rail links it today).
 - **UI:** `/learning` ("My learning"). "Start" and "Resume" have no endpoint yet (coming soon).
+- **Live** (`apps/api/src/modules/platform/manager.routes.ts`): `assigned` = the caller's learning path
+  assignments, `suggested` = published paths they can read and aren't on, `completed` = finished
+  assignments. `POST /v1/me/learning/:id/add` self-enrols (audit `path.enrol`).
 
 #### `POST /v1/me/learning/:id/add`
 
@@ -498,6 +503,40 @@ personal settings card without inventing a second token-revocation API.
 
 Mock files: `apps/web/src/mocks/team.ts` (9), `apps/web/src/mocks/home/manager.ts` (4).
 Contracts: `packages/shared/src/schemas/manager.ts`, `home.ts`, `contributions.ts` (gaps). Backlog: item 9.
+
+**Live.** Served by `apps/api/src/modules/platform/team.routes.ts` (roster, member pages, roadmap
+edits, check-ins, assigning, attention, upcoming check-ins, escalations) and `manager.routes.ts`
+(`/v1/team/knowledge`, `/v1/team/knowledge-gaps`, plus My learning in 7.1 and the review queue in 7.8).
+Tests: `team.test.ts`, including one that parses every response with the shared schemas. The mocks
+stay as fixtures for the manager screen tests (`apps/web/src/test/manager-mocks.ts`) and are no longer
+in the development mock layer. What was decided:
+
+- **Scope.** The caller's direct reports, or their whole reporting line when the workspace turns on
+  `includeIndirectReports`. Without reports the team endpoints answer 403 "Team views are for
+  managers" (admins and owners included: admin rights grant no people data); anyone else's member
+  page is 404. People Ops (`hr`) may read member pages but not write.
+- **One onboarding record.** The HR `hr_onboarding` record plus one `roadmap` record per person
+  (`onboarding-roadmap.ts`), built from the HR template when one is assigned and pinned to that
+  template version. Assigning a roadmap here sets HR's template, buddy and setup checklist; the buddy
+  gets mentor access until 14 days after the probation review. Check-ins are children of the HR record;
+  a probation check-in writes HR's recommendation (`ready_for_approval` or `needs_hr_review`). An
+  off-track pulse at the last check-in makes the person at best `at_risk`.
+- **Upcoming check-ins** follow the plan (decision 8): weekly 1:1s, then the 30-day, 60-day readiness
+  and probation check-ins.
+- **Knowledge gaps.** Unanswered Ask questions from the team in the last 30 days appear only once
+  `askKAnonymityThreshold` different people asked them (Ask history is private); gaps people reported
+  always appear; so do open stale or conflicting flags the team raised, with a `target` so "Review
+  sources" opens the page and "Request update" adds the manager to the flag (`POST /v1/flags`).
+- **Escalate** (`POST /v1/team/members/:id/escalations`, body `{}`, returns `EscalationSchema {id, to
+admins|people_ops}`): waiting on access goes to the workspace admins, anything else to People Ops.
+  Once a day per person (a repeat returns the first with 200). Audit `onboarding.escalate`.
+- **Weekly digest.** On Mondays, when AI settings' weekly digest is on, each manager gets one
+  notification with how many of their team's questions had no good answer (counts only).
+- **Not yet.** Learner-side completion (lessons, check attempts, 7.1) is still mocked, so built-in
+  modules don't progress from the learner's side. Modules backed by a learning path (`path-<id>`) take
+  their state from the person's path assignment.
+
+The original handoff notes follow.
 
 **Who:** the caller's own direct reports (`memberships.managerId`), plus HR for member pages. The mock
 always answers for Daniel's team (Leah, Chloe, Jonah, Maya, Arjun) and checks nothing.
@@ -767,6 +806,11 @@ lines|null (new pages), after[] lines, sources[]}` oldest first, `reviewedRecent
 - **Who:** the assigned reviewer.
 - **UI:** `/reviews` (manager rail "Review queue"; the client diffs lines).
 - **Reuse:** `/v1/flags/queue`, `/v1/corrections/:id/verify`.
+- **Live** (`apps/api/src/modules/platform/manager.routes.ts`). Contributions are still mocked, so the
+  queue holds Ask answers proposed for the Hub (`POST /v1/ask/messages/:id/promote`). They go to the
+  project's domain owners, or to the author's manager when the project has none. Approve publishes
+  the FAQ note exactly as `POST /v1/promotions/:id/decide` does; request changes rejects it with the
+  comment.
 
 #### `POST /v1/me/reviews/:id/decision`
 
@@ -781,12 +825,16 @@ lines|null (new pages), after[] lines, sources[]}` oldest first, `reviewedRecent
 Mock files: `apps/web/src/mocks/home/people-ops.ts` (1 endpoint), `apps/web/src/mocks/people-ops.ts` (18).
 Contracts: `packages/shared/src/schemas/people-ops.ts`, `home.ts`. Backlog: items 4 and 10.
 
-**Before you start: decide the HR role (item 4).** No real account can reach these screens today; they
-show only through the development "View as → HR" switch, which previews as a `member`. Add a
-`people_ops` system role, or a workspace-scoped assignment (the `assignments` table and
-`identity.hasAssignment` already fit), and one boolean on `GET /v1/workspaces/current` so the web app
-can pick the HR Home and rail. Every endpoint below is **People Ops only**, except reading one
-onboarding record, which the person's manager may also do.
+**Live.** Served by `apps/api/src/modules/platform/people-ops.routes.ts` (tests: `people-ops.test.ts`)
+for the `hr` system role only; admins and owners get 403, as the role access spec keeps onboarding
+records and check-in notes away from Admin. Admins give someone the HR role on Members & roles; the web
+app maps it to the People Ops persona. The mocks below stay as fixtures for the HR screen tests
+(`apps/web/src/test/people-ops-mocks.ts`) and are no longer in the development mock layer. Since this
+section was written the API also serves `POST /v1/people-ops/probation-reviews/:id/discuss`,
+`GET /v1/people-ops/people/:id/onboarding` (the profile's onboarding card) and the manager's
+`POST /v1/probation/employees/:userId/recommendation`. The manager's probation check-in
+(`POST /v1/team/members/:id/checkins`, 7.6) is live too and writes the same recommendation.
+The original handoff notes follow.
 
 **One store behind all of it.** Records, probation reviews and templates live in one mock store. The
 manager's probation check-in (`POST /v1/team/members/:id/checkins`, section 7.6) writes into it, and
@@ -1047,21 +1095,35 @@ published`, `publishedVersion`, prepends history `{version, today, note or "Upda
 
 ### 7.10 Admin: security, members, connectors, access policies, AI settings
 
-Live: security, sync runs, AI overview and AI settings (`platform/admin-overview.routes.ts`), and the
-connector catalog with authorize, connect, reconnect and connector requests
-(`connectors/admin-connectors.routes.ts`). Still mocked in `apps/web/src/mocks/admin.ts` (9): members
-overview, directory sync, role requests and access policies.
+Live, with no mocks left (`apps/web/src/mocks/admin.ts` is gone): security, sync runs, AI overview and
+AI settings (`platform/admin-overview.routes.ts`); the connector catalog with authorize, connect,
+reconnect, Manage (folders, sync all, stop syncing) and connector requests
+(`connectors/admin-connectors.routes.ts`); members overview, directory sync and role requests
+(`platform/members-admin.routes.ts`, plus `POST /v1/role-requests` and `GET /v1/role-requests/mine`
+for any member); access policies, conflicts and the preview (`platform/access-policies.routes.ts`).
+
+**Access policies as served.** Groups are team and department names from the org structure. A policy
+covers projects or synced folders (`sources: [{kind, id}]`, now required in the input). Restrict: only
+its groups can open the sources. Exclude: never used in answers, and only its groups can open them.
+Enforcement is in `identity.visibleSourceIds` and `answerableSourceIds`, so search, the Hub and answers
+follow it and admins get no bypass. Two policies naming the same source are a conflict; until resolved
+the more open rule applies, and resolving removes the source from the other policies. The locked
+"Mirror source permissions" entry is synthesized. Directory sync reads the Clerk organization: new
+members are added, changed names updated, and members missing from it suspended (never owners or the
+person running it); in development mode it records an empty run. Seats come from the organization's
+member limit (`total` is null when unlimited).
 
 **As served.** The catalog lists every integration but only Google Drive connects; the others answer 503
 with a pointer to “Request a connector”. Authorize returns `{account, authorizationUrl}`: when the
 admin has no Drive connection yet, `authorizationUrl` is Google's consent page and the wizard waits for
 the callback. Connect also takes `projectId` (required for Drive) and `visibility`, and stores the
-frequency as a per-scope schedule that the maintenance sweep honours. Security reports what exists today
-(sign-in mode, no SCIM, sources shared with everyone, no role requests, retention). AI stats come from
+frequency as a per-scope schedule that the maintenance sweep honours. Security reports sign-in mode, the
+last directory sync, policies and conflicts, pending role requests and retention. AI stats come from
 Ask answers and their ratings over 30 days; unanswered questions appear once at least the k-anonymity
-threshold of different people asked them, or as soon as someone reports a gap. `excluded` is empty until
-access policies ship. The AI settings are stored and audited; only `access_only` and citations are
-enforced by the Ask pipeline today.
+threshold of different people asked them, or as soon as someone reports a gap. `excluded` lists exclude
+policies' sources. The AI settings are stored and audited; only `access_only` and citations are enforced
+by the Ask pipeline today. Restricted topics (pay, bonus, performance ratings, disciplinary) are refused
+before retrieval in project Ask and Context Bot alike, for every role.
 Contracts: `packages/shared/src/schemas/admin.ts`, `home.ts`, `platform.ts`. Backlog: item 11.
 
 **Who:** owners and admins only, everywhere in this section. The rail hides these pages from other
@@ -1318,13 +1380,13 @@ nothing). Each needs a contract first; the frontend will write it in `packages/s
 |   # | Feature                                                                                | Where in the UI                                                                               | Suggested endpoint                                                                                                                       |
 | --: | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 |   1 | Request access to a restricted source                                                  | Module page sources ("Request access")                                                        | `POST /v1/access-requests {sourceId, reason}` → `{id, sentTo}`                                                                           |
-|   2 | Escalate a blocked access request                                                      | Manager: member page insight, Home "Needs your attention" ("Escalate")                        | `POST /v1/access-requests/:id/escalate`                                                                                                  |
+|   2 | Escalate a blocked access request                                                      | Manager: member page insight, Home "Needs your attention" ("Escalate")                        | **Done:** `POST /v1/team/members/:id/escalations` (7.6)                                                                                  |
 |   3 | Open and edit a saved contribution                                                     | Contributions ("Edit and resubmit", reopening drafts)                                         | `GET /v1/contributions/:id`, `PATCH /v1/contributions/:id`                                                                               |
 |   4 | Ask for a role                                                                         | Nowhere yet (admins only see requests)                                                        | `POST /v1/role-requests {role, reason}`                                                                                                  |
-|   5 | Schedule check-ins                                                                     | Feeds manager Home "Upcoming check-ins"                                                       | Depends on decision 8 (section 6)                                                                                                        |
+|   5 | Schedule check-ins                                                                     | Feeds manager Home "Upcoming check-ins"                                                       | **Done for now:** a cadence on the plan (decision 8); a calendar later                                                                   |
 |   6 | "Discuss with manager first" on a probation decision                                   | HR review page                                                                                | `POST /v1/people-ops/probation-reviews/:id/discussion`                                                                                   |
-|   7 | Act on a knowledge gap's conflict or stale source ("Review sources", "Request update") | Manager Home "Knowledge gaps"                                                                 | Per gap reason; contract to agree                                                                                                        |
-|   8 | Per-person actions in the team roster ("More actions")                                 | Manager Home roster                                                                           | Contract to agree                                                                                                                        |
+|   7 | Act on a knowledge gap's conflict or stale source ("Review sources", "Request update") | Manager Home "Knowledge gaps"                                                                 | **Done:** `KnowledgeGap.target`; "Request update" posts a flag (7.6)                                                                     |
+|   8 | Per-person actions in the team roster ("More actions")                                 | Manager Home roster                                                                           | **Done:** open, record check-in, assign learning (no new endpoint)                                                                       |
 |   9 | Owners see learning ratings                                                            | The UI tells learners "The owner sees your rating"                                            | An aggregate on the module owner's view                                                                                                  |
 |  10 | Start or resume a course                                                               | My learning ("Start", "Resume")                                                               | A course detail or lesson flow for `/v1/me/learning` items                                                                               |
 |  11 | Save a Context Bot answer                                                              | Answer cards (the reference has a bookmark)                                                   | Add `answer` to `SaveInput.targetType` (`/v1/me/saved`)                                                                                  |
@@ -1359,89 +1421,44 @@ nothing). Each needs a contract first; the frontend will write it in `packages/s
 - [ ] `pnpm check` passes.
 - [ ] `docs/api-change-requests.md` status table and Appendix A updated.
 
-## Appendix A. Every mocked endpoint (72)
+## Appendix A. Every mocked endpoint (27)
 
 Generated from `apps/web/src/mocks/endpoints.ts` and the endpoint descriptors in
 `apps/web/src/features/*/api/*.api.ts`. Schemas are exported from `@contextos/shared`
 (`packages/shared/src/schemas/`). Mock files are under `apps/web/src/mocks/`. Row numbers preserve
 the original catalog, so gaps identify endpoints retired from the mock layer.
 
-|   # | Section | Method | Path                                            | Request body                      | Response                       | Mock file            |
-| --: | ------- | ------ | ----------------------------------------------- | --------------------------------- | ------------------------------ | -------------------- |
-|   1 | 7.1     | GET    | `/v1/me/checks/:id`                             | —                                 | `KnowledgeCheckSchema`         | `learning.ts`        |
-|   2 | 7.1     | POST   | `/v1/me/checks/:id/attempts`                    | `CheckAttemptInputSchema`         | `CheckResultSchema`            | `learning.ts`        |
-|   3 | 7.1     | GET    | `/v1/me/learning`                               | —                                 | `MyLearningSchema`             | `learning.ts`        |
-|   4 | 7.1     | POST   | `/v1/me/learning-ratings`                       | `LearningRatingInputSchema`       | `LearningRatingSchema`         | `learning.ts`        |
-|   5 | 7.1     | POST   | `/v1/me/learning-requests`                      | `LearningRequestInputSchema`      | `LearningRequestSchema`        | `learning.ts`        |
-|   6 | 7.1     | POST   | `/v1/me/learning/:id/add`                       | `AddCourseInputSchema`            | `MyLearningSchema`             | `learning.ts`        |
-|   7 | 7.1     | GET    | `/v1/me/lessons/:id`                            | —                                 | `LessonSchema`                 | `learning.ts`        |
-|   8 | 7.1     | POST   | `/v1/me/lessons/:id/complete`                   | `LessonCompletionInputSchema`     | `LessonCompletionSchema`       | `learning.ts`        |
-|   9 | 7.1     | GET    | `/v1/me/modules/:id`                            | —                                 | `ModuleDetailSchema`           | `learning.ts`        |
-|  10 | 7.1     | GET    | `/v1/me/next-up`                                | —                                 | `NextUpResponseSchema`         | `learning.ts`        |
-|  11 | 7.1     | GET    | `/v1/me/onboarding`                             | —                                 | `MyOnboardingSchema`           | `learning.ts`        |
-|  12 | 7.1     | GET    | `/v1/me/roadmap`                                | —                                 | `MyRoadmapSchema`              | `learning.ts`        |
-|  13 | 7.2     | GET    | `/v1/me/knowledge-updates`                      | —                                 | `KnowledgeUpdateListSchema`    | `home/employee.ts`   |
-|  14 | 7.2     | GET    | `/v1/me/milestones`                             | —                                 | `MilestoneListSchema`          | `home/employee.ts`   |
-|  15 | 7.2     | GET    | `/v1/me/people`                                 | —                                 | `MyPeopleSchema`               | `home/employee.ts`   |
-|  16 | 7.2     | GET    | `/v1/me/tasks`                                  | —                                 | `MyTasksSchema`                | `home/employee.ts`   |
-|  17 | 7.2     | GET    | `/v1/me/team-activity`                          | —                                 | `TeamActivityFeedSchema`       | `home/employee.ts`   |
-|  18 | 7.3     | GET    | `/v1/me/welcome`                                | —                                 | `WelcomeSchema`                | `welcome.ts`         |
-|  19 | 7.3     | POST   | `/v1/me/welcome`                                | `WelcomeInputSchema`              | `WelcomeSchema`                | `welcome.ts`         |
-|  22 | 7.5     | GET    | `/v1/me/assistant-preferences`                  | —                                 | `AssistantPreferencesSchema`   | `account.ts`         |
-|  23 | 7.5     | PATCH  | `/v1/me/assistant-preferences`                  | `AssistantPreferencesInputSchema` | `AssistantPreferencesSchema`   | `account.ts`         |
-|  26 | 7.5     | POST   | `/v1/me/data-export`                            | `{}`                              | `DataExportResultSchema`       | `account.ts`         |
-|  27 | 7.6     | GET    | `/v1/team/attention`                            | —                                 | `AttentionListSchema`          | `home/manager.ts`    |
-|  28 | 7.6     | GET    | `/v1/team/check-matrix`                         | —                                 | `CheckMatrixSchema`            | `team.ts`            |
-|  29 | 7.6     | GET    | `/v1/team/checkins`                             | —                                 | `CheckinListSchema`            | `home/manager.ts`    |
-|  30 | 7.6     | GET    | `/v1/team/knowledge`                            | —                                 | `TeamKnowledgeSchema`          | `home/manager.ts`    |
-|  31 | 7.6     | GET    | `/v1/team/knowledge-gaps`                       | —                                 | `KnowledgeGapListSchema`       | `home/manager.ts`    |
-|  32 | 7.6     | GET    | `/v1/team/members/:id`                          | —                                 | `TeamMemberDetailSchema`       | `team.ts`            |
-|  33 | 7.6     | GET    | `/v1/team/members/:id/assign-options`           | —                                 | `AssignOptionsSchema`          | `team.ts`            |
-|  34 | 7.6     | POST   | `/v1/team/members/:id/assignments`              | `LearningAssignmentInputSchema`   | `CreatedSchema`                | `team.ts`            |
-|  35 | 7.6     | GET    | `/v1/team/members/:id/checkin-prep`             | —                                 | `CheckinPrepSchema`            | `team.ts`            |
-|  36 | 7.6     | POST   | `/v1/team/members/:id/checkins`                 | `CheckinInputSchema`              | `CheckinRecordSchema`          | `team.ts`            |
-|  37 | 7.6     | PATCH  | `/v1/team/members/:id/roadmap`                  | `RoadmapEditInputSchema`          | `TeamMemberDetailSchema`       | `team.ts`            |
-|  38 | 7.6     | POST   | `/v1/team/members/:id/roadmap`                  | `RoadmapAssignmentInputSchema`    | `CreatedSchema`                | `team.ts`            |
-|  39 | 7.6     | GET    | `/v1/team/onboarding`                           | —                                 | `TeamOnboardingSchema`         | `team.ts`            |
-|  44 | 7.8     | POST   | `/v1/contributions`                             | `ContributionInputSchema`         | `ContributionSchema`           | `contributions.ts`   |
-|  45 | 7.8     | POST   | `/v1/contributions/:id/resubmit`                | `ContributionResubmitInputSchema` | `ContributionSchema`           | `contributions.ts`   |
-|  46 | 7.8     | POST   | `/v1/contributions/draft`                       | `ContributionDraftInputSchema`    | `ContributionDraftSchema`      | `contributions.ts`   |
-|  47 | 7.8     | GET    | `/v1/contributions/reviewer`                    | —                                 | `SuggestedReviewerSchema`      | `contributions.ts`   |
-|  48 | 7.8     | GET    | `/v1/me/contributions`                          | —                                 | `ContributionListSchema`       | `contributions.ts`   |
-|  49 | 7.8     | GET    | `/v1/me/knowledge-gaps`                         | —                                 | `KnowledgeGapListSchema`       | `contributions.ts`   |
-|  50 | 7.8     | GET    | `/v1/me/reviews`                                | —                                 | `ReviewQueueSchema`            | `contributions.ts`   |
-|  51 | 7.8     | POST   | `/v1/me/reviews/:id/decision`                   | `ReviewDecisionInputSchema`       | `ReviewDecisionSchema`         | `contributions.ts`   |
-|  52 | 7.8     | GET    | `/v1/sources/search`                            | —                                 | `SourcePickListSchema`         | `contributions.ts`   |
-|  53 | 7.9     | GET    | `/v1/people-ops/onboarding-options`             | —                                 | `OnboardingOptionsSchema`      | `people-ops.ts`      |
-|  54 | 7.9     | GET    | `/v1/people-ops/onboardings`                    | —                                 | `OnboardingRecordListSchema`   | `people-ops.ts`      |
-|  55 | 7.9     | POST   | `/v1/people-ops/onboardings`                    | `NewOnboardingInputSchema`        | `OnboardingRecordSchema`       | `people-ops.ts`      |
-|  56 | 7.9     | GET    | `/v1/people-ops/onboardings/:id`                | —                                 | `OnboardingRecordSchema`       | `people-ops.ts`      |
-|  57 | 7.9     | PATCH  | `/v1/people-ops/onboardings/:id`                | `OnboardingAssignmentInputSchema` | `OnboardingRecordSchema`       | `people-ops.ts`      |
-|  58 | 7.9     | POST   | `/v1/people-ops/onboardings/:id/setup/:step`    | `SetupStepInputSchema`            | `OnboardingRecordSchema`       | `people-ops.ts`      |
-|  59 | 7.9     | GET    | `/v1/people-ops/overdue-milestones`             | —                                 | `OverdueMilestoneListSchema`   | `people-ops.ts`      |
-|  60 | 7.9     | GET    | `/v1/people-ops/overview`                       | —                                 | `PeopleOpsOverviewSchema`      | `home/people-ops.ts` |
-|  61 | 7.9     | GET    | `/v1/people-ops/probation-reviews`              | —                                 | `ProbationReviewListSchema`    | `people-ops.ts`      |
-|  62 | 7.9     | GET    | `/v1/people-ops/probation-reviews/:id`          | —                                 | `ProbationDetailSchema`        | `people-ops.ts`      |
-|  63 | 7.9     | POST   | `/v1/people-ops/probation-reviews/:id/decision` | `ProbationDecisionInputSchema`    | `ProbationDetailSchema`        | `people-ops.ts`      |
-|  64 | 7.9     | POST   | `/v1/people-ops/reminders`                      | `ReminderInputSchema`             | `ReminderResultSchema`         | `people-ops.ts`      |
-|  65 | 7.9     | GET    | `/v1/people-ops/starters`                       | —                                 | `StarterListSchema`            | `people-ops.ts`      |
-|  66 | 7.9     | GET    | `/v1/people-ops/template-library`               | —                                 | `TemplateLibrarySchema`        | `people-ops.ts`      |
-|  67 | 7.9     | GET    | `/v1/people-ops/templates`                      | —                                 | `OnboardingTemplateListSchema` | `people-ops.ts`      |
-|  68 | 7.9     | POST   | `/v1/people-ops/templates`                      | `NewTemplateInputSchema`          | `TemplateDetailSchema`         | `people-ops.ts`      |
-|  69 | 7.9     | GET    | `/v1/people-ops/templates/:id`                  | —                                 | `TemplateDetailSchema`         | `people-ops.ts`      |
-|  70 | 7.9     | POST   | `/v1/people-ops/templates/:id/draft`            | `TemplateDraftInputSchema`        | `TemplateDetailSchema`         | `people-ops.ts`      |
-|  71 | 7.9     | POST   | `/v1/people-ops/templates/:id/publish`          | `TemplatePublishInputSchema`      | `TemplateDetailSchema`         | `people-ops.ts`      |
-|  72 | 7.10    | POST   | `/v1/admin/access-conflicts/:id/resolve`        | `ResolveConflictInputSchema`      | `AccessPolicyListSchema`       | `admin.ts`           |
-|  73 | 7.10    | GET    | `/v1/admin/access-policies`                     | —                                 | `AccessPolicyListSchema`       | `admin.ts`           |
-|  74 | 7.10    | POST   | `/v1/admin/access-policies`                     | `AccessPolicyInputSchema`         | `AccessPolicySchema`           | `admin.ts`           |
-|  75 | 7.10    | PATCH  | `/v1/admin/access-policies/:id`                 | `AccessPolicyInputSchema`         | `AccessPolicySchema`           | `admin.ts`           |
-|  76 | 7.10    | GET    | `/v1/admin/access-preview`                      | —                                 | `AccessPreviewSchema`          | `admin.ts`           |
-|  85 | 7.10    | POST   | `/v1/admin/directory-sync`                      | `{}`                              | `DirectorySyncResultSchema`    | `admin.ts`           |
-|  86 | 7.10    | GET    | `/v1/admin/members/overview`                    | —                                 | `MembersOverviewSchema`        | `admin.ts`           |
-|  87 | 7.10    | GET    | `/v1/admin/role-requests`                       | —                                 | `RoleRequestListSchema`        | `admin.ts`           |
-|  88 | 7.10    | POST   | `/v1/admin/role-requests/:id/decision`          | `RoleRequestDecisionInputSchema`  | `RoleRequestDecisionSchema`    | `admin.ts`           |
+|   # | Section | Method | Path                             | Request body                      | Response                     | Mock file          |
+| --: | ------- | ------ | -------------------------------- | --------------------------------- | ---------------------------- | ------------------ |
+|   1 | 7.1     | GET    | `/v1/me/checks/:id`              | —                                 | `KnowledgeCheckSchema`       | `learning.ts`      |
+|   2 | 7.1     | POST   | `/v1/me/checks/:id/attempts`     | `CheckAttemptInputSchema`         | `CheckResultSchema`          | `learning.ts`      |
+|   4 | 7.1     | POST   | `/v1/me/learning-ratings`        | `LearningRatingInputSchema`       | `LearningRatingSchema`       | `learning.ts`      |
+|   5 | 7.1     | POST   | `/v1/me/learning-requests`       | `LearningRequestInputSchema`      | `LearningRequestSchema`      | `learning.ts`      |
+|   7 | 7.1     | GET    | `/v1/me/lessons/:id`             | —                                 | `LessonSchema`               | `learning.ts`      |
+|   8 | 7.1     | POST   | `/v1/me/lessons/:id/complete`    | `LessonCompletionInputSchema`     | `LessonCompletionSchema`     | `learning.ts`      |
+|   9 | 7.1     | GET    | `/v1/me/modules/:id`             | —                                 | `ModuleDetailSchema`         | `learning.ts`      |
+|  10 | 7.1     | GET    | `/v1/me/next-up`                 | —                                 | `NextUpResponseSchema`       | `learning.ts`      |
+|  11 | 7.1     | GET    | `/v1/me/onboarding`              | —                                 | `MyOnboardingSchema`         | `learning.ts`      |
+|  12 | 7.1     | GET    | `/v1/me/roadmap`                 | —                                 | `MyRoadmapSchema`            | `learning.ts`      |
+|  13 | 7.2     | GET    | `/v1/me/knowledge-updates`       | —                                 | `KnowledgeUpdateListSchema`  | `home/employee.ts` |
+|  14 | 7.2     | GET    | `/v1/me/milestones`              | —                                 | `MilestoneListSchema`        | `home/employee.ts` |
+|  15 | 7.2     | GET    | `/v1/me/people`                  | —                                 | `MyPeopleSchema`             | `home/employee.ts` |
+|  16 | 7.2     | GET    | `/v1/me/tasks`                   | —                                 | `MyTasksSchema`              | `home/employee.ts` |
+|  17 | 7.2     | GET    | `/v1/me/team-activity`           | —                                 | `TeamActivityFeedSchema`     | `home/employee.ts` |
+|  18 | 7.3     | GET    | `/v1/me/welcome`                 | —                                 | `WelcomeSchema`              | `welcome.ts`       |
+|  19 | 7.3     | POST   | `/v1/me/welcome`                 | `WelcomeInputSchema`              | `WelcomeSchema`              | `welcome.ts`       |
+|  22 | 7.5     | GET    | `/v1/me/assistant-preferences`   | —                                 | `AssistantPreferencesSchema` | `account.ts`       |
+|  23 | 7.5     | PATCH  | `/v1/me/assistant-preferences`   | `AssistantPreferencesInputSchema` | `AssistantPreferencesSchema` | `account.ts`       |
+|  26 | 7.5     | POST   | `/v1/me/data-export`             | `{}`                              | `DataExportResultSchema`     | `account.ts`       |
+|  44 | 7.8     | POST   | `/v1/contributions`              | `ContributionInputSchema`         | `ContributionSchema`         | `contributions.ts` |
+|  45 | 7.8     | POST   | `/v1/contributions/:id/resubmit` | `ContributionResubmitInputSchema` | `ContributionSchema`         | `contributions.ts` |
+|  46 | 7.8     | POST   | `/v1/contributions/draft`        | `ContributionDraftInputSchema`    | `ContributionDraftSchema`    | `contributions.ts` |
+|  47 | 7.8     | GET    | `/v1/contributions/reviewer`     | —                                 | `SuggestedReviewerSchema`    | `contributions.ts` |
+|  48 | 7.8     | GET    | `/v1/me/contributions`           | —                                 | `ContributionListSchema`     | `contributions.ts` |
+|  49 | 7.8     | GET    | `/v1/me/knowledge-gaps`          | —                                 | `KnowledgeGapListSchema`     | `contributions.ts` |
+|  52 | 7.8     | GET    | `/v1/sources/search`             | —                                 | `SourcePickListSchema`       | `contributions.ts` |
 
-## Appendix B. Live API routes the web app calls (76)
+## Appendix B. Live API routes the web app calls (130)
 
 These already work. `GET /v1/audit` needs the change in section 5.
 
@@ -1465,6 +1482,21 @@ These already work. `GET /v1/audit` needs the change in section 5.
 | GET    | `/v1/admin/ai-settings`                                      | `platform/admin-overview.routes.ts`     |
 | PATCH  | `/v1/admin/ai-settings`                                      | `platform/admin-overview.routes.ts`     |
 | GET    | `/v1/admin/connectors`                                       | `connectors/admin-connectors.routes.ts` |
+| GET    | `/v1/admin/connectors/:id/scopes`                            | `connectors/admin-connectors.routes.ts` |
+| POST   | `/v1/admin/connectors/:id/sync`                              | `connectors/admin-connectors.routes.ts` |
+| DELETE | `/v1/admin/connectors/:id/scopes/:scopeId`                   | `connectors/admin-connectors.routes.ts` |
+| GET    | `/v1/admin/members/overview`                                 | `platform/members-admin.routes.ts`      |
+| POST   | `/v1/admin/directory-sync`                                   | `platform/members-admin.routes.ts`      |
+| GET    | `/v1/admin/role-requests`                                    | `platform/members-admin.routes.ts`      |
+| POST   | `/v1/admin/role-requests/:id/decision`                       | `platform/members-admin.routes.ts`      |
+| POST   | `/v1/role-requests`                                          | `platform/members-admin.routes.ts`      |
+| GET    | `/v1/role-requests/mine`                                     | `platform/members-admin.routes.ts`      |
+| GET    | `/v1/admin/access-policies`                                  | `platform/access-policies.routes.ts`    |
+| POST   | `/v1/admin/access-policies`                                  | `platform/access-policies.routes.ts`    |
+| PATCH  | `/v1/admin/access-policies/:id`                              | `platform/access-policies.routes.ts`    |
+| DELETE | `/v1/admin/access-policies/:id`                              | `platform/access-policies.routes.ts`    |
+| POST   | `/v1/admin/access-conflicts/:id/resolve`                     | `platform/access-policies.routes.ts`    |
+| GET    | `/v1/admin/access-preview`                                   | `platform/access-policies.routes.ts`    |
 | POST   | `/v1/admin/connectors/:id/authorize`                         | `connectors/admin-connectors.routes.ts` |
 | POST   | `/v1/admin/connectors/:id/connect`                           | `connectors/admin-connectors.routes.ts` |
 | POST   | `/v1/admin/connectors/:id/reconnect`                         | `connectors/admin-connectors.routes.ts` |
@@ -1523,6 +1555,45 @@ These already work. `GET /v1/audit` needs the change in section 5.
 | GET    | `/v1/workspaces/current`                                     | `identity/identity.routes.ts`           |
 | GET    | `/v1/workspaces/current/setup`                               | `workspace/workspace.routes.ts`         |
 | PATCH  | `/v1/workspaces/current/setup`                               | `workspace/workspace.routes.ts`         |
+| GET    | `/v1/people-ops/overview`                                    | platform/people-ops.routes.ts           |
+| GET    | `/v1/people-ops/probation-reviews`                           | platform/people-ops.routes.ts           |
+| GET    | `/v1/people-ops/probation-reviews/:id`                       | platform/people-ops.routes.ts           |
+| POST   | `/v1/people-ops/probation-reviews/:id/decision`              | platform/people-ops.routes.ts           |
+| POST   | `/v1/people-ops/probation-reviews/:id/discuss`               | platform/people-ops.routes.ts           |
+| GET    | `/v1/people-ops/starters`                                    | platform/people-ops.routes.ts           |
+| GET    | `/v1/people-ops/overdue-milestones`                          | platform/people-ops.routes.ts           |
+| POST   | `/v1/people-ops/reminders`                                   | platform/people-ops.routes.ts           |
+| GET    | `/v1/people-ops/onboardings`                                 | platform/people-ops.routes.ts           |
+| POST   | `/v1/people-ops/onboardings`                                 | platform/people-ops.routes.ts           |
+| GET    | `/v1/people-ops/onboardings/:id`                             | platform/people-ops.routes.ts           |
+| PATCH  | `/v1/people-ops/onboardings/:id`                             | platform/people-ops.routes.ts           |
+| POST   | `/v1/people-ops/onboardings/:id/setup/:step`                 | platform/people-ops.routes.ts           |
+| GET    | `/v1/people-ops/onboarding-options`                          | platform/people-ops.routes.ts           |
+| GET    | `/v1/people-ops/people/:id/onboarding`                       | platform/people-ops.routes.ts           |
+| GET    | `/v1/people-ops/templates`                                   | platform/people-ops.routes.ts           |
+| POST   | `/v1/people-ops/templates`                                   | platform/people-ops.routes.ts           |
+| GET    | `/v1/people-ops/templates/:id`                               | platform/people-ops.routes.ts           |
+| POST   | `/v1/people-ops/templates/:id/draft`                         | platform/people-ops.routes.ts           |
+| POST   | `/v1/people-ops/templates/:id/publish`                       | platform/people-ops.routes.ts           |
+| GET    | `/v1/people-ops/template-library`                            | platform/people-ops.routes.ts           |
+| GET    | `/v1/me/learning`                                            | platform/manager.routes.ts              |
+| POST   | `/v1/me/learning/:id/add`                                    | platform/manager.routes.ts              |
+| GET    | `/v1/me/reviews`                                             | platform/manager.routes.ts              |
+| POST   | `/v1/me/reviews/:id/decision`                                | platform/manager.routes.ts              |
+| GET    | `/v1/team/knowledge`                                         | platform/manager.routes.ts              |
+| GET    | `/v1/team/knowledge-gaps`                                    | platform/manager.routes.ts              |
+| GET    | `/v1/team/onboarding`                                        | platform/team.routes.ts                 |
+| GET    | `/v1/team/check-matrix`                                      | platform/team.routes.ts                 |
+| GET    | `/v1/team/attention`                                         | platform/team.routes.ts                 |
+| GET    | `/v1/team/checkins`                                          | platform/team.routes.ts                 |
+| GET    | `/v1/team/members/:id`                                       | platform/team.routes.ts                 |
+| PATCH  | `/v1/team/members/:id/roadmap`                               | platform/team.routes.ts                 |
+| POST   | `/v1/team/members/:id/roadmap`                               | platform/team.routes.ts                 |
+| GET    | `/v1/team/members/:id/checkin-prep`                          | platform/team.routes.ts                 |
+| POST   | `/v1/team/members/:id/checkins`                              | platform/team.routes.ts                 |
+| GET    | `/v1/team/members/:id/assign-options`                        | platform/team.routes.ts                 |
+| POST   | `/v1/team/members/:id/assignments`                           | platform/team.routes.ts                 |
+| POST   | `/v1/team/members/:id/escalations`                           | platform/team.routes.ts                 |
 
 ## Appendix C. Live API routes the web app does not call yet (55)
 

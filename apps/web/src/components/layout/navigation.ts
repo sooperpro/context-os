@@ -111,6 +111,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: HowToRegIcon,
     activeIcon: HowToRegFilledIcon,
     to: "/onboarding",
+    roles: ["hr"],
     personas: ["people_ops"],
   },
   {
@@ -120,6 +121,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: EventAvailableIcon,
     activeIcon: EventAvailableFilledIcon,
     to: "/probation",
+    roles: ["hr"],
     personas: ["people_ops"],
   },
   {
@@ -128,6 +130,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: LibraryBooksIcon,
     activeIcon: LibraryBooksFilledIcon,
     to: "/templates",
+    roles: ["hr"],
     personas: ["people_ops"],
   },
   {
@@ -205,7 +208,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     activeIcon: GroupFilledIcon,
     to: "/people",
     // The directory; guests cannot read it (API 403). Admins manage people from "Members & roles".
-    roles: ["owner", "admin", "manager", "member"],
+    roles: ["owner", "admin", "manager", "hr", "member"],
     personas: ["employee", "manager", "people_ops"],
   },
   {

@@ -202,8 +202,8 @@ export function SetupPage() {
           </Button>
         </div>
         <p className="text-xs text-on-surface-variant">
-          Consent opens in a new tab with read-only Drive scope. Come back here and check again once
-          Google returns you to ContextOS.
+          Consent opens in a new tab with read-only Drive scope. After approval, Google returns that
+          tab to this Setup page and shows the connection status.
         </p>
       </div>
     ),

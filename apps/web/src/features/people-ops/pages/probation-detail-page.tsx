@@ -74,6 +74,7 @@ import { PEOPLE_OPS_ENDPOINTS as E } from "@/features/people-ops/api/people-ops.
 import {
   probationQuery,
   useDecideProbation,
+  useDiscussProbation,
   useRemindManagers,
 } from "@/features/people-ops/api/people-ops.queries";
 import { LevelScale } from "@/features/people-ops/components/level-scale";
@@ -85,7 +86,6 @@ import {
   outcomeChip,
   recommendationChip,
 } from "@/features/people-ops/people-ops-meta";
-import { comingSoon } from "@/lib/coming-soon";
 import {
   daysFromToday,
   firstName,
@@ -266,7 +266,7 @@ function ReviewView({ review }: { review: ProbationDetail }) {
                 title={missing ? "Not started yet" : `Waiting for ${review.manager.name}`}
                 description={
                   missing
-                    ? `${first} has 2 missing check-ins. Ask ${review.manager.name} to record them first.`
+                    ? `${first} has ${review.missingCheckins} missing check-in${review.missingCheckins === 1 ? "" : "s"}. Ask ${review.manager.name} to record them first.`
                     : review.recommendationDueOn
                       ? `The recommendation is due ${formatShortDate(review.recommendationDueOn)}.`
                       : undefined
@@ -400,13 +400,14 @@ const OUTCOME: Record<Outcome, { title: string; description: string }> = {
   extend: { title: "Extend probation", description: "Set a new review date" },
   discuss: {
     title: "Discuss with manager first",
-    description: "Hold the decision and book a call",
+    description: "Hold the decision and ask the manager to talk",
   },
 };
 
 /** Confirm, extend or hold (prototype `.decision-form`), then a confirmation before it is recorded. */
 function DecisionForm({ review }: { review: ProbationDetail }) {
   const decide = useDecideProbation(review.id);
+  const discuss = useDiscussProbation(review.id);
   const ids = { extension: useId(), effective: useId(), note: useId(), notify: useId() };
   const [outcome, setOutcome] = useState<Outcome>(
     review.state === "needs_hr_review" ? "extend" : "confirm",
@@ -454,7 +455,14 @@ function DecisionForm({ review }: { review: ProbationDetail }) {
       onSubmit={(event) => {
         event.preventDefault();
         if (outcome === "discuss") {
-          comingSoon(`Booking a call with ${managerFirst}`);
+          discuss.mutate(
+            { note },
+            {
+              onSuccess: () =>
+                toast.success(`${managerFirst} was asked to discuss before you decide`),
+              onError: () => toast.error("The request could not be sent. Please try again."),
+            },
+          );
           return;
         }
         if (effective) setConfirming(true);
@@ -533,10 +541,10 @@ function DecisionForm({ review }: { review: ProbationDetail }) {
         </span>
         <Switch id={ids.notify} checked={notify} onCheckedChange={setNotify} />
       </label>
-      <Button type="submit" className="w-full">
+      <Button type="submit" className="w-full" disabled={discuss.isPending}>
         {outcome === "discuss" ? (
           <>
-            <EventIcon aria-hidden /> Book a call with {managerFirst}
+            <EventIcon aria-hidden /> Ask {managerFirst} to discuss
           </>
         ) : (
           <>

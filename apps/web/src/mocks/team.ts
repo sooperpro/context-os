@@ -602,6 +602,15 @@ export const teamMocks = [
     ];
     return { id };
   }, 201),
+  mockPost(E.escalate)((_input, { params }) => {
+    const member = find(param(params.id));
+    return {
+      id: `esc-${member.key}`,
+      to: member.issues.some((issue) => issue.toLowerCase().includes("access"))
+        ? ("admins" as const)
+        : ("people_ops" as const),
+    };
+  }, 201),
   mockPost(E.assignRoadmap)((input, { params }) => {
     const member = find(param(params.id));
     const buddy = [people.arjun, people.sana].find((entry) => entry.id === input.buddyId) ?? null;

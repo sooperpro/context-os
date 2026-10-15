@@ -36,6 +36,7 @@ import { createIdentityLinkRoutes } from "./modules/identity/identity-links.rout
 import { createIdentityRoutes } from "./modules/identity/identity.routes.js";
 import { createJobRoutes } from "./modules/jobs/jobs.routes.js";
 import { createAdminOverviewRoutes } from "./modules/platform/admin-overview.routes.js";
+import { createAccessPolicyRoutes } from "./modules/platform/access-policies.routes.js";
 import { createAdminRoutes } from "./modules/platform/admin.routes.js";
 import { createAnalyticsRoutes } from "./modules/platform/analytics.routes.js";
 import { createBountyRoutes } from "./modules/platform/bounties.routes.js";
@@ -44,6 +45,10 @@ import { createEpmRoutes } from "./modules/platform/epm.routes.js";
 import { createGamificationRoutes } from "./modules/platform/gamification.routes.js";
 import { createKnowledgeRoutes } from "./modules/platform/knowledge.routes.js";
 import { createLearningRoutes } from "./modules/platform/learning.routes.js";
+import { createMemberAdminRoutes } from "./modules/platform/members-admin.routes.js";
+import { createPeopleOpsRoutes } from "./modules/platform/people-ops.routes.js";
+import { createManagerRoutes } from "./modules/platform/manager.routes.js";
+import { createTeamRoutes } from "./modules/platform/team.routes.js";
 import { createOnboardingRoutes } from "./modules/platform/onboarding.routes.js";
 import { createRewardRoutes } from "./modules/platform/rewards.routes.js";
 import { createSavedRoutes } from "./modules/platform/saved.routes.js";
@@ -163,7 +168,7 @@ export function createApp({ env, container, version = "0.1.0" }: AppDeps) {
     .route("/api/v1", createGamificationRoutes(container))
     .route("/api/v1", createRewardRoutes(container))
     .route("/api/v1", createEpmRoutes(container))
-    .route("/api/v1", createConnectorRoutes(drive))
+    .route("/api/v1", createConnectorRoutes(drive, env.CORS_ORIGINS[0]!))
     .route("/api/v1", createOnboardingRoutes(container))
     .route("/api/v1", createSearchRoutes(container))
     .route("/api/v1", createEvidenceRoutes(container))
@@ -172,6 +177,11 @@ export function createApp({ env, container, version = "0.1.0" }: AppDeps) {
     .route("/api/v1", createAdminOverviewRoutes(container))
     .route("/api/v1", createAdminConnectorRoutes(container, drive))
     .route("/api/v1", createSavedRoutes(container))
+    .route("/api/v1", createAccessPolicyRoutes(container))
+    .route("/api/v1", createMemberAdminRoutes(container))
+    .route("/api/v1", createPeopleOpsRoutes(container))
+    .route("/api/v1", createTeamRoutes(container))
+    .route("/api/v1", createManagerRoutes(container))
     .route("/api/v1/health", createHealthRoutes({ db: container.db, version }))
     .route("/api/v1/projects", createProjectsRoutes(services.projects))
     .route("/api/v1/projects/:projectId", projectRouter);

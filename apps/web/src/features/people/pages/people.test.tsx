@@ -15,7 +15,7 @@ import { renderWithProviders } from "@/test/utils";
 
 setupMockApi();
 
-function renderAt(route: string) {
+function renderAt(route: string, viewerId = "p-maya") {
   const projectId = "11111111-1111-4111-8111-111111111111";
   const teamPlatform = "22222222-2222-4222-8222-222222222221";
   const teamSales = "22222222-2222-4222-8222-222222222222";
@@ -73,7 +73,7 @@ function renderAt(route: string) {
     http.get(buildApiUrl("/v1/users"), () =>
       HttpResponse.json({ total: members.length, items: members }),
     ),
-    http.get(buildApiUrl("/v1/users/me"), () => HttpResponse.json({ id: "p-maya" })),
+    http.get(buildApiUrl("/v1/users/me"), () => HttpResponse.json({ id: viewerId })),
     http.get(buildApiUrl("/v1/org/teams"), () =>
       HttpResponse.json({
         items: [
@@ -100,6 +100,11 @@ function renderAt(route: string) {
                 },
               ]
             : [],
+        // Like the API: only the person's manager sees their onboarding.
+        onboarding:
+          member.organization.startDate && member.managerId === viewerId
+            ? { startedOn: member.organization.startDate, status: "on_track" }
+            : null,
       });
     }),
   );
@@ -190,5 +195,25 @@ describe("People", () => {
 
     await user.click(screen.getByRole("button", { name: "What does Sana work on?" }));
     expect(assistant.openAssistant).toHaveBeenCalledWith("What does Sana work on?");
+  });
+
+  it("shows a manager their report's onboarding, linking to the team member page", async () => {
+    renderAt("/people/p-maya", "p-daniel");
+
+    const onboarding = await screen.findByRole("region", { name: /Onboarding/ });
+    expect(within(onboarding).getByText("On track")).toBeInTheDocument();
+    expect(within(onboarding).getByRole("button", { name: "Open onboarding" })).toHaveAttribute(
+      "href",
+      "/team/p-maya",
+    );
+  });
+
+  it("shows nobody else the onboarding card", async () => {
+    renderAt("/people/p-maya", "p-sana");
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Maya Okafor" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: /Onboarding/ })).not.toBeInTheDocument();
   });
 });

@@ -28,6 +28,7 @@ import {
   useUpdateOnboarding,
 } from "@/features/people-ops/api/people-ops.queries";
 import { onboardingPath } from "@/features/people-ops/people-ops-meta";
+import { ApiClientError } from "@/lib/api-client";
 import { firstName } from "@/lib/format";
 
 /** "Later" in the optional selects; the API takes null. */
@@ -82,6 +83,11 @@ function Note({ icon, children }: { icon: React.ReactNode; children: React.React
   );
 }
 
+/** The server's reason for a refused change ("already has an onboarding record"), else a fallback. */
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof ApiClientError && error.isClientError ? error.message : fallback;
+}
+
 /** Three weeks out, a sensible first start date. */
 function defaultStart(): string {
   const date = new Date(Date.now() + 20 * 86_400_000);
@@ -113,6 +119,7 @@ function NewOnboardingForm({ close }: { close: () => void }) {
   const ids = {
     name: useId(),
     title: useId(),
+    email: useId(),
     team: useId(),
     start: useId(),
     manager: useId(),
@@ -121,6 +128,7 @@ function NewOnboardingForm({ close }: { close: () => void }) {
   };
   const [name, setName] = useState("");
   const [title, setTitle] = useState("");
+  const [email, setEmail] = useState("");
   const [team, setTeam] = useState<string | null>(null);
   const [start, setStart] = useState(defaultStart);
   const [manager, setManager] = useState<string | null>(null);
@@ -143,6 +151,7 @@ function NewOnboardingForm({ close }: { close: () => void }) {
           {
             name: name.trim(),
             title: title.trim(),
+            email: email.trim() || null,
             team: chosenTeam,
             startDate: start,
             managerId: chosenManager,
@@ -155,7 +164,10 @@ function NewOnboardingForm({ close }: { close: () => void }) {
               close();
               void navigate(onboardingPath(record.id));
             },
-            onError: () => toast.error("The onboarding could not be created. Please try again."),
+            onError: (error) =>
+              toast.error(
+                errorMessage(error, "The onboarding could not be created. Please try again."),
+              ),
           },
         );
       }}
@@ -184,6 +196,16 @@ function NewOnboardingForm({ close }: { close: () => void }) {
                 onChange={(event) => setTitle(event.target.value)}
                 placeholder="e.g. Backend Engineer"
                 required
+              />
+            </Field>
+            <Field id={ids.email} label="Work email (optional)">
+              <Input
+                id={ids.email}
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="e.g. noor@company.com"
+                autoComplete="off"
               />
             </Field>
             <Field id={ids.team} label="Team">
@@ -235,8 +257,8 @@ function NewOnboardingForm({ close }: { close: () => void }) {
             />
           </Field>
           <Note icon={<SyncAltIcon aria-hidden />}>
-            Their Google Workspace account comes from SCIM. The manager is asked to confirm the
-            roadmap.
+            With a work email they get an invitation, and their manager and start date apply when
+            they first sign in. Without one, their account comes from SCIM.
           </Note>
         </>
       )}
@@ -252,15 +274,22 @@ function NewOnboardingForm({ close }: { close: () => void }) {
   );
 }
 
-export type AssignmentKind = "manager" | "buddy" | "template";
+export type AssignmentKind = "manager" | "buddy" | "template" | "partner";
 
 const ASSIGNMENT_LABEL: Record<AssignmentKind, string> = {
   manager: "manager",
   buddy: "onboarding buddy",
   template: "template",
+  partner: "People partner",
 };
 
-/** Change or assign a record's manager, buddy or template (prototype `changeDialog`). */
+/** Who hears about the change: the API notifies the new manager or buddy. */
+const ASSIGNMENT_NOTE: Partial<Record<AssignmentKind, string>> = {
+  manager: "The new manager will be notified.",
+  buddy: "The new buddy will be notified.",
+};
+
+/** Change or assign a record's manager, buddy, template or People partner (prototype `changeDialog`). */
 export function AssignmentDialog({
   record,
   kind,
@@ -295,20 +324,23 @@ function AssignmentForm({
   const fieldId = useId();
   const label = ASSIGNMENT_LABEL[kind];
   const fieldLabel = label.charAt(0).toUpperCase() + label.slice(1);
-  const current =
-    kind === "manager"
-      ? record.manager?.id
-      : kind === "buddy"
-        ? record.buddy?.id
-        : record.template?.id;
+  const note = ASSIGNMENT_NOTE[kind];
+  const current = {
+    manager: record.manager?.id,
+    buddy: record.buddy?.id,
+    template: record.template?.id,
+    partner: record.peoplePartner?.id,
+  }[kind];
+  const people = {
+    manager: options.data?.managers ?? [],
+    buddy: (options.data?.buddies ?? []).filter((entry) => entry.id !== record.person.id),
+    partner: options.data?.peoplePartners ?? [],
+    template: [],
+  }[kind];
   const list =
-    kind === "manager"
-      ? (options.data?.managers ?? []).map((entry) => ({ value: entry.id, label: entry.name }))
-      : kind === "buddy"
-        ? (options.data?.buddies ?? [])
-            .filter((entry) => entry.id !== record.person.id)
-            .map((entry) => ({ value: entry.id, label: entry.name }))
-        : (options.data?.templates ?? []).map((entry) => ({ value: entry.id, label: entry.name }));
+    kind === "template"
+      ? (options.data?.templates ?? []).map((entry) => ({ value: entry.id, label: entry.name }))
+      : people.map((entry) => ({ value: entry.id, label: entry.name }));
   const [value, setValue] = useState<string | null>(null);
   const chosen =
     value ?? (list.some((entry) => entry.value === current) ? current : list[0]?.value) ?? "";
@@ -321,18 +353,21 @@ function AssignmentForm({
       onSubmit={(event) => {
         event.preventDefault();
         if (!chosen) return;
-        const input =
-          kind === "manager"
-            ? { managerId: chosen }
-            : kind === "buddy"
-              ? { buddyId: chosen }
-              : { templateId: chosen };
+        const input = {
+          manager: { managerId: chosen },
+          buddy: { buddyId: chosen },
+          template: { templateId: chosen },
+          partner: { peoplePartnerId: chosen },
+        }[kind];
         update.mutate(input, {
           onSuccess: () => {
             toast.success(`${fieldLabel} updated for ${record.person.name}`);
             close();
           },
-          onError: () => toast.error(`The ${label} could not be changed. Please try again.`),
+          onError: (error) =>
+            toast.error(
+              errorMessage(error, `The ${label} could not be changed. Please try again.`),
+            ),
         });
       }}
     >
@@ -348,11 +383,7 @@ function AssignmentForm({
           <OptionSelect id={fieldId} value={chosen} onChange={setValue} options={list} />
         </Field>
       )}
-      <Note icon={<NotificationsIcon aria-hidden />}>
-        {first}
-        {kind === "manager" ? ", the old manager and the new manager" : " and their manager"} will
-        be notified.
-      </Note>
+      {note ? <Note icon={<NotificationsIcon aria-hidden />}>{note}</Note> : null}
       <DialogFooter>
         <Button type="button" variant="outline" onClick={close}>
           Cancel

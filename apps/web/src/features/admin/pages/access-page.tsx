@@ -112,6 +112,7 @@ export function AccessPage() {
         policy={editing?.policy ?? null}
         open={editing !== null}
         groups={data?.groups ?? []}
+        sources={data?.sourceOptions ?? []}
         onOpenChange={(open) => (open ? null : setEditing(null))}
       />
       <ResolveConflictDialog

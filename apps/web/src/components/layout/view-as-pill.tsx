@@ -133,7 +133,7 @@ function PrototypeMenu({ own, current }: { own: Persona | null; current: Persona
               <DropdownMenuRadioItemIcon {...PERSONA_ICON[persona]} />
               {PERSONA_LABEL[persona]}
               <DropdownMenuItemSupporting>
-                {persona === own ? "You" : persona === "people_ops" ? "No role yet" : null}
+                {persona === own ? "You" : null}
               </DropdownMenuItemSupporting>
             </DropdownMenuRadioItem>
           ))}

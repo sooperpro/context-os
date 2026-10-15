@@ -11,7 +11,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusChip } from "@/components/ui/status-chip";
 import {
@@ -74,11 +80,16 @@ export function OrgStructure({ canManage }: { canManage: boolean }) {
 
   const teamsByDepartment = new Map<string, Team[]>();
   for (const team of teams.data) {
-    teamsByDepartment.set(team.departmentId, [...(teamsByDepartment.get(team.departmentId) ?? []), team]);
+    teamsByDepartment.set(team.departmentId, [
+      ...(teamsByDepartment.get(team.departmentId) ?? []),
+      team,
+    ]);
   }
 
   const remove = (label: string, run: () => Promise<unknown>) =>
-    run().then(() => toast.success(`${label} deleted`)).catch(() => undefined);
+    run()
+      .then(() => toast.success(`${label} deleted`))
+      .catch(() => undefined);
 
   return (
     <div className="space-y-4">
@@ -99,8 +110,8 @@ export function OrgStructure({ canManage }: { canManage: boolean }) {
             </EmptyMedia>
             <EmptyTitle>No departments yet</EmptyTitle>
             <EmptyDescription>
-              Departments and teams let managers see their reports and let Context Bot route knowledge
-              gaps to the right owners.
+              Departments and teams let managers see their reports and let Context Bot route
+              knowledge gaps to the right owners.
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -117,28 +128,48 @@ export function OrgStructure({ canManage }: { canManage: boolean }) {
                       {department.name}
                     </CardTitle>
                     <CardDescription>
-                      {departmentTeams.length === 0 ? "No teams yet" : `${departmentTeams.length} team${departmentTeams.length === 1 ? "" : "s"}`}
+                      {departmentTeams.length === 0
+                        ? "No teams yet"
+                        : `${departmentTeams.length} team${departmentTeams.length === 1 ? "" : "s"}`}
                     </CardDescription>
                   </div>
                   {canManage ? (
                     <div className="flex items-center gap-1">
-                      <Button variant="outline" size="sm" onClick={() => setDialog({ kind: "create-team", department })}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setDialog({ kind: "create-team", department })}
+                      >
                         <AddIcon aria-hidden />
                         Add team
                       </Button>
                       <DropdownMenu>
-                        <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label={`Manage ${department.name}`} />}>
+                        <DropdownMenuTrigger
+                          render={
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={`Manage ${department.name}`}
+                            />
+                          }
+                        >
                           <MoreHorizIcon />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => setDialog({ kind: "rename-department", department })}>
+                          <DropdownMenuItem
+                            onClick={() => setDialog({ kind: "rename-department", department })}
+                          >
                             <EditIcon /> Rename
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             variant="destructive"
                             disabled={departmentTeams.length > 0}
-                            onClick={() => void remove(department.name, () => deleteDepartment.mutateAsync(department.id))}
+                            onClick={() =>
+                              void remove(department.name, () =>
+                                deleteDepartment.mutateAsync(department.id),
+                              )
+                            }
                           >
                             <DeleteIcon /> Delete
                           </DropdownMenuItem>
@@ -156,7 +187,9 @@ export function OrgStructure({ canManage }: { canManage: boolean }) {
                     canManage={canManage}
                     onAddChild={(parent) => setDialog({ kind: "create-team", department, parent })}
                     onRename={(team) => setDialog({ kind: "rename-team", team })}
-                    onDelete={(team) => void remove(team.name, () => deleteTeam.mutateAsync(team.id))}
+                    onDelete={(team) =>
+                      void remove(team.name, () => deleteTeam.mutateAsync(team.id))
+                    }
                   />
                 </CardContent>
               ) : null}
@@ -183,20 +216,34 @@ export function OrgStructure({ canManage }: { canManage: boolean }) {
         submitLabel="Save"
         isPending={renameDepartment.isPending}
         onSubmit={(input) =>
-          dialog?.kind === "rename-department" ? renameDepartment.mutateAsync({ id: dialog.department.id, ...input }) : undefined
+          dialog?.kind === "rename-department"
+            ? renameDepartment.mutateAsync({ id: dialog.department.id, ...input })
+            : undefined
         }
       />
       <NameDialog
         open={dialog?.kind === "create-team"}
         onOpenChange={(open) => !open && setDialog(null)}
-        title={dialog?.kind === "create-team" && dialog.parent ? `New team under ${dialog.parent.name}` : "New team"}
-        description={dialog?.kind === "create-team" ? `In ${dialog.department.name}. Teams nest up to three levels.` : undefined}
+        title={
+          dialog?.kind === "create-team" && dialog.parent
+            ? `New team under ${dialog.parent.name}`
+            : "New team"
+        }
+        description={
+          dialog?.kind === "create-team"
+            ? `In ${dialog.department.name}. Teams nest up to three levels.`
+            : undefined
+        }
         label="Team name"
         submitLabel="Create"
         isPending={createTeam.isPending}
         onSubmit={(input) =>
           dialog?.kind === "create-team"
-            ? createTeam.mutateAsync({ ...input, departmentId: dialog.department.id, parentId: dialog.parent?.id ?? null })
+            ? createTeam.mutateAsync({
+                ...input,
+                departmentId: dialog.department.id,
+                parentId: dialog.parent?.id ?? null,
+              })
             : undefined
         }
       />
@@ -208,7 +255,11 @@ export function OrgStructure({ canManage }: { canManage: boolean }) {
         initialName={dialog?.kind === "rename-team" ? dialog.team.name : ""}
         submitLabel="Save"
         isPending={updateTeam.isPending}
-        onSubmit={(input) => (dialog?.kind === "rename-team" ? updateTeam.mutateAsync({ id: dialog.team.id, ...input }) : undefined)}
+        onSubmit={(input) =>
+          dialog?.kind === "rename-team"
+            ? updateTeam.mutateAsync({ id: dialog.team.id, ...input })
+            : undefined
+        }
       />
     </div>
   );
@@ -224,7 +275,15 @@ interface TeamTreeProps {
   onDelete: (team: Team) => void;
 }
 
-function TeamTree({ teams, parentId, canManage, depth = 0, onAddChild, onRename, onDelete }: TeamTreeProps) {
+function TeamTree({
+  teams,
+  parentId,
+  canManage,
+  depth = 0,
+  onAddChild,
+  onRename,
+  onDelete,
+}: TeamTreeProps) {
   const children = teams.filter((team) => team.parentId === parentId);
   if (children.length === 0) return null;
   return (
@@ -243,7 +302,11 @@ function TeamTree({ teams, parentId, canManage, depth = 0, onAddChild, onRename,
               ) : null}
               {canManage ? (
                 <DropdownMenu>
-                  <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" aria-label={`Manage ${team.name}`} />}>
+                  <DropdownMenuTrigger
+                    render={
+                      <Button variant="ghost" size="icon-xs" aria-label={`Manage ${team.name}`} />
+                    }
+                  >
                     <MoreHorizIcon />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
@@ -256,7 +319,11 @@ function TeamTree({ teams, parentId, canManage, depth = 0, onAddChild, onRename,
                       </DropdownMenuItem>
                     ) : null}
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem variant="destructive" disabled={hasChildren} onClick={() => onDelete(team)}>
+                    <DropdownMenuItem
+                      variant="destructive"
+                      disabled={hasChildren}
+                      onClick={() => onDelete(team)}
+                    >
                       <DeleteIcon /> Delete
                     </DropdownMenuItem>
                   </DropdownMenuContent>

@@ -1,4 +1,9 @@
-import type { AccessConflict, AccessPolicy } from "@contextos/shared";
+import type {
+  AccessConflict,
+  AccessPolicy,
+  PolicySource,
+  PolicySourceOption,
+} from "@contextos/shared";
 import { useId, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -15,26 +20,40 @@ import { AddIcon, CheckIcon, InfoIcon } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { OptionList, OptionTile } from "@/components/ui/option-tile";
-import { useResolveConflict, useSavePolicy } from "@/features/admin/api/admin.queries";
+import {
+  useDeletePolicy,
+  useResolveConflict,
+  useSavePolicy,
+} from "@/features/admin/api/admin.queries";
 
-/** New or edit an access policy (prototype `policyDialog`): name, effect and groups. */
+const sourceKey = (source: { kind?: string; id?: string }) => `${source.kind}:${source.id}`;
+
+/** New or edit an access policy (prototype `policyDialog`): name, effect, groups and sources. */
 export function PolicyDialog({
   policy,
   open,
   groups,
+  sources,
   onOpenChange,
 }: {
   /** Null for a new policy. */
   policy: AccessPolicy | null;
   open: boolean;
   groups: string[];
+  /** Projects and synced folders a policy can cover. */
+  sources: PolicySourceOption[];
   onOpenChange: (open: boolean) => void;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-xl">
         {open ? (
-          <PolicyForm policy={policy} groups={groups} close={() => onOpenChange(false)} />
+          <PolicyForm
+            policy={policy}
+            groups={groups}
+            sources={sources}
+            close={() => onOpenChange(false)}
+          />
         ) : null}
       </DialogContent>
     </Dialog>
@@ -44,20 +63,36 @@ export function PolicyDialog({
 function PolicyForm({
   policy,
   groups,
+  sources,
   close,
 }: {
   policy: AccessPolicy | null;
   groups: string[];
+  sources: PolicySourceOption[];
   close: () => void;
 }) {
   const save = useSavePolicy(policy?.id ?? null);
+  const remove = useDeletePolicy();
   const nameId = useId();
+  const [covered, setCovered] = useState(
+    () => new Set((policy?.sources ?? []).filter((entry) => entry.kind).map(sourceKey)),
+  );
+  const toggle = (key: string) =>
+    setCovered((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   const [name, setName] = useState(policy?.name ?? "");
   const [effect, setEffect] = useState<"restrict" | "exclude">(
     policy?.effect === "exclude" ? "exclude" : "restrict",
   );
   const [chosen, setChosen] = useState(() => new Set(policy?.groups ?? []));
-  const valid = name.trim().length >= 2 && chosen.size > 0;
+  const valid = name.trim().length >= 2 && chosen.size > 0 && covered.size > 0;
+  const chosenSources = sources
+    .filter((option) => covered.has(sourceKey(option)))
+    .map((option): PolicySource => ({ kind: option.kind, id: option.id }));
 
   return (
     <form
@@ -66,13 +101,14 @@ function PolicyForm({
         event.preventDefault();
         if (!valid) return;
         save.mutate(
-          { name: name.trim(), effect, groups: [...chosen] },
+          { name: name.trim(), effect, groups: [...chosen], sources: chosenSources },
           {
             onSuccess: (saved) => {
               toast.success(policy ? `Saved “${saved.name}”` : `Created “${saved.name}”`);
               close();
             },
-            onError: () => toast.error("The policy could not be saved. Please try again."),
+            onError: (error) =>
+              toast.error(error.message || "The policy could not be saved. Please try again."),
           },
         );
       }}
@@ -102,7 +138,7 @@ function PolicyForm({
               />
             }
             title="Restrict"
-            description="Only these groups can see it"
+            description="Only these groups can open it, in search, the Hub and answers"
           />
           <OptionTile
             input={
@@ -114,7 +150,7 @@ function PolicyForm({
               />
             }
             title="Exclude"
-            description="Nobody sees it in ContextOS"
+            description="Never used in answers; only these groups can still open it"
           />
         </OptionList>
       </fieldset>
@@ -144,12 +180,52 @@ function PolicyForm({
           })}
         </div>
       </fieldset>
+      <fieldset>
+        <legend className="mb-2 text-sm font-medium">Sources</legend>
+        {sources.length ? (
+          <div className="flex flex-wrap gap-2">
+            {sources.map((option) => {
+              const key = sourceKey(option);
+              const on = covered.has(key);
+              return (
+                <Chip key={key} variant="filter" selected={on} onClick={() => toggle(key)}>
+                  {on ? <CheckIcon aria-hidden /> : <AddIcon aria-hidden />}
+                  {option.label}
+                </Chip>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-sm text-on-surface-variant">
+            Create a project or sync a folder first: policies cover projects and synced folders.
+          </p>
+        )}
+      </fieldset>
       <p className="flex items-start gap-1.5 text-xs text-on-surface-variant">
         <InfoIcon className="mt-px size-4 shrink-0" aria-hidden />
         Changes apply to search and Context Bot answers within a minute and are added to the audit
         log.
       </p>
       <DialogFooter>
+        {policy ? (
+          <Button
+            type="button"
+            variant="ghost"
+            className="mr-auto text-error"
+            disabled={remove.isPending}
+            onClick={() =>
+              remove.mutate(policy.id, {
+                onSuccess: () => {
+                  toast.success(`Deleted “${policy.name}”`);
+                  close();
+                },
+                onError: (error) => toast.error(error.message),
+              })
+            }
+          >
+            Delete policy
+          </Button>
+        ) : null}
         <Button type="button" variant="outline" onClick={close}>
           Cancel
         </Button>

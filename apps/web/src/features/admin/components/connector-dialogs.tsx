@@ -39,13 +39,17 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   adminConnectorsQuery,
+  connectorScopesQuery,
   useAuthorizeConnector,
   useConnectConnector,
+  useRemoveConnectorScope,
   useRequestConnector,
+  useSyncConnector,
 } from "@/features/admin/api/admin.queries";
 import { SYNC_FREQUENCY } from "@/features/admin/admin-meta";
 import { projectsQuery } from "@/features/projects/api/projects.queries";
 import { ApiClientError } from "@/lib/api-client";
+import { formatCount, formatRelativeTime } from "@/lib/format";
 
 /** The server's own words when it has them (they say what to do next), else a generic line. */
 const reason = (error: unknown, fallback: string) =>
@@ -457,5 +461,147 @@ function RequestForm({ close }: { close: () => void }) {
         </Button>
       </DialogFooter>
     </form>
+  );
+}
+
+/**
+ * Manage a connected source (prototype "Manage"): every folder it keeps in sync across members, with
+ * the project it feeds, who connected it, its schedule and sharing. Sync everything now, or stop
+ * syncing a folder (what was already imported stays in its project).
+ */
+export function ManageConnectorDialog({
+  connector,
+  onOpenChange,
+  onAddMore,
+}: {
+  connector: AdminConnector | null;
+  onOpenChange: (open: boolean) => void;
+  onAddMore: (connector: AdminConnector) => void;
+}) {
+  return (
+    <Dialog open={connector !== null} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-2xl">
+        {connector ? (
+          <ManageBody
+            connector={connector}
+            close={() => onOpenChange(false)}
+            onAddMore={() => onAddMore(connector)}
+          />
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ManageBody({
+  connector,
+  close,
+  onAddMore,
+}: {
+  connector: AdminConnector;
+  close: () => void;
+  onAddMore: () => void;
+}) {
+  const scopes = useQuery(connectorScopesQuery(connector.id));
+  const sync = useSyncConnector();
+  const remove = useRemoveConnectorScope();
+  const items = scopes.data?.items ?? [];
+  return (
+    <>
+      <DialogHeader className="flex-row items-center gap-3">
+        <ConnectorLogo provider={connector.id} />
+        <DialogTitle>Manage {connector.name}</DialogTitle>
+      </DialogHeader>
+      {scopes.isPending ? (
+        <Loader label={`Loading ${connector.name} folders`} />
+      ) : scopes.isError ? (
+        <p className="text-sm text-error">{scopes.error.message}</p>
+      ) : items.length ? (
+        <ul aria-label={`${connector.name} folders`} className="flex flex-col gap-1">
+          {items.map((scope) => (
+            <li key={scope.id} className="flex items-start gap-3 rounded-md bg-pane px-3 py-2.5">
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <b className="text-sm font-medium">{scope.name}</b>
+                <span className="text-xs text-on-surface-variant">
+                  {[
+                    `Feeds ${scope.projectName}`,
+                    `connected by ${scope.connectedBy}`,
+                    `syncs ${SYNC_FREQUENCY[scope.frequency].toLowerCase()}`,
+                    scope.visibility === "workspace"
+                      ? "shared with everyone"
+                      : "permissions mirrored",
+                  ].join(" · ")}
+                </span>
+                <span className="text-xs text-on-surface-variant">
+                  {formatCount(scope.itemCount, "file")}
+                  {scope.lastSyncedAt
+                    ? ` · synced ${formatRelativeTime(scope.lastSyncedAt).toLowerCase()}`
+                    : " · not synced yet"}
+                  {scope.lastError ? (
+                    <span className="text-error"> · {scope.lastError}</span>
+                  ) : null}
+                </span>
+              </span>
+              <Button
+                size="xs"
+                variant="ghost"
+                disabled={remove.isPending}
+                aria-label={`Stop syncing ${scope.name}`}
+                onClick={() =>
+                  remove.mutate(
+                    { id: connector.id, scopeId: scope.id },
+                    {
+                      onSuccess: () =>
+                        toast.success(
+                          `Stopped syncing ${scope.name}. Imported documents stay in ${scope.projectName}.`,
+                        ),
+                      onError: (error) => toast.error(reason(error, "Could not stop syncing.")),
+                    },
+                  )
+                }
+              >
+                Stop syncing
+              </Button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-on-surface-variant">
+          No folders are synced yet. Add some to start indexing.
+        </p>
+      )}
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={close}>
+          Close
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            close();
+            onAddMore();
+          }}
+        >
+          Add folders
+        </Button>
+        <Button
+          type="button"
+          disabled={sync.isPending || items.length === 0}
+          onClick={() =>
+            sync.mutate(connector.id, {
+              onSuccess: (result) =>
+                toast.success(
+                  result.queued
+                    ? `Syncing ${formatCount(result.queued, "folder")} now.`
+                    : "Everything was synced in the last 10 minutes.",
+                ),
+              onError: (error) => toast.error(reason(error, "The sync could not start.")),
+            })
+          }
+        >
+          <SyncIcon aria-hidden /> Sync now
+        </Button>
+      </DialogFooter>
+    </>
   );
 }

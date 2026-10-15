@@ -362,6 +362,16 @@ describe("PRD learning credit, onboarding health, companion and maintenance swee
     }>(await t.app.request("/api/v1/probation/employees/hire/summary"));
     expect(summary.firstWin.ttfwDays).toBe(after.data.ttfwDays);
     expect(summary.decision).toContain("does not recommend");
+    // The manager recommends; only People Ops records the outcome.
+    expect(
+      (
+        await t.app.request(
+          "/api/v1/probation/employees/hire/outcome",
+          jsonRequest({ version: after.version, outcome: "confirmed", note: "Welcome aboard" }),
+        )
+      ).status,
+    ).toBe(403);
+    actor("people", "hr");
     const outcome = await json<{ status: string }>(
       await t.app.request(
         "/api/v1/probation/employees/hire/outcome",

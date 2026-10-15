@@ -4,6 +4,7 @@ import type {
   OnboardingAssignmentInput,
   OnboardingFilter,
   ProbationDecisionInput,
+  ProbationDiscussInput,
   ReminderInput,
   SetupStepId,
   TemplateDraftInput,
@@ -16,9 +17,11 @@ import {
   createOnboarding,
   createTemplate,
   decideProbation,
+  discussProbation,
   fetchOnboarding,
   fetchOnboardingOptions,
   fetchOnboardings,
+  fetchPersonOnboarding,
   fetchProbation,
   fetchTemplate,
   fetchTemplateLibrary,
@@ -27,6 +30,7 @@ import {
   saveTemplateDraft,
   updateOnboarding,
 } from "./people-ops.api";
+import { ApiClientError } from "@/lib/api-client";
 
 export const peopleOpsKeys = {
   all: ["people-ops"] as const,
@@ -37,6 +41,7 @@ export const peopleOpsKeys = {
   probation: (id: string) => [...peopleOpsKeys.all, "probation", id] as const,
   template: (id: string) => [...peopleOpsKeys.all, "template", id] as const,
   library: () => [...peopleOpsKeys.all, "library"] as const,
+  person: (userId: string) => [...peopleOpsKeys.all, "person", userId] as const,
 };
 
 export const onboardingsQuery = (q: string, team: string, filter: OnboardingFilter) =>
@@ -63,6 +68,17 @@ export const probationQuery = (id: string) =>
   queryOptions({
     queryKey: peopleOpsKeys.probation(id),
     queryFn: ({ signal }) => fetchProbation(id, signal),
+  });
+
+/** A person's onboarding for the card on their profile; null when they are not onboarding. */
+export const personOnboardingQuery = (userId: string) =>
+  queryOptions({
+    queryKey: peopleOpsKeys.person(userId),
+    queryFn: ({ signal }) =>
+      fetchPersonOnboarding(userId, signal).catch((error: unknown) => {
+        if (error instanceof ApiClientError && error.status === 404) return null;
+        throw error;
+      }),
   });
 
 export const templateQuery = (id: string) =>
@@ -116,6 +132,14 @@ export function useDecideProbation(id: string) {
   const refresh = useRefresh();
   return useMutation({
     mutationFn: (input: ProbationDecisionInput) => decideProbation(id, input),
+    onSuccess: () => refresh(),
+  });
+}
+
+export function useDiscussProbation(id: string) {
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: (input: ProbationDiscussInput) => discussProbation(id, input),
     onSuccess: () => refresh(),
   });
 }

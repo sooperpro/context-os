@@ -385,7 +385,7 @@ export function createWorkspaceRoutes(container: Container) {
         );
       })
       .get("/org/departments", zValidator("query", PageQuerySchema, validationHook), (c) => {
-        requireRole(c.get("actor"), "owner", "admin", "manager", "member");
+        requireRole(c.get("actor"), "owner", "admin", "manager", "hr", "member");
         const { limit, offset } = c.req.valid("query");
         return c.json({
           items: db
@@ -483,7 +483,7 @@ export function createWorkspaceRoutes(container: Container) {
         ),
         (c) => {
           const actor = c.get("actor");
-          requireRole(actor, "owner", "admin", "manager", "member");
+          requireRole(actor, "owner", "admin", "manager", "hr", "member");
           const { limit, offset, departmentId } = c.req.valid("query");
           if (departmentId) department(actor, departmentId);
           return c.json({

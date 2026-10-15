@@ -1,4 +1,5 @@
 import {
+  type AdminConnectorScope,
   ConnectInputSchema,
   ConnectorRequestInputSchema,
   ReconnectInputSchema,
@@ -18,6 +19,7 @@ import {
   jobs,
   projects,
   sourceObjects,
+  users,
 } from "../../db/schema.js";
 import { AppError, BadRequestError, NotFoundError } from "../../lib/errors.js";
 import { validationHook } from "../../middleware/validation.js";
@@ -410,142 +412,239 @@ export function createAdminConnectorRoutes(container: Container, drive: DriveSer
       `${entry.name} isn't available yet. Use “Request a connector” to tell us you need it.`,
     );
 
-  return new Hono<AppEnv>()
-    .get("/admin/connectors", async (c) => {
-      const actor = c.get("actor");
-      admin(actor);
-      const items = await Promise.all(CATALOG.map((entry) => describe(actor, entry.id)));
-      return c.json({ items });
-    })
-    .post("/admin/connectors/:id/authorize", zValidator("param", IdParam, validationHook), (c) => {
-      const actor = c.get("actor");
-      admin(actor);
-      const entry = catalogEntry(c.req.valid("param").id);
-      if (entry.id !== DRIVE) throw notAvailable(entry);
-      const connection = ownConnection(actor);
-      if (!connection)
+  return (
+    new Hono<AppEnv>()
+      .get("/admin/connectors", async (c) => {
+        const actor = c.get("actor");
+        admin(actor);
+        const items = await Promise.all(CATALOG.map((entry) => describe(actor, entry.id)));
+        return c.json({ items });
+      })
+      .post(
+        "/admin/connectors/:id/authorize",
+        zValidator("param", IdParam, validationHook),
+        (c) => {
+          const actor = c.get("actor");
+          admin(actor);
+          const entry = catalogEntry(c.req.valid("param").id);
+          if (entry.id !== DRIVE) throw notAvailable(entry);
+          const connection = ownConnection(actor);
+          if (!connection)
+            return c.json({
+              account: null,
+              authorizationUrl: drive.authorize(actor).authorizationUrl,
+            } satisfies ConnectorConsent);
+          const email = db
+            .select({ email: identityLinks.email })
+            .from(identityLinks)
+            .where(
+              and(
+                eq(identityLinks.workspaceId, actor.workspaceId),
+                eq(identityLinks.userId, actor.id),
+                eq(identityLinks.provider, "google"),
+              ),
+            )
+            .get()?.email;
+          return c.json({
+            account: email ?? connection.accountId ?? "your Google account",
+            authorizationUrl: null,
+          } satisfies ConnectorConsent);
+        },
+      )
+      .post(
+        "/admin/connectors/:id/connect",
+        zValidator("param", IdParam, validationHook),
+        zValidator("json", ConnectInputSchema, validationHook),
+        async (c) => {
+          const actor = c.get("actor");
+          admin(actor);
+          const entry = catalogEntry(c.req.valid("param").id);
+          if (entry.id !== DRIVE) throw notAvailable(entry);
+          const input = c.req.valid("json");
+          if (!input.projectId) throw new BadRequestError("Choose the project these folders feed");
+          const project = identity.requireProject(actor, input.projectId);
+          const connection = ownConnection(actor);
+          if (!connection) throw new AppError(409, "CONFLICT", "Authorize Google Drive first");
+          const { types, options } = await scopeOptions(actor, true);
+          const unknown = input.scopeIds.filter((id) => !types.has(id));
+          if (unknown.length)
+            throw new BadRequestError("Some of the chosen folders were not found");
+          const visibility: ScopeVisibility = input.visibility ?? "restricted";
+          const backfillFrom =
+            input.skipOlderThan === "never"
+              ? undefined
+              : yearsAgo(input.skipOlderThan === "3y" ? 3 : 1);
+          const existing = db
+            .select()
+            .from(connectorScopes)
+            .where(
+              and(
+                eq(connectorScopes.connectionId, connection.id),
+                eq(connectorScopes.projectId, project.id),
+              ),
+            )
+            .all();
+          const picked = new Set(input.scopeIds);
+          drive.setScopes(actor, connection.id, {
+            projectId: project.id,
+            scopes: [
+              ...existing
+                .filter((scope) => !picked.has(scope.externalId))
+                .map((scope) => ({
+                  scopeType: scope.scopeType as "folder" | "shared_drive",
+                  externalId: scope.externalId,
+                  name: scope.name,
+                  excluded: scope.isExcluded,
+                  backfillFrom: scope.backfillFrom?.toISOString().slice(0, 10),
+                  visibility: scope.visibility,
+                  frequency: scope.syncFrequency,
+                })),
+              ...input.scopeIds.map((id) => ({
+                scopeType: types.get(id)!,
+                externalId: id,
+                name: options.find((option) => option.id === id)?.name ?? id,
+                excluded: false,
+                backfillFrom,
+                visibility,
+                frequency: input.frequency,
+              })),
+            ],
+          });
+          drive.requestSync(actor, connection.id);
+          return c.json(await describe(actor, DRIVE));
+        },
+      )
+      .post(
+        "/admin/connectors/:id/reconnect",
+        zValidator("param", IdParam, validationHook),
+        zValidator("json", ReconnectInputSchema, validationHook),
+        async (c) => {
+          const actor = c.get("actor");
+          admin(actor);
+          const entry = catalogEntry(c.req.valid("param").id);
+          const state = entry.id === DRIVE ? driveState(actor) : null;
+          if (state?.state !== "error")
+            throw new AppError(409, "CONFLICT", "Only a failing connector can be reconnected");
+          if (state.reauth)
+            throw new AppError(
+              409,
+              "CONFLICT",
+              "Google Drive access expired. Open Setup and choose Connect Google Drive to sign in again.",
+            );
+          // Re-sync every failed scope now, whoever's connection it uses; the 10-minute cooldown is for
+          // manual re-syncs of healthy scopes.
+          const connectionIds = db
+            .select({ id: connectorConnections.id })
+            .from(connectorConnections)
+            .where(eq(connectorConnections.workspaceId, actor.workspaceId))
+            .all()
+            .map((row) => row.id);
+          const failed = connectionIds.length
+            ? db
+                .select()
+                .from(connectorScopes)
+                .where(
+                  and(
+                    inArray(connectorScopes.connectionId, connectionIds),
+                    eq(connectorScopes.status, "degraded"),
+                  ),
+                )
+                .all()
+            : [];
+          for (const scope of failed) {
+            db.update(connectorScopes)
+              .set({ status: "backfilling", lastError: null, lastSyncRequestedAt: new Date() })
+              .where(eq(connectorScopes.id, scope.id))
+              .run();
+            queue.enqueue({
+              projectId: scope.projectId,
+              type: "sync_connector",
+              payload: { connectionId: scope.connectionId, scopeId: scope.id },
+              subject: scope.name,
+              dedupe: true,
+            });
+          }
+          audit.record({
+            actor,
+            action: "connector.reconnect",
+            targetType: "connector",
+            targetId: entry.id,
+            metadata: { scopes: failed.length },
+          });
+          return c.json(await describe(actor, entry.id));
+        },
+      )
+      // Manage (role access spec §4.8): every folder Google Drive keeps in sync, across members.
+      .get("/admin/connectors/:id/scopes", zValidator("param", IdParam, validationHook), (c) => {
+        const actor = c.get("actor");
+        admin(actor);
+        const entry = catalogEntry(c.req.valid("param").id);
+        if (entry.id !== DRIVE) return c.json({ items: [] });
+        const rows = db
+          .select({
+            scope: connectorScopes,
+            projectName: projects.name,
+            ownerName: users.name,
+          })
+          .from(connectorScopes)
+          .innerJoin(projects, eq(projects.id, connectorScopes.projectId))
+          .innerJoin(
+            connectorConnections,
+            eq(connectorConnections.id, connectorScopes.connectionId),
+          )
+          .innerJoin(users, eq(users.id, connectorConnections.userId))
+          .where(eq(connectorScopes.workspaceId, actor.workspaceId))
+          .orderBy(projects.name, connectorScopes.name)
+          .all();
         return c.json({
-          account: null,
-          authorizationUrl: drive.authorize(actor).authorizationUrl,
-        } satisfies ConnectorConsent);
-      const email = db
-        .select({ email: identityLinks.email })
-        .from(identityLinks)
-        .where(
-          and(
-            eq(identityLinks.workspaceId, actor.workspaceId),
-            eq(identityLinks.userId, actor.id),
-            eq(identityLinks.provider, "google"),
-          ),
-        )
-        .get()?.email;
-      return c.json({
-        account: email ?? connection.accountId ?? "your Google account",
-        authorizationUrl: null,
-      } satisfies ConnectorConsent);
-    })
-    .post(
-      "/admin/connectors/:id/connect",
-      zValidator("param", IdParam, validationHook),
-      zValidator("json", ConnectInputSchema, validationHook),
-      async (c) => {
+          items: rows.map(({ scope, projectName, ownerName }): AdminConnectorScope => ({
+            id: scope.id,
+            name: scope.name,
+            projectId: scope.projectId,
+            projectName,
+            connectedBy: ownerName,
+            status: scope.isExcluded ? "excluded" : scope.status,
+            itemCount: scope.itemCount,
+            lastSyncedAt: scope.lastSyncedAt?.toISOString() ?? null,
+            lastError: scope.lastError,
+            frequency: scope.syncFrequency,
+            visibility: scope.visibility,
+          })),
+        });
+      })
+      .post("/admin/connectors/:id/sync", zValidator("param", IdParam, validationHook), (c) => {
         const actor = c.get("actor");
         admin(actor);
         const entry = catalogEntry(c.req.valid("param").id);
         if (entry.id !== DRIVE) throw notAvailable(entry);
-        const input = c.req.valid("json");
-        if (!input.projectId) throw new BadRequestError("Choose the project these folders feed");
-        const project = identity.requireProject(actor, input.projectId);
-        const connection = ownConnection(actor);
-        if (!connection) throw new AppError(409, "CONFLICT", "Authorize Google Drive first");
-        const { types, options } = await scopeOptions(actor, true);
-        const unknown = input.scopeIds.filter((id) => !types.has(id));
-        if (unknown.length) throw new BadRequestError("Some of the chosen folders were not found");
-        const visibility: ScopeVisibility = input.visibility ?? "restricted";
-        const backfillFrom =
-          input.skipOlderThan === "never"
-            ? undefined
-            : yearsAgo(input.skipOlderThan === "3y" ? 3 : 1);
-        const existing = db
-          .select()
+        const now = new Date();
+        let queued = 0;
+        for (const { scope } of db
+          .select({ scope: connectorScopes })
           .from(connectorScopes)
+          .innerJoin(
+            connectorConnections,
+            eq(connectorConnections.id, connectorScopes.connectionId),
+          )
           .where(
             and(
-              eq(connectorScopes.connectionId, connection.id),
-              eq(connectorScopes.projectId, project.id),
+              eq(connectorScopes.workspaceId, actor.workspaceId),
+              eq(connectorScopes.isExcluded, false),
+              eq(connectorConnections.status, "connected"),
             ),
           )
-          .all();
-        const picked = new Set(input.scopeIds);
-        drive.setScopes(actor, connection.id, {
-          projectId: project.id,
-          scopes: [
-            ...existing
-              .filter((scope) => !picked.has(scope.externalId))
-              .map((scope) => ({
-                scopeType: scope.scopeType as "folder" | "shared_drive",
-                externalId: scope.externalId,
-                name: scope.name,
-                excluded: scope.isExcluded,
-                backfillFrom: scope.backfillFrom?.toISOString().slice(0, 10),
-                visibility: scope.visibility,
-                frequency: scope.syncFrequency,
-              })),
-            ...input.scopeIds.map((id) => ({
-              scopeType: types.get(id)!,
-              externalId: id,
-              name: options.find((option) => option.id === id)?.name ?? id,
-              excluded: false,
-              backfillFrom,
-              visibility,
-              frequency: input.frequency,
-            })),
-          ],
-        });
-        drive.requestSync(actor, connection.id);
-        return c.json(await describe(actor, DRIVE));
-      },
-    )
-    .post(
-      "/admin/connectors/:id/reconnect",
-      zValidator("param", IdParam, validationHook),
-      zValidator("json", ReconnectInputSchema, validationHook),
-      async (c) => {
-        const actor = c.get("actor");
-        admin(actor);
-        const entry = catalogEntry(c.req.valid("param").id);
-        const state = entry.id === DRIVE ? driveState(actor) : null;
-        if (state?.state !== "error")
-          throw new AppError(409, "CONFLICT", "Only a failing connector can be reconnected");
-        if (state.reauth)
-          throw new AppError(
-            409,
-            "CONFLICT",
-            "Google Drive access expired. Open Setup and choose Connect Google Drive to sign in again.",
-          );
-        // Re-sync every failed scope now, whoever's connection it uses; the 10-minute cooldown is for
-        // manual re-syncs of healthy scopes.
-        const connectionIds = db
-          .select({ id: connectorConnections.id })
-          .from(connectorConnections)
-          .where(eq(connectorConnections.workspaceId, actor.workspaceId))
-          .all()
-          .map((row) => row.id);
-        const failed = connectionIds.length
-          ? db
-              .select()
-              .from(connectorScopes)
-              .where(
-                and(
-                  inArray(connectorScopes.connectionId, connectionIds),
-                  eq(connectorScopes.status, "degraded"),
-                ),
-              )
-              .all()
-          : [];
-        for (const scope of failed) {
+          .all()) {
+          // The same 10-minute cooldown as a manual re-sync of one folder.
+          if (
+            scope.lastSyncRequestedAt &&
+            now.getTime() - scope.lastSyncRequestedAt.getTime() < 600_000
+          )
+            continue;
           db.update(connectorScopes)
-            .set({ status: "backfilling", lastError: null, lastSyncRequestedAt: new Date() })
+            .set({
+              lastSyncRequestedAt: now,
+              status: scope.lastSyncedAt ? scope.status : "backfilling",
+            })
             .where(eq(connectorScopes.id, scope.id))
             .run();
           queue.enqueue({
@@ -555,38 +654,74 @@ export function createAdminConnectorRoutes(container: Container, drive: DriveSer
             subject: scope.name,
             dedupe: true,
           });
+          queued += 1;
         }
         audit.record({
           actor,
-          action: "connector.reconnect",
+          action: "connector.sync",
           targetType: "connector",
           targetId: entry.id,
-          metadata: { scopes: failed.length },
+          metadata: { queued, scope: "all" },
         });
-        return c.json(await describe(actor, entry.id));
-      },
-    )
-    .post(
-      "/admin/connector-requests",
-      zValidator("json", ConnectorRequestInputSchema, validationHook),
-      (c) => {
-        const actor = c.get("actor");
-        admin(actor);
-        const input = c.req.valid("json");
-        const request = store.create(
-          actor,
-          "connector_request",
-          { tool: input.tool, notes: input.notes },
-          { status: "open" },
-        );
-        audit.record({
-          actor,
-          action: "connector.request",
-          targetType: "connector_request",
-          targetId: request.id,
-          metadata: { tool: input.tool },
-        });
-        return c.json({ id: request.id }, 201);
-      },
-    );
+        return c.json({ queued }, 202);
+      })
+      .delete(
+        "/admin/connectors/:id/scopes/:scopeId",
+        zValidator(
+          "param",
+          IdParam.extend({ scopeId: z.string().min(1).max(200) }),
+          validationHook,
+        ),
+        (c) => {
+          const actor = c.get("actor");
+          admin(actor);
+          const { scopeId } = c.req.valid("param");
+          const scope = db
+            .select()
+            .from(connectorScopes)
+            .where(
+              and(
+                eq(connectorScopes.id, scopeId),
+                eq(connectorScopes.workspaceId, actor.workspaceId),
+              ),
+            )
+            .get();
+          if (!scope) throw new NotFoundError("Connector scope");
+          // Stops syncing; documents already imported stay in the project until removed there.
+          db.delete(connectorScopes).where(eq(connectorScopes.id, scope.id)).run();
+          audit.record({
+            actor,
+            projectId: scope.projectId,
+            action: "connector.scope.remove",
+            targetType: "connector_scope",
+            targetId: scope.id,
+            metadata: { name: scope.name, items: scope.itemCount },
+          });
+          return c.body(null, 204);
+        },
+      )
+      .post(
+        "/admin/connector-requests",
+        zValidator("json", ConnectorRequestInputSchema, validationHook),
+        (c) => {
+          const actor = c.get("actor");
+          admin(actor);
+          const input = c.req.valid("json");
+          const request = store.create(
+            actor,
+            "connector_request",
+            { tool: input.tool, notes: input.notes },
+            { status: "open" },
+          );
+          audit.record({
+            actor,
+            action: "connector.request",
+            targetType: "connector_request",
+            targetId: request.id,
+            metadata: { tool: input.tool },
+          });
+          return c.json({ id: request.id }, 201);
+        },
+      )
+  );
 }

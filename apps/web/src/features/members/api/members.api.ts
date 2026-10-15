@@ -20,7 +20,11 @@ import { z } from "zod";
 import { apiRequest } from "@/lib/api-client";
 
 export function inviteMember(input: InviteForm): Promise<InviteResult> {
-  return apiRequest("/v1/users/invite", { method: "POST", body: input, schema: InviteResultSchema });
+  return apiRequest("/v1/users/invite", {
+    method: "POST",
+    body: input,
+    schema: InviteResultSchema,
+  });
 }
 
 export async function listMembers(signal?: AbortSignal): Promise<WorkspaceMember[]> {
@@ -50,11 +54,19 @@ export async function listDepartments(signal?: AbortSignal): Promise<Department[
 }
 
 export function createDepartment(input: OrgNameInput): Promise<Department> {
-  return apiRequest("/v1/org/departments", { method: "POST", body: input, schema: DepartmentSchema });
+  return apiRequest("/v1/org/departments", {
+    method: "POST",
+    body: input,
+    schema: DepartmentSchema,
+  });
 }
 
 export function renameDepartment(id: string, input: OrgNameInput): Promise<Department> {
-  return apiRequest(`/v1/org/departments/${id}`, { method: "PATCH", body: input, schema: DepartmentSchema });
+  return apiRequest(`/v1/org/departments/${id}`, {
+    method: "PATCH",
+    body: input,
+    schema: DepartmentSchema,
+  });
 }
 
 export function deleteDepartment(id: string): Promise<void> {

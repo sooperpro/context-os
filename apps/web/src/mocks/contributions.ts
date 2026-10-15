@@ -289,6 +289,10 @@ export const contributionMocks = [
     contributions = contributions.map((item) => (item.id === updated.id ? updated : item));
     return updated;
   }),
+];
+
+/** The review queue. The API serves it; tests install these via src/test/manager-mocks.ts. */
+export const reviewQueueMocks = [
   mockGet(E.reviews)(() => ({ items: reviews, reviewedRecently })),
   mockPost(E.decide)((input, { params }) => {
     const id = typeof params.id === "string" ? params.id : "";

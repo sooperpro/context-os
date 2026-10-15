@@ -16,13 +16,18 @@ import { TemplatesPage } from "@/features/people-ops/pages/templates-page";
 import { CheckinPage } from "@/features/team/pages/checkin-page";
 import { MemberPage } from "@/features/team/pages/member-page";
 import { buildApiUrl } from "@/lib/api-client";
+import { managerHandlers } from "@/test/manager-mocks";
 import { mockServer, setupMockApi } from "@/test/msw";
+import { peopleOpsHandlers } from "@/test/people-ops-mocks";
 import { renderWithProviders } from "@/test/utils";
 
 setupMockApi();
 
 function renderAt(route: string) {
   mockServer.use(
+    ...peopleOpsHandlers(),
+    // HR opens a manager's member and check-in pages too.
+    ...managerHandlers(),
     http.get(buildApiUrl("/v1/users/me"), () =>
       HttpResponse.json({
         id: "u3",

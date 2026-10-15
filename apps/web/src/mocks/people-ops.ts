@@ -450,6 +450,8 @@ interface MockRecord {
   note: string;
   setup: Set<SetupStepId>;
   lastCheckin: string | null;
+  /** Elena unless reassigned. */
+  peoplePartner?: PersonRef;
 }
 
 const ALL_SETUP = SETUP.map((step) => step.id);
@@ -1004,7 +1006,7 @@ function recordDetail(record: MockRecord): OnboardingRecord {
   });
   return {
     ...summary(record),
-    peoplePartner: HR,
+    peoplePartner: record.peoplePartner ?? HR,
     setupSteps: SETUP.map((step) => ({
       ...step,
       done: record.setup.has(step.id),
@@ -1067,7 +1069,7 @@ function reviewSummary(review: MockReview): ProbationReview {
 
 function reviewDetail(review: MockReview): ProbationDetail {
   const context = reviewContext(review);
-  const { personId: _personId, missingCheckins: _missing, reviewIn, ...rest } = review;
+  const { personId: _personId, reviewIn, ...rest } = review;
   return {
     ...rest,
     person: context.person,
@@ -1112,7 +1114,10 @@ function templateSummary(entry: MockTemplate): OnboardingTemplate {
 function applyStages(
   entry: MockTemplate,
   stages: Array<{ id: string; moduleIds: string[] }>,
+  audience: { roles?: string[]; teams?: string[] } = {},
 ): void {
+  if (audience.roles) entry.roles = audience.roles;
+  if (audience.teams) entry.teams = audience.teams;
   entry.stages = entry.stages.map((item) => {
     const next = stages.find((change) => change.id === item.id);
     return next ? { ...item, moduleIds: next.moduleIds.filter((id) => CATALOG.has(id)) } : item;
@@ -1149,7 +1154,8 @@ export function starterList(within: number) {
     .filter((record) => isStarting(record) && record.startsIn <= within)
     .sort((a, b) => a.startsIn - b.startsIn)
     .map((record) => ({
-      id: `st-${record.person.id}`,
+      // The onboarding record's id, so Home can open it.
+      id: record.person.id,
       person: record.person,
       team: record.team,
       startDate: dateFromToday(record.startsIn),
@@ -1277,6 +1283,7 @@ export const peopleOpsPageMocks = [
       record.buddy = BUDDIES.find((entry) => entry.id === input.buddyId) ?? record.buddy;
       record.setup.add("buddy");
     }
+    if (input.peoplePartnerId === HR.id) record.peoplePartner = HR;
     if (input.templateId && templates.some((entry) => entry.id === input.templateId)) {
       record.templateId = input.templateId;
       record.setup.add("roadmap");
@@ -1296,6 +1303,7 @@ export const peopleOpsPageMocks = [
     teams: ["Platform", "Billing", "Product", "Data", "Design", "Support", "Sales", "Finance"],
     managers: MANAGERS,
     buddies: BUDDIES,
+    peoplePartners: [HR],
     templates: templates
       .filter((entry) => entry.publishedVersion !== null)
       .flatMap((entry) => templateRef(entry.id) ?? []),
@@ -1355,6 +1363,21 @@ export const peopleOpsPageMocks = [
     ];
     return reviewDetail(review);
   }),
+  mockPost(E.discuss)((_input, { params }) => {
+    const review = findReview(param(params.id));
+    const manager = reviewContext(review).manager;
+    review.activity = [
+      act(
+        `a-${Date.now()}`,
+        0,
+        `${HR.name} asked ${manager.name} to discuss before deciding`,
+        "review",
+      ),
+      ...review.activity,
+    ];
+    return reviewDetail(review);
+  }),
+  mockGet(E.personOnboarding)(({ params }) => summary(findRecord(param(params.id)))),
   mockPost(E.remind)((input) => {
     if (input.about === "milestone") {
       const managers = OVERDUE.filter((item) => input.ids.includes(item.id)).flatMap(
@@ -1372,13 +1395,13 @@ export const peopleOpsPageMocks = [
       entry.version += 1;
       entry.status = "draft";
     }
-    applyStages(entry, input.stages);
+    applyStages(entry, input.stages, input);
     return templateDetail(entry);
   }),
   mockPost(E.publish)((input, { params }) => {
     const entry = findTemplate(param(params.id));
     if (entry.status === "published") entry.version += 1;
-    applyStages(entry, input.stages);
+    applyStages(entry, input.stages, input);
     entry.status = "published";
     entry.publishedVersion = entry.version;
     entry.history = [

@@ -41,6 +41,10 @@ import { PEOPLE_ENDPOINTS as E } from "@/features/people/api/people.api";
 import { personQuery } from "@/features/people/api/people.queries";
 import { OrgNode, PersonBadges } from "@/features/people/components/person-parts";
 import { roleAndTeam } from "@/features/people/people-meta";
+import { personOnboardingQuery } from "@/features/people-ops/api/people-ops.queries";
+import { onboardingPath } from "@/features/people-ops/people-ops-meta";
+import { memberPath } from "@/features/team/team-meta";
+import { useViewer } from "@/features/workspace/hooks/use-viewer";
 import { comingSoon } from "@/lib/coming-soon";
 import { firstName, formatJoined, formatTimeZone } from "@/lib/format";
 import { SECTION_LABEL } from "@/lib/labels";
@@ -83,6 +87,15 @@ export function PersonPage() {
 function Profile({ person }: { person: PersonProfile }) {
   const { openAssistant } = useAssistant();
   const first = firstName(person.name);
+  // HR sees the onboarding card for everyone onboarding, with a link to their record (spec §4.5).
+  const { persona } = useViewer();
+  const record = useQuery({
+    ...personOnboardingQuery(person.id),
+    enabled: persona === "people_ops",
+  }).data;
+  const onboarding = record
+    ? { startedOn: record.startDate, status: record.status }
+    : person.onboarding;
   useBotContext(
     {
       chips: [
@@ -187,17 +200,38 @@ function Profile({ person }: { person: PersonProfile }) {
               </div>
             </SectionCard>
           ) : null}
-          {person.onboarding ? (
+          {onboarding ? (
             <SectionCard
               title="Onboarding"
               className="bg-[color-mix(in_srgb,var(--color-primary-container)_45%,var(--color-card))]"
-              action={<OnboardingStatusChip status={person.onboarding.status} />}
+              action={<OnboardingStatusChip status={onboarding.status} />}
             >
               <p className="text-sm">
-                In onboarding since{" "}
-                {formatJoined(person.onboarding.startedOn).replace(/^Joined /, "")}. Progress,
-                check-ins and readiness are on the onboarding page.
+                In onboarding since {formatJoined(onboarding.startedOn).replace(/^Joined /, "")}.
+                Progress, check-ins and readiness are on the onboarding page.
               </p>
+              {record ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="self-start"
+                  nativeButton={false}
+                  render={<Link to={onboardingPath(record.id)} />}
+                >
+                  Open onboarding record
+                </Button>
+              ) : (
+                // Only their manager gets `onboarding` from the API: open the team member page.
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="self-start"
+                  nativeButton={false}
+                  render={<Link to={memberPath(person.id)} />}
+                >
+                  Open onboarding
+                </Button>
+              )}
             </SectionCard>
           ) : null}
         </PageMain>

@@ -1,7 +1,8 @@
 import type { AttentionItem, KnowledgeGap, TeamKnowledge, TeamOnboarding } from "@contextos/shared";
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { useMutation, useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
+import { toast } from "sonner";
 import { useAssistant } from "@/components/layout/assistant-context";
 import { PageHeader } from "@/components/layout/page-header";
 import { OnboardingStatusChip } from "@/components/onboarding-status-chip";
@@ -23,6 +24,12 @@ import {
   ScheduleIcon,
   SmartToyIcon,
 } from "@/components/ui/icons";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { MiniTile } from "@/components/ui/kpi-tile";
 import {
   SegmentedItem,
@@ -43,6 +50,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { meQuery } from "@/features/account/api/account.queries";
+import { createFlag } from "@/features/feedback/api/feedback.api";
 import { HOME_ENDPOINTS as E } from "@/features/home/api/home.api";
 import { homeQuery } from "@/features/home/api/home.queries";
 // Home is a dashboard: it opens other features' dialogs, like the setup wizard does.
@@ -50,7 +58,8 @@ import {
   AssignLearningDialog,
   AssignRoadmapDialog,
 } from "@/features/team/components/assign-dialogs";
-import { TEAM_PATH, checkinPath, memberPath } from "@/features/team/team-meta";
+import { ESCALATED_TO, TEAM_PATH, checkinPath, memberPath } from "@/features/team/team-meta";
+import { useEscalateMember } from "@/features/team/api/team.queries";
 import { comingSoon } from "@/lib/coming-soon";
 import {
   daysFromToday,
@@ -130,7 +139,7 @@ export function ManagerHome() {
       <DashboardGrid>
         <AttentionCard query={attention} onAssign={openAssign} />
         <CheckinsCard />
-        <RosterCard query={team} />
+        <RosterCard query={team} onAssign={openAssign} />
         <KnowledgeGapsCard />
         <TeamKnowledgeCard />
       </DashboardGrid>
@@ -166,6 +175,7 @@ function AttentionCard({
   onAssign: (kind: "learning" | "roadmap", person: { id: string; name: string }) => void;
 }) {
   const items = query.data?.items ?? [];
+  const escalate = useEscalateMember();
   return (
     <SectionCard
       className={span(8)}
@@ -223,9 +233,16 @@ function AttentionCard({
                               ? onAssign("learning", person)
                               : action.kind === "assign_roadmap"
                                 ? onAssign("roadmap", person)
-                                : comingSoon(
-                                    action.kind === "message" ? "Messages" : "Escalating requests",
-                                  )
+                                : action.kind === "escalate"
+                                  ? escalate.mutate(item.person.id, {
+                                      onSuccess: (result) =>
+                                        toast.success(`Escalated to ${ESCALATED_TO[result.to]}`),
+                                      onError: () =>
+                                        toast.error(
+                                          "The escalation could not be sent. Please try again.",
+                                        ),
+                                    })
+                                  : comingSoon("Messages")
                           }
                         >
                           {action.label}
@@ -321,7 +338,14 @@ function CheckinsCard() {
 
 /* ---- Team onboarding (roster) ------------------------------------------------------------- */
 
-function RosterCard({ query }: { query: UseQueryResult<TeamOnboarding> }) {
+function RosterCard({
+  query,
+  onAssign,
+}: {
+  query: UseQueryResult<TeamOnboarding>;
+  onAssign: (kind: "learning", person: { id: string; name: string }) => void;
+}) {
+  const navigate = useNavigate();
   const people = query.data?.people ?? [];
   return (
     <SectionCard
@@ -402,14 +426,36 @@ function RosterCard({ query }: { query: UseQueryResult<TeamOnboarding> }) {
                         <OnboardingStatusChip status={row.status} />
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label={`More actions for ${row.person.name}`}
-                          onClick={() => comingSoon("Onboarding actions")}
-                        >
-                          <MoreVertIcon />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger
+                            render={
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label={`More actions for ${row.person.name}`}
+                              />
+                            }
+                          >
+                            <MoreVertIcon />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => void navigate(memberPath(row.person.id))}
+                            >
+                              Open onboarding
+                            </DropdownMenuItem>
+                            {started ? (
+                              <DropdownMenuItem
+                                onClick={() => void navigate(checkinPath(row.person.id))}
+                              >
+                                Record check-in
+                              </DropdownMenuItem>
+                            ) : null}
+                            <DropdownMenuItem onClick={() => onAssign("learning", row.person)}>
+                              Assign learning
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   );
@@ -439,9 +485,24 @@ const GAP_REASON: Record<
   stale: { tone: "warning", icon: <ScheduleIcon />, action: "Request update" },
 };
 
+/** The page a flagged gap is about: the item, or the project for its overview or a section. */
+function gapTargetPath(target: NonNullable<KnowledgeGap["target"]>): string {
+  const project = `/projects/${encodeURIComponent(target.projectId)}`;
+  return target.targetType === "context_item"
+    ? `${project}/items/${encodeURIComponent(target.targetId)}`
+    : project;
+}
+
 function KnowledgeGapsCard() {
   const query = useQuery(homeQuery("knowledgeGaps"));
   const items = query.data?.items ?? [];
+  // "Request update" adds the manager to the open flag, which the page's owner works from.
+  const requestUpdate = useMutation({
+    mutationFn: (target: NonNullable<KnowledgeGap["target"]>) =>
+      createFlag({ ...target, kind: "stale", comment: "Update requested by their team's manager" }),
+    onSuccess: () => toast.success("Update requested from the page's owner"),
+    onError: () => toast.error("The update could not be requested. Please try again."),
+  });
   return (
     <SectionCard
       className={span(7)}
@@ -491,8 +552,22 @@ function KnowledgeGapsCard() {
                         {reason.action}
                       </Button>
                     )
+                  ) : !gap.target ? null : gap.reason === "conflict" ? (
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      nativeButton={false}
+                      render={<Link to={gapTargetPath(gap.target)} />}
+                    >
+                      {reason.action}
+                    </Button>
                   ) : (
-                    <Button size="xs" variant="outline" onClick={() => comingSoon(reason.action)}>
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      disabled={requestUpdate.isPending}
+                      onClick={() => gap.target && requestUpdate.mutate(gap.target)}
+                    >
                       {reason.action}
                     </Button>
                   )}

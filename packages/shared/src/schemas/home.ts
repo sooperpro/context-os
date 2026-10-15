@@ -404,5 +404,9 @@ export const AiOverviewSchema = z.object({
   ratings: Count,
   periodDays: z.number().int().positive(),
   settings: z.array(AiSettingSchema),
+  /** The top questions nothing answered (same rules as AI settings). */
+  unanswered: z
+    .array(z.object({ question: z.string(), asks: Count, routedTo: z.string() }))
+    .default([]),
 });
 export type AiOverview = z.infer<typeof AiOverviewSchema>;

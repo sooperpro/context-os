@@ -11,6 +11,7 @@ import {
   assignLearning,
   assignRoadmap,
   editMemberRoadmap,
+  escalateMember,
   fetchAssignOptions,
   fetchCheckinPrep,
   fetchCheckMatrix,
@@ -65,6 +66,22 @@ export function useSaveCheckin(id: string) {
 export function useAssignLearning(id: string) {
   const refresh = useRefreshTeam();
   return useMutation({ mutationFn: (input: LearningAssignmentInput) => assignLearning(id, input), onSuccess: () => refresh() });
+}
+
+/** Escalates a stuck new hire: to the admins when they wait on access, else to People Ops. */
+export function useEscalateMember() {
+  const refresh = useRefreshTeam();
+  return useMutation({ mutationFn: (id: string) => escalateMember(id), onSuccess: () => refresh() });
+}
+
+/**
+ * Takes an assigned task back (the toast's Undo): a roadmap edit that removes it. It doesn't depend
+ * on the dialog that assigned it, which has closed by then.
+ */
+export function useUnassignLearning() {
+  const refresh = useRefreshTeam();
+  return (personId: string, moduleId: string) =>
+    editMemberRoadmap(personId, { changes: [{ moduleId, action: "remove" }] }).then(refresh);
 }
 
 export function useAssignRoadmap(id: string) {

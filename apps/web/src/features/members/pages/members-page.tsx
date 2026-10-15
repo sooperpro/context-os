@@ -40,8 +40,8 @@ const ROLE_ORDER: SystemRole[] = ["member", "manager", "admin", "owner", "guest"
 
 /**
  * Members & roles (prototype `#members`): seats, role counts, role requests, the members table with
- * role changes, and what each role can do. Members, roles and the org structure are live; seats,
- * directory sync and role requests show preview data until the API serves them.
+ * role changes, and what each role can do. Everything here is live: members, roles and the org
+ * structure, plus seats, directory sync and role requests (platform/members-admin.routes.ts).
  */
 export function MembersPage() {
   useBotContext(
@@ -77,7 +77,13 @@ export function MembersPage() {
   return (
     <div className="mx-auto flex max-w-360 flex-col gap-3 medium:gap-4">
       <PageHeader
-        kicker={seats ? `${seats.used} of ${seats.total} seats` : undefined}
+        kicker={
+          seats
+            ? seats.total === null
+              ? formatCount(seats.used, "active member")
+              : `${seats.used} of ${seats.total} seats`
+            : undefined
+        }
         title="Members & roles"
         description={
           canManage
@@ -163,8 +169,8 @@ export function MembersPage() {
                 action={
                   directory?.lastRunAt ? (
                     <span className="inline-flex items-center gap-1 text-xs text-on-surface-variant">
-                      <SyncAltIcon className="size-4" aria-hidden /> Synced by SCIM at{" "}
-                      {formatTime(directory.lastRunAt)}
+                      <SyncAltIcon className="size-4" aria-hidden /> Synced from{" "}
+                      {directory.provider} at {formatTime(directory.lastRunAt)}
                       <PreviewDataChip endpoint={ADMIN_ENDPOINTS.membersOverview.path} />
                     </span>
                   ) : undefined

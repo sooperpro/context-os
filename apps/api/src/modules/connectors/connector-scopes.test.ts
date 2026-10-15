@@ -341,6 +341,40 @@ describe("Google Drive scopes, sync jobs and disconnect modes (mocked provider)"
       (await t.app.request("/api/v1/admin/connectors/google-drive/reconnect", jsonRequest({})))
         .status,
     ).toBe(409);
+
+    // Manage: every synced folder, sync all (respecting the cooldown) and stop syncing one.
+    const managed = await json<{
+      items: Array<{ id: string; name: string; projectName: string; connectedBy: string }>;
+    }>(await t.app.request("/api/v1/admin/connectors/google-drive/scopes"));
+    expect(managed.items).toEqual([
+      expect.objectContaining({
+        name: "Specs",
+        projectName: project.name,
+        connectedBy: "Developer",
+      }),
+    ]);
+    expect(
+      await json(
+        await t.app.request("/api/v1/admin/connectors/google-drive/sync", { method: "POST" }),
+      ),
+    ).toEqual({ queued: 0 });
+    expect(
+      (
+        await t.app.request(
+          `/api/v1/admin/connectors/google-drive/scopes/${managed.items[0]!.id}`,
+          {
+            method: "DELETE",
+          },
+        )
+      ).status,
+    ).toBe(204);
+    expect(
+      (
+        await json<{ items: unknown[] }>(
+          await t.app.request("/api/v1/admin/connectors/google-drive/scopes"),
+        )
+      ).items,
+    ).toEqual([]);
   });
 
   it("keeps derived content on keep_derived disconnect and purges it by default", async () => {

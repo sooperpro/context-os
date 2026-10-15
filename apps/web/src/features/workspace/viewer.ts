@@ -2,7 +2,7 @@ import type { SystemRole } from "@contextos/shared";
 
 /**
  * Personas: who the UI is rendered for. The prototype has four, each with its own Home and rail. The
- * API knows system roles instead; People Ops has no role yet (docs/api-change-requests.md, item 4).
+ * API knows system roles instead; People Ops is the `hr` role.
  */
 export const PERSONAS = ["employee", "manager", "people_ops", "admin"] as const;
 export type Persona = (typeof PERSONAS)[number];
@@ -18,13 +18,14 @@ export const PERSONA_LABEL: Record<Persona, string> = {
 export const PERSONA_ROLE: Record<Persona, SystemRole> = {
   employee: "member",
   manager: "manager",
-  people_ops: "member",
+  people_ops: "hr",
   admin: "admin",
 };
 
 export function personaForRole(role: SystemRole): Persona {
   if (role === "owner" || role === "admin") return "admin";
   if (role === "manager") return "manager";
+  if (role === "hr") return "people_ops";
   return "employee";
 }
 

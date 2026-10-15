@@ -5,6 +5,8 @@ import {
   CheckinRecordSchema,
   CheckMatrixSchema,
   CreatedSchema,
+  EscalationInputSchema,
+  EscalationSchema,
   LearningAssignmentInputSchema,
   RoadmapAssignmentInputSchema,
   RoadmapEditInputSchema,
@@ -15,6 +17,7 @@ import {
   type CheckinRecord,
   type CheckinType,
   type CheckMatrix,
+  type Escalation,
   type LearningAssignmentInput,
   type RoadmapAssignmentInput,
   type RoadmapEditInput,
@@ -23,8 +26,8 @@ import {
 import { apiRequest } from "@/lib/api-client";
 
 /**
- * The manager's team endpoints. None is served yet (the API's `/probation/*` routes return generic
- * records); in development the mock layer answers them (src/mocks/team.ts). Contracts:
+ * The manager's team endpoints, served by the API (apps/api/src/modules/platform/team.routes.ts):
+ * only the person's manager (or People Ops, read-only) gets a member's data. Contracts:
  * packages/shared/src/schemas/manager.ts. The team roster is Home's `/v1/team/onboarding`.
  */
 export const TEAM_ENDPOINTS = {
@@ -36,6 +39,7 @@ export const TEAM_ENDPOINTS = {
   assignOptions: { path: "/v1/team/members/:id/assign-options", schema: AssignOptionsSchema },
   assignLearning: { path: "/v1/team/members/:id/assignments", schema: CreatedSchema, input: LearningAssignmentInputSchema },
   assignRoadmap: { path: "/v1/team/members/:id/roadmap", schema: CreatedSchema, input: RoadmapAssignmentInputSchema },
+  escalate: { path: "/v1/team/members/:id/escalations", schema: EscalationSchema, input: EscalationInputSchema },
 } as const;
 
 const E = TEAM_ENDPOINTS;
@@ -64,3 +68,6 @@ export const assignLearning = (id: string, input: LearningAssignmentInput) =>
 
 export const assignRoadmap = (id: string, input: RoadmapAssignmentInput) =>
   apiRequest(withId(E.assignRoadmap.path, id), { method: "POST", body: input, schema: E.assignRoadmap.schema });
+
+export const escalateMember = (id: string): Promise<Escalation> =>
+  apiRequest(withId(E.escalate.path, id), { method: "POST", body: {}, schema: E.escalate.schema });

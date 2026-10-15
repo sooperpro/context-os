@@ -1,11 +1,12 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   AssistantContext,
   type AssistantContextValue,
 } from "@/components/layout/assistant-context";
+import { Toaster } from "sonner";
 import { ReviewQueuePage } from "@/features/contributions/pages/review-queue-page";
 import { MyLearningPage } from "@/features/learning/pages/my-learning-page";
 import { CheckinPage } from "@/features/team/pages/checkin-page";
@@ -13,10 +14,13 @@ import { MemberPage } from "@/features/team/pages/member-page";
 import { TeamPage } from "@/features/team/pages/team-page";
 import { http, HttpResponse } from "msw";
 import { buildApiUrl } from "@/lib/api-client";
+import { managerHandlers } from "@/test/manager-mocks";
 import { mockServer, setupMockApi } from "@/test/msw";
 import { renderWithProviders } from "@/test/utils";
 
 setupMockApi();
+// The API serves these screens; the fixtures stand in for it.
+beforeEach(() => mockServer.use(...managerHandlers()));
 
 function renderAt(route: string) {
   mockServer.use(
@@ -50,6 +54,7 @@ function renderAt(route: string) {
         <Route path="/reviews" element={<ReviewQueuePage />} />
         <Route path="/learning" element={<MyLearningPage />} />
       </Routes>
+      <Toaster />
     </AssistantContext>,
     { route },
   );
@@ -93,6 +98,13 @@ describe("Team onboarding", () => {
 
     const roadmap = screen.getByRole("region", { name: "Roadmap · current stage" });
     expect(await within(roadmap).findByText("Billing architecture: deep dive")).toBeInTheDocument();
+    // Undo in the toast takes it back.
+    await user.click(await screen.findByRole("button", { name: "Undo" }));
+    await waitFor(() =>
+      expect(
+        within(roadmap).queryByText("Billing architecture: deep dive"),
+      ).not.toBeInTheDocument(),
+    );
     await user.click(within(roadmap).getByRole("button", { name: "Edit roadmap" }));
     const billingRow = within(roadmap)
       .getByText("Billing architecture and Project Kestrel")

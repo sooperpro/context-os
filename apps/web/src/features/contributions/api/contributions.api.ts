@@ -25,9 +25,10 @@ import {
 import { apiRequest } from "@/lib/api-client";
 
 /**
- * The contributions endpoints. None is served by the API yet: in development the mock layer answers
- * them (src/mocks/contributions.ts) and screens show "Preview data". Contracts:
- * packages/shared/src/schemas/contributions.ts.
+ * The contributions endpoints. The API serves the review queue (`/v1/me/reviews`: Ask answers
+ * proposed for the Hub, routed to the domain owner or the author's manager); the rest are not
+ * served yet, so in development the mock layer answers them (src/mocks/contributions.ts) and
+ * screens show "Preview data". Contracts: packages/shared/src/schemas/contributions.ts.
  */
 export const CONTRIBUTION_ENDPOINTS = {
   mine: { path: "/v1/me/contributions", schema: ContributionListSchema },

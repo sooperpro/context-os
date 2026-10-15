@@ -30,8 +30,8 @@ const RANGES = [
 ] as const;
 
 /**
- * The audit log (prototype `#audit`). Live: the API returns a page oldest first with no filters
- * (docs/api-change-requests.md, item 5), so this sorts and filters the latest page here.
+ * The audit log (prototype `#audit`). The API returns the newest events in the chosen date range;
+ * category and text filters apply here.
  */
 export function AuditPage() {
   useBotContext(
@@ -44,9 +44,9 @@ export function AuditPage() {
     },
     "audit",
   );
-  const query = useQuery(auditQuery());
   const [text, setText] = useState("");
   const [range, setRange] = useState<number>(7);
+  const query = useQuery(auditQuery(range));
   const [category, setCategory] = useState<AuditCategory | "All">("All");
   const [open, setOpen] = useState<string | null>(null);
   const q = text.trim().toLowerCase();

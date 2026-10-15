@@ -95,6 +95,7 @@ export const ROLE_LABEL: Record<SystemRole, string> = {
   owner: "Owner",
   admin: "Admin",
   manager: "Manager",
+  hr: "HR",
   member: "Member",
   guest: "Guest",
 };

@@ -22,6 +22,7 @@ import { validationHook } from "../../middleware/validation.js";
 import type { Actor, AppEnv } from "../../types.js";
 import { createNotifier } from "../platform/notify.js";
 import { createPlatformStore } from "../platform/store.js";
+import { isRestrictedTopic } from "./restricted.js";
 
 const IdParam = z.object({ id: IdSchema });
 
@@ -35,10 +36,6 @@ const REASON: Record<
   missing_source: "missing_source",
   not_relevant: "not_helpful",
 };
-
-/** Topics Context Bot never answers from: pay, performance and disciplinary records (PRD §6). */
-const RESTRICTED =
-  /\b(salar(?:y|ies)|compensation|payroll|pay (?:rise|raise|band|grade)|bonus(?:es)?|performance (?:review|rating)|disciplinary|termination)\b/i;
 
 const paragraph = (text: string): AssistantAnswer["blocks"][number] => ({
   type: "paragraph",
@@ -60,7 +57,7 @@ export function createAssistantRoutes(container: Container) {
     const match = buildFtsQuery(question);
     return projects
       .map((project) => {
-        const allowed = identity.visibleSourceIds(actor, project.id);
+        const allowed = identity.answerableSourceIds(actor, project.id);
         const hits =
           match && allowed.length > 0
             ? repos.sources.searchChunks(project.id, match, 5, allowed).length
@@ -217,7 +214,7 @@ export function createAssistantRoutes(container: Container) {
       async (c) => {
         const actor = c.get("actor");
         const input = c.req.valid("json");
-        if (RESTRICTED.test(input.question))
+        if (isRestrictedTopic(input.question))
           return c.json({
             ...empty(input.question),
             outcome: "restricted",

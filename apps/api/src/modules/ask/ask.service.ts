@@ -10,6 +10,7 @@ import { formatItemForPrompt } from "../hub/overview.js";
 import type { SourceRepository } from "../sources/sources.repository.js";
 import { AnswerOutputSchema } from "./answer.schema.js";
 import type { AskRepository } from "./ask.repository.js";
+import { isRestrictedTopic, RESTRICTED_ANSWER } from "./restricted.js";
 import { retrievePassages, type RetrievedPassage } from "./retrieval.js";
 import type { IdentityService } from "../identity/identity.service.js";
 
@@ -85,20 +86,21 @@ export function createAskService({
       sourceId?: string,
     ): Promise<Answer> {
       const startedAt = performance.now();
-      const passages = await retrievePassages(
-        { sources, gemini, logger },
-        project.id,
-        input.question,
-        {
-          sourceIds: identity
-            .visibleSourceIds(actor, project.id)
-            .filter((id) => !sourceId || id === sourceId),
-        },
-      );
+      // Restricted topics are refused for every role, before anything is searched.
+      const restricted = isRestrictedTopic(input.question);
+      // Exclude policies keep a source out of answers even for people who may open it.
+      const answerable = new Set(identity.answerableSourceIds(actor, project.id));
+      const passages = restricted
+        ? []
+        : await retrievePassages({ sources, gemini, logger }, project.id, input.question, {
+            sourceIds: [...answerable].filter((id) => !sourceId || id === sourceId),
+          });
 
       let draft: Omit<Answer, "id" | "createdAt">;
       let generationSourceIds: string[] = [];
-      if (passages.length === 0) {
+      if (restricted) {
+        draft = insufficientAnswer(project, input.question, RESTRICTED_ANSWER);
+      } else if (passages.length === 0) {
         draft = insufficientAnswer(
           project,
           input.question,
@@ -106,12 +108,9 @@ export function createAskService({
         );
       } else {
         const sourceIds = [...new Set(passages.map((p) => p.source.id))];
-        const related = context.listItemsLinkedToSources(
-          project.id,
-          sourceIds,
-          RELATED_ITEM_LIMIT,
-          actor,
-        );
+        const related = context
+          .listItemsLinkedToSources(project.id, sourceIds, RELATED_ITEM_LIMIT, actor)
+          .filter((item) => item.evidence.every((entry) => answerable.has(entry.sourceObjectId)));
         generationSourceIds = [
           ...new Set([
             ...sourceIds,
@@ -217,7 +216,7 @@ export function createAskService({
       }
 
       await identity.refreshSourceAccess(actor);
-      const currentSources = new Set(identity.visibleSourceIds(actor, project.id));
+      const currentSources = new Set(identity.answerableSourceIds(actor, project.id));
       if (!generationSourceIds.every((sourceId) => currentSources.has(sourceId))) {
         draft = insufficientAnswer(
           project,

@@ -21,10 +21,26 @@ import { useInviteMember } from "@/features/members/api/members.queries";
 import { ApiClientError } from "@/lib/api-client";
 
 const ROLES: Array<{ value: InviteForm["role"]; title: string; description: string }> = [
-  { value: "member", title: "Member", description: "Reads the hub, asks questions, contributes knowledge" },
-  { value: "manager", title: "Manager", description: "Also sees direct reports' onboarding and records check-ins" },
-  { value: "admin", title: "Admin", description: "Also manages members, connectors and workspace settings" },
-  { value: "guest", title: "Guest", description: "Limited to the projects they are explicitly added to" },
+  {
+    value: "member",
+    title: "Member",
+    description: "Reads the hub, asks questions, contributes knowledge",
+  },
+  {
+    value: "manager",
+    title: "Manager",
+    description: "Also sees direct reports' onboarding and records check-ins",
+  },
+  {
+    value: "admin",
+    title: "Admin",
+    description: "Also manages members, connectors and workspace settings",
+  },
+  {
+    value: "guest",
+    title: "Guest",
+    description: "Limited to the projects they are explicitly added to",
+  },
 ];
 
 interface InviteMemberDialogProps {
@@ -74,7 +90,11 @@ export function InviteMemberDialog({ open, onOpenChange }: InviteMemberDialogPro
               description="This environment runs with the local development actor. Set AUTH_MODE=clerk on the API to deliver invitations."
             />
           ) : invite.isError ? (
-            <Banner tone="error" title="Could not send the invitation" description={invite.error.message} />
+            <Banner
+              tone="error"
+              title="Could not send the invitation"
+              description={invite.error.message}
+            />
           ) : null}
 
           <div className="space-y-2">
@@ -87,7 +107,9 @@ export function InviteMemberDialog({ open, onOpenChange }: InviteMemberDialogPro
               aria-invalid={!!errors.email}
               {...form.register("email")}
             />
-            {errors.email ? <p className="text-xs text-destructive">{errors.email.message}</p> : null}
+            {errors.email ? (
+              <p className="text-xs text-destructive">{errors.email.message}</p>
+            ) : null}
           </div>
 
           <fieldset className="space-y-2">

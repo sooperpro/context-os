@@ -1201,6 +1201,10 @@ export const learningMocks = [
   // Home reads the same progress, so "Up next" and "Your onboarding" follow the roadmap.
   mockGet(H.nextUp)(() => ({ item: nextUp() })),
   mockGet(H.myOnboarding)(() => myOnboarding()),
+];
+
+/** A manager's My learning. The API serves it; tests install these via src/test/manager-mocks.ts. */
+export const myLearningMocks = [
   mockGet(E.myLearning)(() => myLearning),
   mockPost(E.addCourse)((_input, { params }) => {
     const id = param(params.id);
