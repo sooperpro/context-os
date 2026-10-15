@@ -12,11 +12,24 @@ import { useTheme } from "@/hooks/use-theme";
 import { createQueryClient } from "@/lib/query-client";
 
 /** Clerk themed from the design tokens, following the active theme. */
-function ThemedClerkProvider({ publishableKey, children }: { publishableKey: string; children: ReactNode }) {
+function ThemedClerkProvider({
+  publishableKey,
+  children,
+}: {
+  publishableKey: string;
+  children: ReactNode;
+}) {
   const { resolvedTheme } = useTheme();
   const appearance = useClerkAppearance(resolvedTheme);
   return (
-    <ClerkProvider publishableKey={publishableKey} appearance={appearance}>
+    // Sign-in and sign-up are our pages (features/auth), not Clerk's hosted ones.
+    <ClerkProvider
+      publishableKey={publishableKey}
+      appearance={appearance}
+      signInUrl="/sign-in"
+      signUpUrl="/sign-up"
+      afterSignOutUrl="/"
+    >
       {children}
     </ClerkProvider>
   );

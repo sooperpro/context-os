@@ -74,8 +74,14 @@ export function buildClerkAppearance(tokens: Record<keyof typeof TOKENS, string>
         padding: "0 0.5rem 0 0.75rem",
         color: tokens.text,
       },
-      organizationSwitcherPopoverCard: { borderRadius: tokens.menuRadius, backgroundColor: tokens.background },
-      userButtonPopoverCard: { borderRadius: tokens.menuRadius, backgroundColor: tokens.background },
+      organizationSwitcherPopoverCard: {
+        borderRadius: tokens.menuRadius,
+        backgroundColor: tokens.background,
+      },
+      userButtonPopoverCard: {
+        borderRadius: tokens.menuRadius,
+        backgroundColor: tokens.background,
+      },
       userButtonAvatarBox: { width: "2rem", height: "2rem" },
       // The prototype's Google button is a filled primary button.
       socialButtonsBlockButton: {
@@ -97,15 +103,16 @@ export function buildClerkAppearance(tokens: Record<keyof typeof TOKENS, string>
       footer: { background: "transparent" },
       footerAction: { padding: 0 },
     },
-    signIn: { elements: SIGN_IN_FRAME },
-    signUp: { elements: SIGN_IN_FRAME },
+    // Sign-in and sign-up are our own forms; only the workspace chooser is Clerk's, in our card.
     organizationList: { elements: SIGN_IN_FRAME },
   };
 }
 
 /** Appearance for the active theme. Re-read after the theme attribute changes on the document. */
 export function useClerkAppearance(resolvedTheme: ResolvedTheme): Appearance {
-  const [appearance, setAppearance] = useState<Appearance>(() => buildClerkAppearance(readTokens()));
+  const [appearance, setAppearance] = useState<Appearance>(() =>
+    buildClerkAppearance(readTokens()),
+  );
   useEffect(() => {
     // ThemeProvider writes data-theme in its own effect, which runs after this one: wait a frame.
     const frame = requestAnimationFrame(() => setAppearance(buildClerkAppearance(readTokens())));
