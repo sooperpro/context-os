@@ -95,6 +95,32 @@ export const OnboardingAssignmentInputSchema = z
   .refine((input) => Object.keys(input).length > 0, { message: "Change something." });
 export type OnboardingAssignmentInput = z.infer<typeof OnboardingAssignmentInputSchema>;
 
+/** Who on an onboarding record People Ops can write to. */
+export const OnboardingRecipientSchema = z.enum(["person", "manager", "buddy"]);
+export type OnboardingRecipient = z.infer<typeof OnboardingRecipientSchema>;
+
+/**
+ * `POST /v1/people-ops/onboardings/:id/message`: a short note from People Ops to the new hire, their
+ * manager or their buddy, delivered as an in-app notification.
+ */
+export const OnboardingMessageInputSchema = z
+  .object({
+    to: z.array(OnboardingRecipientSchema).min(1, "Choose who to message.").max(3),
+    message: z
+      .string()
+      .trim()
+      .min(1, "Write a message.")
+      .max(1000, "Keep it under 1,000 characters."),
+  })
+  .strict();
+export type OnboardingMessageInput = z.infer<typeof OnboardingMessageInputSchema>;
+/** Who got it, and who didn't and why ("Hasn't signed in yet"). */
+export const OnboardingMessageResultSchema = z.object({
+  delivered: z.array(PersonRefSchema),
+  skipped: z.array(z.object({ name: z.string(), reason: z.string() })),
+});
+export type OnboardingMessageResult = z.infer<typeof OnboardingMessageResultSchema>;
+
 /** `POST /v1/people-ops/onboardings/:id/setup/:step`: mark a setup step done (sends the welcome message). */
 export const SetupStepInputSchema = z.object({}).strict();
 

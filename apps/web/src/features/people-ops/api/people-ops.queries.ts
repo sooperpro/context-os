@@ -3,6 +3,7 @@ import type {
   NewTemplateInput,
   OnboardingAssignmentInput,
   OnboardingFilter,
+  OnboardingMessageInput,
   ProbationDecisionInput,
   ProbationDiscussInput,
   ReminderInput,
@@ -25,6 +26,7 @@ import {
   fetchProbation,
   fetchTemplate,
   fetchTemplateLibrary,
+  messageOnboarding,
   publishTemplate,
   remindManagers,
   saveTemplateDraft,
@@ -109,6 +111,13 @@ export function useUpdateOnboarding(id: string) {
   return useMutation({
     mutationFn: (input: OnboardingAssignmentInput) => updateOnboarding(id, input),
     onSuccess: () => refresh(),
+  });
+}
+
+/** A note from People Ops to the new hire, manager or buddy. Nothing on the record changes. */
+export function useMessageOnboarding(id: string) {
+  return useMutation({
+    mutationFn: (input: OnboardingMessageInput) => messageOnboarding(id, input),
   });
 }
 

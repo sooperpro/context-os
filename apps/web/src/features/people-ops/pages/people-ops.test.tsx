@@ -118,6 +118,40 @@ describe("Onboarding records", () => {
     expect(await screen.findByText("Ready")).toBeInTheDocument();
   });
 
+  it("messages the new hire and their manager from the record", async () => {
+    const posted: unknown[] = [];
+    const user = userEvent.setup();
+    renderAt("/onboarding/p-jonah");
+    mockServer.use(
+      http.post(buildApiUrl("/v1/people-ops/onboardings/:id/message"), async ({ request }) => {
+        posted.push(await request.json());
+        return HttpResponse.json({ delivered: [], skipped: [] });
+      }),
+    );
+
+    await screen.findByRole("heading", { level: 1, name: "Jonah Kim" });
+    await user.click(screen.getByRole("button", { name: "Message" }));
+    const dialog = await screen.findByRole("dialog", { name: "Message about Jonah’s onboarding" });
+    // The new hire is picked to start with; nobody is assigned as a buddy yet.
+    expect(within(dialog).getByRole("checkbox", { name: /Jonah Kim/ })).toBeChecked();
+    expect(within(dialog).getByRole("checkbox", { name: /Onboarding buddy/ })).toBeDisabled();
+    const send = within(dialog).getByRole("button", { name: "Send message" });
+    expect(send).toBeDisabled();
+
+    await user.click(within(dialog).getByRole("checkbox", { name: /Daniel Reyes/ }));
+    await user.type(
+      within(dialog).getByRole("textbox", { name: "Message" }),
+      "Laptop ships Friday.",
+    );
+    expect(send).toBeEnabled();
+    await user.click(send);
+    await waitFor(() =>
+      expect(posted).toEqual([{ to: ["person", "manager"], message: "Laptop ships Friday." }]),
+    );
+    // Nobody got it, so the dialog stays open for another try.
+    expect(screen.getByRole("dialog", { name: "Message about Jonah’s onboarding" })).toBeVisible();
+  });
+
   it("starts a new onboarding and opens its record", async () => {
     const user = userEvent.setup();
     renderAt("/onboarding");

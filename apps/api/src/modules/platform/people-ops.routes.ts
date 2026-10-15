@@ -4,6 +4,7 @@ import {
   NewTemplateInputSchema,
   OnboardingAssignmentInputSchema,
   OnboardingFilterSchema,
+  OnboardingMessageInputSchema,
   ProbationDecisionInputSchema,
   ProbationDiscussInputSchema,
   ProbationRecommendationInputSchema,
@@ -546,6 +547,62 @@ export function createPeopleOpsRoutes(container: Container) {
             metadata: { step },
           });
           return c.json(recordDetail(updated));
+        },
+      )
+
+      .post(
+        "/people-ops/onboardings/:id/message",
+        zValidator("json", OnboardingMessageInputSchema, validationHook),
+        (c) => {
+          const actor = c.get("actor");
+          const row = recordById(actor, c.req.param("id"));
+          const data = recordData(row);
+          const { message, to } = c.req.valid("json");
+          const delivered = new Map<string, PersonRef>();
+          const skipped: Array<{ name: string; reason: string }> = [];
+          for (const recipient of new Set(to)) {
+            const userId =
+              recipient === "person"
+                ? data.personId
+                : recipient === "manager"
+                  ? data.managerId
+                  : data.buddyId;
+            const known = personRef(actor.workspaceId, userId);
+            // The new hire has no account until they sign in; manager and buddy may be unassigned.
+            if (!userId || !known) {
+              skipped.push({
+                name: recipient === "person" ? data.name : `The ${recipient}`,
+                reason:
+                  recipient === "person" ? "Hasn't signed in yet" : `No ${recipient} is assigned`,
+              });
+              continue;
+            }
+            if (userId === actor.id) {
+              skipped.push({ name: known.name, reason: "That's you" });
+              continue;
+            }
+            if (delivered.has(userId)) continue;
+            const sent = notifier.notify(actor.workspaceId, userId, {
+              type: "onboarding.message",
+              category: "onboarding",
+              title:
+                recipient === "person"
+                  ? `${actor.name} sent you a message`
+                  : `${actor.name} sent you a message about ${data.name}`,
+              body: message,
+              link:
+                recipient === "person"
+                  ? "/"
+                  : recipient === "manager"
+                    ? data.personId
+                      ? `/team/${data.personId}`
+                      : "/team"
+                    : "/people",
+            });
+            if (sent) delivered.set(userId, known);
+            else skipped.push({ name: known.name, reason: "Has turned off these notifications" });
+          }
+          return c.json({ delivered: [...delivered.values()], skipped });
         },
       )
 

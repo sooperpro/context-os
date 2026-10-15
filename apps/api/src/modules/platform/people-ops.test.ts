@@ -110,6 +110,87 @@ describe("People Ops", () => {
     expect(all).toEqual(expect.arrayContaining(["onboarding.record.create", "department.create"]));
   });
 
+  it("lets HR message the new hire, manager and buddy of a record, and says who didn't get it", async () => {
+    t = createTestApp();
+    member("hr1", "hr");
+    member("dana", "manager");
+    member("buddy1");
+    member("member1", "member");
+    member("maya", "member", undefined, "maya@example.com");
+    as("hr1", "hr");
+    const create = async (body: Record<string, unknown>) =>
+      json<{ id: string }>(
+        await t.app.request(
+          "/api/v1/people-ops/onboardings",
+          jsonRequest({
+            name: "Maya Chen",
+            title: "Backend engineer",
+            team: "Platform",
+            startDate: dayFromToday(10),
+            managerId: "dana",
+            buddyId: null,
+            templateId: null,
+            ...body,
+          }),
+        ),
+      );
+    const send = (id: string, body: unknown) =>
+      t.app.request(`/api/v1/people-ops/onboardings/${id}/message`, jsonRequest(body));
+    const inbox = (userId: string) =>
+      t.container.db
+        .select()
+        .from(platformRecords)
+        .where(and(eq(platformRecords.kind, "notification"), eq(platformRecords.ownerId, userId)))
+        .all()
+        .filter((row) => row.data.type === "onboarding.message")
+        .map((row) => row.data);
+
+    // Not signed in yet (no account), and no buddy: only the manager can get it.
+    const waiting = await create({ email: "new.hire@example.com" });
+    const partial = await send(waiting.id, {
+      to: ["person", "manager", "buddy"],
+      message: "  Your laptop ships Friday.  ",
+    });
+    expect(partial.status).toBe(200);
+    expect(await json<{ delivered: Array<{ id: string }>; skipped: unknown[] }>(partial)).toEqual({
+      delivered: [expect.objectContaining({ id: "dana" })],
+      skipped: [
+        { name: "Maya Chen", reason: "Hasn't signed in yet" },
+        { name: "The buddy", reason: "No buddy is assigned" },
+      ],
+    });
+    expect(inbox("dana")).toEqual([
+      expect.objectContaining({
+        category: "onboarding",
+        title: "hr1 sent you a message about Maya Chen",
+        body: "Your laptop ships Friday.",
+        link: "/team",
+      }),
+    ]);
+
+    // Someone with an account gets it too.
+    const linked = await create({ email: "maya@example.com", buddyId: "buddy1" });
+    const all = await json<{ delivered: Array<{ id: string }>; skipped: unknown[] }>(
+      await send(linked.id, { to: ["person", "manager", "buddy"], message: "Welcome!" }),
+    );
+    expect(all.delivered.map((entry) => entry.id).sort()).toEqual(["buddy1", "dana", "maya"]);
+    expect(all.skipped).toEqual([]);
+    expect(inbox("maya")).toEqual([
+      expect.objectContaining({ title: "hr1 sent you a message", body: "Welcome!", link: "/" }),
+    ]);
+    expect(inbox("buddy1")[0]).toMatchObject({ link: "/people" });
+
+    // Bad requests, and nobody but HR may send.
+    expect((await send(linked.id, { to: [], message: "Hi" })).status).toBe(400);
+    expect((await send(linked.id, { to: ["person"], message: "   " })).status).toBe(400);
+    expect((await send(linked.id, { to: ["person"], message: "x".repeat(1001) })).status).toBe(400);
+    expect((await send("missing", { to: ["person"], message: "Hi" })).status).toBe(404);
+    as("dana", "manager");
+    expect((await send(linked.id, { to: ["person"], message: "Hi" })).status).toBe(403);
+    as("member1", "member");
+    expect((await send(linked.id, { to: ["person"], message: "Hi" })).status).toBe(403);
+  });
+
   it("creates a new hire's onboarding, invites them and tracks setup until they sign in", async () => {
     t = createTestApp();
     member("hr1", "hr");

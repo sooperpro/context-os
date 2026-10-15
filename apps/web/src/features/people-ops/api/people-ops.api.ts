@@ -2,6 +2,8 @@ import {
   NewOnboardingInputSchema,
   NewTemplateInputSchema,
   OnboardingAssignmentInputSchema,
+  OnboardingMessageInputSchema,
+  OnboardingMessageResultSchema,
   OnboardingOptionsSchema,
   OnboardingRecordListSchema,
   OnboardingRecordSchema,
@@ -20,6 +22,7 @@ import {
   type NewTemplateInput,
   type OnboardingAssignmentInput,
   type OnboardingFilter,
+  type OnboardingMessageInput,
   type ProbationDecisionInput,
   type ProbationDiscussInput,
   type ReminderInput,
@@ -47,6 +50,11 @@ export const PEOPLE_OPS_ENDPOINTS = {
     path: "/v1/people-ops/onboardings/:id/setup/:step",
     schema: OnboardingRecordSchema,
     input: SetupStepInputSchema,
+  },
+  message: {
+    path: "/v1/people-ops/onboardings/:id/message",
+    schema: OnboardingMessageResultSchema,
+    input: OnboardingMessageInputSchema,
   },
   options: { path: "/v1/people-ops/onboarding-options", schema: OnboardingOptionsSchema },
   createOnboarding: {
@@ -118,6 +126,9 @@ export const completeSetupStep = (id: string, step: SetupStepId) =>
     body: {},
     schema: E.setupStep.schema,
   });
+
+export const messageOnboarding = (id: string, input: OnboardingMessageInput) =>
+  apiRequest(withId(E.message.path, id), { method: "POST", body: input, schema: E.message.schema });
 
 export const fetchOnboardingOptions = (signal?: AbortSignal) =>
   apiRequest(E.options.path, { schema: E.options.schema, signal });

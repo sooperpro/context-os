@@ -1299,6 +1299,16 @@ export const peopleOpsPageMocks = [
     refreshStatus(record);
     return recordDetail(record);
   }),
+  mockPost(E.message)((input, { params }) => {
+    const record = findRecord(param(params.id));
+    const people = { person: record.person, manager: record.manager, buddy: record.buddy };
+    return {
+      delivered: unique(input.to.flatMap((key) => people[key] ?? [])),
+      skipped: input.to
+        .filter((key) => !people[key])
+        .map((key) => ({ name: `The ${key}`, reason: `No ${key} is assigned` })),
+    };
+  }),
   mockGet(E.options)(() => ({
     teams: ["Platform", "Billing", "Product", "Data", "Design", "Support", "Sales", "Finance"],
     managers: MANAGERS,
