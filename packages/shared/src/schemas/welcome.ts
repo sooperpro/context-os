@@ -38,8 +38,10 @@ export const WelcomeSchema = z.object({
   knownOptions: z.array(z.string()),
   expectations: z.array(z.string()),
   support: z.array(z.string()),
-  /** Set once they finish (or skip) the welcome. */
+  /** Set once they finish the welcome. */
   completedAt: IsoDateTimeSchema.nullable(),
+  /** True for a new hire who has not finished it: the app opens the welcome on their first sign-in. */
+  due: z.boolean(),
 });
 export type Welcome = z.infer<typeof WelcomeSchema>;
 

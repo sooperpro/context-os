@@ -573,6 +573,10 @@ export function createEmployeeRoutes(container: Container) {
           : "People Ops can help with policies and probation",
       ],
       completedAt: IsoDateTimeSchema.safeParse(completedAt).success ? completedAt : null,
+      // Only someone being onboarded (an active record, or invited as a new hire) is sent to it.
+      due:
+        !IsoDateTimeSchema.safeParse(completedAt).success &&
+        (!!data || organization.isNewHire === true),
     };
   };
 
