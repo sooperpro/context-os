@@ -12,7 +12,7 @@ import {
   UserUpdateSchema,
 } from "@contextos/shared";
 import { zValidator } from "@hono/zod-validator";
-import { and, count, desc, eq, inArray, or } from "drizzle-orm";
+import { and, count, desc, eq, inArray, like, or } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Container } from "../../container.js";
@@ -718,14 +718,22 @@ export function createIdentityRoutes(container: Container) {
     })
     .get("/audit", zValidator("query", AuditQuerySchema, validationHook), (c) => {
       const actor = c.get("actor");
-      requireRole(actor, ...adminRoles);
+      requireRole(actor, ...adminRoles, "hr");
       const { limit, offset, action, actorId, targetType, from, to, format } = c.req.valid("query");
+      // HR sees the People Ops trail only (role access spec §3): onboarding and probation events,
+      // including template publishes and employment decisions. Role, access and connector changes
+      // stay with admins. The scope is part of the query, so no filter can widen it.
+      const hrScope =
+        actor.role === "hr"
+          ? or(like(auditLog.action, "onboarding.%"), like(auditLog.action, "probation.%"))
+          : undefined;
       const rows = db
         .select()
         .from(auditLog)
         .where(
           and(
             eq(auditLog.workspaceId, actor.workspaceId),
+            hrScope,
             action ? eq(auditLog.action, action) : undefined,
             actorId ? eq(auditLog.actorId, actorId) : undefined,
             targetType ? eq(auditLog.targetType, targetType) : undefined,

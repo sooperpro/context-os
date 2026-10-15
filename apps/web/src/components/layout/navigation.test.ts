@@ -41,6 +41,7 @@ describe("navigation config", () => {
       "templates",
       "people",
       "knowledge",
+      "audit",
       "tutorials",
     ]);
     // The HR pages need the HR role, not just the persona.

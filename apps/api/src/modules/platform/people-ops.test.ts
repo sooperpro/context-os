@@ -60,6 +60,56 @@ describe("People Ops", () => {
     expect((await t.app.request("/api/v1/people-ops/overview")).status).toBe(200);
   });
 
+  it("lets HR read the People Ops audit trail only, and nobody below admin read it at all", async () => {
+    t = createTestApp();
+    const owner = { ...t.container.devActor };
+    member("hr1", "hr");
+    member("dana", "manager");
+    member("member1", "member");
+    // An admin's change (a role or workspace event) is not the People Ops trail.
+    expect(
+      (await t.app.request("/api/v1/org/departments", jsonRequest({ name: "Ops" }))).status,
+    ).toBe(201);
+    as("hr1", "hr");
+    const created = await t.app.request(
+      "/api/v1/people-ops/onboardings",
+      jsonRequest({
+        name: "Maya Chen",
+        title: "Backend engineer",
+        email: "maya@example.com",
+        team: "Platform",
+        startDate: dayFromToday(10),
+        managerId: "dana",
+        buddyId: null,
+        templateId: null,
+      }),
+    );
+    expect(created.status).toBe(201);
+
+    const trail = async (query = "") =>
+      json<{ items: Array<{ action: string }> }>(await t.app.request(`/api/v1/audit${query}`));
+    expect((await trail()).items.map((entry) => entry.action)).toEqual([
+      "onboarding.record.create",
+    ]);
+    // Filters narrow the trail but can't widen it past the People Ops events.
+    expect((await trail("?action=department.create")).items).toEqual([]);
+    expect((await trail("?targetType=onboarding_record")).items).toHaveLength(1);
+    const csv = await t.app.request("/api/v1/audit?format=csv");
+    expect(csv.status).toBe(200);
+    const csvText = await csv.text();
+    expect(csvText).toContain("onboarding.record.create");
+    expect(csvText).not.toContain("department.create");
+
+    as("dana", "manager");
+    expect((await t.app.request("/api/v1/audit")).status).toBe(403);
+    as("member1", "member");
+    expect((await t.app.request("/api/v1/audit")).status).toBe(403);
+    // Admins still see everything.
+    Object.assign(t.container.devActor, owner);
+    const all = (await trail()).items.map((entry) => entry.action);
+    expect(all).toEqual(expect.arrayContaining(["onboarding.record.create", "department.create"]));
+  });
+
   it("creates a new hire's onboarding, invites them and tracks setup until they sign in", async () => {
     t = createTestApp();
     member("hr1", "hr");

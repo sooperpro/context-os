@@ -21,6 +21,7 @@ import { ADMIN_ENDPOINTS as E } from "@/features/admin/api/admin.api";
 import { auditQuery } from "@/features/admin/api/admin.queries";
 import { AUDIT_CATEGORIES, auditArea, type AuditCategory } from "@/features/admin/admin-meta";
 import { daysFromToday, formatDateTime, formatRelativeTime } from "@/lib/format";
+import { useViewer } from "@/features/workspace/hooks/use-viewer";
 import { AUDIT_ACTION_LABEL } from "@/lib/labels";
 
 const RANGES = [
@@ -34,13 +35,19 @@ const RANGES = [
  * category and text filters apply here.
  */
 export function AuditPage() {
+  // HR gets the People Ops trail only (the API narrows it), so there is nothing to filter by area.
+  const peopleOps = useViewer().persona === "people_ops";
   useBotContext(
     {
       chips: [
         { icon: HistoryIcon, label: "Audit log" },
-        { icon: AdminPanelSettingsIcon, label: "Workspace" },
+        { icon: AdminPanelSettingsIcon, label: peopleOps ? "People Ops" : "Workspace" },
       ],
-      suggestions: ["Who changed access policies this week?"],
+      suggestions: [
+        peopleOps
+          ? "Who recorded probation decisions this week?"
+          : "Who changed access policies this week?",
+      ],
     },
     "audit",
   );
@@ -64,9 +71,13 @@ export function AuditPage() {
   return (
     <div className="mx-auto flex max-w-360 flex-col gap-3 medium:gap-4">
       <PageHeader
-        kicker="Security"
+        kicker={peopleOps ? "People Ops" : "Security"}
         title="Audit log"
-        description="Every change to access, roles, connectors, sources and workspace settings, with who made it."
+        description={
+          peopleOps
+            ? "Every onboarding, probation and template change, with who made it. Employment decisions are recorded here."
+            : "Every change to access, roles, connectors, sources and workspace settings, with who made it."
+        }
       />
       <div className="flex flex-wrap items-center gap-3">
         <SearchField
@@ -84,19 +95,21 @@ export function AuditPage() {
           ))}
         </ConnectedButtonGroup>
       </div>
-      <div role="group" aria-label="Filter by category" className="flex flex-wrap gap-2">
-        {(["All", ...AUDIT_CATEGORIES] as const).map((value) => (
-          <Chip
-            key={value}
-            variant="filter"
-            selected={category === value}
-            onClick={() => setCategory(value)}
-          >
-            {category === value ? <CheckIcon aria-hidden /> : null}
-            {value}
-          </Chip>
-        ))}
-      </div>
+      {peopleOps ? null : (
+        <div role="group" aria-label="Filter by category" className="flex flex-wrap gap-2">
+          {(["All", ...AUDIT_CATEGORIES] as const).map((value) => (
+            <Chip
+              key={value}
+              variant="filter"
+              selected={category === value}
+              onClick={() => setCategory(value)}
+            >
+              {category === value ? <CheckIcon aria-hidden /> : null}
+              {value}
+            </Chip>
+          ))}
+        </div>
+      )}
       <SectionCard
         title="Events"
         count={query.data ? entries.length : undefined}
