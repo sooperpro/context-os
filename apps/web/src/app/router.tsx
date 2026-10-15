@@ -4,6 +4,7 @@ import { RedirectHome } from "@/components/redirect-home";
 import { RouteErrorBoundary } from "@/components/route-error-boundary";
 import { AdminOnly } from "@/features/admin/components/admin-only";
 import { HrOnly } from "@/features/people-ops/components/hr-only";
+import { ManagerOnly } from "@/features/team/components/manager-only";
 import { CuratorOnly } from "@/features/tutorials/components/curator-only";
 import { HIDDEN } from "@/lib/hidden";
 import { NotFoundPage } from "@/pages/not-found-page";
@@ -91,28 +92,52 @@ const appChildren = [
     path: "team",
     lazy: async () => {
       const { TeamPage } = await import("@/features/team/pages/team-page");
-      return { Component: TeamPage };
+      return {
+        Component: () => (
+          <ManagerOnly>
+            <TeamPage />
+          </ManagerOnly>
+        ),
+      };
     },
   },
   {
     path: "team/:personId",
     lazy: async () => {
       const { MemberPage } = await import("@/features/team/pages/member-page");
-      return { Component: MemberPage };
+      return {
+        Component: () => (
+          <ManagerOnly alsoFor={["people_ops"]}>
+            <MemberPage />
+          </ManagerOnly>
+        ),
+      };
     },
   },
   {
     path: "team/:personId/check-in",
     lazy: async () => {
       const { CheckinPage } = await import("@/features/team/pages/checkin-page");
-      return { Component: CheckinPage };
+      return {
+        Component: () => (
+          <ManagerOnly>
+            <CheckinPage />
+          </ManagerOnly>
+        ),
+      };
     },
   },
   {
     path: "reviews",
     lazy: async () => {
       const { ReviewQueuePage } = await import("@/features/contributions/pages/review-queue-page");
-      return { Component: ReviewQueuePage };
+      return {
+        Component: () => (
+          <ManagerOnly>
+            <ReviewQueuePage />
+          </ManagerOnly>
+        ),
+      };
     },
   },
   {
@@ -280,7 +305,26 @@ const appChildren = [
     path: "learning",
     lazy: async () => {
       const { MyLearningPage } = await import("@/features/learning/pages/my-learning-page");
-      return { Component: MyLearningPage };
+      return {
+        Component: () => (
+          <ManagerOnly alsoFor={["people_ops"]}>
+            <MyLearningPage />
+          </ManagerOnly>
+        ),
+      };
+    },
+  },
+  {
+    path: "learning/:courseId",
+    lazy: async () => {
+      const { CoursePage } = await import("@/features/learning/pages/course-page");
+      return {
+        Component: () => (
+          <ManagerOnly alsoFor={["people_ops"]}>
+            <CoursePage />
+          </ManagerOnly>
+        ),
+      };
     },
   },
   {

@@ -98,7 +98,7 @@ describe("PRD workspace settings, directory, identity links, slugs, hub sections
     ).toBe(403);
   });
 
-  it("filters the directory, records bulk invitations locally and scopes manager invites", async () => {
+  it("filters the directory, records bulk invitations locally and refuses manager invites", async () => {
     t = createTestApp();
     const owner = { ...t.container.devActor };
     actor("alice");
@@ -162,18 +162,11 @@ describe("PRD workspace settings, directory, identity links, slugs, hub sections
         })
       ).status,
     ).toBe(204);
+    // Managers get no member or role powers (role access spec §3, decision 3).
     actor("bob", "manager");
     expect(
-      (
-        await t.app.request(
-          "/api/v1/users/invite",
-          jsonRequest({ email: "x@example.com", role: "admin" }),
-        )
-      ).status,
-    ).toBe(403);
-    expect(
       (await t.app.request("/api/v1/users/invite", jsonRequest({ email: "x@example.com" }))).status,
-    ).toBe(201);
+    ).toBe(403);
   });
 
   it("links identities with admin confirmation, OAuth requirement for Google and symmetric unlinking", async () => {

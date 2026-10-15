@@ -11,6 +11,7 @@ import {
   workspaces,
 } from "../../db/schema.js";
 import type { Logger } from "../../lib/logger.js";
+import { linkEmail, type Mailer } from "../../lib/mailer.js";
 import type { JobQueue } from "../jobs/jobs.queue.js";
 import type { BountyService } from "./bounties.js";
 import { addBusinessDays, businessDaysBetween } from "./health.js";
@@ -30,6 +31,9 @@ export interface SweepDeps {
   logger: Logger;
   /** Optional so callers that only need the maintenance effects can omit it. */
   queue?: JobQueue;
+  /** Emails the weekly digest to managers who turned email on; `appUrl` is the web app's origin. */
+  mailer?: Mailer;
+  appUrl?: string;
 }
 
 export interface SweepReport {
@@ -65,7 +69,7 @@ const FLAG_ESCALATION_BUSINESS_DAYS = 10;
  * Background maintenance per PRD §8.1.3, §8.8.3, §8.11, §13 and FR-ADM-008. Runs between
  * job polls; every effect is idempotent (marker fields on the affected record).
  */
-export function createSweeps({ db, bounties, logger, queue }: SweepDeps) {
+export function createSweeps({ db, bounties, logger, queue, mailer, appUrl }: SweepDeps) {
   const store = createPlatformStore(db);
   const notifier = createNotifier(db);
   const today = () => new Date().toISOString().slice(0, 10);
@@ -201,20 +205,44 @@ export function createSweeps({ db, bounties, logger, queue }: SweepDeps) {
               data: { week, unanswered, reported },
             });
             if (!unanswered && !reported) continue;
-            notifier.notify(
+            const title = `Last week your team asked ${unanswered + reported} question${unanswered + reported === 1 ? "" : "s"} that had no good answer`;
+            const body = reported
+              ? `${reported} reported as knowledge gaps. See them on your Home.`
+              : "See the knowledge gaps on your Home.";
+            const notification = notifier.notify(
               workspaceId,
               managerId,
-              {
-                type: "digest.weekly",
-                category: "maintenance",
-                title: `Last week your team asked ${unanswered + reported} question${unanswered + reported === 1 ? "" : "s"} that had no good answer`,
-                body: reported
-                  ? `${reported} reported as knowledge gaps. See them on your Home.`
-                  : "See the knowledge gaps on your Home.",
-                link: "/",
-              },
+              { type: "digest.weekly", category: "maintenance", title, body, link: "/" },
               settings,
             );
+            // Email it too when the manager turned email on in their notification settings (off by
+            // default).
+            const to = db
+              .select({ email: users.email })
+              .from(users)
+              .where(eq(users.id, managerId))
+              .get()?.email;
+            if (
+              mailer &&
+              appUrl &&
+              to &&
+              (notification?.data.channels as { email?: boolean })?.email
+            )
+              void mailer
+                .send(
+                  linkEmail({
+                    to,
+                    subject: title,
+                    intro: `${title}. ${body}`,
+                    action: "Open ContextOS",
+                    url: appUrl,
+                    outro:
+                      "You get this because email is on for maintenance updates in your notification settings.",
+                  }),
+                )
+                .catch((error: unknown) =>
+                  logger.error({ err: error }, "Weekly digest email could not be sent"),
+                );
             report.weeklyDigests += 1;
           }
         }

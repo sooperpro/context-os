@@ -39,6 +39,11 @@ export const LESSON_TYPE: Record<LessonType, { label: string; icon: MaterialIcon
 
 export const ROADMAP_PATH = "/roadmap";
 
+/** An assigned course (learning path) from My learning. */
+export function coursePath(id: string): string {
+  return `/learning/${encodeURIComponent(id)}`;
+}
+
 export function modulePath(id: string): string {
   return `${ROADMAP_PATH}/modules/${encodeURIComponent(id)}`;
 }

@@ -223,6 +223,16 @@ function AttentionCard({
                         >
                           {action.label}
                         </Button>
+                      ) : action.href ? (
+                        <Button
+                          key={action.kind}
+                          size="xs"
+                          variant={variant}
+                          nativeButton={false}
+                          render={<a href={action.href} />}
+                        >
+                          {action.label}
+                        </Button>
                       ) : (
                         <Button
                           key={action.kind}
