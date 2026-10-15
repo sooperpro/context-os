@@ -39,14 +39,16 @@ const LOGO: Record<string, string> = {
 export function ConnectorLogo({
   provider,
   size,
+  className,
 }: {
   provider: string;
   size?: "sm" | "default" | "lg";
+  className?: string;
 }) {
   const file = LOGO[provider];
   const src = file ? url(file) : undefined;
   return (
-    <LogoTile size={size} aria-hidden>
+    <LogoTile size={size} className={className} aria-hidden>
       {src ? (
         <img src={src} alt="" loading="lazy" decoding="async" />
       ) : (

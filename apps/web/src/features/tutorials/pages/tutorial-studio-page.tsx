@@ -22,6 +22,8 @@ import {
   ArrowUpwardIcon,
   CheckCircleFilledIcon,
   DeleteIcon,
+  DescriptionIcon,
+  GroupIcon,
   LockIcon,
   QuizIcon,
   SmartToyIcon,
@@ -139,11 +141,28 @@ function Studio({ tutorial }: { tutorial: TutorialDetail }) {
         }
       />
       <div className="flex flex-wrap items-center gap-1.5">
-        <StatusChip tone={status.tone}>{status.label}</StatusChip>
+        <StatusChip
+          tone={status.tone}
+          icon={
+            tutorial.status === "published" ? (
+              <CheckCircleFilledIcon />
+            ) : tutorial.status === "generating" ? (
+              <SmartToyIcon />
+            ) : tutorial.status === "failed" ? (
+              <WarningIcon />
+            ) : (
+              <DescriptionIcon />
+            )
+          }
+        >
+          {status.label}
+        </StatusChip>
         {tutorial.unpublishedChanges && tutorial.publishedVersion ? (
-          <StatusChip tone="warning">Unpublished changes</StatusChip>
+          <StatusChip tone="warning" icon={<WarningIcon />}>
+            Unpublished changes
+          </StatusChip>
         ) : null}
-        <StatusChip>{tutorial.learners} learners</StatusChip>
+        <StatusChip icon={<GroupIcon />}>{tutorial.learners} learners</StatusChip>
         {tutorial.status === "published" ? (
           <Button
             size="xs"
