@@ -9,8 +9,8 @@ import type {
 } from "@contextos/shared";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { cn } from "cn";
-import { useId, useState, type ReactNode } from "react";
-import { Link } from "react-router";
+import { useEffect, useId, useState, type ReactNode } from "react";
+import { Link, useNavigate } from "react-router";
 import { AskBand } from "@/components/ask-band";
 import { useAssistant } from "@/components/layout/assistant-context";
 import { PageHeader } from "@/components/layout/page-header";
@@ -104,9 +104,38 @@ import { welcomeQuery } from "@/features/welcome/api/welcome.queries";
 import { HIDDEN } from "@/lib/hidden";
 
 /** The employee's Home (prototype `employeeHome`): what to do next, how onboarding is going, who to ask. */
-/** Until someone finishes their first-day welcome, Home offers it (prototype sign-in → `#welcome`). */
+/** Once per browser session, a new hire who hasn't finished the welcome is taken there first. */
+const WELCOME_SHOWN = "contextos.welcome-shown";
+let welcomeShown = false;
+function shownThisSession(): boolean {
+  try {
+    return welcomeShown || sessionStorage.getItem(WELCOME_SHOWN) === "1";
+  } catch {
+    return welcomeShown;
+  }
+}
+function markShown() {
+  welcomeShown = true;
+  try {
+    sessionStorage.setItem(WELCOME_SHOWN, "1");
+  } catch {
+    // Storage is off: the in-memory flag still stops a loop.
+  }
+}
+
+/**
+ * Until someone finishes their first-day welcome, Home offers it (prototype sign-in → `#welcome`),
+ * and their first visit in a session opens it. "Skip for now" there comes back here.
+ */
 function WelcomeBanner() {
   const welcome = useQuery(welcomeQuery());
+  const navigate = useNavigate();
+  const pending = Boolean(welcome.data && !welcome.data.completedAt);
+  useEffect(() => {
+    if (!pending || shownThisSession()) return;
+    markShown();
+    void navigate("/welcome");
+  }, [pending, navigate]);
   if (!welcome.data || welcome.data.completedAt) return null;
   return (
     <Banner
@@ -659,7 +688,13 @@ function TaskRow({ task, overdue }: { task: MyTask; overdue: boolean }) {
               {TASK_ACTION[task.kind]}
             </Button>
           ) : (
-            <Button size="xs" variant="outline" onClick={() => comingSoon("Check-in agendas")}>
+            // A task without a page of its own (a check-in): the Check-ins card on this page.
+            <Button
+              size="xs"
+              variant="outline"
+              nativeButton={false}
+              render={<a href="#checkins" />}
+            >
               {TASK_ACTION[task.kind]}
             </Button>
           )}

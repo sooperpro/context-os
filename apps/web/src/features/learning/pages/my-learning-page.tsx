@@ -35,7 +35,6 @@ import { LEARNING_ENDPOINTS as E } from "@/features/learning/api/learning.api";
 import { useViewer } from "@/features/workspace/hooks/use-viewer";
 import { myLearningQuery, useAddCourse } from "@/features/learning/api/learning.queries";
 import { modulePath } from "@/features/learning/learning-meta";
-import { comingSoon } from "@/lib/coming-soon";
 import { formatShortDate } from "@/lib/format";
 
 const KIND_ICON: Record<MyLearning["assigned"][number]["kind"], MaterialIcon> = {
@@ -63,9 +62,18 @@ export function MyLearningPage() {
     "my-learning",
   );
   const query = useQuery(myLearningQuery());
+  // Tutorials are the courses the app can open. Learning paths exist only in the API (no screen
+  // creates or plays them), so they aren't offered here.
+  const takeable = (course: { id: string }) => course.id.startsWith("tutorial-");
+  const data = query.data
+    ? {
+        ...query.data,
+        assigned: query.data.assigned.filter(takeable),
+        suggested: query.data.suggested.filter(takeable),
+      }
+    : undefined;
   const me = useQuery(meQuery());
   const add = useAddCourse();
-  const data = query.data;
   const finished = data?.onboardingFinishedOn
     ? new Date(`${data.onboardingFinishedOn}T12:00:00`).toLocaleDateString(undefined, {
         year: "numeric",
@@ -140,25 +148,15 @@ export function MyLearningPage() {
                       ) : null}
                     </SegmentedItemBody>
                     <SegmentedItemTrail className="ps-14 @min-[640px]:ps-0">
-                      {course.id.startsWith("tutorial-") ? (
-                        // Tutorials open as a module: lessons, then the knowledge check.
-                        <Button
-                          size="xs"
-                          variant={started ? "default" : "secondary"}
-                          nativeButton={false}
-                          render={<Link to={modulePath(course.id)} />}
-                        >
-                          {started ? "Resume" : "Start"}
-                        </Button>
-                      ) : (
-                        <Button
-                          size="xs"
-                          variant={started ? "default" : "secondary"}
-                          onClick={() => comingSoon("Courses")}
-                        >
-                          {started ? "Resume" : "Start"}
-                        </Button>
-                      )}
+                      {/* Tutorials open as a module: lessons, then the knowledge check. */}
+                      <Button
+                        size="xs"
+                        variant={started ? "default" : "secondary"}
+                        nativeButton={false}
+                        render={<Link to={modulePath(course.id)} />}
+                      >
+                        {started ? "Resume" : "Start"}
+                      </Button>
                     </SegmentedItemTrail>
                   </SegmentedItem>
                 );

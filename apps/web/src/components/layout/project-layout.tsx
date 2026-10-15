@@ -17,6 +17,7 @@ import { hubQuery } from "@/features/hub/api/hub.queries";
 import { FailedJobsPanel } from "@/features/hub/components/failed-jobs-panel";
 import { ProjectHero } from "@/features/hub/components/project-hero";
 import { projectKeys } from "@/features/projects/api/keys";
+import { ProjectActions } from "@/features/projects/components/project-actions";
 import { SourceDrawerProvider } from "@/features/sources/components/source-drawer";
 import { ApiClientError } from "@/lib/api-client";
 
@@ -85,23 +86,26 @@ export function ProjectLayout() {
   return (
     <SourceDrawerProvider projectId={projectId}>
       <div className="space-y-5">
-        <Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbLink render={<Link to="/knowledge" />}>Knowledge Hub</BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbLink render={<Link to="/knowledge?cat=project" />}>
-                Projects
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage>{project.name}</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
+        <div className="flex items-center justify-between gap-2">
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink render={<Link to="/knowledge" />}>Knowledge Hub</BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbLink render={<Link to="/knowledge?cat=project" />}>
+                  Projects
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage>{project.name}</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+          <ProjectActions project={project} />
+        </div>
 
         <ProjectHero hub={hub.data} />
         {sync.state === "attention" ? <FailedJobsPanel projectId={projectId} /> : null}

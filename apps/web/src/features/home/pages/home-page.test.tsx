@@ -121,6 +121,7 @@ function renderHome(route = "/") {
     <AssistantContext value={assistant}>
       <Routes>
         <Route path="/" element={<HomePage />} />
+        <Route path="/welcome" element={<h1>Welcome page</h1>} />
       </Routes>
     </AssistantContext>,
     { route },
@@ -130,7 +131,17 @@ function renderHome(route = "/") {
 
 describe("HomePage", () => {
   afterEach(() => setPreviewPersona(null));
+
+  it("takes a new hire to the welcome on their first visit in a session", async () => {
+    sessionStorage.removeItem("contextos.welcome-shown");
+    live({ role: "member" });
+    renderHome();
+    expect(await screen.findByRole("heading", { name: "Welcome page" })).toBeInTheDocument();
+    expect(sessionStorage.getItem("contextos.welcome-shown")).toBe("1");
+  });
   it("shows a member the employee Home from live data", async () => {
+    // The welcome was already shown this session, so Home stays.
+    sessionStorage.setItem("contextos.welcome-shown", "1");
     live({ role: "member" });
     const assistant = renderHome();
 

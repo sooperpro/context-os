@@ -2,8 +2,15 @@ import { NotificationListSchema, NotificationSchema, type Notification } from "@
 import { z } from "zod";
 import { apiRequest } from "@/lib/api-client";
 
-export async function listNotifications(signal?: AbortSignal): Promise<Notification[]> {
-  const result = await apiRequest("/v1/notifications", { schema: NotificationListSchema, signal });
+export async function listNotifications(
+  signal?: AbortSignal,
+  limit?: number,
+): Promise<Notification[]> {
+  const result = await apiRequest("/v1/notifications", {
+    query: { limit },
+    schema: NotificationListSchema,
+    signal,
+  });
   return result.items;
 }
 

@@ -575,6 +575,8 @@ export const WorkspaceMemberSchema = z.object({
   name: z.string(),
   role: SystemRoleSchema,
   status: MembershipStatusSchema,
+  /** Who they report to (part of the public reporting line). */
+  managerId: z.string().nullable().optional(),
   /*
    * Requested for Members & roles (docs/api-change-requests.md, item 11); optional until served.
    * `invitedAt` is set while the person has not signed in yet.
@@ -650,6 +652,12 @@ export const MeSchema = z.object({
   email: z.string().nullable(),
   role: SystemRoleSchema,
   workspaceId: z.string(),
+  /** When a guest's access ends; null for everyone else. */
+  guestExpiresAt: z.string().nullable().optional(),
+  /** Their own responsibilities: domain owner, mentor, path curator. */
+  assignments: z
+    .array(z.object({ type: z.string(), scopeType: z.string(), scopeId: z.string() }))
+    .optional(),
   preferences: z
     .object({
       timezone: z.string().optional(),

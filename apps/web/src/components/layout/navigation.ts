@@ -68,6 +68,8 @@ export interface NavItem {
   roles?: readonly SystemRole[];
   /** Personas whose rail has this item, as in the prototype's "View as". Omit for every persona. */
   personas?: readonly Persona[];
+  /** Also shown to path curators, whatever their role and persona (not guests). */
+  alsoForCurators?: boolean;
 }
 
 export const NAV_ITEMS: readonly NavItem[] = [
@@ -97,6 +99,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: RouteIcon,
     activeIcon: RouteFilledIcon,
     to: "/roadmap",
+    // Guests aren't onboarding: their Home lists their projects instead.
+    roles: ["owner", "admin", "manager", "hr", "member"],
     personas: ["employee"],
   },
   {
@@ -144,6 +148,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
     to: "/tutorials",
     roles: ["owner", "admin", "hr"],
     personas: ["admin", "people_ops"],
+    // Path curators build tutorials for their projects whatever their role.
+    alsoForCurators: true,
   },
   {
     id: "members",
@@ -296,12 +302,17 @@ const PERSONA_ORDER: Partial<Record<Persona, readonly string[]>> = {
 };
 
 /** The rail for a role and persona (see useViewer). An unknown role or persona hides gated items. */
-export function navItemsFor(role: SystemRole | undefined, persona?: Persona): NavItem[] {
+export function navItemsFor(
+  role: SystemRole | undefined,
+  persona?: Persona,
+  { curator = false }: { curator?: boolean } = {},
+): NavItem[] {
   const items = NAV_ITEMS.filter(
     (item) =>
       !(HIDDEN.contributions && item.id === "contributions") &&
-      (!item.roles || (role !== undefined && item.roles.includes(role))) &&
-      (!item.personas || (persona !== undefined && item.personas.includes(persona))),
+      ((curator && item.alsoForCurators === true && role !== "guest") ||
+        ((!item.roles || (role !== undefined && item.roles.includes(role))) &&
+          (!item.personas || (persona !== undefined && item.personas.includes(persona))))),
   );
   const order = persona ? PERSONA_ORDER[persona] : undefined;
   if (!order) return items;

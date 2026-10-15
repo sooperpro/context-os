@@ -15,7 +15,13 @@ import {
 } from "@contextos/shared";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
-import { memberships, platformRecords, sourceObjects, users } from "../../db/schema.js";
+import {
+  assignments,
+  memberships,
+  platformRecords,
+  sourceObjects,
+  users,
+} from "../../db/schema.js";
 import {
   addSource,
   createFakeGemini,
@@ -200,6 +206,71 @@ describe("Tutorials: drafted from knowledge, reviewed, published and taken", () 
     const done = await t.app.request(`/api/v1/me/lessons/${key}~l1/complete`, jsonRequest({}));
     expect(done.status).toBe(200);
     expect(MyLearningSchema.parse(await get("/me/learning")).assigned[0]?.lessonsDone).toBe(1);
+  });
+
+  it("lets a path curator open Tutorial Studio before their first tutorial", async () => {
+    t = createTestApp();
+    admin = owner();
+    const project = await createProject(t.app);
+    member("pc", "member");
+    member("plain", "member");
+    t.container.db
+      .insert(assignments)
+      .values({
+        id: "curates",
+        workspaceId: t.container.workspace.id,
+        userId: "pc",
+        type: "path_curator",
+        scopeType: "project",
+        scopeId: project.id,
+      })
+      .run();
+    as("pc", "member");
+    expect(await get("/tutorials")).toEqual({ items: [] });
+    as("plain", "member");
+    expect((await t.app.request("/api/v1/tutorials")).status).toBe(403);
+  });
+
+  it("asks admins for access to the sources behind restricted lessons, without naming them", async () => {
+    t = createTestApp();
+    admin = owner();
+    const { id } = await publishedTutorial();
+    const key = `tutorial-${id}`;
+    member("emp", "member");
+    await t.app.request(
+      `/api/v1/tutorials/${id}/assign`,
+      jsonRequest({ userId: "emp", dueOn: day(7) }),
+    );
+    t.container.db.update(sourceObjects).set({ visibility: "restricted" }).run();
+    as("emp", "member");
+    const module = ModuleDetailSchema.parse(await get(`/me/modules/${key}`));
+    expect(module.lessons.filter((lesson) => lesson.restricted).length).toBeGreaterThan(0);
+    const ask = () =>
+      t.app.request(
+        "/api/v1/me/learning-requests",
+        jsonRequest({
+          type: "access",
+          moduleId: key,
+          lessonId: null,
+          changeKind: null,
+          message: "I'd like access.",
+        }),
+      );
+    const sent = await ask();
+    expect(sent.status).toBe(201);
+    const title = t.container.db.select().from(sourceObjects).get()!.title;
+    expect(JSON.stringify(await json(sent))).not.toContain(title);
+    // The admins get the request, with the sources named.
+    const notice = t.container.db
+      .select()
+      .from(platformRecords)
+      .all()
+      .find((row) => row.kind === "notification" && row.data.type === "learning.access_request");
+    expect(notice?.ownerId).toBe(admin.id);
+    expect(String(notice?.data.body)).toContain(title);
+    // Nothing to ask for once they can open it all.
+    t.container.db.update(sourceObjects).set({ visibility: "workspace" }).run();
+    expect((await ask()).status).toBe(409);
   });
 
   it("pauses Context Bot on the server while a knowledge check is open", async () => {

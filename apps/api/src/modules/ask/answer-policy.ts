@@ -21,6 +21,42 @@ const HOUR = 3_600_000;
 const normalize = (question: string) => question.trim().toLocaleLowerCase();
 
 /**
+ * Who keeps a project's knowledge right: its active domain owners, and the workspace-wide ones.
+ * Without a project, only the workspace-wide ones.
+ */
+export function domainOwnersOf(db: Db, workspaceId: string, projectId: string | null): string[] {
+  const now = new Date();
+  return [
+    ...new Set(
+      db
+        .select({ userId: assignments.userId })
+        .from(assignments)
+        .innerJoin(
+          memberships,
+          and(
+            eq(memberships.userId, assignments.userId),
+            eq(memberships.workspaceId, assignments.workspaceId),
+          ),
+        )
+        .where(
+          and(
+            eq(assignments.workspaceId, workspaceId),
+            eq(assignments.type, "domain_owner"),
+            eq(memberships.status, "active"),
+            or(
+              projectId ? eq(assignments.scopeId, projectId) : undefined,
+              and(eq(assignments.scopeType, "workspace"), eq(assignments.scopeId, workspaceId)),
+            ),
+            or(isNull(assignments.expiresAt), gt(assignments.expiresAt, now)),
+          ),
+        )
+        .all()
+        .map((row) => row.userId),
+    ),
+  ];
+}
+
+/**
  * The workspace's Context Bot settings (admin › AI settings) as Ask applies them: which answers to
  * keep, which sources to flag as stale, and when an unanswered question goes to its owner.
  */
@@ -105,35 +141,7 @@ export function createAnswerPolicy(db: Db) {
         .some((gap) => gap.data.routed === true && normalize(String(gap.data.question)) === key);
       if (already) return null;
 
-      const now = new Date();
-      const owners = db
-        .select({ userId: assignments.userId })
-        .from(assignments)
-        .innerJoin(
-          memberships,
-          and(
-            eq(memberships.userId, assignments.userId),
-            eq(memberships.workspaceId, assignments.workspaceId),
-          ),
-        )
-        .where(
-          and(
-            eq(assignments.workspaceId, actor.workspaceId),
-            eq(assignments.type, "domain_owner"),
-            eq(memberships.status, "active"),
-            or(
-              eq(assignments.scopeId, projectId),
-              and(
-                eq(assignments.scopeType, "workspace"),
-                eq(assignments.scopeId, actor.workspaceId),
-              ),
-            ),
-            or(isNull(assignments.expiresAt), gt(assignments.expiresAt, now)),
-          ),
-        )
-        .all()
-        .map((row) => row.userId);
-      const recipients = [...new Set(owners)];
+      const recipients = domainOwnersOf(db, actor.workspaceId, projectId);
       const routedTo = recipients.length ? "Domain owners" : "Workspace admins";
       const gap = store.insert({
         workspaceId: actor.workspaceId,

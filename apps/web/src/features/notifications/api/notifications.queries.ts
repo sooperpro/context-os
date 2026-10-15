@@ -8,6 +8,7 @@ import {
 
 export const notificationKeys = {
   all: ["notifications"] as const,
+  page: () => [...notificationKeys.all, "page"] as const,
 };
 
 export const isUnread = (notification: Notification) => notification.status !== "read";
@@ -21,14 +22,23 @@ export const notificationsQuery = () =>
     refetchInterval: 60_000,
   });
 
+/** The Notifications page: the latest 100 (the most the API returns at once). */
+export const notificationsPageQuery = () =>
+  queryOptions({
+    queryKey: notificationKeys.page(),
+    queryFn: ({ signal }) => listNotifications(signal, 100),
+    staleTime: 60_000,
+  });
+
 export function useMarkNotificationRead() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => markNotificationRead(id),
     onSuccess: (updated) => {
-      queryClient.setQueryData<Notification[]>(notificationKeys.all, (current) =>
-        (current ?? []).map((item) => (item.id === updated.id ? updated : item)),
-      );
+      for (const key of [notificationKeys.all, notificationKeys.page()])
+        queryClient.setQueryData<Notification[]>(key, (current) =>
+          current?.map((item) => (item.id === updated.id ? updated : item)),
+        );
     },
   });
 }

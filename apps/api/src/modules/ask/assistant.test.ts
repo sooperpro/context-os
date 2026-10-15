@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
-import { platformRecords, questions } from "../../db/schema.js";
+import { assignments, memberships, platformRecords, questions, users } from "../../db/schema.js";
 import {
   addSource,
   createProject,
@@ -75,6 +75,48 @@ describe("Context Bot outside a project", () => {
     expect(
       t.container.db.select().from(platformRecords).where(eq(platformRecords.id, id)).get(),
     ).toMatchObject({ kind: "knowledge_gap", status: "open" });
+  });
+
+  it("sends a reported gap to the domain owners of the project it's about, or to admins", async () => {
+    t = createTestApp();
+    const billing = await createProject(t.app, "Billing");
+    await addSource(t.app, billing.id);
+    await t.drain();
+    t.container.db.insert(users).values({ id: "olu", name: "Olu" }).run();
+    t.container.db
+      .insert(memberships)
+      .values({ workspaceId: t.container.workspace.id, userId: "olu", role: "member" })
+      .run();
+    const report = async () =>
+      (await (
+        await t.app.request(
+          "/api/v1/assistant/gaps",
+          jsonRequest({ question: "Who approves billing ledger refunds?" }),
+        )
+      ).json()) as { notified: string };
+    const notified = (userId: string) =>
+      t.container.db
+        .select()
+        .from(platformRecords)
+        .where(eq(platformRecords.ownerId, userId))
+        .all()
+        .filter((row) => row.data.type === "knowledge.gap_reported").length;
+
+    // Nobody owns Billing yet: admins hear about it.
+    expect(await report()).toMatchObject({ notified: "Workspace admins" });
+    t.container.db
+      .insert(assignments)
+      .values({
+        id: "owns",
+        workspaceId: t.container.workspace.id,
+        userId: "olu",
+        type: "domain_owner",
+        scopeType: "project",
+        scopeId: billing.id,
+      })
+      .run();
+    expect(await report()).toMatchObject({ notified: "Billing's domain owners" });
+    expect(notified("olu")).toBe(1);
   });
 
   it("refuses pay and performance questions without searching", async () => {

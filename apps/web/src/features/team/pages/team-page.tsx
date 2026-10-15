@@ -20,6 +20,7 @@ import {
   EventIcon,
   FilterAltIcon,
   InfoIcon,
+  PersonAddIcon,
 } from "@/components/ui/icons";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -38,6 +39,8 @@ import { AssignLearningDialog } from "@/features/team/components/assign-dialogs"
 import { CheckMark } from "@/features/team/components/check-mark";
 import { CHECK_CELL_LABEL, checkinPath, memberPath } from "@/features/team/team-meta";
 import { daysFromToday, formatCount, formatShortDate } from "@/lib/format";
+import { meQuery } from "@/features/account/api/account.queries";
+import { InviteMemberDialog } from "@/features/members/components/invite-member-dialog";
 
 /** Who needs the manager most comes first. */
 const PRIORITY: Record<OnboardingStatus, number> = {
@@ -72,6 +75,8 @@ const STRIP: Array<{ statuses: OnboardingStatus[]; label: string; icon: ReactNod
 export function TeamPage() {
   const roster = useQuery(homeQuery("teamOnboarding"));
   const [assigning, setAssigning] = useState<{ id: string; name: string } | null>(null);
+  const me = useQuery(meQuery());
+  const [inviting, setInviting] = useState(false);
   const people = [...(roster.data?.people ?? [])].sort(
     (a, b) => PRIORITY[a.status] - PRIORITY[b.status],
   );
@@ -101,21 +106,31 @@ export function TeamPage() {
             : undefined
         }
         actions={
-          first ? (
-            <>
-              <Button
-                variant="outline"
-                onClick={() => setAssigning({ id: first.person.id, name: first.person.name })}
-              >
-                <AssignmentAddIcon aria-hidden /> Assign learning
+          <>
+            {me.data ? (
+              <Button variant="outline" onClick={() => setInviting(true)}>
+                <PersonAddIcon aria-hidden /> Invite to my team
               </Button>
-              <Button nativeButton={false} render={<Link to={checkinPath(first.person.id)} />}>
-                <EditNoteIcon aria-hidden /> Record check-in
-              </Button>
-            </>
-          ) : undefined
+            ) : null}
+            {first ? (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => setAssigning({ id: first.person.id, name: first.person.name })}
+                >
+                  <AssignmentAddIcon aria-hidden /> Assign learning
+                </Button>
+                <Button nativeButton={false} render={<Link to={checkinPath(first.person.id)} />}>
+                  <EditNoteIcon aria-hidden /> Record check-in
+                </Button>
+              </>
+            ) : null}
+          </>
         }
       />
+      {me.data ? (
+        <InviteMemberDialog open={inviting} onOpenChange={setInviting} forTeamOf={me.data.id} />
+      ) : null}
       {roster.isPending ? (
         <Skeleton className="h-64 rounded-card" />
       ) : roster.isError ? (

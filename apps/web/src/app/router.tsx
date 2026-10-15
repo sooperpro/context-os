@@ -332,6 +332,21 @@ const appChildren = [
     },
   },
   {
+    path: "search",
+    lazy: async () => {
+      const { SearchPage } = await import("@/features/search/pages/search-page");
+      return { Component: SearchPage };
+    },
+  },
+  {
+    path: "notifications",
+    lazy: async () => {
+      const { NotificationsPage } =
+        await import("@/features/notifications/pages/notifications-page");
+      return { Component: NotificationsPage };
+    },
+  },
+  {
     path: "workspace",
     lazy: async () => {
       const { WorkspacePage } = await import("@/features/admin/pages/workspace-page");

@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
+import { toast } from "sonner";
 import { useAssistant } from "@/components/layout/assistant-context";
 import { PageColumns, PageMain, PageSide } from "@/components/layout/page-columns";
 import { OriginIcon } from "@/components/origin-icon";
@@ -52,7 +53,7 @@ import {
 } from "@/components/ui/segmented-list";
 import { Shape } from "@/components/ui/shape";
 import { LEARNING_ENDPOINTS as E } from "@/features/learning/api/learning.api";
-import { moduleQuery } from "@/features/learning/api/learning.queries";
+import { moduleQuery, useLearningRequest } from "@/features/learning/api/learning.queries";
 import { LessonNumber } from "@/features/learning/components/lesson-number";
 import { RatingButtons } from "@/features/learning/components/rating-buttons";
 import { ClarificationDialog } from "@/features/learning/components/request-dialogs";
@@ -133,6 +134,23 @@ function ModuleView({ module }: { module: ModuleDetail }) {
   const lessonsDone = module.lessons.filter((lesson) => lesson.done).length;
   const current = done || locked ? undefined : module.lessons.find((lesson) => !lesson.done);
   const lessonCount = module.lessons.length;
+  const restrictedCount = module.lessons.filter((lesson) => lesson.restricted).length;
+  const access = useLearningRequest();
+  // Goes to the workspace admins; the titles of sources the person can't open stay with them.
+  const requestAccess = () =>
+    access.mutate(
+      {
+        type: "access",
+        moduleId: module.id,
+        lessonId: null,
+        changeKind: null,
+        message: "I'd like access to the sources behind this module's restricted lessons.",
+      },
+      {
+        onSuccess: () => toast.success("Asked the workspace admins for access"),
+        onError: (error) => toast.error(error.message || "The request could not be sent."),
+      },
+    );
 
   return (
     <div className="mx-auto flex max-w-360 flex-col gap-3 medium:gap-4">
@@ -345,6 +363,23 @@ function ModuleView({ module }: { module: ModuleDetail }) {
                 <LockIcon className="size-4" aria-hidden /> Lessons appear when the stage opens.
               </p>
             )}
+            {restrictedCount ? (
+              <div className="flex flex-wrap items-center gap-3 rounded-xl bg-surface-container p-3 text-sm">
+                <LockIcon className="size-4 shrink-0" aria-hidden />
+                <span className="min-w-0 flex-1">
+                  {restrictedCount === 1 ? "One lesson uses" : `${restrictedCount} lessons use`}{" "}
+                  sources you can’t open yet.
+                </span>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  disabled={access.isPending || access.isSuccess}
+                  onClick={requestAccess}
+                >
+                  {access.isSuccess ? "Access requested" : "Request access"}
+                </Button>
+              </div>
+            ) : null}
           </SectionCard>
           {module.objectives.length ? (
             <SectionCard title="What you’ll be able to do">
@@ -403,7 +438,8 @@ function ModuleView({ module }: { module: ModuleDetail }) {
                             size="xs"
                             variant="outline"
                             className="mt-1.5 self-start"
-                            onClick={() => comingSoon("Access requests")}
+                            disabled={access.isPending || access.isSuccess}
+                            onClick={requestAccess}
                           >
                             Request access
                           </Button>
@@ -420,16 +456,18 @@ function ModuleView({ module }: { module: ModuleDetail }) {
                       >
                         <OpenInNewIcon />
                       </Button>
-                    ) : (
+                    ) : source.projectId ? (
+                      // No link of its own: open it on its project's Sources tab.
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        aria-label={`Open ${source.title} in ${KNOWLEDGE_ORIGIN_LABEL[source.origin]}`}
-                        onClick={() => comingSoon("Opening sources")}
+                        aria-label={`Open ${source.title} in the Knowledge Hub`}
+                        nativeButton={false}
+                        render={<Link to={`/projects/${source.projectId}/sources`} />}
                       >
                         <OpenInNewIcon />
                       </Button>
-                    )}
+                    ) : null}
                   </SegmentedItem>
                 ))}
               </SegmentedList>

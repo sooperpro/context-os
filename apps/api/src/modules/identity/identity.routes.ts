@@ -158,6 +158,8 @@ export function createIdentityRoutes(container: Container) {
         workspaceId: actor.workspaceId,
         managerId: membership.managerId,
         organization: membership.organization,
+        // When a guest's access ends (null for everyone else).
+        guestExpiresAt: membership.guestExpiresAt?.toISOString() ?? null,
         assignments: db
           .select()
           .from(assignments)

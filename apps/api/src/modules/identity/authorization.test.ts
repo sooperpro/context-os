@@ -296,6 +296,13 @@ describe("Authorization: role and access checks that must hold", () => {
         )
       ).items.map((row) => row.name);
     expect(await projectsOf()).toEqual(["Billing"]);
+    // The guest's Home says when their access ends.
+    as("ana", "guest");
+    const me = await json<{ guestExpiresAt: string | null }>(
+      await t.app.request("/api/v1/users/me"),
+    );
+    expect(Date.parse(me.guestExpiresAt ?? "")).toBeGreaterThan(Date.now());
+    asOwner();
 
     // Admins add and remove project access later; both are audited.
     const membership = (projectId: string) => `/api/v1/projects/${projectId}/memberships`;

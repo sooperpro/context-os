@@ -151,6 +151,24 @@ describe("InviteMemberDialog", () => {
     );
   });
 
+  it("lets a manager invite a member into their own team, and nothing else", async () => {
+    const posted = inviteApi();
+    const user = userEvent.setup();
+    renderWithProviders(<InviteMemberDialog open onOpenChange={vi.fn()} forTeamOf="u3" />);
+    expect(
+      screen.getByRole("heading", { name: "Invite someone to your team" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Role" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Reports to" })).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText("Work email"), "kai@tessellate.io");
+    await user.click(screen.getByRole("button", { name: "Send invitation" }));
+    await waitFor(() =>
+      expect(posted).toEqual([
+        expect.objectContaining({ email: "kai@tessellate.io", role: "member", managerId: "u3" }),
+      ]),
+    );
+  });
+
   it("asks for a start date when inviting a new hire", async () => {
     const posted = inviteApi();
     const user = userEvent.setup();

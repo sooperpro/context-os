@@ -68,21 +68,26 @@ const ROLE_ITEMS = Object.fromEntries(ROLES.map((option) => [option.value, optio
 interface InviteMemberDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * A manager inviting into their own team: the role is Member and they report to this person (the
+   * API allows managers nothing else).
+   */
+  forTeamOf?: string;
 }
 
 /** Emails an invitation. The role and details apply when they sign in with that address. */
-export function InviteMemberDialog({ open, onOpenChange }: InviteMemberDialogProps) {
+export function InviteMemberDialog({ open, onOpenChange, forTeamOf }: InviteMemberDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
         {/* Mounted while open, so every invite starts from a blank form. */}
-        {open ? <InviteMemberForm close={() => onOpenChange(false)} /> : null}
+        {open ? <InviteMemberForm close={() => onOpenChange(false)} forTeamOf={forTeamOf} /> : null}
       </DialogContent>
     </Dialog>
   );
 }
 
-function InviteMemberForm({ close }: { close: () => void }) {
+function InviteMemberForm({ close, forTeamOf }: { close: () => void; forTeamOf?: string }) {
   const id = useId();
   const invite = useInviteMember();
   const departments = useQuery(departmentsQuery());
@@ -98,7 +103,7 @@ function InviteMemberForm({ close }: { close: () => void }) {
       jobTitle: "",
       departmentId: "",
       teamId: "",
-      managerId: "",
+      managerId: forTeamOf ?? "",
       startDate: "",
       isNewHire: false,
       projectIds: [],
@@ -133,10 +138,11 @@ function InviteMemberForm({ close }: { close: () => void }) {
   return (
     <form onSubmit={onSubmit} className="space-y-5">
       <DialogHeader>
-        <DialogTitle>Invite a teammate</DialogTitle>
+        <DialogTitle>{forTeamOf ? "Invite someone to your team" : "Invite a teammate"}</DialogTitle>
         <DialogDescription>
-          They get an email to join this workspace. Their role and details apply when they sign in
-          with that address.
+          {forTeamOf
+            ? "They get an email to join as a member who reports to you."
+            : "They get an email to join this workspace. Their role and details apply when they sign in with that address."}
         </DialogDescription>
       </DialogHeader>
 
@@ -179,39 +185,41 @@ function InviteMemberForm({ close }: { close: () => void }) {
             {...form.register("jobTitle")}
           />
         </div>
-        <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor={`${id}-role`}>Role</Label>
-          <Controller
-            control={form.control}
-            name="role"
-            render={({ field }) => (
-              <Select
-                items={ROLE_ITEMS}
-                value={field.value}
-                onValueChange={(next) => {
-                  field.onChange(next);
-                  // Guests are not onboarded as new hires; only guests are added to projects.
-                  if (next === "guest") form.setValue("isNewHire", false);
-                  else form.setValue("projectIds", []);
-                }}
-              >
-                <SelectTrigger id={`${id}-role`} className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ROLES.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          />
-          <p className="text-xs text-on-surface-variant">
-            {ROLES.find((option) => option.value === role)?.description}
-          </p>
-        </div>
+        {forTeamOf ? null : (
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor={`${id}-role`}>Role</Label>
+            <Controller
+              control={form.control}
+              name="role"
+              render={({ field }) => (
+                <Select
+                  items={ROLE_ITEMS}
+                  value={field.value}
+                  onValueChange={(next) => {
+                    field.onChange(next);
+                    // Guests are not onboarded as new hires; only guests are added to projects.
+                    if (next === "guest") form.setValue("isNewHire", false);
+                    else form.setValue("projectIds", []);
+                  }}
+                >
+                  <SelectTrigger id={`${id}-role`} className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ROLES.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            <p className="text-xs text-on-surface-variant">
+              {ROLES.find((option) => option.value === role)?.description}
+            </p>
+          </div>
+        )}
       </div>
 
       {role === "guest" ? (
@@ -231,67 +239,78 @@ function InviteMemberForm({ close }: { close: () => void }) {
       ) : null}
 
       <fieldset className="space-y-3">
-        <legend className="text-sm font-medium">Where they fit (optional)</legend>
+        <legend className="text-sm font-medium">
+          {forTeamOf ? "Start date (optional)" : "Where they fit (optional)"}
+        </legend>
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor={`${id}-department`}>Department</Label>
-            <Controller
-              control={form.control}
-              name="departmentId"
-              render={({ field }) => (
-                <OptionalSelect
-                  id={`${id}-department`}
-                  value={field.value ?? ""}
-                  disabled={!departments.data}
-                  options={(departments.data ?? []).map((entry) => ({
-                    value: entry.id,
-                    label: entry.name,
-                  }))}
-                  onChange={(next) => {
-                    field.onChange(next);
-                    const team = teams.data?.find((entry) => entry.id === form.getValues("teamId"));
-                    if (next && team && team.departmentId !== next) form.setValue("teamId", "");
-                  }}
+          {forTeamOf ? null : (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor={`${id}-department`}>Department</Label>
+                <Controller
+                  control={form.control}
+                  name="departmentId"
+                  render={({ field }) => (
+                    <OptionalSelect
+                      id={`${id}-department`}
+                      value={field.value ?? ""}
+                      disabled={!departments.data}
+                      options={(departments.data ?? []).map((entry) => ({
+                        value: entry.id,
+                        label: entry.name,
+                      }))}
+                      onChange={(next) => {
+                        field.onChange(next);
+                        const team = teams.data?.find(
+                          (entry) => entry.id === form.getValues("teamId"),
+                        );
+                        if (next && team && team.departmentId !== next) form.setValue("teamId", "");
+                      }}
+                    />
+                  )}
                 />
-              )}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor={`${id}-team`}>Team</Label>
-            <Controller
-              control={form.control}
-              name="teamId"
-              render={({ field }) => (
-                <OptionalSelect
-                  id={`${id}-team`}
-                  value={field.value ?? ""}
-                  disabled={!teams.data}
-                  options={teamOptions.map((entry) => ({ value: entry.id, label: entry.name }))}
-                  onChange={(next) => {
-                    field.onChange(next);
-                    const team = teams.data?.find((entry) => entry.id === next);
-                    if (team) form.setValue("departmentId", team.departmentId);
-                  }}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={`${id}-team`}>Team</Label>
+                <Controller
+                  control={form.control}
+                  name="teamId"
+                  render={({ field }) => (
+                    <OptionalSelect
+                      id={`${id}-team`}
+                      value={field.value ?? ""}
+                      disabled={!teams.data}
+                      options={teamOptions.map((entry) => ({ value: entry.id, label: entry.name }))}
+                      onChange={(next) => {
+                        field.onChange(next);
+                        const team = teams.data?.find((entry) => entry.id === next);
+                        if (team) form.setValue("departmentId", team.departmentId);
+                      }}
+                    />
+                  )}
                 />
-              )}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor={`${id}-manager`}>Reports to</Label>
-            <Controller
-              control={form.control}
-              name="managerId"
-              render={({ field }) => (
-                <OptionalSelect
-                  id={`${id}-manager`}
-                  value={field.value ?? ""}
-                  disabled={!members.data}
-                  options={managerOptions.map((entry) => ({ value: entry.id, label: entry.name }))}
-                  onChange={field.onChange}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={`${id}-manager`}>Reports to</Label>
+                <Controller
+                  control={form.control}
+                  name="managerId"
+                  render={({ field }) => (
+                    <OptionalSelect
+                      id={`${id}-manager`}
+                      value={field.value ?? ""}
+                      disabled={!members.data}
+                      options={managerOptions.map((entry) => ({
+                        value: entry.id,
+                        label: entry.name,
+                      }))}
+                      onChange={field.onChange}
+                    />
+                  )}
                 />
-              )}
-            />
-          </div>
+              </div>
+            </>
+          )}
           <div className="space-y-2">
             <Label htmlFor={`${id}-start`}>Start date</Label>
             <Input
