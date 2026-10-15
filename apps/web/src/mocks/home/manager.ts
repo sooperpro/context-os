@@ -16,7 +16,7 @@ export const managerMocks = [
         detail: "Access request IT-2291 is still open. 3 of her next modules depend on it.",
         actions: [
           { kind: "escalate", label: "Escalate request" },
-          { kind: "message", label: "Message Chloe" },
+          { kind: "message", label: "Message Chloe", href: "mailto:chloe@example.com" },
         ],
       },
       {

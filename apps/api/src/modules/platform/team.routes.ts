@@ -969,6 +969,9 @@ export function createTeamRoutes(container: Container) {
         neutral: 3,
       };
       const items: AttentionItem[] = [];
+      const emails = new Map(
+        records.activeMembers(actor.workspaceId).map((member) => [member.userId, member.email]),
+      );
       for (const row of teamRecords(actor)) {
         const state = look(row);
         const { view, person } = state;
@@ -986,6 +989,16 @@ export function createTeamRoutes(container: Container) {
             actions: [
               { kind: "escalate", label: "Escalate" },
               { kind: "review_progress", label: "Review" },
+              // No messaging in the app yet: Message opens an email draft.
+              ...(emails.get(person.id)
+                ? [
+                    {
+                      kind: "message" as const,
+                      label: `Message ${name}`,
+                      href: `mailto:${emails.get(person.id)}`,
+                    },
+                  ]
+                : []),
             ],
           });
         else if (status === "at_risk")

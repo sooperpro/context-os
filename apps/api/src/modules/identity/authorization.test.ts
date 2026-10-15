@@ -75,7 +75,13 @@ describe("Authorization: role and access checks that must hold", () => {
       t.app.request("/api/v1/assignments", jsonRequest(body));
     const workspaceId = t.container.workspace.id;
 
+    // Managers get no member or role powers, even for their own reports (spec §3, decision 3).
     as("dan", "manager");
+    expect(
+      (await assign({ userId: "sana", type: "mentor", scopeType: "user", scopeId: "leah" })).status,
+    ).toBe(403);
+
+    asOwner();
     expect(
       (
         await assign({
@@ -87,25 +93,9 @@ describe("Authorization: role and access checks that must hold", () => {
       ).status,
     ).toBe(400);
     expect(
-      (await assign({ userId: "sana", type: "mentor", scopeType: "user", scopeId: "other" }))
-        .status,
-    ).toBe(403);
-    expect(
       (await assign({ userId: "sana", type: "mentor", scopeType: "user", scopeId: "leah" })).status,
     ).toBe(201);
-    expect(
-      (
-        await assign({
-          userId: "sana",
-          type: "path_curator",
-          scopeType: "workspace",
-          scopeId: workspaceId,
-        })
-      ).status,
-    ).toBe(400);
-
     // Admin rights don't grant people data: no self-made mentorships.
-    asOwner();
     expect(
       (await assign({ userId: owner.id, type: "mentor", scopeType: "user", scopeId: "leah" }))
         .status,

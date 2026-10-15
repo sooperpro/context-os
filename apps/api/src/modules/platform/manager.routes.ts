@@ -1,6 +1,7 @@
 import {
   FlagTargetTypeSchema,
   ReviewDecisionInputSchema,
+  type CourseDetail,
   type KnowledgeGap,
   type MyLearning,
   type ReviewItem,
@@ -326,6 +327,69 @@ export function createManagerRoutes(container: Container) {
 
   return new Hono<AppEnv>()
     .get("/me/learning", (c) => c.json(myLearning(c.get("actor"))))
+    .get("/me/learning/:id", (c) => {
+      const actor = c.get("actor");
+      const row = store
+        .listOwned(actor, "path_assignment", actor.id, 200)
+        .find(
+          (entry) =>
+            entry.data.pathId === c.req.param("id") &&
+            ["active", "completed"].includes(entry.status),
+        );
+      if (!row) throw new NotFoundError("Course");
+      const version = row.parentId
+        ? store.find(actor.workspaceId, "path_version", row.parentId)
+        : undefined;
+      const items = (version?.data.items ?? []) as Array<{
+        id: string;
+        title: string;
+        objective: string;
+        estMinutes?: number;
+        required?: boolean;
+        url?: string;
+        verification?: CourseDetail["items"][number]["verification"];
+        prerequisites?: string[];
+      }>;
+      const progress = new Map(
+        store
+          .listWhere(actor.workspaceId, "item_progress", { parentId: row.id }, 1000)
+          .map((entry) => [String(entry.data.itemId), entry]),
+      );
+      const finished = (id: string) => progress.get(id)?.status === "completed";
+      const required = items.filter((item) => item.required !== false);
+      const STATE: Record<string, CourseDetail["items"][number]["state"]> = {
+        in_progress: "in_progress",
+        awaiting_verification: "awaiting_signoff",
+        completed: "done",
+        skipped: "skipped",
+      };
+      return c.json({
+        id: String(row.data.pathId),
+        assignmentId: row.id,
+        title: typeof row.data.title === "string" ? row.data.title : "Course",
+        percent: required.length
+          ? Math.round(
+              (required.filter((item) => finished(item.id)).length / required.length) * 100,
+            )
+          : 0,
+        remainingMinutes: minutesOf(items.filter((item) => !finished(item.id))),
+        items: items.map((item) => {
+          const entry = progress.get(item.id);
+          return {
+            id: item.id,
+            title: item.title,
+            objective: item.objective,
+            minutes: Number(item.estMinutes ?? 0),
+            required: item.required !== false,
+            url: item.url ?? null,
+            verification: item.verification ?? "signoff",
+            state: (entry && STATE[entry.status]) ?? "not_started",
+            version: entry?.version ?? null,
+            locked: !(item.prerequisites ?? []).every(finished),
+          };
+        }),
+      } satisfies CourseDetail);
+    })
     .post("/me/learning/:id/add", (c) => {
       const actor = c.get("actor");
       if (actor.role === "guest") throw new AppError(403, "FORBIDDEN", "Guests cannot add courses");

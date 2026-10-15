@@ -72,8 +72,6 @@ import {
   checkinPath,
 } from "@/features/team/team-meta";
 import { daysFromToday, firstName, formatShortDate, formatWeekday } from "@/lib/format";
-import { ResponsibilityDialog } from "@/features/team/components/responsibility-dialog";
-import { useViewer } from "@/features/workspace/hooks/use-viewer";
 
 const MODULE_STATE: Record<
   MemberModuleState,
@@ -119,9 +117,6 @@ export function MemberPage() {
 function MemberView({ member }: { member: TeamMemberDetail }) {
   const { openAssistant } = useAssistant();
   const [assigning, setAssigning] = useState<"learning" | "roadmap" | null>(null);
-  const [granting, setGranting] = useState(false);
-  // People Ops may read this page; only the manager gives their reports responsibilities.
-  const { persona } = useViewer();
   const person = { id: member.person.id, name: member.person.name };
   const first = firstName(member.person.name);
   useBotContext(
@@ -227,11 +222,6 @@ function MemberView({ member }: { member: TeamMemberDetail }) {
                 <RouteIcon aria-hidden /> Assign roadmap
               </Button>
             )}
-            {persona === "manager" ? (
-              <Button variant="outline" onClick={() => setGranting(true)}>
-                Mentor or curator
-              </Button>
-            ) : null}
             <Button
               variant="ai-tonal"
               onClick={() => openAssistant(`Summarize ${member.person.name}’s onboarding progress`)}
@@ -241,7 +231,6 @@ function MemberView({ member }: { member: TeamMemberDetail }) {
           </>
         }
       />
-      <ResponsibilityDialog person={member.person} open={granting} onOpenChange={setGranting} />
 
       {member.insight ? (
         <section

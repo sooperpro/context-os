@@ -304,5 +304,35 @@ export const MyLearningSchema = z.object({
 });
 export type MyLearning = z.infer<typeof MyLearningSchema>;
 
+/**
+ * `GET /v1/me/learning/:id`: one assigned course (a learning path) and the caller's progress. Item
+ * actions use the `/v1/learning/assignments/:assignmentId/items/:itemId/*` endpoints.
+ */
+export const CourseDetailSchema = z.object({
+  id: z.string(),
+  assignmentId: z.string(),
+  title: z.string(),
+  percent: z.number().int().min(0).max(100),
+  remainingMinutes: Count,
+  items: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      objective: z.string(),
+      minutes: Count,
+      required: z.boolean(),
+      url: z.string().nullable(),
+      /** How it completes: marked done, time spent reading, sign-off, a connector event or a quiz. */
+      verification: z.enum(["self", "engagement", "signoff", "event", "quiz"]),
+      state: z.enum(["not_started", "in_progress", "awaiting_signoff", "done", "skipped"]),
+      /** The progress record's version for the next action; null before the item is started. */
+      version: z.number().int().positive().nullable(),
+      /** Waiting on prerequisites. */
+      locked: z.boolean(),
+    }),
+  ),
+});
+export type CourseDetail = z.infer<typeof CourseDetailSchema>;
+
 /** `POST /v1/me/learning/:id/add`: add a suggested course to "Assigned to you". */
 export const AddCourseInputSchema = z.object({}).strict();

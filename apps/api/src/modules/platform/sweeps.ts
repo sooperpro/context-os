@@ -202,18 +202,15 @@ export function createSweeps({ db, bounties, logger, queue }: SweepDeps) {
               data: { week, unanswered, reported },
             });
             if (!unanswered && !reported) continue;
+            const title = `Last week your team asked ${unanswered + reported} question${unanswered + reported === 1 ? "" : "s"} that had no good answer`;
+            const body = reported
+              ? `${reported} reported as knowledge gaps. See them on your Home.`
+              : "See the knowledge gaps on your Home.";
+            // Emailed by email-delivery.ts too, when the manager turned email on.
             notifier.notify(
               workspaceId,
               managerId,
-              {
-                type: "digest.weekly",
-                category: "maintenance",
-                title: `Last week your team asked ${unanswered + reported} question${unanswered + reported === 1 ? "" : "s"} that had no good answer`,
-                body: reported
-                  ? `${reported} reported as knowledge gaps. See them on your Home.`
-                  : "See the knowledge gaps on your Home.",
-                link: "/",
-              },
+              { type: "digest.weekly", category: "maintenance", title, body, link: "/" },
               settings,
             );
             report.weeklyDigests += 1;

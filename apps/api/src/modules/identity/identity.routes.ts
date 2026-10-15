@@ -44,7 +44,6 @@ import { createPlatformStore, type PlatformRecord } from "../platform/store.js";
 import { auditRowFor } from "../audit/audit.service.js";
 import { sendInvitationEmail } from "../auth/invitations.js";
 import { organizationFor, personalProfileOf, requireRole } from "./identity.service.js";
-import { manages } from "../platform/reports.js";
 
 const adminRoles = ["owner", "admin"] as const;
 const ProjectMemberSchema = z.object({ userId: z.string().min(1).max(200) }).strict();
@@ -517,23 +516,10 @@ export function createIdentityRoutes(container: Container) {
     })
     .post("/users/invite", zValidator("json", InviteInputSchema, validationHook), async (c) => {
       const actor = c.get("actor");
-      requireRole(actor, "owner", "admin", "manager");
+      // Members and roles are admin work; managers get none (role access spec §3, decision 3).
+      requireRole(actor, ...adminRoles);
       const body = c.req.valid("json");
       const invitations = "invitations" in body ? body.invitations : [body];
-      // Managers may only invite into their own team (PRD §6.4).
-      const actorMembership = identity.requireMember(actor.workspaceId, actor.id);
-      if (actor.role === "manager")
-        for (const invitation of invitations)
-          if (
-            invitation.role !== "member" ||
-            (invitation.managerId && invitation.managerId !== actor.id) ||
-            (invitation.teamId && invitation.teamId !== actorMembership.organization.teamId)
-          )
-            throw new AppError(
-              403,
-              "FORBIDDEN",
-              "Managers can invite members into their own team only",
-            );
       // Check every row before sending any, so a bad row in a bulk list leaves nothing half-sent.
       for (const invitation of invitations) {
         if (invitation.managerId) identity.requireMember(actor.workspaceId, invitation.managerId);
@@ -647,22 +633,13 @@ export function createIdentityRoutes(container: Container) {
     })
     .post("/assignments", zValidator("json", AssignmentInputSchema, validationHook), (c) => {
       const actor = c.get("actor");
-      requireRole(actor, "owner", "admin", "manager");
+      // Responsibilities are granted by admins; managers get no member or role powers (role access
+      // spec §3, decision 3).
+      requireRole(actor, ...adminRoles);
       const input = c.req.valid("json");
       const member = identity.requireMember(actor.workspaceId, input.userId);
-      // Managers grant Mentor/Curator within their own reports only (PRD §6.4).
-      if (
-        actor.role === "manager" &&
-        (!["mentor", "path_curator"].includes(input.type) || !manages(db, actor, input.userId))
-      )
-        throw new AppError(
-          403,
-          "FORBIDDEN",
-          "Managers can assign Mentor or Curator to their own reports",
-        );
       // A mentor follows one person's onboarding and check-ins (people data): always one named
-      // learner, never yourself (admin rights don't grant people data, Spec §3), and for managers
-      // only between their own reports.
+      // learner, never yourself (admin rights don't grant people data, Spec §3).
       if (input.type === "mentor") {
         if (input.scopeType !== "user")
           throw new BadRequestError("A mentor is assigned to one person (scopeType user)");
@@ -670,17 +647,7 @@ export function createIdentityRoutes(container: Container) {
           throw new AppError(403, "FORBIDDEN", "You can't make yourself someone's mentor");
         if (input.userId === input.scopeId)
           throw new BadRequestError("Someone can't mentor themselves");
-        identity.requireMember(actor.workspaceId, input.scopeId);
-        if (actor.role === "manager" && !manages(db, actor, input.scopeId))
-          throw new AppError(403, "FORBIDDEN", "Managers assign mentors for their own reports");
       }
-      // Managers grant curation of a project, not of the whole workspace.
-      if (
-        actor.role === "manager" &&
-        input.type === "path_curator" &&
-        input.scopeType !== "project"
-      )
-        throw new BadRequestError("Managers grant curation for a project");
       // Guests see only the projects they were added to; they never own, curate or mentor.
       if (member.role === "guest") throw new BadRequestError("Guests can't hold assignments");
       if (input.scopeType === "project") identity.requireProject(actor, input.scopeId);

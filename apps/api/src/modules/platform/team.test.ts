@@ -5,6 +5,7 @@ import {
   CheckinPrepSchema,
   CheckinRecordSchema,
   CheckMatrixSchema,
+  CourseDetailSchema,
   CreatedSchema,
   KnowledgeGapListSchema,
   MyCheckinsSchema,
@@ -25,6 +26,7 @@ import {
   platformRecords,
   sourceObjects,
   users,
+  workspaces,
 } from "../../db/schema.js";
 import {
   addSource,
@@ -33,7 +35,9 @@ import {
   jsonRequest,
   type TestApp,
 } from "../../test/helpers.js";
+import type { Mail } from "../../lib/mailer.js";
 import type { Actor } from "../../types.js";
+import { createOnboardingRecords } from "./onboarding-records.js";
 
 const day = (offset: number) =>
   new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
@@ -145,6 +149,61 @@ describe("Manager: team onboarding, member pages, check-ins and assigning", () =
     await get(KnowledgeGapListSchema, "/team/knowledge-gaps");
     await get(ReviewQueueSchema, "/me/reviews");
     await get(MyLearningSchema, "/me/learning");
+  });
+
+  it("counts indirect reports in every team view only when the workspace turns them on", () => {
+    t = createTestApp();
+    team();
+    member("lead", "manager", "dan");
+    member("ivy", "member", "lead");
+    const records = createOnboardingRecords(t.container);
+    const dan = as("dan", "manager");
+    expect(records.reportsOf(dan).sort()).toEqual(["jonah", "lead", "leah", "sana"]);
+    t.container.db
+      .update(workspaces)
+      .set({ settings: { includeIndirectReports: true } })
+      .where(eq(workspaces.id, t.container.workspace.id))
+      .run();
+    expect(records.reportsOf(dan).sort()).toEqual(["ivy", "jonah", "lead", "leah", "sana"]);
+  });
+
+  it("keeps private check-ins and ratings from the person when they reply", async () => {
+    t = createTestApp();
+    team();
+    as("dan", "manager");
+    const body = {
+      type: "probation",
+      pulse: "on_track",
+      agendaCovered: [],
+      ratings: { products: 2, systems: 3, practices: 2, delivery: 2 },
+      blockers: ["access"],
+      notes: "Ready to confirm.",
+      nextSteps: "Keep going.",
+      recommendation: "confirm",
+    };
+    const save = async (shareWithPerson: boolean) =>
+      json<{ id: string }>(
+        await t.app.request(
+          "/api/v1/team/members/leah/checkins",
+          jsonRequest({ ...body, shareWithPerson }),
+        ),
+      );
+    const hidden = await save(false);
+    const shared = await save(true);
+    as("leah", "member");
+    const reply = (id: string) =>
+      t.app.request(
+        `/api/v1/probation/checkins/${id}/respond`,
+        jsonRequest({ version: 1, response: "Thanks." }),
+      );
+    expect((await reply(hidden.id)).status).toBe(404);
+    const answered = await reply(shared.id);
+    expect(answered.status).toBe(200);
+    const { data } = await json<{ data: Record<string, unknown> }>(answered);
+    expect(data).toMatchObject({ notes: "Ready to confirm.", employeeResponse: "Thanks." });
+    expect(data).not.toHaveProperty("ratings");
+    expect(data).not.toHaveProperty("blockers");
+    expect(data).not.toHaveProperty("recommendation");
   });
 
   it("scopes team views to the manager's reports and refuses everyone else", async () => {
@@ -344,12 +403,21 @@ describe("Manager: team onboarding, member pages, check-ins and assigning", () =
     expect(member.checkins[0]).toMatchObject({ note: "Still waiting on warehouse access." });
     // Waiting on access is blocked, and the manager's Home offers to escalate it.
     expect(member.status).toBe("blocked");
+    t.container.db
+      .update(users)
+      .set({ email: "leah@example.com" })
+      .where(eq(users.id, "leah"))
+      .run();
     const attention = await json<{
       items: Array<{ person: { id: string }; severity: string; actions: Array<{ kind: string }> }>;
     }>(await t.app.request("/api/v1/team/attention"));
     expect(attention.items.find((item) => item.person.id === "leah")).toMatchObject({
       severity: "error",
-      actions: expect.arrayContaining([{ kind: "escalate", label: "Escalate" }]) as unknown,
+      actions: expect.arrayContaining([
+        { kind: "escalate", label: "Escalate" },
+        // No messaging in the app yet: Message opens an email draft.
+        { kind: "message", label: "Message Leah", href: "mailto:leah@example.com" },
+      ]) as unknown,
     });
     expect(member.issues).toContain("Waiting on access (raised at the last check-in)");
     expect(member.issues.filter((issue) => issue.startsWith("Waiting on access"))).toHaveLength(1);
@@ -715,10 +783,39 @@ describe("Manager: my learning, review queue and team knowledge", () => {
     expect((await t.app.request("/api/v1/me/learning/missing/add", jsonRequest({}))).status).toBe(
       404,
     );
+
+    // The course page lists the items, the progress and how each one completes.
+    const course = async () =>
+      CourseDetailSchema.parse(await json(await t.app.request(`/api/v1/me/learning/${path.id}`)));
+    const opened = await course();
+    expect(opened).toMatchObject({
+      title: "Running readiness reviews",
+      percent: 0,
+      remainingMinutes: 60,
+    });
+    expect(opened.items.map((item) => [item.verification, item.state])).toEqual([
+      ["engagement", "not_started"],
+      ["signoff", "not_started"],
+    ]);
+    const rubric = opened.items[1]!;
+    await t.app.request(
+      `/api/v1/learning/assignments/${opened.assignmentId}/items/${rubric.id}/start`,
+      { method: "POST" },
+    );
+    expect((await course()).items[1]).toMatchObject({ state: "in_progress", version: 1 });
+    expect((await t.app.request("/api/v1/me/learning/missing")).status).toBe(404);
   });
 
   it("routes proposed answers to the author's manager when the project has no domain owner", async () => {
-    t = createTestApp();
+    const sent: Mail[] = [];
+    t = createTestApp({
+      mailer: {
+        send: (mail) => {
+          sent.push(mail);
+          return Promise.resolve();
+        },
+      },
+    });
     const project = await createProject(t.app, "Billing");
     await addSource(t.app, project.id);
     await t.drain();
@@ -809,10 +906,39 @@ describe("Manager: my learning, review queue and team knowledge", () => {
     ).toBe(1);
 
     // Monday's weekly digest tells Dan how many of his team's questions went unanswered (counts only).
+    // Dan turned on email for maintenance updates, so the digest is emailed too, once.
+    t.container.db
+      .update(users)
+      .set({
+        email: "dan@example.com",
+        preferences: { notifications: { categories: { maintenance: { email: true } } } },
+      })
+      .where(eq(users.id, "dan"))
+      .run();
     const monday = new Date();
     monday.setUTCDate(monday.getUTCDate() + ((8 - monday.getUTCDay()) % 7 || 7));
     expect(t.container.sweeps.run(monday).weeklyDigests).toBe(1);
     expect(t.container.sweeps.run(monday).weeklyDigests).toBe(0);
+    // Email goes out with the person's other notifications, once quiet hours and the batching
+    // window allow.
+    const notice = t.container.db
+      .select()
+      .from(platformRecords)
+      .where(eq(platformRecords.kind, "notification"))
+      .all()
+      .find((row) => row.data.type === "digest.weekly")!;
+    const due = Math.max(
+      notice.createdAt.getTime(),
+      typeof notice.data.deliverAfter === "string" ? Date.parse(notice.data.deliverAfter) : 0,
+    );
+    await t.container.emailDelivery.deliver(new Date(due + 11 * 60_000));
+    await t.container.emailDelivery.deliver(new Date(due + 22 * 60_000));
+    expect(sent).toEqual([
+      expect.objectContaining({
+        to: "dan@example.com",
+        subject: "Last week your team asked 1 question that had no good answer",
+      }),
+    ]);
     const digest = t.container.db
       .select()
       .from(platformRecords)

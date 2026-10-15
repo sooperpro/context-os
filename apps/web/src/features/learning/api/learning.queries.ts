@@ -5,6 +5,7 @@ import {
   addCourse,
   completeLesson,
   fetchCheck,
+  fetchCourse,
   fetchLesson,
   fetchModule,
   fetchMyLearning,
@@ -12,6 +13,7 @@ import {
   rateLearning,
   sendLearningRequest,
   submitCheckAttempt,
+  takeCourseStep,
 } from "./learning.api";
 
 export const learningKeys = {
@@ -21,6 +23,7 @@ export const learningKeys = {
   lesson: (id: string) => [...learningKeys.all, "lesson", id] as const,
   check: (id: string) => [...learningKeys.all, "check", id] as const,
   mine: () => [...learningKeys.all, "mine"] as const,
+  course: (id: string) => [...learningKeys.all, "course", id] as const,
 };
 
 /** "My learning", for people past onboarding. */
@@ -34,6 +37,13 @@ export function useAddCourse() {
     onSuccess: (data) => queryClient.setQueryData(learningKeys.mine(), data),
   });
 }
+
+/** One assigned course from My learning, with the caller's progress. */
+export const courseQuery = (id: string) =>
+  queryOptions({
+    queryKey: learningKeys.course(id),
+    queryFn: ({ signal }) => fetchCourse(id, signal),
+  });
 
 export const roadmapQuery = () =>
   queryOptions({ queryKey: learningKeys.roadmap(), queryFn: ({ signal }) => fetchRoadmap(signal) });
@@ -90,4 +100,9 @@ export function useRateLearning() {
 
 export function useLearningRequest() {
   return useMutation({ mutationFn: sendLearningRequest });
+}
+
+export function useCourseStep() {
+  const refresh = useRefreshProgress();
+  return useMutation({ mutationFn: takeCourseStep, onSuccess: () => refresh() });
 }

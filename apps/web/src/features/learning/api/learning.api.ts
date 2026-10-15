@@ -2,6 +2,7 @@ import {
   AddCourseInputSchema,
   CheckAttemptInputSchema,
   CheckResultSchema,
+  CourseDetailSchema,
   KnowledgeCheckSchema,
   LearningRatingInputSchema,
   LearningRatingSchema,
@@ -15,6 +16,7 @@ import {
   MyRoadmapSchema,
   type CheckAttemptInput,
   type CheckResult,
+  type CourseDetail,
   type KnowledgeCheck,
   type LearningRatingInput,
   type LearningRequest,
@@ -25,6 +27,7 @@ import {
   type MyLearning,
   type MyRoadmap,
 } from "@contextos/shared";
+import { z } from "zod";
 import { apiRequest } from "@/lib/api-client";
 
 /**
@@ -63,6 +66,7 @@ export const LEARNING_ENDPOINTS = {
     schema: MyLearningSchema,
     input: AddCourseInputSchema,
   },
+  course: { path: "/v1/me/learning/:id", schema: CourseDetailSchema },
 } as const;
 
 const E = LEARNING_ENDPOINTS;
@@ -105,3 +109,25 @@ export const addCourse = (id: string): Promise<MyLearning> =>
     body: {},
     schema: E.addCourse.schema,
   });
+
+export const fetchCourse = (id: string, signal?: AbortSignal): Promise<CourseDetail> =>
+  apiRequest(withId(E.course.path, id), { schema: E.course.schema, signal });
+
+/** A step on one item of an assigned course. Steps after "start" carry the progress version. */
+export type CourseStep = "start" | "attest" | "signoff/request" | "skip" | "dwell";
+
+/** The response is the raw progress record; callers refetch the course instead of reading it. */
+export const takeCourseStep = (input: {
+  assignmentId: string;
+  itemId: string;
+  step: CourseStep;
+  version: number | null;
+}) =>
+  apiRequest(
+    `/v1/learning/assignments/${encodeURIComponent(input.assignmentId)}/items/${encodeURIComponent(input.itemId)}/${input.step}`,
+    {
+      method: "POST",
+      body: input.version === null ? undefined : { version: input.version },
+      schema: z.unknown(),
+    },
+  );

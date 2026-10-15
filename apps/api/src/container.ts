@@ -143,6 +143,7 @@ export function createContainer({ env, db, gemini, logger, mailer: mailerDep }: 
     connectors,
     extractionSections: env.EXTRACTION_MAX_WINDOWS,
   });
+  // The weekly digest is emailed by emailDelivery, like every notification with email on.
   const sweeps = createSweeps({ db, bounties, logger, queue });
   const emailDelivery = createEmailDelivery({ db, mailer, logger, env });
   const worker = createWorker({

@@ -27,6 +27,7 @@ import {
 } from "./onboarding-roadmap.js";
 import { workspaceSettings } from "./settings.js";
 import { createPlatformStore, type PlatformRecord } from "./store.js";
+import { reportsOf as sharedReportsOf } from "./reports.js";
 
 /*
  * Onboarding records, probation reviews and onboarding templates, shared by the People Ops routes
@@ -301,6 +302,12 @@ export function createOnboardingRecords(container: Container) {
       .where(and(eq(memberships.workspaceId, workspaceId), eq(memberships.status, "active")))
       .all()
       .filter((row) => row.userId !== "system");
+
+  /**
+   * The manager's team: direct reports, or the whole reporting line when the workspace turns on
+   * indirect reports (role access spec decision 8). Every team view uses the one rule in reports.ts.
+   */
+  const reportsOf = (actor: Actor): string[] => sharedReportsOf(db, actor);
 
   const personRef = (workspaceId: string, userId: string | null): PersonRef | null => {
     if (!userId) return null;
@@ -1314,6 +1321,7 @@ export function createOnboardingRecords(container: Container) {
   return {
     store,
     activeMembers,
+    reportsOf,
     personRef,
     requirePerson,
     teamName,

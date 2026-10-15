@@ -301,7 +301,26 @@ const appChildren = [
     path: "learning",
     lazy: async () => {
       const { MyLearningPage } = await import("@/features/learning/pages/my-learning-page");
-      return { Component: MyLearningPage };
+      return {
+        Component: () => (
+          <ManagerOnly hrMayRead>
+            <MyLearningPage />
+          </ManagerOnly>
+        ),
+      };
+    },
+  },
+  {
+    path: "learning/:courseId",
+    lazy: async () => {
+      const { CoursePage } = await import("@/features/learning/pages/course-page");
+      return {
+        Component: () => (
+          <ManagerOnly hrMayRead>
+            <CoursePage />
+          </ManagerOnly>
+        ),
+      };
     },
   },
   {
