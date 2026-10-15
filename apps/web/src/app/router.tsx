@@ -181,7 +181,7 @@ const appChildren = [
       const { AuditPage } = await import("@/features/admin/pages/audit-page");
       return {
         Component: () => (
-          <AdminOnly>
+          <AdminOnly alsoFor={["people_ops"]}>
             <AuditPage />
           </AdminOnly>
         ),

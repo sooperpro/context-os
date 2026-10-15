@@ -2,7 +2,7 @@ import type { TemplateDetail, TemplateModule } from "@contextos/shared";
 import { useBotContext } from "@/components/layout/bot-context";
 import { useQuery } from "@tanstack/react-query";
 import { useId, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { PageColumns, PageMain, PageSide } from "@/components/layout/page-columns";
 import { PreviewDataChip } from "@/components/preview-data-chip";
@@ -15,8 +15,15 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { DotList } from "@/components/ui/dot-list";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   AddIcon,
   ArrowDownwardIcon,
@@ -25,9 +32,12 @@ import {
   DeleteIcon,
   HistoryIcon,
   InfoIcon,
+  Inventory2Icon,
   LibraryBooksIcon,
+  MoreVertIcon,
   PublishIcon,
   SaveIcon,
+  UndoIcon,
 } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Loader } from "@/components/ui/loader";
@@ -44,13 +54,18 @@ import { Timeline, TimelineItem } from "@/components/ui/timeline";
 import { PEOPLE_OPS_ENDPOINTS as E } from "@/features/people-ops/api/people-ops.api";
 import {
   templateQuery,
+  useArchiveTemplate,
+  useDeleteTemplate,
   usePublishTemplate,
+  useRestoreTemplate,
   useSaveTemplateDraft,
 } from "@/features/people-ops/api/people-ops.queries";
 import {
   AddModuleDialog,
   PublishDialog,
+  TemplateActionDialog,
   TemplateTile,
+  TemplateVersionDialog,
 } from "@/features/people-ops/components/template-parts";
 import {
   TEMPLATES_PATH,
@@ -106,8 +121,15 @@ function Editor({ template }: { template: TemplateDetail }) {
   const [dirty, setDirty] = useState(false);
   const [adding, setAdding] = useState<{ id: string; name: string } | null>(null);
   const [publishing, setPublishing] = useState(false);
+  const [action, setAction] = useState<"archive" | "delete" | null>(null);
+  const [viewing, setViewing] = useState<string | null>(null);
+  const navigate = useNavigate();
   const save = useSaveTemplateDraft(template.id);
   const publish = usePublishTemplate(template.id);
+  const archive = useArchiveTemplate(template.id);
+  const restore = useRestoreTemplate(template.id);
+  const deleteTemplate = useDeleteTemplate(template.id);
+  const archived = template.archived;
   const draft = template.status === "draft";
   const number = Number(template.version.slice(1)) || 1;
   const next = draft ? template.version : `v${number + 1}`;
@@ -184,7 +206,7 @@ function Editor({ template }: { template: TemplateDetail }) {
         <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
-            disabled={!dirty || save.isPending}
+            disabled={archived || !dirty || save.isPending}
             onClick={() =>
               save.mutate(
                 { stages: payload(), ...audience },
@@ -198,11 +220,66 @@ function Editor({ template }: { template: TemplateDetail }) {
           >
             <SaveIcon aria-hidden /> Save draft
           </Button>
-          <Button disabled={!(dirty || draft)} onClick={() => setPublishing(true)}>
+          <Button disabled={archived || !(dirty || draft)} onClick={() => setPublishing(true)}>
             <PublishIcon aria-hidden /> Publish {next}
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button variant="outline" size="icon" aria-label="More actions for this template" />
+              }
+            >
+              <MoreVertIcon />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {archived ? (
+                <DropdownMenuItem
+                  onClick={() =>
+                    restore.mutate(undefined, {
+                      onSuccess: () => toast.success(`Restored ${template.name}`),
+                      onError: () => toast.error("It could not be restored. Please try again."),
+                    })
+                  }
+                >
+                  <UndoIcon aria-hidden /> Restore template
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem onClick={() => setAction("archive")}>
+                  <Inventory2Icon aria-hidden /> Archive template
+                </DropdownMenuItem>
+              )}
+              {template.deletable ? (
+                <DropdownMenuItem variant="destructive" onClick={() => setAction("delete")}>
+                  <DeleteIcon aria-hidden /> Delete template
+                </DropdownMenuItem>
+              ) : null}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
+      {archived ? (
+        <Banner
+          tone="info"
+          icon={<Inventory2Icon aria-hidden />}
+          title="This template is archived"
+          description="It isn’t offered for new onboardings and can’t be edited. People already on it keep their roadmap."
+          actions={
+            <Button
+              size="xs"
+              variant="outline"
+              disabled={restore.isPending}
+              onClick={() =>
+                restore.mutate(undefined, {
+                  onSuccess: () => toast.success(`Restored ${template.name}`),
+                  onError: () => toast.error("It could not be restored. Please try again."),
+                })
+              }
+            >
+              Restore
+            </Button>
+          }
+        />
+      ) : null}
 
       <PageColumns>
         <PageMain>
@@ -323,11 +400,29 @@ function Editor({ template }: { template: TemplateDetail }) {
                   date={entry.version}
                   state={index === 0 ? "soon" : "later"}
                   icon={index === 0 ? <PublishIcon aria-hidden /> : <HistoryIcon aria-hidden />}
-                  title={<span className="font-normal">{entry.note}</span>}
+                  title={
+                    entry.saved ? (
+                      <button
+                        type="button"
+                        aria-label={`Open ${entry.version}: ${entry.note}`}
+                        className="rounded-xs text-start font-normal text-primary underline-offset-2 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+                        onClick={() => setViewing(entry.version)}
+                      >
+                        {entry.note}
+                      </button>
+                    ) : (
+                      <span className="font-normal">{entry.note}</span>
+                    )
+                  }
                   detail={formatShortDate(entry.on)}
                 />
               ))}
             </Timeline>
+            {template.history.some((entry) => !entry.saved) ? (
+              <p className="text-xs text-on-surface-variant">
+                Versions published from now on can be opened here. Older ones weren’t saved.
+              </p>
+            ) : null}
           </SectionCard>
           <p className="flex items-start gap-1.5 px-1 text-xs text-on-surface-variant">
             <InfoIcon className="mt-px size-4 shrink-0" aria-hidden />
@@ -345,6 +440,36 @@ function Editor({ template }: { template: TemplateDetail }) {
           if (!adding) return;
           change(adding.id, (modules) => [...modules, module]);
           toast.success(`Added “${module.title}” to ${adding.name}`);
+        }}
+      />
+      <TemplateVersionDialog
+        templateId={template.id}
+        version={viewing}
+        onOpenChange={(open) => (open ? null : setViewing(null))}
+      />
+      <TemplateActionDialog
+        template={template}
+        action={action}
+        pending={archive.isPending || deleteTemplate.isPending}
+        onOpenChange={(open) => (open ? null : setAction(null))}
+        onConfirm={() => {
+          if (action === "archive")
+            archive.mutate(undefined, {
+              onSuccess: () => {
+                setAction(null);
+                toast.success(`Archived ${template.name}`);
+              },
+              onError: () => toast.error("It could not be archived. Please try again."),
+            });
+          else
+            deleteTemplate.mutate(undefined, {
+              onSuccess: () => {
+                toast.success(`Deleted ${template.name}`);
+                void navigate(TEMPLATES_PATH);
+              },
+              onError: (error) =>
+                toast.error(error.message || "It could not be deleted. Please try again."),
+            });
         }}
       />
       <PublishDialog

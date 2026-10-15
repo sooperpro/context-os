@@ -190,8 +190,9 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: HistoryIcon,
     activeIcon: HistoryFilledIcon,
     to: "/audit",
-    roles: ["owner", "admin"],
-    personas: ["admin"],
+    // HR sees the People Ops trail only; the API narrows it (see GET /audit).
+    roles: ["owner", "admin", "hr"],
+    personas: ["admin", "people_ops"],
   },
   // The prototype has no Projects item: projects are a collection inside the Knowledge Hub.
   {
@@ -239,7 +240,9 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: RouteIcon,
     activeIcon: RouteFilledIcon,
     to: "/learning",
-    personas: ["manager"],
+    // Managers and People Ops: the pages they have besides their team and onboarding work.
+    roles: ["manager", "hr"],
+    personas: ["manager", "people_ops"],
   },
   {
     id: "setup",
@@ -270,7 +273,16 @@ export function isInActivePaths(item: NavItem, pathname: string): boolean {
 
 /** Rails whose order differs from `NAV_ITEMS`, as in the prototype: People Ops puts People first. */
 const PERSONA_ORDER: Partial<Record<Persona, readonly string[]>> = {
-  people_ops: ["home", "onboarding", "probation", "templates", "people", "knowledge"],
+  people_ops: [
+    "home",
+    "onboarding",
+    "probation",
+    "templates",
+    "people",
+    "knowledge",
+    "learning",
+    "audit",
+  ],
 };
 
 /** The rail for a role and persona (see useViewer). An unknown role or persona hides gated items. */

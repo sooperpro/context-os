@@ -171,6 +171,37 @@ describe("Tutorials: drafted from knowledge, reviewed, published and taken", () 
     });
   });
 
+  it("gives HR their own My learning: tutorials to add, take and complete", async () => {
+    t = createTestApp();
+    admin = owner();
+    const { id } = await publishedTutorial();
+    const key = `tutorial-${id}`;
+    member("hana", "hr");
+    as("hana", "hr");
+
+    // Nothing assigned yet; the published tutorial is on offer.
+    const first = MyLearningSchema.parse(await get("/me/learning"));
+    expect(first.assigned).toEqual([]);
+    expect(first.suggested).toEqual([expect.objectContaining({ id: key })]);
+
+    // They add it themselves, and it moves to "assigned to you".
+    expect(
+      (await t.app.request(`/api/v1/me/learning/${key}/add`, jsonRequest({}))).status,
+    ).toBeLessThan(300);
+    const mine = MyLearningSchema.parse(await get("/me/learning"));
+    expect(mine.suggested).toEqual([]);
+    expect(mine.assigned).toEqual([
+      expect.objectContaining({ id: key, reason: "Added by you", lessonCount: 3 }),
+    ]);
+
+    // The lessons open for HR like anyone else, and finishing one is recorded.
+    const module = ModuleDetailSchema.parse(await get(`/me/modules/${key}`));
+    expect(module.lessons.map((lesson) => lesson.type)).toEqual(["article", "article", "check"]);
+    const done = await t.app.request(`/api/v1/me/lessons/${key}~l1/complete`, jsonRequest({}));
+    expect(done.status).toBe(200);
+    expect(MyLearningSchema.parse(await get("/me/learning")).assigned[0]?.lessonsDone).toBe(1);
+  });
+
   it("assigns a tutorial to someone not onboarding; they take it in My learning", async () => {
     t = createTestApp();
     admin = owner();

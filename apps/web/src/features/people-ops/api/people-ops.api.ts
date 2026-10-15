@@ -2,6 +2,8 @@ import {
   NewOnboardingInputSchema,
   NewTemplateInputSchema,
   OnboardingAssignmentInputSchema,
+  OnboardingMessageInputSchema,
+  OnboardingMessageResultSchema,
   OnboardingOptionsSchema,
   OnboardingRecordListSchema,
   OnboardingRecordSchema,
@@ -9,17 +11,23 @@ import {
   ProbationDetailSchema,
   ProbationDiscussInputSchema,
   OnboardingRecordSummarySchema,
+  PersonDetailsInputSchema,
+  PersonDetailsSchema,
   ReminderInputSchema,
   ReminderResultSchema,
   SetupStepInputSchema,
+  TemplateArchiveInputSchema,
   TemplateDetailSchema,
   TemplateDraftInputSchema,
   TemplateLibrarySchema,
   TemplatePublishInputSchema,
+  TemplateVersionSchema,
   type NewOnboardingInput,
   type NewTemplateInput,
   type OnboardingAssignmentInput,
   type OnboardingFilter,
+  type OnboardingMessageInput,
+  type PersonDetailsInput,
   type ProbationDecisionInput,
   type ProbationDiscussInput,
   type ReminderInput,
@@ -27,6 +35,7 @@ import {
   type TemplateDraftInput,
   type TemplatePublishInput,
 } from "@contextos/shared";
+import { z } from "zod";
 import { apiRequest } from "@/lib/api-client";
 
 /**
@@ -47,6 +56,11 @@ export const PEOPLE_OPS_ENDPOINTS = {
     path: "/v1/people-ops/onboardings/:id/setup/:step",
     schema: OnboardingRecordSchema,
     input: SetupStepInputSchema,
+  },
+  message: {
+    path: "/v1/people-ops/onboardings/:id/message",
+    schema: OnboardingMessageResultSchema,
+    input: OnboardingMessageInputSchema,
   },
   options: { path: "/v1/people-ops/onboarding-options", schema: OnboardingOptionsSchema },
   createOnboarding: {
@@ -69,12 +83,31 @@ export const PEOPLE_OPS_ENDPOINTS = {
     path: "/v1/people-ops/people/:id/onboarding",
     schema: OnboardingRecordSummarySchema,
   },
+  personDetails: {
+    path: "/v1/people-ops/people/:id/details",
+    schema: PersonDetailsSchema,
+    input: PersonDetailsInputSchema,
+  },
   remind: {
     path: "/v1/people-ops/reminders",
     schema: ReminderResultSchema,
     input: ReminderInputSchema,
   },
   template: { path: "/v1/people-ops/templates/:id", schema: TemplateDetailSchema },
+  templateVersion: {
+    path: "/v1/people-ops/templates/:id/versions/:version",
+    schema: TemplateVersionSchema,
+  },
+  archiveTemplate: {
+    path: "/v1/people-ops/templates/:id/archive",
+    schema: TemplateDetailSchema,
+    input: TemplateArchiveInputSchema,
+  },
+  restoreTemplate: {
+    path: "/v1/people-ops/templates/:id/restore",
+    schema: TemplateDetailSchema,
+    input: TemplateArchiveInputSchema,
+  },
   saveDraft: {
     path: "/v1/people-ops/templates/:id/draft",
     schema: TemplateDetailSchema,
@@ -119,6 +152,9 @@ export const completeSetupStep = (id: string, step: SetupStepId) =>
     schema: E.setupStep.schema,
   });
 
+export const messageOnboarding = (id: string, input: OnboardingMessageInput) =>
+  apiRequest(withId(E.message.path, id), { method: "POST", body: input, schema: E.message.schema });
+
 export const fetchOnboardingOptions = (signal?: AbortSignal) =>
   apiRequest(E.options.path, { schema: E.options.schema, signal });
 
@@ -144,11 +180,44 @@ export const fetchPersonOnboarding = (userId: string, signal?: AbortSignal) =>
     signal,
   });
 
+export const fetchPersonDetails = (userId: string, signal?: AbortSignal) =>
+  apiRequest(withId(E.personDetails.path, userId), { schema: E.personDetails.schema, signal });
+
+export const updatePersonDetails = (userId: string, input: PersonDetailsInput) =>
+  apiRequest(withId(E.personDetails.path, userId), {
+    method: "PATCH",
+    body: input,
+    schema: E.personDetails.schema,
+  });
+
 export const remindManagers = (input: ReminderInput) =>
   apiRequest(E.remind.path, { method: "POST", body: input, schema: E.remind.schema });
 
 export const fetchTemplate = (id: string, signal?: AbortSignal) =>
   apiRequest(withId(E.template.path, id), { schema: E.template.schema, signal });
+
+export const fetchTemplateVersion = (id: string, version: number, signal?: AbortSignal) =>
+  apiRequest(withId(E.templateVersion.path, id).replace(":version", String(version)), {
+    schema: E.templateVersion.schema,
+    signal,
+  });
+
+export const archiveTemplate = (id: string) =>
+  apiRequest(withId(E.archiveTemplate.path, id), {
+    method: "POST",
+    body: {},
+    schema: E.archiveTemplate.schema,
+  });
+
+export const restoreTemplate = (id: string) =>
+  apiRequest(withId(E.restoreTemplate.path, id), {
+    method: "POST",
+    body: {},
+    schema: E.restoreTemplate.schema,
+  });
+
+export const deleteTemplate = (id: string) =>
+  apiRequest(withId(E.template.path, id), { method: "DELETE", schema: z.undefined() });
 
 export const saveTemplateDraft = (id: string, input: TemplateDraftInput) =>
   apiRequest(withId(E.saveDraft.path, id), {

@@ -18,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { DotList } from "@/components/ui/dot-list";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { OptionList, OptionTile } from "@/components/ui/option-tile";
@@ -33,13 +34,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
   templateLibraryQuery,
+  templateVersionQuery,
   useCreateTemplate,
 } from "@/features/people-ops/api/people-ops.queries";
 import {
   TEMPLATE_FAMILY,
+  TEMPLATE_MODULE_KIND,
+  minutesLabel,
   templateModuleMeta,
   templatePath,
+  weeksLabel,
 } from "@/features/people-ops/people-ops-meta";
+import { formatCount, formatShortDate } from "@/lib/format";
 
 /** A template's icon on its shape (prototype `.coll-shape`). */
 export function TemplateTile({
@@ -322,5 +328,172 @@ export function PublishDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Asks before archiving or deleting a template, and says what will happen to the people on it. The
+ * action itself is the caller's: it knows how to reach the API and where to go afterwards.
+ */
+export function TemplateActionDialog({
+  template,
+  action,
+  pending,
+  onConfirm,
+  onOpenChange,
+}: {
+  template: TemplateDetail;
+  action: "archive" | "delete" | null;
+  pending: boolean;
+  onConfirm: () => void;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const deleting = action === "delete";
+  return (
+    <Dialog open={action !== null} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        {action ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>
+                {deleting ? "Delete" : "Archive"} {template.name}?
+              </DialogTitle>
+              <DialogDescription>
+                {deleting
+                  ? "This removes the template and its version history for good. It can’t be undone."
+                  : "It stops being offered for new onboardings. You can restore it any time."}
+              </DialogDescription>
+            </DialogHeader>
+            {deleting ? (
+              <p className="text-sm text-on-surface-variant">
+                No onboarding has used it, so nobody’s roadmap changes.
+              </p>
+            ) : (
+              <p className="text-sm text-on-surface-variant">
+                {template.activeCount
+                  ? `Everyone already on it (${formatCount(template.activeCount, "person", "people")}) keeps their roadmap.`
+                  : "Nobody is on it right now."}
+              </p>
+            )}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant={deleting ? "destructive" : "default"}
+                disabled={pending}
+                onClick={onConfirm}
+              >
+                {deleting ? "Delete template" : "Archive template"}
+              </Button>
+            </DialogFooter>
+          </>
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** An old version as it was published: read only. `version` is the history entry, such as "v2". */
+export function TemplateVersionDialog({
+  templateId,
+  version,
+  onOpenChange,
+}: {
+  templateId: string;
+  version: string | null;
+  onOpenChange: (open: boolean) => void;
+}) {
+  return (
+    <Dialog open={version !== null} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-2xl">
+        {version ? <VersionBody templateId={templateId} version={version} /> : null}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function VersionBody({ templateId, version }: { templateId: string; version: string }) {
+  const query = useQuery(templateVersionQuery(templateId, Number(version.slice(1))));
+  if (query.isPending)
+    return (
+      <>
+        <DialogHeader>
+          <DialogTitle>Version {version.slice(1)}</DialogTitle>
+        </DialogHeader>
+        <Skeleton className="h-64 rounded-lg" />
+      </>
+    );
+  if (query.isError)
+    return (
+      <>
+        <DialogHeader>
+          <DialogTitle>Version {version.slice(1)}</DialogTitle>
+          <DialogDescription>This version could not be opened.</DialogDescription>
+        </DialogHeader>
+        <p role="alert" className="text-sm text-error">
+          {query.error.message}
+        </p>
+      </>
+    );
+  const detail = query.data;
+  const minutes = detail.stages.reduce(
+    (sum, item) => sum + item.modules.reduce((acc, module) => acc + (module.minutes ?? 0), 0),
+    0,
+  );
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>
+          {detail.name} · Version {detail.version.slice(1)}
+        </DialogTitle>
+        <DialogDescription>
+          Published {formatShortDate(detail.publishedOn)}
+          {detail.note ? ` · ${detail.note}` : ""}. A read-only copy of how it was then.
+        </DialogDescription>
+      </DialogHeader>
+      <p className="text-sm text-on-surface-variant">
+        <DotList
+          parts={[
+            detail.roles.length ? detail.roles.join(", ") : "No roles set",
+            `${detail.weeks} weeks`,
+            minutesLabel(minutes),
+          ]}
+        />
+      </p>
+      <ol className="flex flex-col gap-3">
+        {detail.stages.map((item, index) => (
+          <li key={item.id} className="rounded-lg bg-pane p-3.5">
+            <p className="mb-2 flex flex-wrap items-baseline justify-between gap-2 text-sm font-medium">
+              <span>
+                {index + 1}. {item.name}
+              </span>
+              <span className="text-xs font-normal text-on-surface-variant">
+                {weeksLabel(item)} · {formatCount(item.modules.length, "module")}
+              </span>
+            </p>
+            {item.modules.length ? (
+              <ul className="flex flex-col gap-1.5">
+                {item.modules.map((module) => {
+                  const Kind = TEMPLATE_MODULE_KIND[module.kind].icon;
+                  return (
+                    <li key={module.id} className="flex items-center gap-2.5 text-sm">
+                      <Kind className="size-4 shrink-0 text-on-surface-variant" aria-hidden />
+                      <span className="min-w-0 flex-1">{module.title}</span>
+                      <span className="text-xs text-on-surface-variant">
+                        {minutesLabel(module.minutes)}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="text-sm text-on-surface-variant">No modules in this stage.</p>
+            )}
+          </li>
+        ))}
+      </ol>
+    </>
   );
 }

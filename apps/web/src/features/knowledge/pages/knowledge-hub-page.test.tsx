@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -59,9 +59,17 @@ const decision = {
   decisionStatus: "decided",
 };
 
-function mockApi() {
-  vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
-    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+const urlOf = (input: RequestInfo | URL) =>
+  typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+
+function mockApi({ role, empty }: { role?: string; empty?: boolean } = {}) {
+  return vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+    const url = urlOf(input);
+    if (url.endsWith("/v1/workspaces/current") && role)
+      return Promise.resolve(
+        jsonResponse({ id: "ws", name: "Tessellate", role, authentication: "development" }),
+      );
+    if (url.endsWith("/v1/projects") && empty) return Promise.resolve(jsonResponse({ items: [] }));
     if (url.endsWith("/v1/projects"))
       return Promise.resolve(
         jsonResponse({
@@ -207,6 +215,48 @@ describe("KnowledgeHubPage", () => {
     expect(await screen.findByRole("link", { name: /Tessellate Track/ })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Company" }));
     expect(await screen.findByText("No company pages yet.")).toBeInTheDocument();
+  });
+
+  it.each([
+    { role: "owner", canCreate: true },
+    { role: "admin", canCreate: true },
+    { role: "manager", canCreate: true },
+    { role: "hr", canCreate: false },
+    { role: "member", canCreate: false },
+    { role: "guest", canCreate: false },
+  ])("New project button for $role: shown = $canCreate", async ({ role, canCreate }) => {
+    const fetchSpy = mockApi({ role });
+    renderHub();
+    await screen.findByRole("link", { name: "Move billing to events" });
+    // The role has to have loaded before an absent button means anything.
+    await waitFor(() =>
+      expect(
+        fetchSpy.mock.calls.some(([input]) => urlOf(input).endsWith("/v1/workspaces/current")),
+      ).toBe(true),
+    );
+    if (canCreate) {
+      expect(await screen.findByRole("button", { name: "New project" })).toBeInTheDocument();
+    } else {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(screen.queryByRole("button", { name: "New project" })).not.toBeInTheDocument();
+    }
+  });
+
+  it("tells people who can't create projects who can, instead of offering a button", async () => {
+    mockApi({ role: "hr", empty: true });
+    renderHub();
+    expect(await screen.findByText(/An admin or manager can create a project/)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Create your first project" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers owners a button to create the first project", async () => {
+    mockApi({ role: "owner", empty: true });
+    renderHub();
+    expect(
+      await screen.findByRole("button", { name: "Create your first project" }),
+    ).toBeInTheDocument();
   });
 
   it("offers Context Bot when nothing matches", async () => {

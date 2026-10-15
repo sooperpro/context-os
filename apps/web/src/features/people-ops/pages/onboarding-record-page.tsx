@@ -58,10 +58,10 @@ import {
 } from "@/features/people-ops/api/people-ops.queries";
 import {
   AssignmentDialog,
+  MessageDialog,
   type AssignmentKind,
 } from "@/features/people-ops/components/onboarding-dialogs";
 import { ONBOARDING_PATH, probationPath } from "@/features/people-ops/people-ops-meta";
-import { comingSoon } from "@/lib/coming-soon";
 import { daysFromToday, formatShortDate } from "@/lib/format";
 
 /** An employee's onboarding record (prototype `#onboarding-<id>`): assignments, setup, milestones. */
@@ -113,6 +113,7 @@ function RecordView({ record }: { record: OnboardingRecord }) {
     `onboarding:${record.id}`,
   );
   const [changing, setChanging] = useState<AssignmentKind | null>(null);
+  const [messaging, setMessaging] = useState(false);
   const setup = useCompleteSetupStep(record.id);
   const days = daysFromToday(record.startDate);
   const starting = days > 0;
@@ -162,6 +163,9 @@ function RecordView({ record }: { record: OnboardingRecord }) {
     });
 
   const stepAction = (step: SetupStepId) => {
+    // Nobody ticks this: it completes when they sign in.
+    if (step === "account")
+      return <span className="text-xs text-on-surface-variant">Done when they sign in</span>;
     if (step === "roadmap")
       return (
         <Button size="xs" variant="secondary" onClick={() => setChanging("template")}>
@@ -230,7 +234,7 @@ function RecordView({ record }: { record: OnboardingRecord }) {
                 <EventAvailableIcon aria-hidden /> Probation review
               </Button>
             ) : null}
-            <Button variant="outline" onClick={() => comingSoon("Messages")}>
+            <Button variant="outline" onClick={() => setMessaging(true)}>
               <ChatIcon aria-hidden /> Message
             </Button>
           </>
@@ -366,6 +370,7 @@ function RecordView({ record }: { record: OnboardingRecord }) {
         kind={changing}
         onOpenChange={(open) => (open ? null : setChanging(null))}
       />
+      <MessageDialog record={record} open={messaging} onOpenChange={setMessaging} />
     </div>
   );
 }

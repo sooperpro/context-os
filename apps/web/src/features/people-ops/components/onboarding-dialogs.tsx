@@ -1,8 +1,9 @@
-import type { OnboardingRecord } from "@contextos/shared";
+import type { OnboardingRecipient, OnboardingRecord } from "@contextos/shared";
 import { useQuery } from "@tanstack/react-query";
 import { useId, useState } from "react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
+import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,9 +12,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { NotificationsIcon, SyncAltIcon } from "@/components/ui/icons";
+import { NotificationsIcon, SyncAltIcon, WarningIcon } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { OptionList, OptionTile } from "@/components/ui/option-tile";
 import {
   Select,
   SelectContent,
@@ -22,9 +24,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import {
   onboardingOptionsQuery,
   useCreateOnboarding,
+  useMessageOnboarding,
   useUpdateOnboarding,
 } from "@/features/people-ops/api/people-ops.queries";
 import { onboardingPath } from "@/features/people-ops/people-ops-meta";
@@ -86,6 +90,16 @@ function Note({ icon, children }: { icon: React.ReactNode; children: React.React
 /** The server's reason for a refused change ("already has an onboarding record"), else a fallback. */
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof ApiClientError && error.isClientError ? error.message : fallback;
+}
+
+/**
+ * Why the choices (teams, managers, templates) did not load. The server refuses anyone without the
+ * HR role, and "View as HR" only changes what the screens show, not what the server allows.
+ */
+function optionsErrorMessage(error: unknown): string {
+  if (error instanceof ApiClientError && error.status === 403)
+    return "Only people with the HR role can start an onboarding. “View as” changes what you see, not what the server allows.";
+  return errorMessage(error, "Check your connection and try again.");
 }
 
 /** Three weeks out, a sensible first start date. */
@@ -175,7 +189,24 @@ function NewOnboardingForm({ close }: { close: () => void }) {
       <DialogHeader>
         <DialogTitle>New onboarding</DialogTitle>
       </DialogHeader>
-      {!data ? (
+      {options.isError ? (
+        <Banner
+          tone="error"
+          icon={<WarningIcon aria-hidden />}
+          title="The form could not be loaded"
+          description={optionsErrorMessage(options.error)}
+          actions={
+            <Button
+              type="button"
+              size="xs"
+              variant="outline"
+              onClick={() => void options.refetch()}
+            >
+              Try again
+            </Button>
+          }
+        />
+      ) : !data ? (
         <Skeleton className="h-72 rounded-lg" />
       ) : (
         <>
@@ -390,6 +421,145 @@ function AssignmentForm({
         </Button>
         <Button type="submit" disabled={!chosen || update.isPending}>
           Save
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+}
+
+const MESSAGE_LIMIT = 1000;
+
+/** Write to the new hire, their manager or their buddy: they get it in their notifications. */
+export function MessageDialog({
+  record,
+  open,
+  onOpenChange,
+}: {
+  record: OnboardingRecord;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        {/* Mounted while open, so every message starts blank. */}
+        {open ? <MessageForm record={record} close={() => onOpenChange(false)} /> : null}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function MessageForm({ record, close }: { record: OnboardingRecord; close: () => void }) {
+  const send = useMessageOnboarding(record.id);
+  const fieldId = useId();
+  const [to, setTo] = useState<OnboardingRecipient[]>(["person"]);
+  const [message, setMessage] = useState("");
+  const first = firstName(record.person.name);
+  const recipients: Array<{
+    value: OnboardingRecipient;
+    title: string;
+    description: string;
+    available: boolean;
+  }> = [
+    {
+      value: "person",
+      title: record.person.name,
+      description: "The new hire. They see it once they have signed in.",
+      available: true,
+    },
+    {
+      value: "manager",
+      title: record.manager?.name ?? "Manager",
+      description: record.manager ? "Their manager" : "No manager is assigned yet",
+      available: Boolean(record.manager),
+    },
+    {
+      value: "buddy",
+      title: record.buddy?.name ?? "Onboarding buddy",
+      description: record.buddy ? "Their onboarding buddy" : "No buddy is assigned yet",
+      available: Boolean(record.buddy),
+    },
+  ];
+  const text = message.trim();
+  const toggle = (value: OnboardingRecipient) =>
+    setTo((current) =>
+      current.includes(value) ? current.filter((entry) => entry !== value) : [...current, value],
+    );
+
+  return (
+    <form
+      className="contents"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!text || !to.length) return;
+        send.mutate(
+          { to, message: text },
+          {
+            onSuccess: (result) => {
+              const skipped = result.skipped
+                .map((entry) => `${entry.name}: ${entry.reason.toLowerCase()}`)
+                .join("; ");
+              if (!result.delivered.length) {
+                toast.error("Nobody received the message", { description: skipped });
+                return;
+              }
+              toast.success(
+                `Message sent to ${result.delivered.map((entry) => entry.name).join(", ")}`,
+                skipped ? { description: `Not sent. ${skipped}.` } : undefined,
+              );
+              close();
+            },
+            onError: (error) =>
+              toast.error(errorMessage(error, "The message could not be sent. Please try again.")),
+          },
+        );
+      }}
+    >
+      <DialogHeader>
+        <DialogTitle>Message about {first}’s onboarding</DialogTitle>
+      </DialogHeader>
+      <fieldset className="flex flex-col gap-2">
+        <legend className="mb-2 text-sm font-medium">Send to</legend>
+        <OptionList>
+          {recipients.map((entry) => (
+            <OptionTile
+              key={entry.value}
+              title={entry.title}
+              description={entry.description}
+              input={
+                <input
+                  type="checkbox"
+                  checked={entry.available && to.includes(entry.value)}
+                  disabled={!entry.available}
+                  onChange={() => toggle(entry.value)}
+                />
+              }
+            />
+          ))}
+        </OptionList>
+      </fieldset>
+      <Field id={fieldId} label="Message">
+        <Textarea
+          id={fieldId}
+          value={message}
+          maxLength={MESSAGE_LIMIT}
+          onChange={(event) => setMessage(event.target.value)}
+          placeholder={`e.g. Welcome aboard, ${first}! Your laptop will be ready on day one.`}
+          required
+        />
+        <span className="self-end text-xs text-on-surface-variant">
+          {message.length} / {MESSAGE_LIMIT}
+        </span>
+      </Field>
+      <Note icon={<NotificationsIcon aria-hidden />}>
+        They get it as a notification from you. It isn’t saved on the onboarding record.
+      </Note>
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={close}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={!text || !to.length || send.isPending}>
+          Send message
         </Button>
       </DialogFooter>
     </form>

@@ -95,6 +95,32 @@ export const OnboardingAssignmentInputSchema = z
   .refine((input) => Object.keys(input).length > 0, { message: "Change something." });
 export type OnboardingAssignmentInput = z.infer<typeof OnboardingAssignmentInputSchema>;
 
+/** Who on an onboarding record People Ops can write to. */
+export const OnboardingRecipientSchema = z.enum(["person", "manager", "buddy"]);
+export type OnboardingRecipient = z.infer<typeof OnboardingRecipientSchema>;
+
+/**
+ * `POST /v1/people-ops/onboardings/:id/message`: a short note from People Ops to the new hire, their
+ * manager or their buddy, delivered as an in-app notification.
+ */
+export const OnboardingMessageInputSchema = z
+  .object({
+    to: z.array(OnboardingRecipientSchema).min(1, "Choose who to message.").max(3),
+    message: z
+      .string()
+      .trim()
+      .min(1, "Write a message.")
+      .max(1000, "Keep it under 1,000 characters."),
+  })
+  .strict();
+export type OnboardingMessageInput = z.infer<typeof OnboardingMessageInputSchema>;
+/** Who got it, and who didn't and why ("Hasn't signed in yet"). */
+export const OnboardingMessageResultSchema = z.object({
+  delivered: z.array(PersonRefSchema),
+  skipped: z.array(z.object({ name: z.string(), reason: z.string() })),
+});
+export type OnboardingMessageResult = z.infer<typeof OnboardingMessageResultSchema>;
+
 /** `POST /v1/people-ops/onboardings/:id/setup/:step`: mark a setup step done (sends the welcome message). */
 export const SetupStepInputSchema = z.object({}).strict();
 
@@ -252,6 +278,35 @@ export type ReminderInput = z.infer<typeof ReminderInputSchema>;
 export const ReminderResultSchema = z.object({ reminded: z.array(PersonRefSchema) });
 export type ReminderResult = z.infer<typeof ReminderResultSchema>;
 
+/* ---- A person's job details ---------------------------------------------------------------- */
+
+/** `GET /v1/people-ops/people/:id/details`: what People Ops may change about a person. */
+export const PersonDetailsSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  jobTitle: z.string().nullable(),
+  departmentId: z.string().nullable(),
+  teamId: z.string().nullable(),
+  manager: PersonRefSchema.nullable(),
+});
+export type PersonDetails = z.infer<typeof PersonDetailsSchema>;
+
+/**
+ * `PATCH /v1/people-ops/people/:id/details`: change a person's job title, department, team or
+ * manager. Omit a field to leave it; send `null` (or an empty title) to clear it. Choosing a team
+ * moves them to its department.
+ */
+export const PersonDetailsInputSchema = z
+  .object({
+    jobTitle: z.string().trim().max(200).optional(),
+    departmentId: z.uuid().nullable().optional(),
+    teamId: z.uuid().nullable().optional(),
+    managerId: z.string().min(1).max(200).nullable().optional(),
+  })
+  .strict()
+  .refine((input) => Object.keys(input).length > 0, { message: "Change something." });
+export type PersonDetailsInput = z.infer<typeof PersonDetailsInputSchema>;
+
 /* ---- Templates ----------------------------------------------------------------------------- */
 
 /** Module kinds in templates: the learner's module kinds plus a few role-specific ones. */
@@ -282,6 +337,10 @@ export const TemplateDetailSchema = z.object({
   /** The version active onboardings use; null for a template that was never published. */
   publishedVersion: z.string().nullable(),
   activeCount: Count,
+  /** Hidden from new onboardings. People already on it keep their roadmap. */
+  archived: z.boolean(),
+  /** False when onboardings used it (archive it instead) or it is the workspace's last template. */
+  deletable: z.boolean(),
   roles: z.array(z.string()),
   teams: z.array(z.string()),
   weeks: Count,
@@ -297,9 +356,32 @@ export const TemplateDetailSchema = z.object({
       modules: z.array(TemplateModuleSchema),
     }),
   ),
-  history: z.array(z.object({ version: z.string(), on: DateOnly, note: z.string() })),
+  history: z.array(
+    z.object({
+      version: z.string(),
+      on: DateOnly,
+      note: z.string(),
+      /** True when a copy of that version was kept, so it can be opened. Older versions have none. */
+      saved: z.boolean(),
+    }),
+  ),
 });
 export type TemplateDetail = z.infer<typeof TemplateDetailSchema>;
+
+/** `POST /v1/people-ops/templates/:id/archive` and `/restore`: no body. */
+export const TemplateArchiveInputSchema = z.object({}).strict();
+
+/** `GET /v1/people-ops/templates/:id/versions/:n`: one published version as it was when published. */
+export const TemplateVersionSchema = TemplateDetailSchema.pick({
+  id: true,
+  name: true,
+  roles: true,
+  teams: true,
+  weeks: true,
+  passMark: true,
+  stages: true,
+}).extend({ version: z.string(), publishedOn: DateOnly, note: z.string() });
+export type TemplateVersion = z.infer<typeof TemplateVersionSchema>;
 
 /** `POST /v1/people-ops/templates/:id/draft`: save the stages' modules, in order, as a draft. */
 export const TemplateDraftInputSchema = z

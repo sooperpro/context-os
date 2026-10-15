@@ -4,6 +4,8 @@ import {
   NewTemplateInputSchema,
   OnboardingAssignmentInputSchema,
   OnboardingFilterSchema,
+  OnboardingMessageInputSchema,
+  PersonDetailsInputSchema,
   ProbationDecisionInputSchema,
   ProbationDiscussInputSchema,
   ProbationRecommendationInputSchema,
@@ -19,7 +21,7 @@ import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Container } from "../../container.js";
-import { memberships } from "../../db/schema.js";
+import { departments, memberships, teams } from "../../db/schema.js";
 import { AppError, BadRequestError, NotFoundError } from "../../lib/errors.js";
 import { validationHook } from "../../middleware/validation.js";
 import type { Actor, AppEnv } from "../../types.js";
@@ -58,7 +60,11 @@ export function createPeopleOpsRoutes(container: Container) {
     activeMembers,
     personRef,
     requirePerson,
+    teamName,
     templateRows,
+    isArchived,
+    deleteBlocker,
+    templateVersion,
     templateData,
     catalog,
     templateDetail,
@@ -112,6 +118,19 @@ export function createPeopleOpsRoutes(container: Container) {
           )
           .get()?.managerId ?? null;
     }
+  };
+
+  /** A person People Ops can look at or change: an active member of the workspace. */
+  const detailsOf = (workspaceId: string, member: ReturnType<typeof identity.requireMember>) => {
+    const { jobTitle, departmentId, teamId } = member.organization;
+    return {
+      id: member.userId,
+      name: personRef(workspaceId, member.userId)?.name ?? member.userId,
+      jobTitle: typeof jobTitle === "string" ? jobTitle : null,
+      departmentId: typeof departmentId === "string" ? departmentId : null,
+      teamId: typeof teamId === "string" ? teamId : null,
+      manager: personRef(workspaceId, member.managerId),
+    };
   };
 
   return (
@@ -265,8 +284,21 @@ export function createPeopleOpsRoutes(container: Container) {
           .sort((a, b) => a.dueOn.localeCompare(b.dueOn));
         return c.json({ items });
       })
-      .get("/people-ops/templates", (c) =>
-        c.json({ items: templateRows(c.get("actor")).map(templateSummary) }),
+      .get(
+        "/people-ops/templates",
+        zValidator(
+          "query",
+          z.object({ archived: z.literal("include").optional() }),
+          validationHook,
+        ),
+        (c) => {
+          const { archived } = c.req.valid("query");
+          return c.json({
+            items: templateRows(c.get("actor"))
+              .filter((row) => archived === "include" || !isArchived(row))
+              .map(templateSummary),
+          });
+        },
       )
 
       /* ---- Onboarding --------------------------------------------------------------------- */
@@ -334,6 +366,149 @@ export function createPeopleOpsRoutes(container: Container) {
         if (!row) throw new NotFoundError("Onboarding record");
         return c.json(summary(row));
       })
+      .get("/people-ops/people/:userId/details", (c) => {
+        const actor = c.get("actor");
+        return c.json(
+          detailsOf(
+            actor.workspaceId,
+            identity.requireMember(actor.workspaceId, c.req.param("userId")),
+          ),
+        );
+      })
+      .patch(
+        "/people-ops/people/:userId/details",
+        zValidator("json", PersonDetailsInputSchema, validationHook),
+        (c) => {
+          const actor = c.get("actor");
+          const userId = c.req.param("userId");
+          const input = c.req.valid("json");
+          // Org-controlled fields are not the employee's to edit, and People Ops is an employee too
+          // (role access spec §6 rule 7): an admin changes their own.
+          if (userId === actor.id)
+            throw new AppError(403, "FORBIDDEN", "Ask an admin to change your own details");
+          const member = identity.requireMember(actor.workspaceId, userId);
+          const before = detailsOf(actor.workspaceId, member);
+
+          // Department and team stay consistent: a team belongs to one department.
+          let departmentId = before.departmentId;
+          let teamId = before.teamId;
+          if (input.departmentId !== undefined) {
+            departmentId = input.departmentId;
+            if (
+              departmentId &&
+              !db
+                .select({ id: departments.id })
+                .from(departments)
+                .where(
+                  and(
+                    eq(departments.workspaceId, actor.workspaceId),
+                    eq(departments.id, departmentId),
+                  ),
+                )
+                .get()
+            )
+              throw new BadRequestError("That department does not exist");
+          }
+          if (input.teamId !== undefined) teamId = input.teamId;
+          if (teamId) {
+            const team = db
+              .select({ departmentId: teams.departmentId })
+              .from(teams)
+              .where(and(eq(teams.workspaceId, actor.workspaceId), eq(teams.id, teamId)))
+              .get();
+            if (!team) throw new BadRequestError("That team does not exist");
+            if (input.teamId !== undefined && input.departmentId === undefined)
+              departmentId = team.departmentId;
+            else if (team.departmentId !== departmentId) {
+              if (input.teamId !== undefined)
+                throw new BadRequestError("That team is not in the chosen department");
+              teamId = null; // the department moved on from the team they were in
+            }
+          }
+          if (!departmentId) teamId = null;
+
+          let managerId = member.managerId;
+          if (input.managerId !== undefined) {
+            if (input.managerId) {
+              requirePerson(actor.workspaceId, input.managerId, "The manager");
+              checkManager(actor, input.managerId, userId);
+            }
+            managerId = input.managerId;
+          }
+
+          const organization: Record<string, unknown> = { ...member.organization };
+          if (input.jobTitle !== undefined) {
+            if (input.jobTitle) organization.jobTitle = input.jobTitle;
+            else delete organization.jobTitle;
+          }
+          if (departmentId) organization.departmentId = departmentId;
+          else delete organization.departmentId;
+          if (teamId) organization.teamId = teamId;
+          else delete organization.teamId;
+
+          db.transaction(() => {
+            db.update(memberships)
+              .set({ organization, managerId })
+              .where(
+                and(eq(memberships.workspaceId, actor.workspaceId), eq(memberships.userId, userId)),
+              )
+              .run();
+            // Their onboarding record keeps its own copy of title, team and manager: keep it in step.
+            const record = store
+              .listWhere(actor.workspaceId, ONBOARDING, { status: "active" }, 1000)
+              .find((row) => recordData(row).personId === userId);
+            if (record)
+              store.patch(record, {
+                data: {
+                  ...recordData(record),
+                  ...(input.jobTitle ? { title: input.jobTitle } : {}),
+                  team: teamName(actor.workspaceId, organization),
+                  managerId,
+                },
+              });
+            audit.record({
+              actor,
+              action: "user.organization.update",
+              targetType: "user",
+              targetId: userId,
+              metadata: {
+                before: {
+                  jobTitle: before.jobTitle,
+                  departmentId: before.departmentId,
+                  teamId: before.teamId,
+                  managerId: before.manager?.id ?? null,
+                },
+                after: {
+                  jobTitle:
+                    typeof organization.jobTitle === "string" ? organization.jobTitle : null,
+                  departmentId,
+                  teamId,
+                  managerId,
+                },
+              },
+            });
+          });
+          if (managerId && managerId !== before.manager?.id) {
+            notifyPerson(
+              actor.workspaceId,
+              managerId,
+              `${before.name} is now on your team`,
+              `/team/${userId}`,
+              "people_ops.manager_changed",
+            );
+            notifyPerson(
+              actor.workspaceId,
+              userId,
+              `Your manager is now ${personRef(actor.workspaceId, managerId)?.name ?? "someone new"}`,
+              "/",
+              "people_ops.manager_changed",
+            );
+          }
+          return c.json(
+            detailsOf(actor.workspaceId, identity.requireMember(actor.workspaceId, userId)),
+          );
+        },
+      )
       .get("/people-ops/onboardings/:id", (c) =>
         c.json(recordDetail(recordById(c.get("actor"), c.req.param("id")))),
       )
@@ -520,6 +695,10 @@ export function createPeopleOpsRoutes(container: Container) {
           const row = recordById(actor, id);
           const data = recordData(row);
           if (data.setup[step]) return c.json(recordDetail(row));
+          // Whether their account exists is a fact, not something People Ops can tick: it completes
+          // itself when they sign in (or when directory sync creates it).
+          if (step === "account")
+            throw new AppError(409, "CONFLICT", "This step completes by itself when they sign in");
           if (step === "roadmap" && !data.templateId)
             throw new AppError(409, "CONFLICT", "Assign a template first");
           if (step === "buddy" && !data.buddyId)
@@ -546,6 +725,62 @@ export function createPeopleOpsRoutes(container: Container) {
             metadata: { step },
           });
           return c.json(recordDetail(updated));
+        },
+      )
+
+      .post(
+        "/people-ops/onboardings/:id/message",
+        zValidator("json", OnboardingMessageInputSchema, validationHook),
+        (c) => {
+          const actor = c.get("actor");
+          const row = recordById(actor, c.req.param("id"));
+          const data = recordData(row);
+          const { message, to } = c.req.valid("json");
+          const delivered = new Map<string, PersonRef>();
+          const skipped: Array<{ name: string; reason: string }> = [];
+          for (const recipient of new Set(to)) {
+            const userId =
+              recipient === "person"
+                ? data.personId
+                : recipient === "manager"
+                  ? data.managerId
+                  : data.buddyId;
+            const known = personRef(actor.workspaceId, userId);
+            // The new hire has no account until they sign in; manager and buddy may be unassigned.
+            if (!userId || !known) {
+              skipped.push({
+                name: recipient === "person" ? data.name : `The ${recipient}`,
+                reason:
+                  recipient === "person" ? "Hasn't signed in yet" : `No ${recipient} is assigned`,
+              });
+              continue;
+            }
+            if (userId === actor.id) {
+              skipped.push({ name: known.name, reason: "That's you" });
+              continue;
+            }
+            if (delivered.has(userId)) continue;
+            const sent = notifier.notify(actor.workspaceId, userId, {
+              type: "onboarding.message",
+              category: "onboarding",
+              title:
+                recipient === "person"
+                  ? `${actor.name} sent you a message`
+                  : `${actor.name} sent you a message about ${data.name}`,
+              body: message,
+              link:
+                recipient === "person"
+                  ? "/"
+                  : recipient === "manager"
+                    ? data.personId
+                      ? `/team/${data.personId}`
+                      : "/team"
+                    : "/people",
+            });
+            if (sent) delivered.set(userId, known);
+            else skipped.push({ name: known.name, reason: "Has turned off these notifications" });
+          }
+          return c.json({ delivered: [...delivered.values()], skipped });
         },
       )
 
@@ -733,6 +968,72 @@ export function createPeopleOpsRoutes(container: Container) {
         templateRows(actor);
         return c.json(templateDetail(store.get(actor, TEMPLATE, c.req.param("id"))));
       })
+      .get(
+        "/people-ops/templates/:id/versions/:version",
+        zValidator(
+          "param",
+          z.object({ id: z.string(), version: z.coerce.number().int().min(1) }),
+          validationHook,
+        ),
+        (c) => {
+          const actor = c.get("actor");
+          const { id, version } = c.req.valid("param");
+          templateRows(actor);
+          const detail = templateVersion(store.get(actor, TEMPLATE, id), version);
+          if (!detail) throw new NotFoundError("A saved copy of that version");
+          return c.json(detail);
+        },
+      )
+      .post("/people-ops/templates/:id/archive", (c) => {
+        const actor = c.get("actor");
+        templateRows(actor);
+        const row = store.get(actor, TEMPLATE, c.req.param("id"));
+        if (isArchived(row)) return c.json(templateDetail(row));
+        const updated = store.patch(row, {
+          data: { ...templateData(row), archivedAt: new Date().toISOString() },
+        });
+        audit.record({
+          actor,
+          action: "onboarding.template.archive",
+          targetType: "onboarding_template",
+          targetId: row.id,
+          metadata: { name: templateData(row).name },
+        });
+        return c.json(templateDetail(updated));
+      })
+      .post("/people-ops/templates/:id/restore", (c) => {
+        const actor = c.get("actor");
+        templateRows(actor);
+        const row = store.get(actor, TEMPLATE, c.req.param("id"));
+        if (!isArchived(row)) return c.json(templateDetail(row));
+        const updated = store.patch(row, {
+          data: { ...templateData(row), archivedAt: null },
+        });
+        audit.record({
+          actor,
+          action: "onboarding.template.restore",
+          targetType: "onboarding_template",
+          targetId: row.id,
+          metadata: { name: templateData(row).name },
+        });
+        return c.json(templateDetail(updated));
+      })
+      .delete("/people-ops/templates/:id", (c) => {
+        const actor = c.get("actor");
+        templateRows(actor);
+        const row = store.get(actor, TEMPLATE, c.req.param("id"));
+        const blocker = deleteBlocker(row);
+        if (blocker) throw new AppError(409, "CONFLICT", blocker);
+        store.remove(row);
+        audit.record({
+          actor,
+          action: "onboarding.template.delete",
+          targetType: "onboarding_template",
+          targetId: row.id,
+          metadata: { name: templateData(row).name },
+        });
+        return c.body(null, 204);
+      })
       .get("/people-ops/template-library", (c) => {
         const actor = c.get("actor");
         return c.json({ items: [...catalog(actor.workspaceId).values()] });
@@ -754,6 +1055,8 @@ export function createPeopleOpsRoutes(container: Container) {
               version: 1,
               status: "draft",
               publishedVersion: null,
+              // A copy starts live, even when its base was archived.
+              archivedAt: null,
               stages: base.stages.map((stage) => ({ ...stage, moduleIds: [...stage.moduleIds] })),
               history: [{ version: 1, on: today(), note: `Draft based on ${base.name}` }],
               updatedBy: actor.name,
@@ -777,16 +1080,32 @@ export function createPeopleOpsRoutes(container: Container) {
           const actor = c.get("actor");
           const row = store.get(actor, TEMPLATE, c.req.param("id"));
           const data = templateData(row);
+          if (isArchived(row))
+            throw new AppError(409, "CONFLICT", "Restore the template before editing it");
           // Editing a published template starts the next version as a draft.
           const next = applyStages(actor.workspaceId, data, c.req.valid("json"));
-          const updated = store.patch(row, {
-            status: "draft",
-            data: {
-              ...next,
-              version: data.status === "published" ? data.version + 1 : data.version,
+          const version = data.status === "published" ? data.version + 1 : data.version;
+          const updated = db.transaction(() => {
+            const result = store.patch(row, {
               status: "draft",
-              updatedBy: actor.name,
-            } satisfies TemplateData,
+              data: {
+                ...next,
+                version,
+                status: "draft",
+                updatedBy: actor.name,
+              } satisfies TemplateData,
+            });
+            audit.record({
+              actor,
+              action: "onboarding.template.draft",
+              targetType: "onboarding_template",
+              targetId: row.id,
+              metadata: {
+                version: `v${version}`,
+                modules: next.stages.reduce((sum, stage) => sum + stage.moduleIds.length, 0),
+              },
+            });
+            return result;
           });
           return c.json(templateDetail(updated));
         },
@@ -799,6 +1118,8 @@ export function createPeopleOpsRoutes(container: Container) {
           const row = store.get(actor, TEMPLATE, c.req.param("id"));
           const input = c.req.valid("json");
           const data = templateData(row);
+          if (isArchived(row))
+            throw new AppError(409, "CONFLICT", "Restore the template before publishing it");
           const next = applyStages(actor.workspaceId, data, input);
           if (!next.stages.some((stage) => stage.moduleIds.length))
             throw new BadRequestError("Add at least one module before publishing");
@@ -812,7 +1133,23 @@ export function createPeopleOpsRoutes(container: Container) {
                 status: "published",
                 publishedVersion: version,
                 history: [
-                  { version, on: today(), note: input.note.trim() || "Updated modules" },
+                  {
+                    version,
+                    on: today(),
+                    note: input.note.trim() || "Updated modules",
+                    // A copy of what was published, so the version can be opened later.
+                    snapshot: {
+                      name: next.name,
+                      roles: next.roles,
+                      teams: next.teams,
+                      weeks: next.weeks,
+                      passMark: next.passMark,
+                      stages: next.stages.map((stage) => ({
+                        ...stage,
+                        moduleIds: [...stage.moduleIds],
+                      })),
+                    },
+                  },
                   ...data.history.filter((entry) => entry.version !== version),
                 ],
                 updatedBy: actor.name,
