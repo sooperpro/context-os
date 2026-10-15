@@ -1,6 +1,7 @@
 services:
   api:
     environment:
+      AUTH_MODE: accounts
       CORS_ORIGINS: https://dev.contextos.sooper.pro
       # Sign-in links and Google/Microsoft/SSO callbacks are built from this public address.
       AUTH_URL: https://dev.contextos.sooper.pro
