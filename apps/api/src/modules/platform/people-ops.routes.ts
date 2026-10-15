@@ -537,6 +537,10 @@ export function createPeopleOpsRoutes(container: Container) {
           const row = recordById(actor, id);
           const data = recordData(row);
           if (data.setup[step]) return c.json(recordDetail(row));
+          // Whether their account exists is a fact, not something People Ops can tick: it completes
+          // itself when they sign in (or when directory sync creates it).
+          if (step === "account")
+            throw new AppError(409, "CONFLICT", "This step completes by itself when they sign in");
           if (step === "roadmap" && !data.templateId)
             throw new AppError(409, "CONFLICT", "Assign a template first");
           if (step === "buddy" && !data.buddyId)

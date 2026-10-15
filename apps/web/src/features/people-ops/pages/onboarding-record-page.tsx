@@ -163,6 +163,9 @@ function RecordView({ record }: { record: OnboardingRecord }) {
     });
 
   const stepAction = (step: SetupStepId) => {
+    // Nobody ticks this: it completes when they sign in.
+    if (step === "account")
+      return <span className="text-xs text-on-surface-variant">Done when they sign in</span>;
     if (step === "roadmap")
       return (
         <Button size="xs" variant="secondary" onClick={() => setChanging("template")}>

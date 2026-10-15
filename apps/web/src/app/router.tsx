@@ -2,6 +2,7 @@ import { createBrowserRouter } from "react-router";
 import { RootLayout } from "@/app/root-layout";
 import { RedirectHome } from "@/components/redirect-home";
 import { RouteErrorBoundary } from "@/components/route-error-boundary";
+import { AdminOnly } from "@/features/admin/components/admin-only";
 import { HrOnly } from "@/features/people-ops/components/hr-only";
 import { CuratorOnly } from "@/features/tutorials/components/curator-only";
 import { HIDDEN } from "@/lib/hidden";
@@ -118,28 +119,52 @@ const appChildren = [
     path: "connectors",
     lazy: async () => {
       const { ConnectorsPage } = await import("@/features/admin/pages/connectors-page");
-      return { Component: ConnectorsPage };
+      return {
+        Component: () => (
+          <AdminOnly>
+            <ConnectorsPage />
+          </AdminOnly>
+        ),
+      };
     },
   },
   {
     path: "access",
     lazy: async () => {
       const { AccessPage } = await import("@/features/admin/pages/access-page");
-      return { Component: AccessPage };
+      return {
+        Component: () => (
+          <AdminOnly>
+            <AccessPage />
+          </AdminOnly>
+        ),
+      };
     },
   },
   {
     path: "ai",
     lazy: async () => {
       const { AiSettingsPage } = await import("@/features/admin/pages/ai-settings-page");
-      return { Component: AiSettingsPage };
+      return {
+        Component: () => (
+          <AdminOnly>
+            <AiSettingsPage />
+          </AdminOnly>
+        ),
+      };
     },
   },
   {
     path: "audit",
     lazy: async () => {
       const { AuditPage } = await import("@/features/admin/pages/audit-page");
-      return { Component: AuditPage };
+      return {
+        Component: () => (
+          <AdminOnly alsoFor={["people_ops"]}>
+            <AuditPage />
+          </AdminOnly>
+        ),
+      };
     },
   },
   {
@@ -276,7 +301,13 @@ const appChildren = [
     path: "members",
     lazy: async () => {
       const { MembersPage } = await import("@/features/members/pages/members-page");
-      return { Component: MembersPage };
+      return {
+        Component: () => (
+          <AdminOnly>
+            <MembersPage />
+          </AdminOnly>
+        ),
+      };
     },
   },
   {
@@ -290,7 +321,13 @@ const appChildren = [
     path: "setup",
     lazy: async () => {
       const { SetupPage } = await import("@/features/setup/pages/setup-page");
-      return { Component: SetupPage };
+      return {
+        Component: () => (
+          <AdminOnly>
+            <SetupPage />
+          </AdminOnly>
+        ),
+      };
     },
   },
   {

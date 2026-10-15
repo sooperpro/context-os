@@ -449,7 +449,7 @@ const seedTemplates = (): MockTemplate[] => [
 /* ---- Onboarding records ---------------------------------------------------------------------- */
 
 const SETUP: Array<{ id: SetupStepId; label: string }> = [
-  { id: "account", label: "Google Workspace account" },
+  { id: "account", label: "Account active (they have signed in)" },
   { id: "laptop", label: "Laptop delivered" },
   { id: "roadmap", label: "Learning roadmap assigned" },
   { id: "buddy", label: "Onboarding buddy assigned" },

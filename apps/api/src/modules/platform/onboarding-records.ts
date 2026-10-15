@@ -47,7 +47,7 @@ export const DAY = 86_400_000;
 const INVITATION_DAYS = 14;
 
 export const SETUP: Array<{ id: SetupStepId; label: string }> = [
-  { id: "account", label: "Google Workspace account (SCIM)" },
+  { id: "account", label: "Account active (they have signed in)" },
   { id: "laptop", label: "Laptop delivered" },
   { id: "roadmap", label: "Onboarding roadmap assigned" },
   { id: "buddy", label: "Onboarding buddy assigned" },

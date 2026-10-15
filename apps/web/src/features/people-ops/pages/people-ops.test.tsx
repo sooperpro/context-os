@@ -205,6 +205,11 @@ describe("Onboarding records", () => {
       await screen.findByRole("heading", { level: 1, name: "Noor Hassan" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Assignments" })).toHaveTextContent("Daniel Reyes");
+
+    // The account step is nobody's to tick: it finishes when they sign in. The others can be.
+    const setup = screen.getByRole("region", { name: "Setup" });
+    expect(within(setup).getByText("Done when they sign in")).toBeInTheDocument();
+    expect(within(setup).getAllByRole("button", { name: "Mark done" })).toHaveLength(2);
   });
 });
 

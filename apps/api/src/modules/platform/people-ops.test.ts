@@ -283,6 +283,13 @@ describe("People Ops", () => {
       ),
     );
     expect(assigned).toMatchObject({ buddy: { id: "buddy" }, setup: { done: 2 } });
+    // Whether an account exists is not something to tick: it completes itself on sign-in.
+    const byHand = await t.app.request(
+      `/api/v1/people-ops/onboardings/${record.id}/setup/account`,
+      jsonRequest({}),
+    );
+    expect(byHand.status).toBe(409);
+    expect(JSON.stringify(await byHand.json())).toContain("completes by itself when they sign in");
     for (const step of ["laptop", "welcome", "calendar"])
       expect(
         (
