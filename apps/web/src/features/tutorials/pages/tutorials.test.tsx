@@ -32,6 +32,7 @@ const tutorial = (overrides: Partial<TutorialDetail> = {}): TutorialDetail => ({
   learners: 0,
   updatedAt: "2026-10-15T09:00:00.000Z",
   createdBy: { id: "u1", name: "Maya Okafor", title: null },
+  review: null,
   restrictedForYou: false,
   focus: "billing",
   coversModule: null,
@@ -83,11 +84,16 @@ const tutorial = (overrides: Partial<TutorialDetail> = {}): TutorialDetail => ({
   publishedAt: null,
   publishedBy: null,
   error: null,
+  update: null,
   moduleOptions: [{ id: "mod-architecture", title: "Architecture overview" }],
   ...overrides,
 });
 
-function renderAt(route: string, detail: TutorialDetail) {
+function renderAt(
+  route: string,
+  detail: TutorialDetail,
+  { role = "owner" }: { role?: "owner" | "member" } = {},
+) {
   const calls: Array<{ method: string; path: string; body: unknown }> = [];
   let current = detail;
   const record = async (request: Request, path: string) => {
@@ -98,7 +104,7 @@ function renderAt(route: string, detail: TutorialDetail) {
       HttpResponse.json({
         id: "w1",
         name: "Tessellate",
-        role: "owner",
+        role,
         authentication: "development",
       }),
     ),
@@ -131,6 +137,19 @@ function renderAt(route: string, detail: TutorialDetail) {
       await record(request, "update");
       const body = (calls.at(-1)!.body ?? {}) as { content?: TutorialDetail["content"] };
       current = { ...current, ...(body.content ? { content: body.content } : {}) };
+      return HttpResponse.json(current);
+    }),
+    http.post(api("/v1/tutorials/:id/submit"), async ({ request }) => {
+      await record(request, "submit");
+      current = {
+        ...current,
+        review: {
+          state: "in_review",
+          note: null,
+          by: { id: "u1", name: "Maya Okafor", title: null },
+          at: new Date().toISOString(),
+        },
+      };
       return HttpResponse.json(current);
     }),
     http.post(api("/v1/tutorials/:id/publish"), async ({ request }) => {
@@ -257,6 +276,19 @@ describe("Tutorials", () => {
     );
     expect(await screen.findByText("1 source changed since this was written")).toBeInTheDocument();
     expect(screen.getByText("Some lessons use restricted sources")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Publish update" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Publish update" })).toBeInTheDocument();
+  });
+
+  it("has a path curator submit the draft to People Ops instead of publishing it", async () => {
+    const user = userEvent.setup();
+    const calls = renderAt("/tutorials/t1", tutorial(), { role: "member" });
+    await screen.findByRole("heading", { level: 1, name: "How billing moves to Kafka" });
+    const submit = await screen.findByRole("button", { name: "Submit for review" });
+    expect(screen.queryByRole("button", { name: /^Publish/ })).not.toBeInTheDocument();
+    await user.click(submit);
+    expect(await screen.findByText("Waiting for People Ops")).toBeInTheDocument();
+    expect(screen.getByText("In review")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Submitted" })).toBeDisabled();
+    expect(calls.map((call) => call.path)).toContain("submit");
   });
 });

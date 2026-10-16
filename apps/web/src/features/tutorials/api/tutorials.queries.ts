@@ -1,4 +1,5 @@
 import type {
+  ReviewSendBackInput,
   TutorialAssignInput,
   TutorialCreateInput,
   TutorialPublishInput,
@@ -13,6 +14,8 @@ import {
   fetchTutorials,
   publishTutorial,
   regenerateTutorial,
+  sendBackTutorial,
+  submitTutorial,
   updateTutorial,
 } from "./tutorials.api";
 
@@ -76,6 +79,19 @@ export function usePublishTutorial(id: string) {
   const refresh = useRefresh();
   return useMutation({
     mutationFn: (input: TutorialPublishInput) => publishTutorial(id, input),
+    onSuccess: () => refresh(),
+  });
+}
+
+export function useSubmitTutorial(id: string) {
+  const refresh = useRefresh();
+  return useMutation({ mutationFn: () => submitTutorial(id), onSuccess: () => refresh() });
+}
+
+export function useSendBackTutorial(id: string) {
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: (input: ReviewSendBackInput) => sendBackTutorial(id, input),
     onSuccess: () => refresh(),
   });
 }

@@ -16,6 +16,7 @@ Living log of material decisions. Keep entries short; link to the implementation
 - 2026-10-14: a reserved `system` user owns auto-created records (conflict/ownership bounties, tombstones). Kudos Credits are issued at a configurable ratio (default 1 KC per 10 RP) only when the rewards catalog is enabled; the ledger gained `currency`, `status` and `actorId` columns while remaining append-only, except for the sanctioned full workspace purge.
 - 2026-10-14: EPM and rewards are feature-gated per workspace (`settings.epm.enabled`, `settings.rewards.enabled`) per decisions D3 and D7; endpoints answer 403/409 until enabled.
 - 2026-10-14: webhook receivers are public but signature-verified and attribute events to workspaces only through confirmed identity links; Slack/Jira/GitHub ingestion connectors remain unimplemented.
+- 2026-10-17, owner (N-18): **onboarding templates and modules are generated from the company's own knowledge, and Owner, Admin and HR publish them.** This overrides the role access spec (§4.7, line 70), where Admin had no template powers. Owner, Admin and HR publish directly: their publish is the review. Managers (for their own team) and path curators generate and edit drafts, then submit them; a reviewer publishes the draft or sends it back with a note, and the submitter is notified either way. Path curators no longer publish their own project tutorials (same rule). No generic starter templates; AI drafts never reach learners unpublished (PRD D2, DEC-006).
 
 ## Historical prototype decisions (superseded where noted above)
 

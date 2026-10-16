@@ -1,7 +1,12 @@
 import { z } from "zod";
 import { IsoDateTimeSchema } from "./common.js";
 import { LearningTargetSchema, LessonTypeSchema } from "./learning.js";
-import { KnowledgeOriginSchema, OnboardingStatusSchema, PersonRefSchema } from "./refs.js";
+import {
+  KnowledgeOriginSchema,
+  OnboardingStatusSchema,
+  PersonRefSchema,
+  ReviewStateSchema,
+} from "./refs.js";
 
 /*
  * Contracts for the Home dashboards (one per role in the reference prototype).
@@ -353,6 +358,8 @@ export const OnboardingTemplateSchema = z.object({
   stageCount: Count,
   moduleCount: Count,
   updatedBy: z.string(),
+  /** A manager's or curator's draft waiting for People Ops, or sent back to them. */
+  review: ReviewStateSchema.nullable(),
 });
 export type OnboardingTemplate = z.infer<typeof OnboardingTemplateSchema>;
 

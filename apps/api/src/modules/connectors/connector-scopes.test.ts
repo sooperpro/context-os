@@ -7,6 +7,7 @@ import {
   identityLinks,
   jobs,
   memberships,
+  projects,
   sourceObjects,
   users,
 } from "../../db/schema.js";
@@ -272,10 +273,6 @@ describe("Google Drive scopes, sync jobs and disconnect modes (mocked provider)"
         ...(projectId ? { projectId } : {}),
       });
     expect(
-      (await t.app.request("/api/v1/admin/connectors/google-drive/connect", body(["folder-1"])))
-        .status,
-    ).toBe(400);
-    expect(
       (
         await t.app.request(
           "/api/v1/admin/connectors/google-drive/connect",
@@ -386,6 +383,26 @@ describe("Google Drive scopes, sync jobs and disconnect modes (mocked provider)"
         )
       ).items,
     ).toEqual([]);
+  });
+
+  it("feeds folders chosen without a project into Company knowledge, made once (N-18)", async () => {
+    await connect();
+    const connectTo = (scopeIds: string[]) =>
+      t.app.request(
+        "/api/v1/admin/connectors/google-drive/connect",
+        jsonRequest({ scopeIds, frequency: "2d", skipOlderThan: "1y", visibility: "workspace" }),
+      );
+    expect((await connectTo(["folder-1"])).status).toBe(200);
+    expect((await connectTo(["drive-1"])).status).toBe(200);
+    const company = t.container.db
+      .select()
+      .from(projects)
+      .all()
+      .filter((row) => row.slug === "company-knowledge");
+    expect(company).toHaveLength(1);
+    expect(company[0]).toMatchObject({ name: "Company knowledge", category: "company" });
+    const scopes = t.container.db.select().from(connectorScopes).all();
+    expect(scopes.map((scope) => scope.projectId)).toEqual([company[0]!.id, company[0]!.id]);
   });
 
   it("keeps derived content on keep_derived disconnect and purges it by default", async () => {

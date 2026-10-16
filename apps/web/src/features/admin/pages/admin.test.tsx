@@ -139,7 +139,7 @@ function liveConnectors() {
 }
 
 describe("Connectors", () => {
-  it("connects Google Drive into a project through the wizard", async () => {
+  it("connects Google Drive through the wizard, into Company knowledge unless a project is chosen", async () => {
     const api = liveConnectors();
     const user = userEvent.setup();
     renderAt("/connectors");
@@ -170,6 +170,10 @@ describe("Connectors", () => {
     expect(
       await within(wizard).findByText("1 folders · syncs every 2 days · shared with everyone"),
     ).toBeInTheDocument();
+    // No project needed: company-wide documents go to Company knowledge (N-18).
+    expect(within(wizard).getByRole("combobox", { name: "Add to project" })).toHaveTextContent(
+      "Company knowledge (no project)",
+    );
     await user.click(within(wizard).getByRole("button", { name: "Connect and start sync" }));
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
@@ -178,7 +182,6 @@ describe("Connectors", () => {
         scopeIds: ["folder-1"],
         frequency: "2d",
         skipOlderThan: "3y",
-        projectId: "11111111-1111-4111-8111-111111111111",
         visibility: "workspace",
       },
     ]);

@@ -11,6 +11,8 @@ export const JobTypeSchema = z.enum([
   "refresh_access",
   /** Draft a tutorial's lessons and knowledge check from a project's knowledge. */
   "generate_tutorial",
+  /** Plan an onboarding template for a job title from the Knowledge Hub. */
+  "generate_template",
 ]);
 export type JobType = z.infer<typeof JobTypeSchema>;
 

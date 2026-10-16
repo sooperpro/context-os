@@ -64,6 +64,12 @@ export function createWorkspaceRoutes(container: Container) {
   const updateSettings = (actor: Actor, input: SettingsInput) => {
     admin(actor);
     const { version, name, ...patch } = input;
+    if (
+      actor.role !== "owner" &&
+      (patch.policies?.aiDailyTemplates !== undefined ||
+        patch.policies?.aiDailyModules !== undefined)
+    )
+      throw new AppError(403, "FORBIDDEN", "Only the workspace owner can change the AI limits");
     return db.transaction(() => {
       const row = db.select().from(workspaces).where(eq(workspaces.id, actor.workspaceId)).get();
       if (!row) throw new NotFoundError("Workspace");

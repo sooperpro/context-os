@@ -1,20 +1,23 @@
 import { randomUUID } from "node:crypto";
 import {
+  type ContextItem,
+  type ModuleKind,
   TutorialAssignInputSchema,
   TutorialContentSchema,
   TutorialCreateInputSchema,
   TutorialPublishInputSchema,
   TutorialRegenerateInputSchema,
   TutorialUpdateInputSchema,
+  ReviewSendBackInputSchema,
   type TutorialContent,
   type TutorialDetail,
   type TutorialSummary,
 } from "@contextos/shared";
 import { zValidator } from "@hono/zod-validator";
-import { and, eq, gt, inArray, isNull, or } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import type { Container } from "../../container.js";
-import { assignments, projects, sourceObjects, users, type JobRow } from "../../db/schema.js";
+import { projects, sourceObjects, users, type JobRow } from "../../db/schema.js";
 import {
   AppError,
   BadRequestError,
@@ -23,7 +26,7 @@ import {
 } from "../../lib/errors.js";
 import { validationHook } from "../../middleware/validation.js";
 import type { Actor, AppEnv } from "../../types.js";
-import { retrievePassages } from "../ask/retrieval.js";
+import { retrievePassages, type RetrievedPassage } from "../ask/retrieval.js";
 import { JOB_PRIORITY } from "../jobs/jobs.queue.js";
 import { createNotifier } from "../platform/notify.js";
 import { createOnboardingRecords } from "../platform/onboarding-records.js";
@@ -33,6 +36,7 @@ import {
   stageAt,
   type RoadmapModule,
 } from "../platform/onboarding-roadmap.js";
+import { isReviewer, REVIEWERS, reviewView, type ReviewData } from "../platform/review.js";
 import type { PlatformRecord } from "../platform/store.js";
 import {
   createLearningContent,
@@ -42,21 +46,32 @@ import {
   TUTORIAL_VERSION,
   type ProgressData,
 } from "./content.js";
-import { generateDraft } from "./tutorial-ai.js";
+import { AUTOMATIC_UPDATE, createGenerationRuns } from "./generation-runs.js";
+import {
+  generateDraft,
+  knowledgeFor,
+  ThinKnowledgeError,
+  TUTORIAL_PROMPT_VERSION,
+  TUTORIAL_UPDATE_PROMPT_VERSION,
+} from "./tutorial-ai.js";
 import { manages } from "../platform/reports.js";
 
 /*
  * Tutorial Studio (FR-LRN-001/004/005/008/012). A curator asks for a tutorial on a project; a
  * background job drafts it from the project's stored knowledge. The curator reviews and edits the
- * draft, then publishes a version. Learners only see published versions, and a Drive sync never
- * changes a tutorial: when its sources change it reports them and the curator decides whether to
- * regenerate.
+ * draft. Owner, Admin and HR publish a version; path curators and managers (for drafts a roadmap
+ * generator made for them) submit it for review instead (N-18). Learners only see published
+ * versions, and a Drive sync never changes a tutorial: when its sources change it reports them and
+ * the curator decides whether to regenerate.
  */
 
 interface TutorialData {
   audience: string;
   focus: string | null;
   coversModule: string | null;
+  /** What a roadmap generator planned this module to be, before the draft has a title. */
+  plannedTitle?: string | null;
+  plannedKind?: ModuleKind | null;
   content: TutorialContent | null;
   /** Sources the draft was built from, with their content hash then (for "Needs update"). */
   sources: Array<{ id: string; title: string; hash: string }>;
@@ -68,9 +83,23 @@ interface TutorialData {
   publishedVersionId: string | null;
   publishedAt: string | null;
   publishedBy: string | null;
+  /** A curator's or manager's draft waiting for People Ops, or sent back. */
+  review?: ReviewData | null;
+  /** Drafted on its own after the Hub changed: what changed, until the update is published. */
+  update?: { at: string; changes: string[] } | null;
+  /** When the last automatic update was queued: at most one a day. */
+  autoUpdatedAt?: string | null;
+  /** Hub items in its scope when it was last drafted, to notice when many new ones arrive. */
+  knowledgeCount?: number;
 }
 
+const DAY_MS = 86_400_000;
+/** New Hub items in a published tutorial's scope that are worth an update draft. */
+const NEW_ITEMS_FOR_UPDATE = 5;
+
 const dataOf = (row: PlatformRecord) => row.data as unknown as TutorialData;
+const NO_KNOWLEDGE =
+  "There's no company knowledge to draft from yet. Connect Google Drive or add documents to a project first.";
 const minutesOf = (content: TutorialContent | null) =>
   content
     ? content.lessons.reduce((sum, lesson) => sum + lesson.minutes, 0) +
@@ -83,41 +112,38 @@ export function createTutorialRoutes(container: Container) {
   const { store } = learning;
   const records = createOnboardingRecords(container);
   const notifier = createNotifier(db);
+  const runs = createGenerationRuns(container);
 
-  /** Admins, owners and People Ops curate every project's tutorials; path curators their own. */
-  const canCurate = (actor: Actor, projectId: string) =>
-    ["owner", "admin", "hr"].includes(actor.role) ||
-    identity.hasAssignment(actor, "path_curator", projectId);
-  /** Holds a path curator assignment for any project. */
-  const curatesAny = (actor: Actor) =>
-    actor.role !== "guest" &&
-    db
-      .select({ id: assignments.id })
-      .from(assignments)
-      .where(
-        and(
-          eq(assignments.workspaceId, actor.workspaceId),
-          eq(assignments.userId, actor.id),
-          eq(assignments.type, "path_curator"),
-          or(isNull(assignments.expiresAt), gt(assignments.expiresAt, new Date())),
-        ),
-      )
-      .all().length > 0;
-  const requireCurator = (actor: Actor, projectId: string) => {
-    const project = identity.requireProject(actor, projectId);
+  /**
+   * Admins, owners and People Ops curate every tutorial, company-wide ones included (no project);
+   * path curators their own projects'.
+   */
+  const canCurate = (actor: Actor, projectId: string | null) =>
+    isReviewer(actor) ||
+    (projectId !== null && identity.hasAssignment(actor, "path_curator", projectId));
+  /** Curators, and whoever a roadmap generator drafted it for (a manager's generated modules). */
+  const canOpen = (actor: Actor, row: PlatformRecord) =>
+    canCurate(actor, row.projectId) || (row.ownerId === actor.id && actor.role !== "guest");
+  const requireCurator = (actor: Actor, projectId: string | null) => {
+    const project = projectId ? identity.requireProject(actor, projectId) : null;
     if (!canCurate(actor, projectId))
       throw new AppError(403, "FORBIDDEN", "Tutorials are managed by admins and People Ops");
     return project;
   };
   const tutorial = (actor: Actor, id: string) => {
     const row = learning.tutorialRow(actor.workspaceId, id);
-    if (!row?.projectId) throw new NotFoundError("Tutorial");
-    requireCurator(actor, row.projectId);
+    if (!row) throw new NotFoundError("Tutorial");
+    if (row.projectId) identity.requireProject(actor, row.projectId);
+    if (!canOpen(actor, row))
+      throw new AppError(403, "FORBIDDEN", "Tutorials are managed by admins and People Ops");
     return row;
   };
   /** Sources behind the tutorial the viewer can open; all of them, or the content stays hidden. */
   const openSources = (actor: Actor, row: PlatformRecord) => {
-    const visible = new Set(identity.visibleSourceIds(actor, row.projectId!));
+    const visible = learning.visibleOf(
+      actor,
+      dataOf(row).sources.map((source) => source.id),
+    );
     return { visible, all: dataOf(row).sources.every((source) => visible.has(source.id)) };
   };
   /** A tutorial the curator may change: they must be able to read everything it's built from. */
@@ -169,17 +195,22 @@ export function createTutorialRoutes(container: Container) {
 
   const summary = (row: PlatformRecord): TutorialSummary => {
     const data = dataOf(row);
-    const project = db
-      .select({ id: projects.id, name: projects.name })
-      .from(projects)
-      .where(eq(projects.id, row.projectId!))
-      .get();
+    const project = row.projectId
+      ? db
+          .select({ id: projects.id, name: projects.name })
+          .from(projects)
+          .where(eq(projects.id, row.projectId))
+          .get()
+      : undefined;
     return {
       id: row.id,
-      title: data.content?.title ?? (data.focus ? `Tutorial: ${data.focus}` : "New tutorial"),
+      title:
+        data.content?.title ??
+        data.plannedTitle ??
+        (data.focus ? `Tutorial: ${data.focus}` : "New tutorial"),
       status: status(row),
       generating: data.generation.state === "running",
-      project: { id: row.projectId!, name: project?.name ?? "Project" },
+      project: row.projectId ? { id: row.projectId, name: project?.name ?? "Project" } : null,
       audience: data.audience,
       lessonCount: data.content?.lessons.length ?? 0,
       questionCount: data.content?.check?.questions.length ?? 0,
@@ -190,6 +221,7 @@ export function createTutorialRoutes(container: Container) {
       learners: learners(row),
       updatedAt: row.updatedAt.toISOString(),
       createdBy: person(row.workspaceId, row.ownerId),
+      review: reviewView(data.review, (userId) => person(row.workspaceId, userId)),
     };
   };
   const detail = (row: PlatformRecord, actor: Actor): TutorialDetail => {
@@ -206,23 +238,118 @@ export function createTutorialRoutes(container: Container) {
       publishedAt: data.publishedAt,
       publishedBy: person(row.workspaceId, data.publishedBy),
       error: data.generation.state === "failed" ? data.generation.error : null,
+      update: data.update ? { at: data.update.at, changes: data.update.changes } : null,
       moduleOptions: [...records.catalog(row.workspaceId).values()]
         .filter((entry) => entry.id.startsWith("mod-"))
         .map((entry) => ({ id: entry.id, title: entry.title })),
     };
   };
 
-  const queueGeneration = (row: PlatformRecord, focus: string | null, requestedBy: string) =>
-    queue.enqueue({
-      projectId: row.projectId!,
+  /**
+   * Hub items in a tutorial's scope: its project's, or every project's when company-wide, of the
+   * kinds of knowledge its module is about (all kinds when that isn't known).
+   */
+  const scopeCount = (workspaceId: string, projectId: string | null, kind: string | null) => {
+    const kinds = kind ? knowledgeFor(kind) : undefined;
+    return (
+      projectId ? [projectId] : repos.projects.list(workspaceId).map((project) => project.id)
+    ).reduce(
+      (sum, id) =>
+        sum +
+        Object.entries(services.context.countsByKind(id))
+          .filter(([key]) => !kinds || kinds.includes(key as ContextItem["kind"]))
+          .reduce((total, [, n]) => total + n, 0),
+      0,
+    );
+  };
+  const moduleKind = (data: TutorialData) => data.plannedKind ?? data.content?.kind ?? null;
+
+  const queueGeneration = (
+    row: PlatformRecord,
+    focus: string | null,
+    actor: Actor,
+    { automatic = false, update = false }: { automatic?: boolean; update?: boolean } = {},
+  ) => {
+    // Jobs belong to a project: a company-wide draft runs under any project the curator can read.
+    const host = row.projectId ?? learning.readableProjects(actor)[0]?.id;
+    if (!host) throw new BadRequestError(NO_KNOWLEDGE);
+    const run = runs.start(actor, {
+      kind: "module",
+      purpose: update ? AUTOMATIC_UPDATE : "tutorial",
+      promptVersion: update ? TUTORIAL_UPDATE_PROMPT_VERSION : TUTORIAL_PROMPT_VERSION,
+      targetType: "tutorial",
+      targetId: row.id,
+      automatic,
+    });
+    return queue.enqueue({
+      projectId: host,
       type: "generate_tutorial",
-      payload: { tutorialId: row.id, focus, requestedBy },
+      payload: { tutorialId: row.id, focus, requestedBy: actor.id, runId: run.id, update },
       subject: dataOf(row).content?.title ?? "New tutorial",
       dedupe: true,
       priority: JOB_PRIORITY.interactive,
       concurrencyKey: `tutorial:${row.id}`,
       maxAttempts: 2,
     });
+  };
+
+  /**
+   * A new tutorial draft, written in the background. No project means company-wide. A roadmap
+   * generator passes the module it planned (title and kind), so the draft knows what it is for; its
+   * drafts belong to whoever generated the roadmap, curator or not, and go to review like theirs.
+   */
+  const createDraft = (
+    actor: Actor,
+    input: {
+      projectId: string | null;
+      audience: string;
+      focus: string | null;
+      coversModule: string | null;
+      plannedTitle?: string;
+      plannedKind?: ModuleKind;
+    },
+    { generated = false, automatic = false }: { generated?: boolean; automatic?: boolean } = {},
+  ) => {
+    const project = generated
+      ? input.projectId
+        ? identity.requireProject(actor, input.projectId)
+        : null
+      : requireCurator(actor, input.projectId);
+    if (!project && !learning.readableProjects(actor).length)
+      throw new BadRequestError(NO_KNOWLEDGE);
+    runs.ensureAvailable(actor.workspaceId, "module");
+    const row = store.create(
+      actor,
+      TUTORIAL,
+      {
+        audience: input.audience,
+        focus: input.focus,
+        coversModule: input.coversModule,
+        plannedTitle: input.plannedTitle ?? null,
+        plannedKind: input.plannedKind ?? null,
+        content: null,
+        sources: [],
+        generation: { state: "running", error: null, at: new Date().toISOString() },
+        generatedAt: null,
+        draftRevision: 0,
+        publishedRevision: null,
+        publishedVersion: null,
+        publishedVersionId: null,
+        publishedAt: null,
+        publishedBy: null,
+      } satisfies TutorialData,
+      { projectId: project?.id, status: "draft" },
+    );
+    queueGeneration(row, input.focus, actor, { automatic });
+    audit.record({
+      actor,
+      projectId: project?.id ?? null,
+      action: "tutorial.create",
+      targetType: "tutorial",
+      targetId: row.id,
+    });
+    return row;
+  };
 
   const validContent = (content: TutorialContent) => {
     const lessonIds = new Set(content.lessons.map((lesson) => lesson.id));
@@ -241,42 +368,24 @@ export function createTutorialRoutes(container: Container) {
       const actor = c.get("actor");
       const rows = store
         .listWhere(actor.workspaceId, TUTORIAL, {}, 1000)
-        .filter((row) => row.projectId && canCurate(actor, row.projectId));
-      if (!rows.length && !["owner", "admin", "hr"].includes(actor.role) && !curatesAny(actor))
+        .filter((row) => canOpen(actor, row));
+      if (
+        !rows.length &&
+        !isReviewer(actor) &&
+        actor.role !== "manager" &&
+        !identity.curatesAny(actor)
+      )
         throw new AppError(403, "FORBIDDEN", "Tutorials are managed by admins and People Ops");
       return c.json({ items: rows.map(summary) });
     })
     .post("/tutorials", zValidator("json", TutorialCreateInputSchema, validationHook), (c) => {
       const actor = c.get("actor");
       const input = c.req.valid("json");
-      const project = requireCurator(actor, input.projectId);
-      const row = store.create(
-        actor,
-        TUTORIAL,
-        {
-          audience: input.audience,
-          focus: input.focus?.trim() ? input.focus.trim() : null,
-          coversModule: input.coversModule ?? null,
-          content: null,
-          sources: [],
-          generation: { state: "running", error: null, at: new Date().toISOString() },
-          generatedAt: null,
-          draftRevision: 0,
-          publishedRevision: null,
-          publishedVersion: null,
-          publishedVersionId: null,
-          publishedAt: null,
-          publishedBy: null,
-        } satisfies TutorialData,
-        { projectId: project.id, status: "draft" },
-      );
-      queueGeneration(row, input.focus?.trim() ? input.focus.trim() : null, actor.id);
-      audit.record({
-        actor,
-        projectId: project.id,
-        action: "tutorial.create",
-        targetType: "tutorial",
-        targetId: row.id,
+      const row = createDraft(actor, {
+        projectId: input.projectId ?? null,
+        audience: input.audience,
+        focus: input.focus?.trim() ? input.focus.trim() : null,
+        coversModule: input.coversModule ?? null,
       });
       return c.json(detail(row, actor), 202);
     })
@@ -331,6 +440,7 @@ export function createTutorialRoutes(container: Container) {
         const data = dataOf(row);
         if (data.generation.state === "running")
           throw new AppError(409, "CONFLICT", "A draft is already being written");
+        runs.ensureAvailable(actor.workspaceId, "module");
         const asked = c.req.valid("json").focus?.trim();
         const focus = asked === undefined || asked === "" ? data.focus : asked;
         const updated = store.patch(row, {
@@ -340,7 +450,7 @@ export function createTutorialRoutes(container: Container) {
             generation: { state: "running", error: null, at: new Date().toISOString() },
           },
         });
-        queueGeneration(updated, focus, actor.id);
+        queueGeneration(updated, focus, actor);
         audit.record({
           actor,
           projectId: row.projectId,
@@ -356,6 +466,12 @@ export function createTutorialRoutes(container: Container) {
       zValidator("json", TutorialPublishInputSchema, validationHook),
       (c) => {
         const actor = c.get("actor");
+        if (!isReviewer(actor))
+          throw new AppError(
+            403,
+            "FORBIDDEN",
+            "Only People Ops, admins and owners publish tutorials. Submit it for review instead.",
+          );
         const row = editable(actor, c.req.param("id"));
         const data = dataOf(row);
         if (!data.content?.lessons.length)
@@ -407,9 +523,26 @@ export function createTutorialRoutes(container: Container) {
               publishedRevision: data.draftRevision,
               publishedAt: now,
               publishedBy: actor.id,
+              review: null,
+              update: null,
             },
           });
         });
+        // An update after the Hub changed: people who already finished it hear what's new.
+        if (data.update)
+          for (const progress of store.listWhere(
+            row.workspaceId,
+            PROGRESS,
+            { parentId: row.id },
+            5000,
+          ))
+            if ((progress.data as unknown as ProgressData).completedAt)
+              notifier.notify(row.workspaceId, progress.ownerId, {
+                type: "learning.updated",
+                category: "onboarding",
+                title: `“${content.title}” was updated with the company's latest knowledge`,
+                link: "/learning",
+              });
         audit.record({
           actor,
           projectId: row.projectId,
@@ -418,7 +551,99 @@ export function createTutorialRoutes(container: Container) {
           targetId: row.id,
           metadata: { version },
         });
+        const submitter = data.review?.state === "in_review" ? data.review.by : null;
+        if (submitter && submitter !== actor.id)
+          notifier.notify(actor.workspaceId, submitter, {
+            type: "tutorial.published",
+            category: "system",
+            title: `${actor.name} published your tutorial “${content.title}”`,
+            link: `/tutorials/${row.id}`,
+          });
         return c.json(detail(published, actor));
+      },
+    )
+    .post("/tutorials/:id/submit", (c) => {
+      const actor = c.get("actor");
+      if (isReviewer(actor))
+        throw new BadRequestError("You can publish it directly; it doesn't need a review");
+      const row = editable(actor, c.req.param("id"));
+      const data = dataOf(row);
+      if (!data.content?.lessons.length)
+        throw new AppError(409, "CONFLICT", "Add at least one lesson before submitting");
+      if (data.generation.state === "running")
+        throw new AppError(409, "CONFLICT", "Wait for the new draft before submitting");
+      if (data.publishedRevision === data.draftRevision)
+        throw new AppError(409, "CONFLICT", "Nothing has changed since it was published");
+      const updated = store.patch(row, {
+        data: {
+          ...data,
+          review: { state: "in_review", by: actor.id, at: new Date().toISOString(), note: null },
+        },
+      });
+      audit.record({
+        actor,
+        projectId: row.projectId,
+        action: "tutorial.submit",
+        targetType: "tutorial",
+        targetId: row.id,
+      });
+      notifier.notifyRoles(
+        actor.workspaceId,
+        REVIEWERS,
+        {
+          type: "tutorial.review",
+          category: "system",
+          title: `${actor.name} submitted the tutorial “${data.content.title}” for review`,
+          link: `/tutorials/${row.id}`,
+        },
+        actor.id,
+      );
+      return c.json(detail(updated, actor));
+    })
+    .post(
+      "/tutorials/:id/send-back",
+      zValidator("json", ReviewSendBackInputSchema, validationHook),
+      (c) => {
+        const actor = c.get("actor");
+        if (!isReviewer(actor))
+          throw new AppError(
+            403,
+            "FORBIDDEN",
+            "Only People Ops, admins and owners can send a tutorial back",
+          );
+        const row = tutorial(actor, c.req.param("id"));
+        const data = dataOf(row);
+        if (data.review?.state !== "in_review")
+          throw new AppError(409, "CONFLICT", "This tutorial isn't waiting for a review");
+        const submitter = data.review.by;
+        const { note } = c.req.valid("json");
+        const updated = store.patch(row, {
+          data: {
+            ...data,
+            review: {
+              state: "changes_requested",
+              by: actor.id,
+              at: new Date().toISOString(),
+              note,
+            },
+          },
+        });
+        audit.record({
+          actor,
+          projectId: row.projectId,
+          action: "tutorial.send_back",
+          targetType: "tutorial",
+          targetId: row.id,
+          metadata: { note },
+        });
+        notifier.notify(actor.workspaceId, submitter, {
+          type: "tutorial.sent_back",
+          category: "system",
+          title: `${actor.name} sent back your tutorial “${data.content?.title ?? "draft"}”`,
+          body: note,
+          link: `/tutorials/${row.id}`,
+        });
+        return c.json(detail(updated, actor));
       },
     )
     .post("/tutorials/:id/archive", (c) => {
@@ -440,8 +665,8 @@ export function createTutorialRoutes(container: Container) {
       (c) => {
         const actor = c.get("actor");
         const row = learning.tutorialRow(actor.workspaceId, c.req.param("id"));
-        if (!row?.projectId) throw new NotFoundError("Tutorial");
-        identity.requireProject(actor, row.projectId);
+        if (!row) throw new NotFoundError("Tutorial");
+        if (row.projectId) identity.requireProject(actor, row.projectId);
         const input = c.req.valid("json");
         const member = identity.requireMember(actor.workspaceId, input.userId);
         // Curators, People Ops and the person's manager may assign.
@@ -457,7 +682,8 @@ export function createTutorialRoutes(container: Container) {
           throw new AppError(409, "CONFLICT", "Publish the tutorial before assigning it");
         if (input.dueOn && input.dueOn < new Date().toISOString().slice(0, 10))
           throw new BadRequestError("Choose a due date from today");
-        identity.requireProject({ ...actor, id: input.userId, role: member.role }, row.projectId);
+        if (row.projectId)
+          identity.requireProject({ ...actor, id: input.userId, role: member.role }, row.projectId);
         const title = data.content?.title ?? "Tutorial";
         const catalogId = `${TUTORIAL_PREFIX}${row.id}`;
         const placed = db.transaction(() => {
@@ -563,39 +789,77 @@ export function createTutorialRoutes(container: Container) {
     };
     const data = dataOf(found);
     const focus = typeof job.payload.focus === "string" ? job.payload.focus : data.focus;
-    const fail = (error: string) =>
-      store.patch(learning.byId(found.workspaceId, TUTORIAL, id) ?? found, {
+    const runId = typeof job.payload.runId === "string" ? job.payload.runId : null;
+    // An update starts from the published version and what changed in the Hub.
+    const published =
+      job.payload.update === true && data.update && data.publishedVersionId
+        ? (learning.byId(found.workspaceId, TUTORIAL_VERSION, data.publishedVersionId)?.data
+            .content as TutorialContent | undefined)
+        : undefined;
+    const update =
+      published && data.update ? { current: published, changes: data.update.changes } : undefined;
+    const fail = (error: string, skipped = false) => {
+      runs.finish(found.workspaceId, runId, error, skipped);
+      return store.patch(learning.byId(found.workspaceId, TUTORIAL, id) ?? found, {
         data: {
           ...dataOf(learning.byId(found.workspaceId, TUTORIAL, id) ?? found),
           generation: { state: "failed", error, at: new Date().toISOString() },
+          // A failed update leaves the published version as it was.
+          ...(job.payload.update === true ? { update: null } : {}),
         },
       });
+    };
     try {
-      const answerable = new Set(identity.answerableSourceIds(actor, project.id));
-      const items = services.context
-        .listItems(project, undefined, actor)
-        .filter((item) => item.evidence.every((entry) => answerable.has(entry.sourceObjectId)));
-      const passages = focus
-        ? await retrievePassages({ sources: repos.sources, gemini, logger }, project.id, focus, {
-            limit: 12,
-            sourceIds: [...answerable],
-          })
-        : [];
-      const covers = data.coversModule
-        ? (records.catalog(found.workspaceId).get(data.coversModule)?.title ?? null)
-        : null;
-      const { content, usedSourceIds } = await generateDraft(gemini, {
-        projectName: project.name,
-        audience: data.audience,
-        focus,
-        covers,
-        items,
-        passages: passages.map((passage) => ({
-          sourceId: passage.source.id,
-          sourceTitle: passage.source.title,
-          content: passage.content,
-        })),
-      });
+      const covered = data.coversModule
+        ? records.catalog(found.workspaceId).get(data.coversModule)
+        : undefined;
+      const covers = covered?.title ?? data.plannedTitle ?? null;
+      // A project tutorial reads its project; a company-wide one every project they can read, and
+      // without a focus it looks for passages about the module it covers.
+      const scope = found.projectId ? [project] : learning.readableProjects(actor);
+      const query = focus ?? (found.projectId ? null : covers);
+      const items: ContextItem[] = [];
+      const ranked: RetrievedPassage[][] = [];
+      for (const scoped of scope) {
+        const answerable = new Set(identity.answerableSourceIds(actor, scoped.id));
+        items.push(
+          ...services.context
+            .listItems(scoped, undefined, actor)
+            .filter((item) => item.evidence.every((entry) => answerable.has(entry.sourceObjectId))),
+        );
+        if (query)
+          ranked.push(
+            await retrievePassages({ sources: repos.sources, gemini, logger }, scoped.id, query, {
+              limit: 12,
+              sourceIds: [...answerable],
+            }),
+          );
+      }
+      // Each project's best passages in turn, so no single project crowds out the rest.
+      const longest = Math.max(0, ...ranked.map((list) => list.length));
+      const passages = Array.from({ length: longest }, (_, rank) =>
+        ranked.flatMap((list) => (list[rank] ? [list[rank]] : [])),
+      )
+        .flat()
+        .slice(0, 12);
+      const { content, usedSourceIds } = await generateDraft(
+        gemini,
+        {
+          projectName: found.projectId ? project.name : null,
+          audience: data.audience,
+          focus,
+          covers,
+          items,
+          preferKinds: knowledgeFor(covered?.kind ?? data.plannedKind ?? ""),
+          passages: passages.map((passage) => ({
+            sourceId: passage.source.id,
+            sourceTitle: passage.source.title,
+            content: passage.content,
+          })),
+          update,
+        },
+        runs.usageRecorder(found.workspaceId, runId),
+      );
       if (!content.lessons.length) throw new Error("The draft came back without lessons");
       // Every source the draft was built from: who may read it, and what "Needs update" watches.
       const used = usedSourceIds.length
@@ -609,7 +873,7 @@ export function createTutorialRoutes(container: Container) {
             .where(
               and(
                 inArray(sourceObjects.id, usedSourceIds),
-                eq(sourceObjects.projectId, project.id),
+                found.projectId ? eq(sourceObjects.projectId, project.id) : undefined,
               ),
             )
             .all()
@@ -629,20 +893,131 @@ export function createTutorialRoutes(container: Container) {
           generation: { state: "done", error: null, at: now },
           generatedAt: now,
           draftRevision: dataOf(latest).draftRevision + 1,
+          knowledgeCount: scopeCount(
+            found.workspaceId,
+            found.projectId,
+            dataOf(latest).plannedKind ?? content.kind,
+          ),
         },
       });
-      notifier.notify(found.workspaceId, requesterId, {
-        type: "tutorial.ready",
-        category: "system",
-        title: `Your tutorial draft “${content.title}” is ready to review`,
-        link: `/tutorials/${id}`,
-      });
+      runs.finish(found.workspaceId, runId);
+      if (update)
+        // The publisher, HR and Admin review it; one click publishes it.
+        notifier.notifyRoles(found.workspaceId, ["admin", "hr"], {
+          type: "tutorial.update_ready",
+          category: "system",
+          title: `“${content.title}” has an update from new company knowledge, ready to review`,
+          link: `/tutorials/${id}`,
+        });
+      if (!update || !["admin", "hr"].includes(actor.role))
+        notifier.notify(found.workspaceId, requesterId, {
+          type: update ? "tutorial.update_ready" : "tutorial.ready",
+          category: "system",
+          title: update
+            ? `“${content.title}” has an update from new company knowledge, ready to review`
+            : `Your tutorial draft “${content.title}” is ready to review`,
+          link: `/tutorials/${id}`,
+        });
     } catch (error) {
       // A busy or failing model is retried; anything else (or the last try) shows in the Studio.
       if (error instanceof UpstreamServiceError && job.attempts < job.maxAttempts) throw error;
-      fail(error instanceof Error ? error.message : "The draft could not be written");
+      fail(
+        error instanceof Error ? error.message : "The draft could not be written",
+        error instanceof ThinKnowledgeError,
+      );
     }
   }
 
-  return { routes, generate };
+  /**
+   * After a sync refreshed a project's Hub (N-18 Phase 7): each published tutorial built on it whose
+   * sources changed, or whose scope gained 5 or more Hub items, gets an update draft written as its
+   * last publisher. Nothing reaches learners until someone publishes it. At most one a day per
+   * tutorial, never over someone's unpublished edits, and within the daily automatic share.
+   */
+  function hubChanged(projectId: string) {
+    const project = repos.projects.findByIdUnscoped(projectId);
+    if (!project) return;
+    const ws = project.workspaceId;
+    for (const row of store.listWhere(ws, TUTORIAL, { status: "published" }, 1000)) {
+      if (row.projectId && row.projectId !== projectId) continue;
+      const data = dataOf(row);
+      if (data.generation.state === "running" || data.publishedRevision !== data.draftRevision)
+        continue;
+      if (data.autoUpdatedAt && Date.now() - Date.parse(data.autoUpdatedAt) < DAY_MS) continue;
+      const count = scopeCount(ws, row.projectId, moduleKind(data));
+      if (data.knowledgeCount === undefined) {
+        // Drafted before counts were kept: start counting from now.
+        store.patch(row, { data: { ...data, knowledgeCount: count } });
+        continue;
+      }
+      // Only sources the published lessons and questions cite: a company-wide module reads far
+      // more than it teaches from.
+      const published = data.publishedVersionId
+        ? (learning.byId(ws, TUTORIAL_VERSION, data.publishedVersionId)?.data.content as
+            TutorialContent | undefined)
+        : undefined;
+      const cited = published
+        ? new Set([
+            ...published.lessons.flatMap((lesson) => lesson.sourceIds),
+            ...(published.check?.questions ?? []).flatMap((question) =>
+              question.sourceId ? [question.sourceId] : [],
+            ),
+          ])
+        : null;
+      const changes = sourceStates(data)
+        .filter((source) => source.state !== "current" && (!cited || cited.has(source.id)))
+        .map((source) =>
+          source.state === "removed"
+            ? `${source.title} is no longer in the Hub`
+            : `${source.title} was edited`,
+        );
+      const added = count - data.knowledgeCount;
+      if (added >= NEW_ITEMS_FOR_UPDATE)
+        changes.push(`${added} new items in the Knowledge Hub since it was written`);
+      if (!changes.length || !data.publishedBy) continue;
+      const member = identity.requireMemberOptional(ws, data.publishedBy);
+      if (!member) continue;
+      const name = db
+        .select({ name: users.name })
+        .from(users)
+        .where(eq(users.id, data.publishedBy))
+        .get();
+      const actor: Actor = {
+        id: data.publishedBy,
+        name: name?.name ?? "Publisher",
+        workspaceId: ws,
+        role: member.role,
+      };
+      const at = new Date().toISOString();
+      const updated = store.patch(row, {
+        data: {
+          ...data,
+          update: { at, changes },
+          autoUpdatedAt: at,
+          generation: { state: "running", error: null, at },
+        },
+      });
+      try {
+        queueGeneration(updated, data.focus, actor, { automatic: true, update: true });
+      } catch (error) {
+        // Over today's automatic share, or nothing left to read: try again after the next sync.
+        store.patch(updated, { data: { ...data } });
+        if (error instanceof AppError) {
+          if (error.status === 429) return;
+          continue;
+        }
+        throw error;
+      }
+      audit.record({
+        actor,
+        projectId: row.projectId,
+        action: "tutorial.update_draft",
+        targetType: "tutorial",
+        targetId: row.id,
+        metadata: { changes, automatic: true },
+      });
+    }
+  }
+
+  return { routes, generate, createDraft, runs, hubChanged };
 }

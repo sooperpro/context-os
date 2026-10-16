@@ -36,6 +36,7 @@ import {
   templateLibraryQuery,
   templateVersionQuery,
   useCreateTemplate,
+  useGenerateTemplate,
 } from "@/features/people-ops/api/people-ops.queries";
 import {
   TEMPLATE_FAMILY,
@@ -267,9 +268,11 @@ function AddModuleForm({
 }
 
 /** "Publish vN of <template>?" with a note for the version history. */
+/** Publish a version, or (managers and path curators) submit the draft to People Ops for review. */
 export function PublishDialog({
   template,
   next,
+  mode = "publish",
   open,
   pending,
   onPublish,
@@ -277,6 +280,7 @@ export function PublishDialog({
 }: {
   template: TemplateDetail;
   next: string;
+  mode?: "publish" | "submit";
   open: boolean;
   pending: boolean;
   onPublish: (note: string) => void;
@@ -284,6 +288,47 @@ export function PublishDialog({
 }) {
   const noteId = useId();
   const [note, setNote] = useState("");
+  if (mode === "submit")
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-md">
+          <form
+            className="contents"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onPublish(note);
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>Submit {template.name} for review?</DialogTitle>
+              <DialogDescription>
+                HR, an admin or the owner checks it, then publishes it or sends it back with a note.
+                Its modules are reviewed too.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={noteId}>Note for the reviewer</Label>
+              <Textarea
+                id={noteId}
+                rows={2}
+                maxLength={500}
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+                placeholder="Optional: what you changed, or what to look at"
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={pending}>
+                Submit for review
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    );
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -495,5 +540,192 @@ function VersionBody({ templateId, version }: { templateId: string; version: str
         ))}
       </ol>
     </>
+  );
+}
+
+/** A stage's name and weeks: edit one, or add a new one. Empty stages can be removed. */
+export function StageDialog({
+  stage,
+  open,
+  onSave,
+  onRemove,
+  onOpenChange,
+}: {
+  /** Null to add a stage. */
+  stage: { name: string; weekStart: number; weekEnd: number; modules: unknown[] } | null;
+  open: boolean;
+  onSave: (stage: { name: string; weekStart: number; weekEnd: number }) => void;
+  onRemove: () => void;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const ids = { name: useId(), from: useId(), to: useId() };
+  const [name, setName] = useState(stage?.name ?? "");
+  const [from, setFrom] = useState(String(stage?.weekStart ?? 1));
+  const [to, setTo] = useState(String(stage?.weekEnd ?? 1));
+  const first = Number(from);
+  const last = Number(to);
+  const valid = name.trim() !== "" && first >= 1 && last >= first && last <= 104;
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <form
+          className="contents"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (valid) onSave({ name: name.trim(), weekStart: first, weekEnd: last });
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>{stage ? `Edit ${stage.name}` : "Add a stage"}</DialogTitle>
+            <DialogDescription>
+              Weeks count from the start date. Due dates spread across the stage’s weeks.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={ids.name}>Name</Label>
+            <Input
+              id={ids.name}
+              value={name}
+              maxLength={60}
+              onChange={(event) => setName(event.target.value)}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={ids.from}>First week</Label>
+              <Input
+                id={ids.from}
+                type="number"
+                min={1}
+                max={104}
+                value={from}
+                onChange={(event) => setFrom(event.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={ids.to}>Last week</Label>
+              <Input
+                id={ids.to}
+                type="number"
+                min={1}
+                max={104}
+                value={to}
+                onChange={(event) => setTo(event.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            {stage ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="me-auto"
+                disabled={stage.modules.length > 0}
+                title={stage.modules.length ? "Remove its modules first" : undefined}
+                onClick={onRemove}
+              >
+                Remove stage
+              </Button>
+            ) : null}
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={!valid}>
+              {stage ? "Save" : "Add stage"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** "Generate with AI": a template for a job title, planned from the Knowledge Hub. */
+export function GenerateTemplateDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const ids = { title: useId(), team: useId(), seniority: useId() };
+  const [jobTitle, setJobTitle] = useState("");
+  const [team, setTeam] = useState("");
+  const [seniority, setSeniority] = useState("");
+  const generate = useGenerateTemplate();
+  const navigate = useNavigate();
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <form
+          className="contents"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!jobTitle.trim()) return;
+            generate.mutate(
+              {
+                jobTitle: jobTitle.trim(),
+                ...(team.trim() ? { team: team.trim() } : {}),
+                ...(seniority.trim() ? { seniority: seniority.trim() } : {}),
+              },
+              {
+                onSuccess: (template) => {
+                  toast.success("Planning the roadmap. It's ready to review in a minute or two.");
+                  onOpenChange(false);
+                  void navigate(templatePath(template.id));
+                },
+                onError: (error) => toast.error(error.message),
+              },
+            );
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>Generate a template</DialogTitle>
+            <DialogDescription>
+              ContextOS plans the stages, probation, check-ins and modules from your company’s
+              knowledge, and drafts lessons for each new module. Nothing reaches anyone until you
+              publish it.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={ids.title}>Job title</Label>
+            <Input
+              id={ids.title}
+              value={jobTitle}
+              maxLength={100}
+              placeholder="Account executive"
+              onChange={(event) => setJobTitle(event.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={ids.team}>Team (optional)</Label>
+            <Input
+              id={ids.team}
+              value={team}
+              maxLength={100}
+              onChange={(event) => setTeam(event.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={ids.seniority}>Seniority (optional)</Label>
+            <Input
+              id={ids.seniority}
+              value={seniority}
+              maxLength={60}
+              placeholder="Graduate, senior"
+              onChange={(event) => setSeniority(event.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={!jobTitle.trim() || generate.isPending}>
+              Generate
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

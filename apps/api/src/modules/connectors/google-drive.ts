@@ -890,10 +890,14 @@ export function createGoogleDriveService(container: Container) {
       };
     },
     /** Replace the selected scopes for a project (FR-INT-005/013). Owner/admin only. */
-    setScopes(actor: Actor, connectionId: string, input: ScopesInput) {
+    setScopes(actor: Actor, connectionId: string, scopesInput: ScopesInput) {
       requireRole(actor, "owner", "admin");
       const connection = getConnection(actor, connectionId, false);
-      identity.requireProject(actor, input.projectId);
+      // Without a project the folders feed the workspace's "Company knowledge" (N-18).
+      const projectId = scopesInput.projectId
+        ? identity.requireProject(actor, scopesInput.projectId).id
+        : services.projects.companyKnowledge(actor).id;
+      const input = { ...scopesInput, projectId };
       const rows = db.transaction(() => {
         const existing = scopesFor(connection.id).filter(
           (row) => row.projectId === input.projectId,

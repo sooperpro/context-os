@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { IsoDateTimeSchema } from "./common.js";
 import { ModuleKindSchema } from "./learning.js";
-import { PersonRefSchema } from "./refs.js";
+import { PersonRefSchema, ReviewStateSchema } from "./refs.js";
 
 /*
  * Tutorials: step-by-step learning built from a project's knowledge (FR-LRN-001/004/005/008/012).
@@ -79,7 +79,8 @@ export const TutorialSummarySchema = z.object({
   status: TutorialStatusSchema,
   /** A new draft is being written (first draft or a regenerate). */
   generating: z.boolean(),
-  project: z.object({ id: z.string(), name: z.string() }),
+  /** Null for a company-wide tutorial, drafted from every project the curator can read. */
+  project: z.object({ id: z.string(), name: z.string() }).nullable(),
   audience: z.string(),
   lessonCount: Count,
   questionCount: Count,
@@ -93,6 +94,8 @@ export const TutorialSummarySchema = z.object({
   learners: Count,
   updatedAt: IsoDateTimeSchema,
   createdBy: PersonRefSchema.nullable(),
+  /** A path curator's or manager's draft waiting for People Ops, or sent back to them. */
+  review: ReviewStateSchema.nullable(),
 });
 export type TutorialSummary = z.infer<typeof TutorialSummarySchema>;
 export const TutorialListSchema = z.object({ items: z.array(TutorialSummarySchema) });
@@ -123,6 +126,8 @@ export const TutorialDetailSchema = TutorialSummarySchema.extend({
   publishedBy: PersonRefSchema.nullable(),
   /** Why generation failed, when status is "failed". */
   error: z.string().nullable(),
+  /** Drafted on its own after the Hub changed: what changed, until it is published. */
+  update: z.object({ at: IsoDateTimeSchema, changes: z.array(z.string()) }).nullable(),
   /** Template modules it can stand in for, for the "Teaches template module" picker. */
   moduleOptions: z.array(z.object({ id: z.string(), title: z.string() })),
 });
@@ -131,7 +136,8 @@ export type TutorialDetail = z.infer<typeof TutorialDetailSchema>;
 /** `POST /v1/tutorials` (202): draft one from a project's knowledge, in the background. */
 export const TutorialCreateInputSchema = z
   .object({
-    projectId: z.string().min(1),
+    /** Omit for a company-wide tutorial (owners, admins and People Ops). */
+    projectId: z.string().min(1).optional(),
     /** Who it's for: "New engineers", "Everyone". */
     audience: z.string().trim().min(1).max(100),
     /** Optional angle: "How billing works end to end". */

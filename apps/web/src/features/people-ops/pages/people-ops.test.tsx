@@ -16,6 +16,7 @@ import { TemplatesPage } from "@/features/people-ops/pages/templates-page";
 import { CheckinPage } from "@/features/team/pages/checkin-page";
 import { MemberPage } from "@/features/team/pages/member-page";
 import { buildApiUrl } from "@/lib/api-client";
+import { markTemplateInReview } from "@/mocks/people-ops";
 import { managerHandlers } from "@/test/manager-mocks";
 import { mockServer, setupMockApi } from "@/test/msw";
 import { peopleOpsHandlers } from "@/test/people-ops-mocks";
@@ -23,11 +24,20 @@ import { renderWithProviders } from "@/test/utils";
 
 setupMockApi();
 
-function renderAt(route: string) {
+function renderAt(route: string, { role = "hr" }: { role?: "hr" | "manager" } = {}) {
   mockServer.use(
     ...peopleOpsHandlers(),
     // HR opens a manager's member and check-in pages too.
     ...managerHandlers(),
+    // People Ops' view by default: HR publishes templates directly.
+    http.get(buildApiUrl("/v1/workspaces/current"), () =>
+      HttpResponse.json({
+        id: "w1",
+        name: "Tessellate",
+        role,
+        authentication: "development",
+      }),
+    ),
     http.get(buildApiUrl("/v1/users/me"), () =>
       HttpResponse.json({
         id: "u3",
@@ -328,12 +338,62 @@ describe("Templates", () => {
     expect(within(version).queryByRole("button", { name: "Save draft" })).not.toBeInTheDocument();
   });
 
+  it("lets a manager submit their template for review instead of publishing it", async () => {
+    const user = userEvent.setup();
+    renderAt("/templates/tpl-sales-ae", { role: "manager" });
+
+    await screen.findByRole("heading", { level: 1, name: "Sales · Account executive" });
+    const submit = await screen.findByRole("button", { name: "Submit for review" });
+    expect(screen.queryByRole("button", { name: /^Publish/ })).not.toBeInTheDocument();
+    // Archiving is People Ops'; a manager has nothing else to do with a published template.
+    expect(
+      screen.queryByRole("button", { name: "More actions for this template" }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Move Pricing and packaging 2026 down" }));
+    await user.click(submit);
+    const dialog = await screen.findByRole("dialog", {
+      name: "Submit Sales · Account executive for review?",
+    });
+    await user.type(
+      within(dialog).getByRole("textbox", { name: "Note for the reviewer" }),
+      "CRM before pricing",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "Submit for review" }));
+    expect(await screen.findByText("Waiting for People Ops")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Submitted" })).toBeDisabled();
+  });
+
+  it("shows HR a submitted template and sends it back with a note", async () => {
+    const user = userEvent.setup();
+    markTemplateInReview("tpl-sales-ae", "Pricing moved after CRM");
+    renderAt("/templates");
+
+    const tile = await screen.findByRole("link", { name: /Sales · Account executive/ });
+    expect(tile).toHaveTextContent("In review");
+    await user.click(tile);
+    expect(
+      await screen.findByText(/Daniel Reyes submitted this template for review/),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Pricing moved after CRM")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Send back" }));
+    const dialog = await screen.findByRole("dialog", { name: "Send it back?" });
+    const send = within(dialog).getByRole("button", { name: "Send back" });
+    expect(send).toBeDisabled();
+    await user.type(
+      within(dialog).getByRole("textbox", { name: "What should change?" }),
+      "Add the security policy",
+    );
+    await user.click(send);
+    expect(await screen.findByText(/sent this template back/)).toBeInTheDocument();
+    expect(screen.getByText("Add the security policy")).toBeInTheDocument();
+  });
+
   it("archives a template after asking, then restores it from the banner", async () => {
     const user = userEvent.setup();
     renderAt("/templates/tpl-support");
 
     await screen.findByRole("heading", { level: 1, name: "Support · Specialist" });
-    await user.click(screen.getByRole("button", { name: "More actions for this template" }));
+    await user.click(await screen.findByRole("button", { name: "More actions for this template" }));
     // It's in use, so it can be archived but not deleted.
     expect(screen.queryByRole("menuitem", { name: /Delete template/ })).not.toBeInTheDocument();
     await user.click(await screen.findByRole("menuitem", { name: /Archive template/ }));
@@ -373,7 +433,7 @@ describe("Templates", () => {
     await user.click(within(creating).getByRole("button", { name: /^Create/ }));
     await screen.findByRole("heading", { level: 1, name: "Scratch template" });
 
-    await user.click(screen.getByRole("button", { name: "More actions for this template" }));
+    await user.click(await screen.findByRole("button", { name: "More actions for this template" }));
     await user.click(await screen.findByRole("menuitem", { name: /Delete template/ }));
     const dialog = await screen.findByRole("dialog", { name: "Delete Scratch template?" });
     expect(dialog).toHaveTextContent("can’t be undone");
@@ -388,7 +448,7 @@ describe("Templates", () => {
     const user = userEvent.setup();
     renderAt("/templates/tpl-manager");
     await screen.findByRole("heading", { level: 1, name: "People manager onboarding" });
-    await user.click(screen.getByRole("button", { name: "More actions for this template" }));
+    await user.click(await screen.findByRole("button", { name: "More actions for this template" }));
     await user.click(await screen.findByRole("menuitem", { name: /Archive template/ }));
     await user.click(
       within(await screen.findByRole("dialog")).getByRole("button", { name: "Archive template" }),

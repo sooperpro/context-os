@@ -50,9 +50,12 @@ describe("People Ops", () => {
         "/api/v1/people-ops/overview",
         "/api/v1/people-ops/onboardings",
         "/api/v1/people-ops/probation-reviews",
-        "/api/v1/people-ops/templates",
       ])
         expect((await t.app.request(path)).status, `${role} ${path}`).toBe(403);
+      // Templates (N-18): admins manage them and managers draft their own; employees can't.
+      expect((await t.app.request("/api/v1/people-ops/templates")).status, role).toBe(
+        role === "member" ? 403 : 200,
+      );
     }
     member("hr1", "hr");
     as("hr1", "hr");
@@ -553,6 +556,86 @@ describe("People Ops", () => {
     expect(republished.history.map((entry) => entry.version)).toEqual(["v2", "v1"]);
     expect(audits("onboarding.template.publish")).toHaveLength(2);
   });
+  it("lets a template set its own stages, length, probation and check-ins", async () => {
+    t = createTestApp();
+    member("hr1", "hr");
+    as("hr1", "hr");
+    const list = await json<{ items: Array<{ id: string }> }>(
+      await t.app.request("/api/v1/people-ops/templates"),
+    );
+    const created = await json<{ id: string }>(
+      await t.app.request(
+        "/api/v1/people-ops/templates",
+        jsonRequest({ name: "Store assistant", baseId: list.items[0]!.id }),
+      ),
+    );
+    const base = `/api/v1/people-ops/templates/${created.id}`;
+    const plan = {
+      stages: [
+        {
+          id: "foundations",
+          name: "Training",
+          weekStart: 1,
+          weekEnd: 2,
+          moduleIds: ["mod-welcome"],
+        },
+        { id: "floor", name: "On the floor", weekStart: 3, weekEnd: 4, moduleIds: ["mod-tour"] },
+      ],
+      removeStages: ["core", "ownership"],
+      probationDays: 180,
+      checkins: [{ title: "2-week check-in", day: 14 }],
+    };
+    expect(
+      (
+        await t.app.request(
+          `${base}/draft`,
+          jsonRequest({ stages: [{ id: "new", moduleIds: [] }] }),
+        )
+      ).status,
+    ).toBe(400);
+    expect(
+      (await t.app.request(`${base}/publish`, jsonRequest({ ...plan, note: "" }))).status,
+    ).toBe(200);
+    const detail = await json<{
+      weeks: number;
+      probationDays: number;
+      checkins: unknown[];
+      stages: Array<{ name: string; weekEnd: number }>;
+    }>(await t.app.request(base));
+    expect(detail).toMatchObject({
+      weeks: 4,
+      probationDays: 180,
+      checkins: [{ title: "2-week check-in", day: 14 }],
+    });
+    expect(detail.stages.map((stage) => stage.name)).toEqual(["Training", "On the floor"]);
+
+    member("dana", "manager");
+    const startDate = dayFromToday(5);
+    const record = await json<{ id: string }>(
+      await t.app.request(
+        "/api/v1/people-ops/onboardings",
+        jsonRequest({
+          name: "Sam Lee",
+          title: "Store assistant",
+          team: "Retail",
+          startDate,
+          managerId: "dana",
+          buddyId: null,
+          templateId: created.id,
+        }),
+      ),
+    );
+    const onboarding = await json<{ milestones: Array<{ title: string; on: string }> }>(
+      await t.app.request(`/api/v1/people-ops/onboardings/${record.id}`),
+    );
+    const after = (days: number) =>
+      new Date(Date.parse(`${startDate}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+    expect(onboarding.milestones).toEqual([
+      expect.objectContaining({ title: "2-week check-in", on: after(14) }),
+      expect.objectContaining({ title: "Probation review", on: after(180) }),
+    ]);
+  });
+
   it("archives, restores and deletes templates, and says why one can't be deleted", async () => {
     t = createTestApp();
     member("hr1", "hr");
@@ -626,15 +709,15 @@ describe("People Ops", () => {
     expect(audits("onboarding.template.restore")).toHaveLength(1);
     expect(audits("onboarding.template.delete")).toHaveLength(1);
 
-    // Only HR.
+    // Only People Ops, admins and owners; a manager can open a published template but not change it.
     as("dana", "manager");
     for (const request of [
       t.app.request(`${base}/${used!.id}/archive`, jsonRequest({})),
       t.app.request(`${base}/${used!.id}/restore`, jsonRequest({})),
       t.app.request(`${base}/${used!.id}`, { method: "DELETE" }),
-      t.app.request(`${base}/${used!.id}/versions/1`),
     ])
       expect((await request).status).toBe(403);
+    expect((await t.app.request(`${base}/${used!.id}`)).status).toBe(200);
   });
 
   it("never deletes the last template, so the starter set does not come back", async () => {

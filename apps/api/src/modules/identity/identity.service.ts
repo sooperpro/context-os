@@ -458,6 +458,22 @@ export function createIdentityService(db: Db, devActor: Actor, auth: Auth | null
         )
         .get();
     },
+    /** Holds a path curator assignment for any project (or the whole workspace). */
+    curatesAny(actor: Actor): boolean {
+      if (actor.role === "guest") return false;
+      return !!db
+        .select({ id: assignments.id })
+        .from(assignments)
+        .where(
+          and(
+            eq(assignments.workspaceId, actor.workspaceId),
+            eq(assignments.userId, actor.id),
+            eq(assignments.type, "path_curator"),
+            or(isNull(assignments.expiresAt), gt(assignments.expiresAt, new Date())),
+          ),
+        )
+        .get();
+    },
     requireAssignment(actor: Actor, type: AssignmentType, scopeId: string): void {
       if (!service.hasAssignment(actor, type, scopeId))
         throw new AppError(

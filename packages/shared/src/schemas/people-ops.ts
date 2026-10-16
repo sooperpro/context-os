@@ -2,7 +2,7 @@ import { z } from "zod";
 import { IsoDateTimeSchema } from "./common.js";
 import { TemplateFamilySchema } from "./home.js";
 import { ModuleKindSchema } from "./learning.js";
-import { OnboardingStatusSchema, PersonRefSchema } from "./refs.js";
+import { OnboardingStatusSchema, PersonRefSchema, ReviewStateSchema } from "./refs.js";
 
 /*
  * Contracts for People Ops (HR): onboarding records across the company, probation reviews and the
@@ -80,6 +80,17 @@ export const OnboardingRecordSchema = OnboardingRecordSummarySchema.extend({
   lastCheckin: z.string().nullable(),
   /** Their probation review, once it is in the pipeline. */
   probationReviewId: z.string().nullable(),
+  /**
+   * No template fit their job, so one is being drafted for them (N-18). They get it when it is
+   * published, unless People Ops pick another template first.
+   */
+  templateDraft: z
+    .object({
+      id: z.string(),
+      name: z.string(),
+      state: z.enum(["generating", "draft", "failed"]),
+    })
+    .nullable(),
 });
 export type OnboardingRecord = z.infer<typeof OnboardingRecordSchema>;
 
@@ -323,6 +334,12 @@ export const TemplateModuleSchema = z.object({
   /** Null for open-ended practical tasks ("Ongoing"). */
   minutes: Count.nullable(),
   owner: z.string().nullable(),
+  /**
+   * In a template's stages, for built-in modules: company lessons published, drafted, or none yet
+   * (learners then see generic guidance). With the tutorial that teaches it.
+   */
+  lessons: z.enum(["ready", "draft", "none"]).optional(),
+  tutorialId: z.string().nullable().optional(),
 });
 export type TemplateModule = z.infer<typeof TemplateModuleSchema>;
 
@@ -345,6 +362,30 @@ export const TemplateDetailSchema = z.object({
   teams: z.array(z.string()),
   weeks: Count,
   passMark: Count,
+  probationDays: Count,
+  checkins: z.array(z.object({ title: z.string(), day: z.number().int() })),
+  /** Set while (or after) the roadmap generator drafts it from the Hub. */
+  generation: z
+    .object({ state: z.enum(["running", "failed", "done"]), error: z.string().nullable() })
+    .nullable(),
+  generated: z
+    .object({
+      jobTitle: z.string(),
+      team: z.string().nullable(),
+      /** Where the stages, probation and check-ins came from. */
+      policyNote: z.string(),
+      /** Topics the role needs that the Hub doesn't cover yet. */
+      gaps: z.array(z.string()),
+      /** Why each module is there, by module id. */
+      reasons: z.record(z.string(), z.string()),
+    })
+    .nullable(),
+  /** A manager's or curator's draft waiting for People Ops, or sent back to them. */
+  review: ReviewStateSchema.nullable(),
+  /** Who made it: managers and curators can only edit and submit their own drafts. */
+  createdBy: PersonRefSchema.nullable(),
+  /** The viewer may change it: People Ops, admins and owners any template, others their own. */
+  editable: z.boolean(),
   updatedAt: IsoDateTimeSchema,
   updatedBy: z.string(),
   stages: z.array(
@@ -384,9 +425,32 @@ export const TemplateVersionSchema = TemplateDetailSchema.pick({
 export type TemplateVersion = z.infer<typeof TemplateVersionSchema>;
 
 /** `POST /v1/people-ops/templates/:id/draft`: save the stages' modules, in order, as a draft. */
+const TemplateCheckinSchema = z.object({
+  title: z.string().trim().min(1).max(80),
+  /** Days after the start date. */
+  day: z.number().int().min(1).max(730),
+});
+
 export const TemplateDraftInputSchema = z
   .object({
-    stages: z.array(z.object({ id: z.string(), moduleIds: z.array(z.string()) })),
+    /**
+     * Stages to change or add, each with its modules in order. Stages left out stay as they are.
+     * A new stage needs a name and its weeks.
+     */
+    stages: z.array(
+      z.object({
+        id: z.string().min(1).max(60),
+        moduleIds: z.array(z.string()),
+        name: z.string().trim().min(1).max(60).optional(),
+        weekStart: z.number().int().min(1).max(104).optional(),
+        weekEnd: z.number().int().min(1).max(104).optional(),
+      }),
+    ),
+    removeStages: z.array(z.string()).max(20).optional(),
+    /** Probation length for people on this template; the workspace default when never set. */
+    probationDays: z.number().int().min(1).max(730).optional(),
+    /** Check-ins expected during onboarding, by day. */
+    checkins: z.array(TemplateCheckinSchema).max(12).optional(),
     /** Who it's for. Omit to keep the current lists. */
     roles: z.array(z.string().trim().min(1).max(100)).max(20).optional(),
     teams: z.array(z.string().trim().min(1).max(100)).max(20).optional(),
@@ -408,3 +472,13 @@ export type NewTemplateInput = z.infer<typeof NewTemplateInputSchema>;
 
 /** `GET /v1/people-ops/template-library`: modules that can be added to a template. */
 export const TemplateLibrarySchema = z.object({ items: z.array(TemplateModuleSchema) });
+
+/** `POST /v1/roadmaps/generate`: draft a template for a job title from the Knowledge Hub. */
+export const RoadmapGenerateInputSchema = z
+  .object({
+    jobTitle: z.string().trim().min(1).max(100),
+    team: z.string().trim().max(100).optional(),
+    seniority: z.string().trim().max(60).optional(),
+  })
+  .strict();
+export type RoadmapGenerateInput = z.infer<typeof RoadmapGenerateInputSchema>;

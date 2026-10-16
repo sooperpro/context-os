@@ -166,6 +166,9 @@ export const PoliciesSettingsSchema = z.object({
   /** k-anonymity floor for aggregated Ask gap signals; 3 is the fixed minimum (FR-ASK-014). */
   askKAnonymityThreshold: z.number().int().min(3).max(100).default(3),
   piiRedaction: z.boolean().default(false),
+  /** The Owner's own daily AI limits. They can only lower ContextOS's ceiling. */
+  aiDailyTemplates: z.number().int().min(0).max(1000).optional(),
+  aiDailyModules: z.number().int().min(0).max(10_000).optional(),
   nudges: NudgeSettingsSchema.prefault({}),
   retention: RetentionSettingsSchema.prefault({}),
 });

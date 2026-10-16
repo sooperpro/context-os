@@ -41,6 +41,7 @@ describe("job queue + worker", () => {
         import_drive_file: () => Promise.resolve(),
         refresh_access: () => Promise.resolve(),
         generate_tutorial: () => Promise.resolve(),
+        generate_template: () => Promise.resolve(),
         refresh_hub: () => {
           attempts += 1;
           return attempts < 3 ? Promise.reject(new Error("flaky")) : Promise.resolve();
@@ -138,6 +139,7 @@ describe("job queue + worker", () => {
         import_drive_file: slow,
         refresh_access: slow,
         generate_tutorial: slow,
+        generate_template: slow,
         refresh_hub: slow,
       },
     });

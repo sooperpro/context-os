@@ -6,6 +6,7 @@ import { useParams } from "react-router";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/page-header";
 import { Markdown } from "@/components/markdown";
+import { ReviewBanner, SendBackDialog } from "@/components/review-parts";
 import { SectionCard } from "@/components/section-card";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,8 @@ import {
   GroupIcon,
   LockIcon,
   QuizIcon,
+  RateReviewIcon,
+  SendIcon,
   SmartToyIcon,
   WarningIcon,
 } from "@/components/ui/icons";
@@ -52,9 +55,12 @@ import {
   useAssignTutorial,
   usePublishTutorial,
   useRegenerateTutorial,
+  useSendBackTutorial,
+  useSubmitTutorial,
   useUpdateTutorial,
 } from "@/features/tutorials/api/tutorials.queries";
-import { TUTORIAL_STATUS } from "@/features/tutorials/tutorials-meta";
+import { COMPANY_WIDE, TUTORIAL_STATUS } from "@/features/tutorials/tutorials-meta";
+import { useIsReviewer } from "@/features/workspace/hooks/use-is-reviewer";
 import { formatRelativeTime } from "@/lib/format";
 
 type Selection = { kind: "overview" } | { kind: "lesson"; id: string } | { kind: "check" };
@@ -62,7 +68,8 @@ type Selection = { kind: "overview" } | { kind: "lesson"; id: string } | { kind:
 /**
  * Tutorial Studio (FR-LRN-004): review and edit a drafted tutorial, preview it as learners will see
  * it, then publish a version. Regenerating writes a new draft from the project's current knowledge;
- * nothing changes for learners until the curator publishes.
+ * nothing changes for learners until it is published. Owner, Admin and HR publish; path curators
+ * and managers submit it for review (N-18).
  */
 export function TutorialStudioPage() {
   const { tutorialId = "" } = useParams();
@@ -83,12 +90,18 @@ export function TutorialStudioPage() {
 function Studio({ tutorial }: { tutorial: TutorialDetail }) {
   const update = useUpdateTutorial(tutorial.id);
   const archive = useArchiveTutorial(tutorial.id);
+  const submit = useSubmitTutorial(tutorial.id);
+  const sendBack = useSendBackTutorial(tutorial.id);
+  const reviewer = useIsReviewer();
+  const inReview = tutorial.review?.state === "in_review";
   // Unsaved edits sit on top of the saved draft; without them, a new draft shows as it arrives.
   const [edits, setEdits] = useState<TutorialContent | null>(null);
   const content = edits ?? tutorial.content;
   const dirty = edits !== null;
   const [selection, setSelection] = useState<Selection>({ kind: "overview" });
-  const [dialog, setDialog] = useState<"publish" | "assign" | "regenerate" | null>(null);
+  const [dialog, setDialog] = useState<"publish" | "assign" | "regenerate" | "send-back" | null>(
+    null,
+  );
 
   const edit = (next: TutorialContent) => setEdits(next);
   const save = () =>
@@ -110,7 +123,7 @@ function Studio({ tutorial }: { tutorial: TutorialDetail }) {
   return (
     <div className="mx-auto flex max-w-360 flex-col gap-3 medium:gap-4">
       <PageHeader
-        kicker={`${tutorial.project.name} · for ${tutorial.audience}`}
+        kicker={`${tutorial.project?.name ?? COMPANY_WIDE} · for ${tutorial.audience}`}
         title={content?.title ?? tutorial.title}
         description={
           tutorial.publishedVersion
@@ -131,12 +144,34 @@ function Studio({ tutorial }: { tutorial: TutorialDetail }) {
                 Assign
               </Button>
             ) : null}
-            <Button
-              disabled={!content?.lessons.length || dirty || tutorial.generating}
-              onClick={() => setDialog("publish")}
-            >
-              {tutorial.publishedVersion ? "Publish update" : "Publish"}
-            </Button>
+            {reviewer ? (
+              <Button
+                disabled={!content?.lessons.length || dirty || tutorial.generating}
+                onClick={() => setDialog("publish")}
+              >
+                {tutorial.publishedVersion ? "Publish update" : "Publish"}
+              </Button>
+            ) : (
+              <Button
+                disabled={
+                  !content?.lessons.length ||
+                  dirty ||
+                  tutorial.generating ||
+                  inReview ||
+                  !tutorial.unpublishedChanges ||
+                  submit.isPending
+                }
+                onClick={() =>
+                  submit.mutate(undefined, {
+                    onSuccess: () =>
+                      toast.success("Submitted for review. People Ops have been told."),
+                    onError: (error) => toast.error(error.message),
+                  })
+                }
+              >
+                <SendIcon aria-hidden /> {inReview ? "Submitted" : "Submit for review"}
+              </Button>
+            )}
           </>
         }
       />
@@ -162,6 +197,11 @@ function Studio({ tutorial }: { tutorial: TutorialDetail }) {
             Unpublished changes
           </StatusChip>
         ) : null}
+        {inReview ? (
+          <StatusChip tone="info" icon={<RateReviewIcon />}>
+            In review
+          </StatusChip>
+        ) : null}
         <StatusChip icon={<GroupIcon />}>{tutorial.learners} learners</StatusChip>
         {tutorial.status === "published" ? (
           <Button
@@ -177,6 +217,20 @@ function Studio({ tutorial }: { tutorial: TutorialDetail }) {
         ) : null}
       </div>
 
+      <ReviewBanner
+        review={tutorial.review}
+        reviewer={reviewer}
+        what="tutorial"
+        onSendBack={() => setDialog("send-back")}
+      />
+      {tutorial.update && !tutorial.generating ? (
+        <Banner
+          tone="ai"
+          icon={<SmartToyIcon />}
+          title="Updated draft from new company knowledge"
+          description={`${tutorial.update.changes.join(". ")}. Learners keep version ${tutorial.publishedVersion ?? 1} until it's published.`}
+        />
+      ) : null}
       {tutorial.generating ? (
         <Banner
           tone="ai"
@@ -274,6 +328,25 @@ function Studio({ tutorial }: { tutorial: TutorialDetail }) {
         open={dialog === "assign"}
         onClose={() => setDialog(null)}
       />
+      {reviewer ? (
+        <SendBackDialog
+          open={dialog === "send-back"}
+          pending={sendBack.isPending}
+          onOpenChange={(open) => setDialog(open ? "send-back" : null)}
+          onSendBack={(note) =>
+            sendBack.mutate(
+              { note },
+              {
+                onSuccess: () => {
+                  setDialog(null);
+                  toast.success(`Sent back to ${tutorial.review?.by?.name ?? "them"}`);
+                },
+                onError: (error) => toast.error(error.message),
+              },
+            )
+          }
+        />
+      ) : null}
       <RegenerateDialog
         tutorial={tutorial}
         open={dialog === "regenerate"}
@@ -696,7 +769,8 @@ function PublishDialog({
 }) {
   const publish = usePublishTutorial(tutorial.id);
   const switchId = useId();
-  const [updateLearners, setUpdateLearners] = useState(false);
+  // An update drafted after the Hub changed moves people part-way through to it by default.
+  const [updateLearners, setUpdateLearners] = useState(tutorial.update !== null);
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="sm:max-w-md">

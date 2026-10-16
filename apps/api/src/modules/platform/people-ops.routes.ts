@@ -10,6 +10,7 @@ import {
   ProbationDiscussInputSchema,
   ProbationRecommendationInputSchema,
   ReminderInputSchema,
+  ReviewSendBackInputSchema,
   SetupStepIdSchema,
   SetupStepInputSchema,
   TemplateDraftInputSchema,
@@ -44,12 +45,15 @@ import {
 } from "./onboarding-records.js";
 import type { PlatformRecord } from "./store.js";
 import { manages } from "./reports.js";
+import { isReviewer, REVIEWERS } from "./review.js";
 
 /*
  * People Ops (HR): onboarding records across the company, probation reviews and onboarding
  * templates (role access spec §4.2 HR Home, §4.7). Every `/people-ops` route is for HR and owners,
  * who see everything (decided 16 Oct 2026): admins govern the workspace but do not see onboarding
  * records or check-in notes (spec §3, §6 rule 3).
+ * Templates are the exception (N-18, decided 17 Oct 2026): Owner, Admin and HR manage and publish
+ * them; managers and path curators make drafts and submit them for review.
  * The records themselves are in onboarding-records.ts, shared with the manager's team routes.
  */
 
@@ -72,6 +76,7 @@ export function createPeopleOpsRoutes(container: Container) {
     templateDetail,
     templateSummary,
     applyStages,
+    assignWaiting,
     recordData,
     newRecord,
     sync,
@@ -93,6 +98,35 @@ export function createPeopleOpsRoutes(container: Container) {
     sendInvitation,
     setRecommendation,
   } = createOnboardingRecords(container);
+
+  /** Template routes check their own access: see `templateViewer`. */
+  const templateRoute = (path: string) =>
+    /\/people-ops\/(templates|template-library)(\/|$)/.test(path);
+  /** People Ops, admins and owners; managers and path curators for their own drafts. */
+  const templateViewer = (actor: Actor) => {
+    if (isReviewer(actor) || actor.role === "manager" || identity.curatesAny(actor)) return;
+    throw new AppError(403, "FORBIDDEN", "Templates are managed by People Ops");
+  };
+  /** Reviewers see every template; others the published ones and their own drafts. */
+  const visibleTemplate = (actor: Actor, row: PlatformRecord) =>
+    isReviewer(actor) || templateData(row).publishedVersion !== null || row.ownerId === actor.id;
+  const openTemplate = (actor: Actor, id: string) => {
+    templateViewer(actor);
+    const row = store.get(actor, TEMPLATE, id);
+    if (!visibleTemplate(actor, row)) throw new NotFoundError("Template");
+    return row;
+  };
+  /** Managers and curators change only the templates they made. */
+  const editableTemplate = (actor: Actor, id: string) => {
+    const row = openTemplate(actor, id);
+    if (!isReviewer(actor) && row.ownerId !== actor.id)
+      throw new AppError(403, "FORBIDDEN", "Only People Ops can change a template you didn't make");
+    return row;
+  };
+  const requireReviewer = (actor: Actor, what: string) => {
+    if (!isReviewer(actor))
+      throw new AppError(403, "FORBIDDEN", `Only People Ops, admins and owners can ${what}`);
+  };
 
   const within = (fallback: number) =>
     z.object({ within: z.coerce.number().int().min(1).max(365).default(fallback) });
@@ -138,7 +172,7 @@ export function createPeopleOpsRoutes(container: Container) {
   return (
     new Hono<AppEnv>()
       .use("/people-ops/*", async (c, next) => {
-        hr(c.get("actor"));
+        if (!templateRoute(c.req.path)) hr(c.get("actor"));
         await next();
       })
 
@@ -294,10 +328,15 @@ export function createPeopleOpsRoutes(container: Container) {
           validationHook,
         ),
         (c) => {
+          const actor = c.get("actor");
+          templateViewer(actor);
           const { archived } = c.req.valid("query");
           return c.json({
-            items: templateRows(c.get("actor"))
-              .filter((row) => archived === "include" || !isArchived(row))
+            items: templateRows(actor)
+              .filter(
+                (row) =>
+                  visibleTemplate(actor, row) && (archived === "include" || !isArchived(row)),
+              )
               .map(templateSummary),
           });
         },
@@ -600,7 +639,9 @@ export function createPeopleOpsRoutes(container: Container) {
               `/people`,
               "onboarding.buddy_assigned",
             );
-          return c.json(recordDetail(row), 201);
+          // No template chosen and none fits their job: one is drafted for them (N-18).
+          if (!input.templateId) container.connectors.newHireWithoutTemplate?.(actor, row);
+          return c.json(recordDetail(recordById(actor, row.id)), 201);
         },
       )
       .patch(
@@ -641,6 +682,8 @@ export function createPeopleOpsRoutes(container: Container) {
           if (input.templateId) {
             requirePublishedTemplate(actor, input.templateId);
             next.templateId = input.templateId;
+            // People Ops picked one: they no longer wait for a drafted template.
+            next.pendingTemplateId = null;
             next.setup.roadmap = { at, by: null };
           }
           if (input.peoplePartnerId) {
@@ -967,8 +1010,7 @@ export function createPeopleOpsRoutes(container: Container) {
 
       .get("/people-ops/templates/:id", (c) => {
         const actor = c.get("actor");
-        templateRows(actor);
-        return c.json(templateDetail(store.get(actor, TEMPLATE, c.req.param("id"))));
+        return c.json(templateDetail(openTemplate(actor, c.req.param("id")), actor));
       })
       .get(
         "/people-ops/templates/:id/versions/:version",
@@ -980,17 +1022,16 @@ export function createPeopleOpsRoutes(container: Container) {
         (c) => {
           const actor = c.get("actor");
           const { id, version } = c.req.valid("param");
-          templateRows(actor);
-          const detail = templateVersion(store.get(actor, TEMPLATE, id), version);
+          const detail = templateVersion(openTemplate(actor, id), version);
           if (!detail) throw new NotFoundError("A saved copy of that version");
           return c.json(detail);
         },
       )
       .post("/people-ops/templates/:id/archive", (c) => {
         const actor = c.get("actor");
-        templateRows(actor);
+        requireReviewer(actor, "archive templates");
         const row = store.get(actor, TEMPLATE, c.req.param("id"));
-        if (isArchived(row)) return c.json(templateDetail(row));
+        if (isArchived(row)) return c.json(templateDetail(row, actor));
         const updated = store.patch(row, {
           data: { ...templateData(row), archivedAt: new Date().toISOString() },
         });
@@ -1001,13 +1042,13 @@ export function createPeopleOpsRoutes(container: Container) {
           targetId: row.id,
           metadata: { name: templateData(row).name },
         });
-        return c.json(templateDetail(updated));
+        return c.json(templateDetail(updated, actor));
       })
       .post("/people-ops/templates/:id/restore", (c) => {
         const actor = c.get("actor");
-        templateRows(actor);
+        requireReviewer(actor, "restore templates");
         const row = store.get(actor, TEMPLATE, c.req.param("id"));
-        if (!isArchived(row)) return c.json(templateDetail(row));
+        if (!isArchived(row)) return c.json(templateDetail(row, actor));
         const updated = store.patch(row, {
           data: { ...templateData(row), archivedAt: null },
         });
@@ -1018,12 +1059,14 @@ export function createPeopleOpsRoutes(container: Container) {
           targetId: row.id,
           metadata: { name: templateData(row).name },
         });
-        return c.json(templateDetail(updated));
+        return c.json(templateDetail(updated, actor));
       })
       .delete("/people-ops/templates/:id", (c) => {
         const actor = c.get("actor");
-        templateRows(actor);
-        const row = store.get(actor, TEMPLATE, c.req.param("id"));
+        const row = editableTemplate(actor, c.req.param("id"));
+        // Managers and curators may throw away their own drafts, never a published template.
+        if (!isReviewer(actor) && templateData(row).publishedVersion !== null)
+          throw new AppError(403, "FORBIDDEN", "Only People Ops can delete a published template");
         const blocker = deleteBlocker(row);
         if (blocker) throw new AppError(409, "CONFLICT", blocker);
         store.remove(row);
@@ -1038,6 +1081,7 @@ export function createPeopleOpsRoutes(container: Container) {
       })
       .get("/people-ops/template-library", (c) => {
         const actor = c.get("actor");
+        templateViewer(actor);
         return c.json({ items: [...catalog(actor.workspaceId).values()] });
       })
       .post(
@@ -1046,8 +1090,7 @@ export function createPeopleOpsRoutes(container: Container) {
         (c) => {
           const actor = c.get("actor");
           const input = c.req.valid("json");
-          templateRows(actor);
-          const base = templateData(store.get(actor, TEMPLATE, input.baseId));
+          const base = templateData(openTemplate(actor, input.baseId));
           const row = store.create(
             actor,
             TEMPLATE,
@@ -1059,6 +1102,7 @@ export function createPeopleOpsRoutes(container: Container) {
               publishedVersion: null,
               // A copy starts live, even when its base was archived.
               archivedAt: null,
+              review: null,
               stages: base.stages.map((stage) => ({ ...stage, moduleIds: [...stage.moduleIds] })),
               history: [{ version: 1, on: today(), note: `Draft based on ${base.name}` }],
               updatedBy: actor.name,
@@ -1072,7 +1116,7 @@ export function createPeopleOpsRoutes(container: Container) {
             targetId: row.id,
             metadata: { baseId: input.baseId },
           });
-          return c.json(templateDetail(row), 201);
+          return c.json(templateDetail(row, actor), 201);
         },
       )
       .post(
@@ -1080,7 +1124,7 @@ export function createPeopleOpsRoutes(container: Container) {
         zValidator("json", TemplateDraftInputSchema, validationHook),
         (c) => {
           const actor = c.get("actor");
-          const row = store.get(actor, TEMPLATE, c.req.param("id"));
+          const row = editableTemplate(actor, c.req.param("id"));
           const data = templateData(row);
           if (isArchived(row))
             throw new AppError(409, "CONFLICT", "Restore the template before editing it");
@@ -1109,7 +1153,7 @@ export function createPeopleOpsRoutes(container: Container) {
             });
             return result;
           });
-          return c.json(templateDetail(updated));
+          return c.json(templateDetail(updated, actor));
         },
       )
       .post(
@@ -1117,6 +1161,7 @@ export function createPeopleOpsRoutes(container: Container) {
         zValidator("json", TemplatePublishInputSchema, validationHook),
         (c) => {
           const actor = c.get("actor");
+          requireReviewer(actor, "publish templates");
           const row = store.get(actor, TEMPLATE, c.req.param("id"));
           const input = c.req.valid("json");
           const data = templateData(row);
@@ -1125,6 +1170,18 @@ export function createPeopleOpsRoutes(container: Container) {
           const next = applyStages(actor.workspaceId, data, input);
           if (!next.stages.some((stage) => stage.moduleIds.length))
             throw new BadRequestError("Add at least one module before publishing");
+          // A generated roadmap's new modules are tutorial drafts: each one is reviewed first.
+          const published = catalog(actor.workspaceId);
+          const drafts = next.stages
+            .flatMap((stage) => stage.moduleIds)
+            .filter((id) => !published.has(id));
+          if (drafts.length)
+            throw new AppError(
+              409,
+              "CONFLICT",
+              `${drafts.length} module${drafts.length === 1 ? " is" : "s are"} still ${drafts.length === 1 ? "a draft" : "drafts"}. Publish or remove ${drafts.length === 1 ? "it" : "them"} first.`,
+            );
+          const submitter = data.review?.state === "in_review" ? data.review.by : null;
           const version = data.status === "published" ? data.version + 1 : data.version;
           const updated = db.transaction(() => {
             const result = store.patch(row, {
@@ -1155,6 +1212,7 @@ export function createPeopleOpsRoutes(container: Container) {
                   ...data.history.filter((entry) => entry.version !== version),
                 ],
                 updatedBy: actor.name,
+                review: null,
               } satisfies TemplateData,
             });
             audit.record({
@@ -1166,7 +1224,111 @@ export function createPeopleOpsRoutes(container: Container) {
             });
             return result;
           });
-          return c.json(templateDetail(updated));
+          // New hires who waited for this template get it now.
+          assignWaiting(updated);
+          if (submitter && submitter !== actor.id)
+            notifier.notify(actor.workspaceId, submitter, {
+              type: "template.published",
+              category: "onboarding",
+              title: `${actor.name} published your template “${next.name}”`,
+              link: `/templates/${row.id}`,
+            });
+          return c.json(templateDetail(updated, actor));
+        },
+      )
+      .post(
+        "/people-ops/templates/:id/submit",
+        zValidator("json", TemplatePublishInputSchema, validationHook),
+        (c) => {
+          const actor = c.get("actor");
+          if (isReviewer(actor))
+            throw new BadRequestError("You can publish it directly; it doesn't need a review");
+          const row = editableTemplate(actor, c.req.param("id"));
+          const input = c.req.valid("json");
+          const data = templateData(row);
+          if (isArchived(row))
+            throw new AppError(409, "CONFLICT", "Restore the template before submitting it");
+          if (data.generation?.state === "running")
+            throw new AppError(409, "CONFLICT", "Wait for the roadmap draft before submitting it");
+          // The submitted stages are saved as the draft the reviewer sees.
+          const next = applyStages(actor.workspaceId, data, input);
+          if (!next.stages.some((stage) => stage.moduleIds.length))
+            throw new BadRequestError("Add at least one module before submitting");
+          const version = data.status === "published" ? data.version + 1 : data.version;
+          const note = input.note.trim() || null;
+          const updated = db.transaction(() => {
+            const result = store.patch(row, {
+              status: "draft",
+              data: {
+                ...next,
+                version,
+                status: "draft",
+                updatedBy: actor.name,
+                review: { state: "in_review", by: actor.id, at: new Date().toISOString(), note },
+              } satisfies TemplateData,
+            });
+            audit.record({
+              actor,
+              action: "template.submit",
+              targetType: "onboarding_template",
+              targetId: row.id,
+              metadata: { version: `v${version}`, note },
+            });
+            return result;
+          });
+          notifier.notifyRoles(
+            actor.workspaceId,
+            REVIEWERS,
+            {
+              type: "template.review",
+              category: "onboarding",
+              title: `${actor.name} submitted the template “${next.name}” for review`,
+              body: note ?? undefined,
+              link: `/templates/${row.id}`,
+            },
+            actor.id,
+          );
+          return c.json(templateDetail(updated, actor));
+        },
+      )
+      .post(
+        "/people-ops/templates/:id/send-back",
+        zValidator("json", ReviewSendBackInputSchema, validationHook),
+        (c) => {
+          const actor = c.get("actor");
+          requireReviewer(actor, "send templates back");
+          const row = store.get(actor, TEMPLATE, c.req.param("id"));
+          const data = templateData(row);
+          if (data.review?.state !== "in_review")
+            throw new AppError(409, "CONFLICT", "This template isn't waiting for a review");
+          const submitter = data.review.by;
+          const { note } = c.req.valid("json");
+          const updated = store.patch(row, {
+            data: {
+              ...data,
+              review: {
+                state: "changes_requested",
+                by: actor.id,
+                at: new Date().toISOString(),
+                note,
+              },
+            } satisfies TemplateData,
+          });
+          audit.record({
+            actor,
+            action: "template.send_back",
+            targetType: "onboarding_template",
+            targetId: row.id,
+            metadata: { note },
+          });
+          notifier.notify(actor.workspaceId, submitter, {
+            type: "template.sent_back",
+            category: "onboarding",
+            title: `${actor.name} sent back your template “${data.name}”`,
+            body: note,
+            link: `/templates/${row.id}`,
+          });
+          return c.json(templateDetail(updated, actor));
         },
       )
 

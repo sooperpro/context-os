@@ -38,6 +38,7 @@ import {
   LibraryBooksIcon,
   LockIcon,
   RadioButtonUncheckedIcon,
+  SmartToyIcon,
   SupervisorAccountIcon,
   VerifiedIcon,
 } from "@/components/ui/icons";
@@ -61,7 +62,11 @@ import {
   MessageDialog,
   type AssignmentKind,
 } from "@/features/people-ops/components/onboarding-dialogs";
-import { ONBOARDING_PATH, probationPath } from "@/features/people-ops/people-ops-meta";
+import {
+  ONBOARDING_PATH,
+  probationPath,
+  templatePath,
+} from "@/features/people-ops/people-ops-meta";
 import { daysFromToday, formatShortDate } from "@/lib/format";
 
 /** An employee's onboarding record (prototype `#onboarding-<id>`): assignments, setup, milestones. */
@@ -241,6 +246,35 @@ function RecordView({ record }: { record: OnboardingRecord }) {
         }
       />
       {note ? <Banner tone={note.tone} icon={note.icon} title={record.note} /> : null}
+      {record.templateDraft ? (
+        // No template fit their job, so one is drafted for them (N-18).
+        <Banner
+          tone={record.templateDraft.state === "failed" ? "warning" : "ai"}
+          icon={<SmartToyIcon aria-hidden />}
+          title={
+            record.templateDraft.state === "generating"
+              ? `Drafting the ${record.templateDraft.name} template from company knowledge`
+              : record.templateDraft.state === "failed"
+                ? `The ${record.templateDraft.name} template couldn’t be drafted`
+                : "Template draft waiting for review"
+          }
+          description={
+            record.templateDraft.state === "failed"
+              ? "Choose a template for them instead."
+              : `No published template fits their job. They get ${record.templateDraft.name} once it’s published, unless you choose another template first.`
+          }
+          actions={
+            <Button
+              size="xs"
+              variant="outline"
+              nativeButton={false}
+              render={<Link to={templatePath(record.templateDraft.id)} />}
+            >
+              Open draft
+            </Button>
+          }
+        />
+      ) : null}
 
       <PageColumns>
         <PageMain>

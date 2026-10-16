@@ -13,3 +13,6 @@ export const TUTORIAL_STATUS: Record<
   archived: { label: "Archived", tone: "neutral" },
   failed: { label: "Draft failed", tone: "error" },
 };
+
+/** Shown instead of a project name for a tutorial drafted from every project. */
+export const COMPANY_WIDE = "Company-wide";

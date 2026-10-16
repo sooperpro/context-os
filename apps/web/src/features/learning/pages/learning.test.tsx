@@ -101,6 +101,28 @@ describe("My roadmap", () => {
   });
 });
 
+describe("My roadmap while it is prepared", () => {
+  it("says the roadmap is being prepared when a template is drafted for them", async () => {
+    mockServer.use(
+      http.get(buildApiUrl("/v1/me/roadmap"), () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: "NOT_FOUND",
+              message: "Your roadmap is being prepared",
+              details: { preparing: true },
+            },
+          },
+          { status: 404 },
+        ),
+      ),
+    );
+    renderAt("/roadmap");
+    expect(await screen.findByText("Your roadmap is being prepared")).toBeInTheDocument();
+    expect(screen.queryByText("You don't have an onboarding roadmap")).not.toBeInTheDocument();
+  });
+});
+
 describe("A finished module", () => {
   const finished: ModuleDetail = {
     id: "m9",

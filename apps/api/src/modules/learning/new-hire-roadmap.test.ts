@@ -31,7 +31,7 @@ describe("New hire roadmap", () => {
 
   it("starts the roadmap from the template their job title points at", async () => {
     t = createTestApp();
-    newHire("nina", "Backend Engineer");
+    newHire("nina", "Senior Software Engineer");
     expect((await t.app.request("/api/v1/me/onboarding")).status).toBe(200);
     const roadmap = MyRoadmapSchema.parse(await (await t.app.request("/api/v1/me/roadmap")).json());
     expect(roadmap.stages.length).toBeGreaterThan(0);
@@ -45,5 +45,12 @@ describe("New hire roadmap", () => {
     t = createTestApp();
     newHire("omar", "Finance associate");
     expect((await t.app.request("/api/v1/me/onboarding")).status).toBe(404);
+  });
+
+  it("doesn't count a template for the same kind of role as fitting (N-18)", async () => {
+    t = createTestApp();
+    // "Backend Engineer" is engineering work, but no template is for that job or team.
+    newHire("nina", "Backend Engineer");
+    expect((await t.app.request("/api/v1/me/roadmap")).status).toBe(404);
   });
 });

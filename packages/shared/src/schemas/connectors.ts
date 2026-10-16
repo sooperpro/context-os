@@ -47,9 +47,12 @@ export const ScopeSelectionSchema = z
     frequency: SyncFrequencySchema.optional(),
   })
   .strict();
-/** Replace the selected scopes a connection feeds into a project (FR-INT-005). */
+/**
+ * Replace the selected scopes a connection feeds into a project (FR-INT-005). Without a project
+ * they feed the workspace's "Company knowledge" project, made the first time it is needed.
+ */
 export const ConnectorScopesInputSchema = z
-  .object({ projectId: IdSchema, scopes: z.array(ScopeSelectionSchema).max(200) })
+  .object({ projectId: IdSchema.optional(), scopes: z.array(ScopeSelectionSchema).max(200) })
   .strict();
 export const ConnectorSyncInputSchema = z.object({ scopeId: IdSchema.optional() }).strict();
 /** Disconnect options (PRD §8.12): keep derived claims without updates, or purge. */

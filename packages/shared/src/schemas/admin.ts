@@ -144,7 +144,10 @@ export const ConnectInputSchema = z
     scopeIds: z.array(z.string()).min(1, "Choose at least one."),
     frequency: SyncFrequencySchema,
     skipOlderThan: z.enum(["never", "3y", "1y"]),
-    /** The project the content feeds; every source in ContextOS belongs to one. */
+    /**
+     * The project the content feeds; every source in ContextOS belongs to one. Omitted: the
+     * workspace's "Company knowledge" project.
+     */
     projectId: z.uuid().optional(),
     /** Who can read the imported content; omitted mirrors the tool's permissions. */
     visibility: ScopeVisibilitySchema.optional(),

@@ -133,11 +133,18 @@ export function weeksLabel(stage: { weekStart: number; weekEnd: number }): strin
     : `Weeks ${stage.weekStart}–${stage.weekEnd}`;
 }
 
-/** "Company · 25 min · Owner: Elena Brooks", as parts. */
+const LESSONS_LABEL: Record<NonNullable<TemplateModule["lessons"]>, string> = {
+  ready: "Company lessons",
+  draft: "Lessons in draft",
+  none: "Generic: no company lessons yet",
+};
+
+/** "Company · 25 min · Owner: Elena Brooks · Company lessons", as parts. */
 export function templateModuleMeta(module: TemplateModule): string[] {
   return [
     TEMPLATE_MODULE_KIND[module.kind].label,
     minutesLabel(module.minutes),
     module.owner ? `Owner: ${module.owner}` : "",
+    module.lessons ? LESSONS_LABEL[module.lessons] : "",
   ].filter(Boolean);
 }

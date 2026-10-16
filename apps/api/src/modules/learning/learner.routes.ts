@@ -168,8 +168,8 @@ export function createLearnerRoutes(container: Container) {
         null,
         learning.progressData(progress)?.versionId,
       );
-      if (!content.tutorialId || !content.projectId) throw new NotFoundError("Module");
-      identity.requireProject(actor, content.projectId);
+      if (!content.tutorialId) throw new NotFoundError("Module");
+      if (content.projectId) identity.requireProject(actor, content.projectId);
       const tutorial = learning.tutorialRow(ws, content.tutorialId);
       if (!progress && tutorial?.status !== "published") throw new NotFoundError("Module");
       return finish(actor, key, content, {
@@ -381,20 +381,13 @@ export function createLearnerRoutes(container: Container) {
   const sourcesOf = (actor: Actor, content: ModuleContent): LearningSource[] => {
     const ids = [...new Set(content.lessons.flatMap((lesson) => lesson.sourceIds))];
     if (!ids.length) return [];
-    let visible = new Set<string>();
-    try {
-      visible = content.projectId
-        ? new Set(identity.visibleSourceIds(actor, content.projectId))
-        : visible;
-    } catch {
-      // Not in the project: everything shows as restricted.
-    }
+    const visible = learning.visibleOf(actor, ids);
     return db
       .select()
       .from(sourceObjects)
       .where(inArray(sourceObjects.id, ids))
       .all()
-      .filter((source) => source.projectId === content.projectId && visible.has(source.id))
+      .filter((source) => visible.has(source.id))
       .map((source) => ({
         id: source.id,
         title: source.title,
@@ -431,13 +424,7 @@ export function createLearnerRoutes(container: Container) {
   ): LearningRequest => {
     if (!resolved) throw new BadRequestError("Say which module the lesson is in");
     const ids = [...new Set(resolved.content.lessons.flatMap((lesson) => lesson.sourceIds))];
-    let visible = new Set<string>();
-    try {
-      if (resolved.content.projectId)
-        visible = new Set(identity.visibleSourceIds(actor, resolved.content.projectId));
-    } catch {
-      // Not in the project: nothing in it is open to them.
-    }
+    const visible = learning.visibleOf(actor, ids);
     const missing = ids.filter((id) => !visible.has(id));
     if (!missing.length)
       throw new AppError(409, "CONFLICT", "You can already open everything in this module");
@@ -487,6 +474,9 @@ export function createLearnerRoutes(container: Container) {
     const record = recordFor(actor);
     const roadmap =
       (record ? records.roadmapFor(record) : null) ?? learning.roadmapRow(ws, actor.id);
+    // No template fit them yet: one is being drafted, and People Ops publish it (N-18).
+    if (!roadmap && record && records.recordData(record).pendingTemplateId)
+      throw new AppError(404, "NOT_FOUND", "Your roadmap is being prepared", { preparing: true });
     if (!roadmap) throw new NotFoundError("Onboarding roadmap");
     const plan = roadmapData(roadmap);
     const modules = roadmapModules(actor);

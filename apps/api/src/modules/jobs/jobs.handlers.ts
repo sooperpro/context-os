@@ -1,5 +1,7 @@
 import { z } from "zod";
 import type { JobRow } from "../../db/schema.js";
+import type { Actor } from "../../types.js";
+import type { PlatformRecord } from "../platform/store.js";
 import { chunkText } from "../../lib/chunking.js";
 import type { GeminiClient } from "../../lib/gemini.js";
 import type { Logger } from "../../lib/logger.js";
@@ -22,6 +24,11 @@ export interface ConnectorSyncRegistry {
   importFile?: (job: JobRow) => Promise<void>;
   refreshAccess?: (job: JobRow) => Promise<void>;
   generateTutorial?: (job: JobRow) => Promise<void>;
+  generateTemplate?: (job: JobRow) => Promise<void>;
+  /** A new hire's onboarding was made and no template fits them: draft one (N-18). */
+  newHireWithoutTemplate?: (actor: Actor, record: PlatformRecord) => void;
+  /** A project's Hub was refreshed after a sync: draft updates of modules built on it (N-18). */
+  hubChanged?: (projectId: string) => void;
 }
 
 export interface JobHandlerDeps {
@@ -177,6 +184,11 @@ export function createJobHandlers(deps: JobHandlerDeps): JobHandlers {
         return;
       }
       await hub.regenerateOverview(project);
+      try {
+        connectors.hubChanged?.(project.id);
+      } catch (error) {
+        logger.warn({ err: error }, "Module update drafts could not be queued after the sync");
+      }
     },
 
     async sync_connector(job: JobRow): Promise<void> {
@@ -194,6 +206,12 @@ export function createJobHandlers(deps: JobHandlerDeps): JobHandlers {
       if (!connectors.generateTutorial)
         throw new Error("Tutorial drafting is not available in this process");
       await connectors.generateTutorial(job);
+    },
+
+    async generate_template(job: JobRow): Promise<void> {
+      if (!connectors.generateTemplate)
+        throw new Error("Roadmap drafting is not available in this process");
+      await connectors.generateTemplate(job);
     },
 
     async refresh_access(job: JobRow): Promise<void> {

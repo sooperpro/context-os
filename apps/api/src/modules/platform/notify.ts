@@ -179,6 +179,29 @@ export function createNotifier(db: Db) {
         .returning()
         .get();
     },
+    /**
+     * Notify every active member with one of the roles (People Ops reviewers: owner, admin, hr),
+     * leaving out the person who caused it.
+     */
+    notifyRoles(
+      workspaceId: string,
+      roles: readonly string[],
+      input: NotificationInput,
+      exceptUserId?: string,
+    ) {
+      const members = db
+        .select({ userId: memberships.userId, role: memberships.role })
+        .from(memberships)
+        .where(and(eq(memberships.workspaceId, workspaceId), eq(memberships.status, "active")))
+        .all();
+      for (const member of members)
+        if (
+          roles.includes(member.role) &&
+          member.userId !== exceptUserId &&
+          member.userId !== "system"
+        )
+          this.notify(workspaceId, member.userId, input);
+    },
     /** Notify every active owner/admin in the workspace (system / security events). */
     notifyAdmins(workspaceId: string, input: NotificationInput) {
       const admins = db

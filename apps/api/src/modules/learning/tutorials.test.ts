@@ -29,6 +29,7 @@ import {
   createProject,
   createTestApp,
   jsonRequest,
+  SAMPLE_TUTORIAL,
   type TestApp,
 } from "../../test/helpers.js";
 import type { Actor } from "../../types.js";
@@ -111,14 +112,14 @@ describe("Tutorials: drafted from knowledge, reviewed, published and taken", () 
     await t.drain();
 
     let detail = TutorialDetailSchema.parse(await get(`/tutorials/${pending.id}`));
-    expect(detail).toMatchObject({ status: "draft", lessonCount: 2, questionCount: 2 });
+    expect(detail).toMatchObject({ status: "draft", lessonCount: 2, questionCount: 3 });
     expect(detail.content?.lessons[0]).toMatchObject({
       id: "l1",
       title: "Why we changed",
       basedOn: [expect.any(String) as string],
     });
     expect(detail.content?.lessons[0]!.body).toContain("## Why we changed");
-    expect(detail.content?.check?.passMark).toBe(2);
+    expect(detail.content?.check?.passMark).toBe(3);
     expect(detail.sources.every((source) => source.state === "current")).toBe(true);
     // Built from the Knowledge Hub's stored items, not from Drive.
     const call = gemini.calls.find((entry) => entry.purpose === "tutorial");
@@ -176,6 +177,163 @@ describe("Tutorials: drafted from knowledge, reviewed, published and taken", () 
       unpublishedChanges: true,
       staleSources: 0,
     });
+  });
+
+  it("logs each draft's tokens and stops at the workspace's daily AI limit", async () => {
+    t = createTestApp({ env: { AI_DAILY_MODULE_LIMIT: "2" } });
+    admin = owner();
+    const project = await createProject(t.app);
+    await addSource(t.app, project.id);
+    await t.drain();
+    const draft = () =>
+      t.app.request(
+        "/api/v1/tutorials",
+        jsonRequest({ projectId: project.id, audience: "New engineers" }),
+      );
+    const first = await json<{ id: string }>(await draft());
+    await t.drain();
+    const run = t.container.db
+      .select()
+      .from(platformRecords)
+      .where(eq(platformRecords.kind, "generation_run"))
+      .get();
+    expect(run?.status).toBe("done");
+    expect(run?.data).toMatchObject({
+      kind: "module",
+      targetId: first.id,
+      model: "fake-model",
+      inputTokens: 1000,
+      outputTokens: 200,
+    });
+
+    expect(
+      (await t.app.request(`/api/v1/tutorials/${first.id}/regenerate`, jsonRequest({}))).status,
+    ).toBe(202);
+    await t.drain();
+    const refused = await draft();
+    expect(refused.status).toBe(429);
+    expect(await refused.text()).toContain("Daily AI limit reached");
+
+    // The Owner can lower the limit, but nobody else can change it.
+    const settings = (body: object) =>
+      t.app.request("/api/v1/workspaces/current/settings", {
+        ...jsonRequest(body),
+        method: "PATCH",
+      });
+    as("limits-admin", "admin");
+    member("limits-admin", "admin");
+    const denied = await settings({ version: 1, policies: { aiDailyModules: 1 } });
+    expect(denied.status).toBe(403);
+    expect(await denied.text()).toContain("Only the workspace owner");
+  });
+
+  it("never asks the model with too little knowledge, and drops lessons that cite nothing", async () => {
+    const lesson = (title: string, sources: number[]) => ({
+      title,
+      minutes: 5,
+      body: `## ${title}\n\nText.`,
+      sources,
+    });
+    const gemini = createFakeGemini({
+      tutorial: {
+        ...SAMPLE_TUTORIAL,
+        lessons: [
+          lesson("One", [1]),
+          lesson("Two", [1]),
+          lesson("Three", [1]),
+          lesson("Uncited", [9]),
+        ],
+      },
+    });
+    t = createTestApp({ gemini });
+    admin = owner();
+    const empty = await createProject(t.app);
+    const thin = await json<{ id: string }>(
+      await t.app.request(
+        "/api/v1/tutorials",
+        jsonRequest({ projectId: empty.id, audience: "New engineers", focus: "pricing" }),
+      ),
+    );
+    await t.drain();
+    const refused = TutorialDetailSchema.parse(await get(`/tutorials/${thin.id}`));
+    expect(refused.error).toContain('Not enough company knowledge for "pricing"');
+    expect(gemini.calls.filter((call) => call.purpose === "tutorial")).toHaveLength(0);
+    expect(
+      t.container.db
+        .select()
+        .from(platformRecords)
+        .where(eq(platformRecords.kind, "generation_run"))
+        .get()?.status,
+    ).toBe("skipped");
+
+    const project = await createProject(t.app);
+    await addSource(t.app, project.id);
+    await t.drain();
+    const drafted = await json<{ id: string }>(
+      await t.app.request(
+        "/api/v1/tutorials",
+        jsonRequest({ projectId: project.id, audience: "New engineers" }),
+      ),
+    );
+    await t.drain();
+    const detail = TutorialDetailSchema.parse(await get(`/tutorials/${drafted.id}`));
+    expect(detail.content?.lessons.map((entry) => entry.title)).toEqual(["One", "Two", "Three"]);
+  });
+
+  it("drafts company-wide lessons for a built-in module from every project", async () => {
+    const gemini = createFakeGemini();
+    t = createTestApp({ gemini });
+    admin = owner();
+    const atlas = await createProject(t.app, "Atlas");
+    const nova = await createProject(t.app, "Nova");
+    await addSource(t.app, atlas.id);
+    await addSource(t.app, nova.id);
+    await t.drain();
+    const templates = await get<{ items: Array<{ id: string }> }>("/people-ops/templates");
+    const lessonsOf = async () => {
+      const template = await get<{
+        stages: Array<{ modules: Array<{ id: string; lessons?: string; tutorialId?: string }> }>;
+      }>(`/people-ops/templates/${templates.items[0]!.id}`);
+      return template.stages
+        .flatMap((stage) => stage.modules)
+        .find((m) => m.id === "mod-customers");
+    };
+    expect(await lessonsOf()).toMatchObject({ lessons: "none", tutorialId: null });
+
+    const created = await t.app.request(
+      "/api/v1/tutorials",
+      jsonRequest({ audience: "New hires", coversModule: "mod-customers" }),
+    );
+    expect(created.status).toBe(202);
+    const { id } = await json<{ id: string }>(created);
+    await t.drain();
+    const detail = TutorialDetailSchema.parse(await get(`/tutorials/${id}`));
+    expect(detail.project).toBeNull();
+    expect(new Set(detail.sources.map((source) => source.id)).size).toBe(2);
+    const prompt = gemini.calls.find((call) => call.purpose === "tutorial")?.prompt ?? "";
+    expect(prompt).toContain("the company as a whole");
+    expect(await lessonsOf()).toMatchObject({ lessons: "draft", tutorialId: id });
+
+    await t.app.request(`/api/v1/tutorials/${id}/publish`, jsonRequest({ updateLearners: false }));
+    expect(await lessonsOf()).toMatchObject({ lessons: "ready", tutorialId: id });
+
+    // A path curator of one project can't draft company-wide.
+    member("curator1", "member");
+    t.container.db
+      .insert(assignments)
+      .values({
+        id: "curator1-atlas",
+        workspaceId: t.container.workspace.id,
+        userId: "curator1",
+        type: "path_curator",
+        scopeType: "project",
+        scopeId: atlas.id,
+      })
+      .run();
+    as("curator1", "member");
+    expect(
+      (await t.app.request("/api/v1/tutorials", jsonRequest({ audience: "New hires" }))).status,
+    ).toBe(403);
   });
 
   it("gives HR their own My learning: tutorials to add, take and complete", async () => {
@@ -384,10 +542,10 @@ describe("Tutorials: drafted from knowledge, reviewed, published and taken", () 
           })),
         }),
       );
-    const failed = CheckResultSchema.parse(await json(await attempt(["b", "a"])));
+    const failed = CheckResultSchema.parse(await json(await attempt(["b", "a", "a"])));
     expect(failed).toMatchObject({ passed: false, score: 0, progress: null });
-    const passed = CheckResultSchema.parse(await json(await attempt(["a", "b"])));
-    expect(passed).toMatchObject({ passed: true, score: 2 });
+    const passed = CheckResultSchema.parse(await json(await attempt(["a", "b", "c"])));
+    expect(passed).toMatchObject({ passed: true, score: 3 });
     expect(MyLearningSchema.parse(await get("/me/learning")).completed).toEqual([
       expect.objectContaining({ id: key }),
     ]);
