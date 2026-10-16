@@ -7,7 +7,6 @@ import {
   type AssistantContextValue,
 } from "@/components/layout/assistant-context";
 import { AssistantPanel } from "@/features/ask/components/assistant-panel";
-import { SourceDrawerContext } from "@/features/sources/components/source-drawer-context";
 import { jsonResponse, renderWithProviders } from "@/test/utils";
 
 const PROJECT = "11111111-1111-4111-8111-111111111111";
@@ -138,11 +137,9 @@ const assistant: AssistantContextValue = {
 function renderPanel() {
   return renderWithProviders(
     <AssistantContext value={assistant}>
-      <SourceDrawerContext value={{ open: vi.fn() }}>
-        <Routes>
-          <Route path="/projects/:projectId" element={<AssistantPanel />} />
-        </Routes>
-      </SourceDrawerContext>
+      <Routes>
+        <Route path="/projects/:projectId" element={<AssistantPanel />} />
+      </Routes>
     </AssistantContext>,
     { route: `/projects/${PROJECT}` },
   );
@@ -171,6 +168,38 @@ describe("AssistantPanel", () => {
       title: "Who owns what in Kestrel?",
     });
     expect(screen.getByRole("button", { name: "Helpful" })).toBeInTheDocument();
+  });
+
+  it("formats a cited answer inside a project and opens its source in a drawer", async () => {
+    mockApi({
+      ...answer(
+        "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+        "high",
+        "* **Why:** exports were slow [1].",
+      ),
+      citations: [
+        {
+          ref: 1,
+          chunkId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          sourceObjectId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+          sourceTitle: "ADR-7",
+          sourceKind: "document",
+          sourceUrl: null,
+          sourceCreatedAt: null,
+          excerpt: "Nightly exports were too slow.",
+          claim: "Exports were slow.",
+        },
+      ],
+    });
+    const user = userEvent.setup();
+    renderPanel();
+    await user.click(await screen.findByRole("button", { name: "Who owns what in Kestrel?" }));
+    const why = await screen.findByText("Why:");
+    expect(why.tagName).toBe("STRONG");
+    expect(why.closest("li")).toHaveTextContent("Why: exports were slow");
+
+    await user.click(screen.getByRole("button", { name: /Open source 1: ADR-7/ }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
   });
 
   it("shows the honest no-answer state and reports the gap to the project's owners", async () => {

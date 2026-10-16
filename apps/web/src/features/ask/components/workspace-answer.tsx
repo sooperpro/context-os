@@ -1,9 +1,10 @@
 import type { AssistantAnswer, AssistantFeedbackInput } from "@contextos/shared";
 import { cn } from "cn";
-import { Fragment, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
 import { ConnectorLogo } from "@/components/connector-logo";
+import { Markdown } from "@/components/markdown";
 import { PersonAvatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
@@ -41,33 +42,44 @@ const REASONS: Array<[NonNullable<AssistantFeedbackInput["reason"]>, string]> = 
   ["not_relevant", "Not relevant"],
 ];
 
-/** `**bold**` and `[n]` citations in answer text. */
+/** Answer text as formatted Markdown, with its `[n]` markers as citation chips. */
 function RichText({
   text,
   onCite,
   titles,
+  className,
 }: {
   text: string;
   onCite: (n: number) => void;
   titles: string[];
+  className?: string;
 }) {
+  const linked = text.replace(/\[(\d+)\](?!\()/g, (marker, n: string) =>
+    titles[Number(n) - 1] ? `[${n}](#cite-${n})` : marker,
+  );
   return (
-    <>
-      {text.split(/(\*\*[^*]+\*\*|\[\d+\])/g).map((part, index) => {
-        const bold = /^\*\*(.+)\*\*$/.exec(part);
-        if (bold)
-          return (
-            <b key={index} className="font-semibold">
-              {bold[1]}
-            </b>
-          );
-        const cite = /^\[(\d+)\]$/.exec(part);
-        const n = cite ? Number(cite[1]) : 0;
-        if (cite && titles[n - 1])
-          return <CiteButton key={index} n={n} title={titles[n - 1]!} onClick={() => onCite(n)} />;
-        return <Fragment key={index}>{part}</Fragment>;
-      })}
-    </>
+    <Markdown
+      text={linked}
+      className={className}
+      overrides={{
+        a: ({ href, children }) => {
+          const n = href?.startsWith("#cite-") ? Number(href.slice("#cite-".length)) : 0;
+          const title = titles[n - 1];
+          if (!title)
+            return (
+              <a
+                href={href}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="font-medium text-primary underline underline-offset-2"
+              >
+                {children}
+              </a>
+            );
+          return <CiteButton n={n} title={title} onClick={() => onCite(n)} />;
+        },
+      }}
+    />
   );
 }
 
@@ -168,9 +180,13 @@ function AnsweredCard({
       ) : null}
       {answer.blocks.map((block, index) =>
         block.type === "paragraph" ? (
-          <p key={index} className="text-[15px] leading-6">
-            <RichText text={block.text} titles={titles} onCite={showSource} />
-          </p>
+          <RichText
+            key={index}
+            text={block.text}
+            titles={titles}
+            onCite={showSource}
+            className="text-[15px] leading-6"
+          />
         ) : (
           <List
             key={index}
@@ -189,10 +205,10 @@ function AnsweredCard({
         <PersonRow key={entry.person.id} {...entry} />
       ))}
       {answer.note ? (
-        <p className="flex items-start gap-1.5 rounded-md bg-warning-container px-3 py-2 text-xs text-on-warning-container [&_svg]:mt-px [&_svg]:size-4 [&_svg]:shrink-0">
+        <div className="flex items-start gap-1.5 rounded-md bg-warning-container px-3 py-2 text-xs text-on-warning-container [&>svg]:mt-px [&>svg]:size-4 [&>svg]:shrink-0">
           <ErrorIcon aria-hidden />
-          {answer.note}
-        </p>
+          <RichText text={answer.note} titles={titles} onCite={showSource} />
+        </div>
       ) : null}
       {answer.sources.length ? (
         <section className="flex flex-col gap-2">

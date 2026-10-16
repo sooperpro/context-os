@@ -49,6 +49,7 @@ import { AnswerBody } from "@/features/ask/components/answer-card";
 import { WorkspaceAnswer } from "@/features/ask/components/workspace-answer";
 import { useCreateFlag } from "@/features/feedback/api/feedback.queries";
 import { hubQuery } from "@/features/hub/api/hub.queries";
+import { SourceDrawerProvider } from "@/features/sources/components/source-drawer";
 import { currentWorkspaceQuery } from "@/features/workspace/api/workspace.queries";
 import { useViewer } from "@/features/workspace/hooks/use-viewer";
 import { ApiClientError } from "@/lib/api-client";
@@ -410,25 +411,30 @@ export function AssistantPanel() {
             </>
           ) : null}
 
-          {messages.map((answer) => (
-            <div key={answer.id} className="flex flex-col gap-5">
-              <UserBubble text={answer.question} />
-              <BotMessage>
-                {answer.confidence === "insufficient" ? (
-                  <NoAnswerCard
-                    answer={answer}
-                    projectName={projectName}
-                    readySources={readySources}
-                    reported={reported.has(answer.id)}
-                    reporting={createFlag.isPending && createFlag.variables.targetId === answer.id}
-                    onReport={() => reportGap(answer)}
-                  />
-                ) : (
-                  <AnswerBody answer={answer} />
-                )}
-              </BotMessage>
-            </div>
-          ))}
+          {/* Citations open the source in a drawer; the project page's own drawer is out of reach here. */}
+          <SourceDrawerProvider projectId={projectId}>
+            {messages.map((answer) => (
+              <div key={answer.id} className="flex flex-col gap-5">
+                <UserBubble text={answer.question} />
+                <BotMessage>
+                  {answer.confidence === "insufficient" ? (
+                    <NoAnswerCard
+                      answer={answer}
+                      projectName={projectName}
+                      readySources={readySources}
+                      reported={reported.has(answer.id)}
+                      reporting={
+                        createFlag.isPending && createFlag.variables.targetId === answer.id
+                      }
+                      onReport={() => reportGap(answer)}
+                    />
+                  ) : (
+                    <AnswerBody answer={answer} />
+                  )}
+                </BotMessage>
+              </div>
+            ))}
+          </SourceDrawerProvider>
 
           {inProject
             ? null
