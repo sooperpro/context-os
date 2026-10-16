@@ -1,3 +1,4 @@
+import { CurrentWorkspaceSchema } from "@contextos/shared";
 import { and, eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 import { memberships, platformRecords, users } from "../../db/schema.js";
@@ -70,6 +71,27 @@ describe("Admin and owner screens: what the server gives them", () => {
       data: { personId: null, name: "Leah Doe" },
     });
     expect(await evidence()).toBe(true);
+  });
+
+  it("serves a current workspace the web app accepts, with and without a scheduled deletion", async () => {
+    t = createTestApp();
+    // A workspace with nothing scheduled sends settings.deletion: null; the web app must accept it,
+    // or nobody's role loads after sign-in.
+    const before = CurrentWorkspaceSchema.safeParse(
+      await json(await t.app.request("/api/v1/workspaces/current")),
+    );
+    expect(before.success && before.data.settings?.deletion).toBe(null);
+    const current = await json<{ slug: string | null; name: string }>(
+      await t.app.request("/api/v1/workspaces/current"),
+    );
+    await t.app.request(
+      "/api/v1/workspaces/current/deletion",
+      jsonRequest({ confirm: current.slug ?? current.name }),
+    );
+    const after = CurrentWorkspaceSchema.parse(
+      await json(await t.app.request("/api/v1/workspaces/current")),
+    );
+    expect(after.settings?.deletion?.scheduledAt).toEqual(expect.any(String));
   });
 
   it("links the deletion notice to the Workspace page", async () => {

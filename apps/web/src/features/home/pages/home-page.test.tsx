@@ -139,6 +139,40 @@ describe("HomePage", () => {
     expect(await screen.findByRole("heading", { name: "Welcome page" })).toBeInTheDocument();
     expect(sessionStorage.getItem("contextos.welcome-shown")).toBe("1");
   });
+  it("opens Home when the workspace has no deletion scheduled (settings.deletion is null)", async () => {
+    sessionStorage.setItem("contextos.welcome-shown", "1");
+    live({ role: "member" });
+    mockServer.use(
+      http.get(api("/v1/workspaces/current"), () =>
+        HttpResponse.json({
+          id: "w1",
+          name: "Tessellate",
+          role: "member",
+          authentication: "accounts",
+          slug: null,
+          settings: { includeIndirectReports: false, deletion: null },
+        }),
+      ),
+    );
+    renderHome();
+    expect(await screen.findByRole("heading", { level: 1, name: /, Maya$/ })).toBeInTheDocument();
+  });
+
+  it("says when the workspace can't be loaded, instead of loading forever", async () => {
+    live({ role: "member" });
+    mockServer.use(
+      http.get(api("/v1/workspaces/current"), () =>
+        HttpResponse.json(
+          { error: { code: "INTERNAL", message: "Something went wrong" } },
+          { status: 500 },
+        ),
+      ),
+    );
+    renderHome();
+    expect(await screen.findByText("Your workspace couldn't be loaded")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+  });
+
   it("shows a member the employee Home from live data", async () => {
     // The welcome was already shown this session, so Home stays.
     sessionStorage.setItem("contextos.welcome-shown", "1");

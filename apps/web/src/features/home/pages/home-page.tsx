@@ -1,5 +1,8 @@
 import { useEffect } from "react";
 import { useSearchParams } from "react-router";
+import { Banner } from "@/components/ui/banner";
+import { Button } from "@/components/ui/button";
+import { WarningIcon } from "@/components/ui/icons";
 import { Loader } from "@/components/ui/loader";
 import { AdminHome } from "@/features/home/components/admin-home";
 import { EmployeeHome } from "@/features/home/components/employee-home";
@@ -26,6 +29,18 @@ export function HomePage() {
   }, [linked]);
 
   const persona = linked ?? viewer.persona;
+  // Without the workspace there is no role to pick a Home for: say so instead of loading forever.
+  if (!persona && viewer.error) {
+    return (
+      <Banner
+        tone="error"
+        icon={<WarningIcon />}
+        title="Your workspace couldn't be loaded"
+        description={viewer.error.message}
+        actions={<Button onClick={viewer.retry}>Try again</Button>}
+      />
+    );
+  }
   if (!persona) {
     return (
       <div className="grid min-h-80 place-items-center">

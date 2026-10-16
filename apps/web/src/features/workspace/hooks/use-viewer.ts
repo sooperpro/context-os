@@ -24,6 +24,10 @@ export interface Viewer {
    * directory, members' Context Bot conversations and every source.
    */
   seesEverything: boolean;
+  /** Why the workspace (and so the role) couldn't be loaded, if it couldn't. */
+  error: Error | null;
+  /** Load the workspace again after an error. */
+  retry: () => void;
 }
 
 /**
@@ -41,5 +45,7 @@ export function useViewer(): Viewer {
     persona: preview ?? (actualRole ? personaForRole(actualRole) : undefined),
     preview,
     seesEverything: role === "owner",
+    error: workspace.error,
+    retry: () => void workspace.refetch(),
   };
 }

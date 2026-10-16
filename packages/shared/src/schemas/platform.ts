@@ -362,11 +362,12 @@ export const CurrentWorkspaceSchema = z.object({
   authentication: z.enum(["development", "accounts"]),
   /** Typed to confirm the workspace's deletion (or the name when there is no slug). */
   slug: z.string().nullable().optional(),
-  /** A scheduled deletion (owner only, 7-day grace), when there is one. */
+  /** A scheduled deletion (owner only, 7-day grace); null or absent when there is none. */
   settings: z
     .object({
       deletion: z
         .object({ scheduledAt: z.string(), requestedBy: z.string(), requestedAt: z.string() })
+        .nullable()
         .optional(),
     })
     .optional(),
