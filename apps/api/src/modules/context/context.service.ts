@@ -140,6 +140,24 @@ function toCandidates(output: ExtractionOutput): Candidate[] {
       quote: t.evidenceQuote,
     });
   }
+  const entries: Array<[ContextItemKind, ExtractionOutput["products"]]> = [
+    ["company", output.companyFacts],
+    ["product", output.products],
+    ["initiative", output.initiatives],
+    ["process", output.processes],
+  ];
+  for (const [kind, list] of entries)
+    for (const e of list)
+      candidates.push({
+        kind,
+        title: e.name,
+        summary: e.summary,
+        data: {},
+        eventAt: null,
+        asOf: null,
+        confidence: e.confidence,
+        quote: e.evidenceQuote,
+      });
   return candidates;
 }
 
@@ -256,6 +274,10 @@ export function createContextService({ repo, audit, logger, identity }: ContextS
         component: counts.get("component") ?? 0,
         dependency: counts.get("dependency") ?? 0,
         term: counts.get("term") ?? 0,
+        company: counts.get("company") ?? 0,
+        product: counts.get("product") ?? 0,
+        initiative: counts.get("initiative") ?? 0,
+        process: counts.get("process") ?? 0,
       };
     },
 

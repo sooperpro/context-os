@@ -7,6 +7,7 @@ import type {
   FeedbackTarget,
   JobStatus,
   JobType,
+  ProjectCategory,
   SourceConnector,
   SourceKind,
   SourceStatus,
@@ -55,10 +56,7 @@ export const projects = sqliteTable(
     slug: text("slug"),
     description: text("description"),
     /** What kind of knowledge it holds (company, product, project, process): the Hub's collections. */
-    category: text("category")
-      .$type<"company" | "product" | "project" | "process">()
-      .notNull()
-      .default("project"),
+    category: text("category").$type<ProjectCategory>().notNull().default("project"),
     createdAt: ts("created_at").notNull().$defaultFn(now),
     updatedAt: ts("updated_at").notNull().$defaultFn(now),
   },

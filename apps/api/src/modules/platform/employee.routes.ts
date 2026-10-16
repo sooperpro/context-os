@@ -82,6 +82,10 @@ const TAG: Record<ContextItemKind, string> = {
   component: "System",
   dependency: "System",
   term: "Glossary",
+  company: "Company",
+  product: "Product",
+  initiative: "Project",
+  process: "Process",
 };
 const NOUN: Record<ContextItemKind, string> = {
   decision: "decision",
@@ -91,6 +95,10 @@ const NOUN: Record<ContextItemKind, string> = {
   component: "system",
   dependency: "dependency",
   term: "glossary term",
+  company: "company fact",
+  product: "product",
+  initiative: "project",
+  process: "process",
 };
 
 /** Topics someone may already know, by the kind of role their title and team suggest. */

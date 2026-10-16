@@ -114,6 +114,10 @@ export const SAMPLE_EXTRACTION: ExtractionOutput = {
       confidence: "medium",
     },
   ],
+  companyFacts: [],
+  products: [],
+  initiatives: [],
+  processes: [],
 };
 
 export const EMPTY_EXTRACTION: ExtractionOutput = {
@@ -124,6 +128,10 @@ export const EMPTY_EXTRACTION: ExtractionOutput = {
   components: [],
   dependencies: [],
   terms: [],
+  companyFacts: [],
+  products: [],
+  initiatives: [],
+  processes: [],
 };
 
 export const SAMPLE_OVERVIEW: OverviewOutput = {

@@ -120,36 +120,36 @@ export function KnowledgeHubPage() {
   const members = useQuery(membersQuery());
   const teams = useQuery(teamsQuery());
 
-  const entriesFor = (cat: KnowledgeCategory): Entry[] =>
-    cat.source === "projects"
-      ? projectList
-          .filter((project) => project.category === cat.projectCategory)
-          .map((project) => ({
-            type: "project",
-            id: project.id,
-            title: project.name,
-            summary: project.description ?? "",
-            project,
-            to: projectPath(project),
-          }))
-      : items
-          .filter((item) => cat.kinds.includes(item.kind))
-          .flatMap((item) => {
-            const project = projectById.get(item.projectId);
-            return project
-              ? [
-                  {
-                    type: "item" as const,
-                    id: item.id,
-                    title: item.title,
-                    summary: item.summary,
-                    item,
-                    project,
-                    to: itemPath(item),
-                  },
-                ]
-              : [];
-          });
+  const entriesFor = (cat: KnowledgeCategory): Entry[] => [
+    ...projectList
+      .filter((project) => project.category === cat.projectCategory)
+      .map((project) => ({
+        type: "project" as const,
+        id: project.id,
+        title: project.name,
+        summary: project.description ?? "",
+        project,
+        to: projectPath(project),
+      })),
+    ...items
+      .filter((item) => cat.kinds.includes(item.kind))
+      .flatMap((item) => {
+        const project = projectById.get(item.projectId);
+        return project
+          ? [
+              {
+                type: "item" as const,
+                id: item.id,
+                title: item.title,
+                summary: item.summary,
+                item,
+                project,
+                to: itemPath(item),
+              },
+            ]
+          : [];
+      }),
+  ];
 
   const setCategory = (id: string | null) => {
     const next = new URLSearchParams(searchParams);
@@ -275,7 +275,7 @@ export function KnowledgeHubPage() {
           entries={results}
           query={query.trim()}
           category={category}
-          loading={itemsLoading && category?.source !== "projects"}
+          loading={itemsLoading}
           onClear={() => {
             setQuery("");
             setCategory(null);
@@ -386,7 +386,7 @@ export function KnowledgeHubPage() {
         open={createOpen}
         onOpenChange={setCreateOpen}
         // Creating from inside a project collection files the new project there.
-        defaultCategory={category?.source === "projects" ? category.projectCategory : undefined}
+        defaultCategory={category?.projectCategory}
       />
     </div>
   );

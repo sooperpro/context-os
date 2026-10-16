@@ -33,6 +33,10 @@ const hub = {
     component: 0,
     dependency: 0,
     term: 0,
+    company: 0,
+    product: 0,
+    initiative: 0,
+    process: 0,
   },
 };
 const answer = (id: string, confidence: string, text: string) => ({

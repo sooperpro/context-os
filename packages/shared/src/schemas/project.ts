@@ -2,7 +2,15 @@ import { z } from "zod";
 import { IdSchema, IsoDateTimeSchema, SlugSchema, listOf } from "./common.js";
 
 /** What kind of knowledge a project holds; drives the Knowledge Hub's collections. */
-export const ProjectCategorySchema = z.enum(["company", "product", "project", "process"]);
+export const ProjectCategorySchema = z.enum([
+  "company",
+  "product",
+  "project",
+  "system",
+  "process",
+  "decision",
+  "glossary",
+]);
 export type ProjectCategory = z.infer<typeof ProjectCategorySchema>;
 
 export const ProjectSchema = z.object({

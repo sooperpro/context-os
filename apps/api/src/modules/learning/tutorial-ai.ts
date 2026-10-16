@@ -78,6 +78,10 @@ const KIND_LABEL: Record<ContextItem["kind"], string> = {
   decision: "Decision",
   event: "Event",
   status_claim: "Current state",
+  company: "Company",
+  product: "Product",
+  initiative: "Project",
+  process: "Process",
 };
 /** Characters of knowledge and passages sent to the model. */
 const KNOWLEDGE_BUDGET = 60_000;

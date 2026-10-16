@@ -43,6 +43,10 @@ const hub: Hub = {
     component: 2,
     dependency: 2,
     term: 2,
+    company: 0,
+    product: 0,
+    initiative: 0,
+    process: 0,
   },
 };
 

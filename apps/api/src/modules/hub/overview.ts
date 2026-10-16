@@ -50,6 +50,10 @@ const KIND_PRIORITY = {
   dependency: 4,
   person: 5,
   term: 6,
+  company: 7,
+  product: 8,
+  initiative: 9,
+  process: 10,
 } as const;
 
 export function selectOverviewItems(items: ContextItem[]): ContextItem[] {

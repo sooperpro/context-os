@@ -70,6 +70,6 @@ describe("ContextItemSchema", () => {
       false,
     );
     const json = z.toJSONSchema(ContextItemSchema);
-    expect(json.anyOf ?? json.oneOf).toHaveLength(7);
+    expect(json.anyOf ?? json.oneOf).toHaveLength(11);
   });
 });
