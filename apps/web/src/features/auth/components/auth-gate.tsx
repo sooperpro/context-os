@@ -97,7 +97,12 @@ function WorkspacePicker({ state }: { state: SessionState }) {
   const choose = useMutation({
     mutationFn: (workspace: SessionWorkspace) => selectWorkspace(workspace.id),
     onSuccess: (next) => {
-      queryClient.clear();
+      // Drop what was cached outside a workspace, but keep the session query itself: clearing it
+      // would leave this gate watching a removed query, so choosing would appear to do nothing.
+      const session = JSON.stringify(authKeys.session());
+      queryClient.removeQueries({
+        predicate: (query) => JSON.stringify(query.queryKey) !== session,
+      });
       queryClient.setQueryData(authKeys.session(), next);
     },
   });
