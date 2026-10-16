@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   assignments,
   memberships,
@@ -20,7 +20,18 @@ import type { Actor } from "../../types.js";
 
 describe("PRD learning credit, onboarding health, companion and maintenance sweeps", () => {
   let t: TestApp;
-  afterEach(() => t?.close());
+  // Midday on a weekday: notifications made at night wait for the end of quiet hours.
+  beforeEach(() => {
+    vi.useFakeTimers({
+      toFake: ["Date"],
+      now: new Date("2026-10-14T12:00:00Z"),
+      shouldAdvanceTime: true,
+    });
+  });
+  afterEach(() => {
+    t?.close();
+    vi.useRealTimers();
+  });
   const actor = (id: string, role: Actor["role"] = "member", managerId?: string) => {
     t.container.db.insert(users).values({ id, name: id }).onConflictDoNothing().run();
     t.container.db

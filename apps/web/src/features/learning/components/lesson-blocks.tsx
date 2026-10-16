@@ -16,7 +16,6 @@ import {
 import { ProgressSteps } from "@/components/ui/progress-steps";
 import { SegmentedItemLead } from "@/components/ui/segmented-list";
 import { StatusChip } from "@/components/ui/status-chip";
-import { comingSoon } from "@/lib/coming-soon";
 import { formatDate } from "@/lib/format";
 import { KNOWLEDGE_ORIGIN_LABEL } from "@/lib/labels";
 
@@ -174,15 +173,7 @@ function Block({ block }: { block: LessonBlock }): ReactNode {
             >
               <OpenInNewIcon aria-hidden /> Open the decision record
             </Button>
-          ) : (
-            <Button
-              variant="ghost"
-              size="xs"
-              onClick={() => comingSoon("Opening decision records")}
-            >
-              <OpenInNewIcon aria-hidden /> Open the decision record
-            </Button>
-          )}
+          ) : null}
         </aside>
       );
     case "milestones": {
@@ -220,15 +211,7 @@ function Block({ block }: { block: LessonBlock }): ReactNode {
             >
               <OpenInNewIcon aria-hidden /> Open in {KNOWLEDGE_ORIGIN_LABEL[block.origin]}
             </Button>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => comingSoon("Playing videos and slides")}
-            >
-              <OpenInNewIcon aria-hidden /> Open in {KNOWLEDGE_ORIGIN_LABEL[block.origin]}
-            </Button>
-          )}
+          ) : null}
         </div>
       );
     case "check":

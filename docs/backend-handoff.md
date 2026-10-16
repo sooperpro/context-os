@@ -55,8 +55,9 @@ The 7 endpoints by area (all contributions, hidden for the demo):
 - **Paths.** The web app writes paths as `/v1/...` and sends them to `VITE_API_BASE_URL` (`/api`). In
   development Vite proxies `/api` to the API (`VITE_DEV_API_PROXY_TARGET`, default
   `http://localhost:3000`), which mounts everything under `/api/v1` (`apps/api/src/app.ts`).
-- **Auth.** A Clerk bearer token on every request (`Authorization: Bearer …`). With
-  `AUTH_MODE=development` the API needs none.
+- **Auth.** With `AUTH_MODE=accounts` the session is an HttpOnly cookie set by our own sign-in
+  (Better Auth under `/api/v1/auth/*`); `apiRequest` sends it with `credentials: "include"`, and there
+  is no bearer token. With `AUTH_MODE=development` the API needs none.
 - **Every response is validated.** `apiRequest(path, { schema })` (`apps/web/src/lib/api-client.ts`)
   parses each response with the shared Zod schema from `@contextos/shared`. **Missing or renamed
   fields, wrong enums or wrong types make the request fail in the UI** (the card shows its error
@@ -208,9 +209,9 @@ and `GET /v1/workspaces/current`, and the audit log.
    flat, project-scoped path items. Decide whether 7.1 is a view over learning paths or a new model,
    and settle the quiz rules (absolute pass mark and unlimited retakes in the UI vs 70 % and a
    10-minute lockout in the API) and sign-off for practical work.
-4. **Profile fields.** Skills, bio, preferred name and pronouns have no storage (title, location, time
-   zone and start date are in `memberships.organization`). The People directory and the welcome need
-   them.
+4. **Profile fields.** Done: pronouns, location, bio, skills and avatar shape are stored in the
+   user's preferences (shared with the welcome's preferred name) and edited in Settings › Profile;
+   title, team, time zone and start date stay in `memberships.organization`.
 5. **People partner.** Shown on Home, the welcome, member pages and HR records; nothing models it.
 6. **Access policy groups.** Policies target groups like "finance-leads"; the API has no group entity
    (only teams and departments). Identity-provider groups? And policies must apply to search, project
@@ -735,9 +736,10 @@ profile fields and avoiding per-person profile requests for expertise.
 Relations (`you`, `manager`, `buddy`, `report`) are relative to the caller.
 
 **Where profile fields live.** Title, team, location and time zone are in
-`memberships.organization`; **skills and bio have no storage yet**. Decide the user record or a
-profile table synced from the identity provider. The welcome's preferred name, pronouns and location
-should show here.
+`memberships.organization`. Pronouns, bio, skills and avatar shape are in the user's preferences
+(`preferences.profile`, `preferences.avatarShape`), edited in Settings › Profile and returned as
+`profile` by `GET /v1/users` and `GET /v1/people/:id`; a location saved there is also written to the
+workspace placement.
 
 **Route order:** `/v1/people/experts` and `/v1/people/teams` must match before `/v1/people/:id`.
 
@@ -1130,7 +1132,7 @@ published`, `publishedVersion`, prepends history `{version, today, note or "Upda
 
 - `/v1/probation/*/outcome` and `POST /v1/probation/plans` are manager-only; HR needs to decide.
 - Learning paths are project-scoped and curator-gated; HR templates are workspace-wide.
-- No SCIM: setup step `account` needs a real source (Clerk, or HR marks it).
+- No SCIM: setup step `account` needs a real source (an accepted invitation or SSO sign-in, or HR marks it).
 - The manager screens' mock (`mocks/team.ts`) keeps its own member data that drifts slightly from this
   store (Maya 18% vs 15%, Support template 14 vs 8 modules). Real data removes the drift.
 
@@ -1178,10 +1180,10 @@ its groups can open the sources. Exclude: never used in answers, and only its gr
 Enforcement is in `identity.visibleSourceIds` and `answerableSourceIds`, so search, the Hub and answers
 follow it and admins get no bypass. Two policies naming the same source are a conflict; until resolved
 the more open rule applies, and resolving removes the source from the other policies. The locked
-"Mirror source permissions" entry is synthesized. Directory sync reads the Clerk organization: new
-members are added, changed names updated, and members missing from it suspended (never owners or the
-person running it); in development mode it records an empty run. Seats come from the organization's
-member limit (`total` is null when unlimited).
+"Mirror source permissions" entry is synthesized. Directory sync has no external directory
+yet (SCIM is not built): it records an empty run, and people join by invitation or company SSO. When a
+directory exists, new members are added, changed names updated, and members missing from it suspended
+(never owners or the person running it). There is no seat limit yet (`total` is null).
 
 **As served.** The catalog lists every integration but only Google Drive connects; the others answer 503
 with a pointer to “Request a connector”. Authorize returns `{account, authorizationUrl}`: when the
@@ -1242,7 +1244,7 @@ value, state ok|attention|off}`.
 - **Returns** `MembersOverviewSchema`: `seats {used, total}`, `directorySync {provider, enabled,
 lastRunAt}`.
 - **UI:** `/members` header ("412 of 450 seats") and the "Sync now" toast.
-- **Reuse:** `memberships`, `users`, Clerk organizations.
+- **Reuse:** `memberships`, `users`.
 - **Mock quirk:** seats are static (412/450), not the real member count.
 
 #### `POST /v1/admin/directory-sync`
@@ -1250,7 +1252,7 @@ lastRunAt}`.
 - **Body:** `{}` (strict). **Returns** `DirectorySyncResultSchema {ranAt, created, updated, deactivated}`.
 - **Rules:** run the directory (SCIM) sync now. Updates `members/overview.lastRunAt` and the security
   `scim` line; add a sync run and an audit entry.
-- **Reuse:** none; there is no SCIM. Members come from Clerk today.
+- **Reuse:** none; there is no SCIM. Members come from invitations and company SSO today.
 
 #### `GET /v1/admin/role-requests`
 
@@ -1473,26 +1475,26 @@ confidence {level verified|partial, label}|null, blocks[]` (paragraph or list; `
 These buttons exist in the UI but have no endpoint or contract, so they show "coming soon" (or
 nothing). Each needs a contract first; the frontend will write it in `packages/shared` with you.
 
-|   # | Feature                                                                                | Where in the UI                                                                               | Suggested endpoint                                                                                                                       |
-| --: | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-|   1 | Request access to a restricted source                                                  | Module page sources ("Request access")                                                        | `POST /v1/access-requests {sourceId, reason}` → `{id, sentTo}`                                                                           |
-|   2 | Escalate a blocked access request                                                      | Manager: member page insight, Home "Needs your attention" ("Escalate")                        | **Done:** `POST /v1/team/members/:id/escalations` (7.6)                                                                                  |
-|   3 | Open and edit a saved contribution                                                     | Contributions ("Edit and resubmit", reopening drafts)                                         | `GET /v1/contributions/:id`, `PATCH /v1/contributions/:id`                                                                               |
-|   4 | Ask for a role                                                                         | Nowhere yet (admins only see requests)                                                        | `POST /v1/role-requests {role, reason}`                                                                                                  |
-|   5 | Schedule check-ins                                                                     | Feeds manager Home "Upcoming check-ins"                                                       | **Done for now:** a cadence on the plan (decision 8); a calendar later                                                                   |
-|   6 | "Discuss with manager first" on a probation decision                                   | HR review page                                                                                | `POST /v1/people-ops/probation-reviews/:id/discussion`                                                                                   |
-|   7 | Act on a knowledge gap's conflict or stale source ("Review sources", "Request update") | Manager Home "Knowledge gaps"                                                                 | **Done:** `KnowledgeGap.target`; "Request update" posts a flag (7.6)                                                                     |
-|   8 | Per-person actions in the team roster ("More actions")                                 | Manager Home roster                                                                           | **Done:** open, record check-in, assign learning (no new endpoint)                                                                       |
-|   9 | Owners see learning ratings                                                            | The UI tells learners "The owner sees your rating"                                            | An aggregate on the module owner's view                                                                                                  |
-|  10 | Start or resume a course                                                               | My learning ("Start", "Resume")                                                               | **Done for tutorials** (they open as a module); older learning paths still have no lesson flow                                           |
-|  11 | Save a Context Bot answer                                                              | Answer cards (the reference has a bookmark)                                                   | Add `answer` to `SaveInput.targetType` (`/v1/me/saved`)                                                                                  |
-|  12 | Avatar shape                                                                           | Settings → Profile (reference has a shape picker; today the shape comes from the person's id) | `preferences.avatarShape` on `/v1/users/me`: one of `cookie9`, `cookie6`, `clover4`, `sunny`, `flower`, `cookie4`, `clover8`, `cookie12` |
-|  13 | Unread badges on the rail                                                              | Rail items                                                                                    | Unread counts per area (for example `GET /v1/me/badges`)                                                                                 |
-|  14 | Notification categories                                                                | Settings → Notifications                                                                      | Extend `/v1/notifications/preferences`                                                                                                   |
-|  15 | Connector settings (change scope, frequency, pause, disconnect)                        | Connectors cards ("Connector settings")                                                       | `PATCH /v1/admin/connectors/:id`, `DELETE …`                                                                                             |
-|  16 | Real links: lesson video and slides, sources and decision records in their tools       | Lesson media blocks, module sources, answer sources                                           | Fill the existing `url` fields                                                                                                           |
-|  17 | Messages and calendar (Message X, Book time, Book a call, check-in agendas)            | Person, member, roadmap, HR pages                                                             | Slack and calendar integrations; a product decision first                                                                                |
-|  18 | Attach a page or file to a Context Bot question ("Add context")                        | Context Bot composer (a placeholder in the reference too)                                     | Later                                                                                                                                    |
+|   # | Feature                                                                                | Where in the UI                                                        | Suggested endpoint                                                                                 |
+| --: | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+|   1 | Request access to a restricted source                                                  | Module page sources ("Request access")                                 | `POST /v1/access-requests {sourceId, reason}` → `{id, sentTo}`                                     |
+|   2 | Escalate a blocked access request                                                      | Manager: member page insight, Home "Needs your attention" ("Escalate") | **Done:** `POST /v1/team/members/:id/escalations` (7.6)                                            |
+|   3 | Open and edit a saved contribution                                                     | Contributions ("Edit and resubmit", reopening drafts)                  | `GET /v1/contributions/:id`, `PATCH /v1/contributions/:id`                                         |
+|   4 | Ask for a role                                                                         | Nowhere yet (admins only see requests)                                 | `POST /v1/role-requests {role, reason}`                                                            |
+|   5 | Schedule check-ins                                                                     | Feeds manager Home "Upcoming check-ins"                                | **Done for now:** a cadence on the plan (decision 8); a calendar later                             |
+|   6 | "Discuss with manager first" on a probation decision                                   | HR review page                                                         | `POST /v1/people-ops/probation-reviews/:id/discussion`                                             |
+|   7 | Act on a knowledge gap's conflict or stale source ("Review sources", "Request update") | Manager Home "Knowledge gaps"                                          | **Done:** `KnowledgeGap.target`; "Request update" posts a flag (7.6)                               |
+|   8 | Per-person actions in the team roster ("More actions")                                 | Manager Home roster                                                    | **Done:** open, record check-in, assign learning (no new endpoint)                                 |
+|   9 | Owners see learning ratings                                                            | The UI tells learners "The owner sees your rating"                     | An aggregate on the module owner's view                                                            |
+|  10 | Start or resume a course                                                               | My learning ("Start", "Resume")                                        | **Done for tutorials** (they open as a module); older learning paths still have no lesson flow     |
+|  11 | Save a Context Bot answer                                                              | Answer cards (the reference has a bookmark)                            | Add `answer` to `SaveInput.targetType` (`/v1/me/saved`)                                            |
+|  12 | Avatar shape                                                                           | Settings → Profile (the reference's shape picker)                      | **Done:** `preferences.avatarShape` (`profile.avatarShape` on `/v1/users/me` and `/v1/people/:id`) |
+|  13 | Unread badges on the rail                                                              | Rail items                                                             | Unread counts per area (for example `GET /v1/me/badges`)                                           |
+|  14 | Notification categories                                                                | Settings → Notifications                                               | Extend `/v1/notifications/preferences`                                                             |
+|  15 | Connector settings (change scope, frequency, pause, disconnect)                        | Connectors cards ("Connector settings")                                | `PATCH /v1/admin/connectors/:id`, `DELETE …`                                                       |
+|  16 | Real links: lesson video and slides, sources and decision records in their tools       | Lesson media blocks, module sources, answer sources                    | Fill the existing `url` fields                                                                     |
+|  17 | Messages and calendar (Message X, Book time, Book a call, check-in agendas)            | Person, member, roadmap, HR pages                                      | Slack and calendar integrations; a product decision first                                          |
+|  18 | Attach a page or file to a Context Bot question ("Add context")                        | Context Bot composer (a placeholder in the reference too)              | Later                                                                                              |
 
 ## 9. Suggested build order
 

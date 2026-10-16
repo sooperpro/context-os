@@ -123,6 +123,8 @@ export const ModuleLessonSchema = z.object({
   /** Knowledge checks only. */
   questionCount: Count.nullable(),
   done: z.boolean(),
+  /** Built on sources the person can't open: they can ask for access (`type: "access"`). */
+  restricted: z.boolean().optional(),
 });
 export type ModuleLesson = z.infer<typeof ModuleLessonSchema>;
 
@@ -137,6 +139,8 @@ export const LearningSourceSchema = z.object({
   /** Set when the learner cannot open it: "Finance only". */
   restrictedTo: z.string().nullable(),
   url: z.url().nullable(),
+  /** Its project, to open it in the app when it has no link of its own. */
+  projectId: z.string().nullable().optional(),
 });
 export type LearningSource = z.infer<typeof LearningSourceSchema>;
 
@@ -349,7 +353,7 @@ export const LearningRatingSchema = z.object({ value: LearningRatingValueSchema.
  */
 export const LearningRequestInputSchema = z
   .object({
-    type: z.enum(["clarification", "roadmap_change"]),
+    type: z.enum(["clarification", "roadmap_change", "access"]),
     moduleId: z.string().nullable(),
     lessonId: z.string().nullable(),
     changeKind: z.enum(["due_date", "swap_module", "add_topic"]).nullable(),

@@ -1,4 +1,10 @@
-import type { AssignmentType, ProjectStats } from "@contextos/shared";
+import {
+  AvatarShapeSchema,
+  PROFILE_LIMITS,
+  type AssignmentType,
+  type PersonalProfile,
+  type ProjectStats,
+} from "@contextos/shared";
 import { and, eq, gt, inArray, isNull, or } from "drizzle-orm";
 import type { Db } from "../../db/index.js";
 import {
@@ -119,13 +125,22 @@ const PUBLIC_ORGANIZATION_KEYS = [
   "roleFamily",
   "location",
   "timezone",
-  "startDate",
-  "isNewHire",
 ] as const;
+/** How long after (or before) their start date someone counts as a new joiner in the directory. */
+const NEW_JOINER_DAYS = 90;
+
+const isNewJoiner = (organization: Record<string, unknown>) => {
+  if (organization.isNewHire === true) return true;
+  if (typeof organization.startDate !== "string") return false;
+  const age = Date.now() - Date.parse(`${organization.startDate}T00:00:00Z`);
+  return Number.isFinite(age) && Math.abs(age) <= NEW_JOINER_DAYS * 86_400_000;
+};
 
 /**
- * A member's organization as a viewer may see it: everything for admins, the person and their
- * manager; only the public profile fields for everyone else.
+ * A member's organization as a viewer may see it: everything for admins, People Ops, the person
+ * and their manager; only the public profile fields for everyone else. A start date is onboarding
+ * record data (role access spec §3), so others learn only whether someone is a new joiner, which
+ * the directory's "New joiners" filter needs.
  */
 export function organizationFor(
   viewer: Pick<Actor, "id" | "role">,
@@ -134,15 +149,57 @@ export function organizationFor(
   if (
     viewer.role === "owner" ||
     viewer.role === "admin" ||
+    viewer.role === "hr" ||
     viewer.id === member.userId ||
     viewer.id === member.managerId
   )
     return member.organization;
-  return Object.fromEntries(
+  const visible: Record<string, unknown> = Object.fromEntries(
     PUBLIC_ORGANIZATION_KEYS.flatMap((key) =>
       key in member.organization ? [[key, member.organization[key]]] : [],
     ),
   );
+  if (isNewJoiner(member.organization)) visible.isNewHire = true;
+  return visible;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+const text = (value: unknown, max: number) =>
+  typeof value === "string" ? value.trim().slice(0, max) : "";
+
+/**
+ * What someone says about themselves: Settings › Profile and the first-day welcome both write
+ * `preferences.profile`; the avatar shape is `preferences.avatarShape`. The workspace's location
+ * (`memberships.organization.location`, what the directory shows) wins over the stored one.
+ */
+export function personalProfileOf(
+  preferences: Record<string, unknown>,
+  organization: Record<string, unknown> = {},
+): PersonalProfile {
+  const stored = isRecord(preferences.profile) ? preferences.profile : {};
+  const skills = Array.isArray(stored.skills) ? stored.skills : [];
+  return {
+    pronouns: text(stored.pronouns, PROFILE_LIMITS.pronouns),
+    location:
+      text(organization.location, PROFILE_LIMITS.location) ||
+      text(stored.location, PROFILE_LIMITS.location),
+    bio: text(stored.bio, PROFILE_LIMITS.bio),
+    skills: skills
+      .map((skill) => text(skill, PROFILE_LIMITS.skill))
+      .filter(Boolean)
+      .slice(0, PROFILE_LIMITS.skills),
+    avatarShape: AvatarShapeSchema.safeParse(preferences.avatarShape).data ?? null,
+  };
+}
+
+/**
+ * Owners see everything in their workspace (decided 16 Oct 2026): every person's data, People Ops
+ * records with HR's powers, every member's Context Bot conversations, and every source whatever
+ * its sharing. Admins keep the narrower rules.
+ */
+export function seesEverything(actor: Pick<Actor, "role">): boolean {
+  return actor.role === "owner";
 }
 
 export function requireRole(actor: Actor, ...roles: Array<Actor["role"]>): void {
@@ -188,8 +245,23 @@ export function createIdentityService(db: Db, devActor: Actor, auth: Auth | null
         managerId?: string;
         startDate?: string;
         isNewHire?: boolean;
+        projectIds?: string[];
       };
       const role = data.role ?? ("member" as const);
+      // Projects deleted since the invitation was sent are skipped.
+      const projectIds = data.projectIds?.length
+        ? db
+            .select({ id: projects.id })
+            .from(projects)
+            .where(
+              and(
+                eq(projects.workspaceId, invitation.workspaceId),
+                inArray(projects.id, data.projectIds),
+              ),
+            )
+            .all()
+            .map((row) => row.id)
+        : [];
       // Guests always expire (PRD §6.5, at most 180 days): the invitation's date, or 90 days.
       const requested =
         typeof invitation.data.guestExpiresAt === "string"
@@ -222,6 +294,8 @@ export function createIdentityService(db: Db, devActor: Actor, auth: Auth | null
             set: values,
           })
           .run();
+        for (const projectId of projectIds)
+          tx.insert(projectMemberships).values({ projectId, userId }).onConflictDoNothing().run();
         tx.update(platformRecords)
           .set({
             status: "accepted",
@@ -404,7 +478,8 @@ export function createIdentityService(db: Db, devActor: Actor, auth: Auth | null
     },
     /**
      * Sources the actor may open in a project: the source's own permissions (mirrored, or shared
-     * with the workspace), narrowed by the workspace's access policies. Admins get no bypass.
+     * with the workspace), narrowed by the workspace's access policies. Owners open every source;
+     * admins get no bypass. Exclude policies still keep sources out of everyone's answers.
      */
     visibleSourceIds(actor: Actor, projectId: string): string[] {
       return service.policyFilteredSources(actor, projectId).visible;
@@ -424,13 +499,16 @@ export function createIdentityService(db: Db, devActor: Actor, auth: Auth | null
             or(isNull(sourceAccess.expiresAt), gt(sourceAccess.expiresAt, new Date())),
           ),
         );
+      const everything = seesEverything(actor);
       const rows = db
         .select({ id: sourceObjects.id, metadata: sourceObjects.metadata })
         .from(sourceObjects)
         .where(
           and(
             eq(sourceObjects.projectId, projectId),
-            or(eq(sourceObjects.visibility, "workspace"), inArray(sourceObjects.id, grants)),
+            everything
+              ? undefined
+              : or(eq(sourceObjects.visibility, "workspace"), inArray(sourceObjects.id, grants)),
           ),
         )
         .all();
@@ -445,6 +523,7 @@ export function createIdentityService(db: Db, devActor: Actor, auth: Auth | null
       for (const row of rows) {
         const covering = policiesCovering(policies, projectId, row.metadata?.scopeId);
         if (
+          !everything &&
           covering.length &&
           !covering.some((policy) => policy.groups.some((group) => groups.has(group)))
         )

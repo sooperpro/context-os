@@ -221,10 +221,18 @@ export function SetupPage() {
       </Button>
     ),
     assign_new_hire: (
-      <p className="text-sm text-on-surface-variant">
-        Learning paths and assignments are in the API but not in the app yet. Skip this step now and
-        resume it when the learning screens ship.
-      </p>
+      <div className="flex flex-col gap-3">
+        <p className="text-sm text-on-surface-variant">
+          Admins don't see onboarding records, so someone with the HR role starts it. If nobody has
+          that role yet, invite them as HR.
+        </p>
+        <div>
+          <Button onClick={() => setInviteOpen(true)}>
+            <PersonAddIcon aria-hidden />
+            Invite People Ops
+          </Button>
+        </div>
+      </div>
     ),
   };
 

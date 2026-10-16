@@ -16,6 +16,7 @@ const hub: Hub = {
     name: "Project Kestrel",
     slug: "project-kestrel",
     description: "Move billing from nightly exports to real-time events.",
+    category: "project",
     createdAt: "2026-10-01T00:00:00.000Z",
     updatedAt: "2026-10-01T00:00:00.000Z",
     stats: {

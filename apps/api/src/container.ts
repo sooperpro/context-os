@@ -7,7 +7,7 @@ import { createMailer, type Mailer } from "./lib/mailer.js";
 import { createAskRepository } from "./modules/ask/ask.repository.js";
 import { createAskService } from "./modules/ask/ask.service.js";
 import { createAuditService } from "./modules/audit/audit.service.js";
-import { createAuth, publicOrigin } from "./modules/auth/auth.js";
+import { createAuth } from "./modules/auth/auth.js";
 import { createConflictService } from "./modules/context/conflicts.js";
 import { createContextRepository } from "./modules/context/context.repository.js";
 import { createContextService } from "./modules/context/context.service.js";
@@ -29,6 +29,9 @@ import { createSourceRepository } from "./modules/sources/sources.repository.js"
 import { createSourceService } from "./modules/sources/sources.service.js";
 import { ensureDefaultWorkspace } from "./modules/workspace/workspace.repository.js";
 import type { Actor } from "./types.js";
+import { createCheckPause } from "./modules/learning/check-pause.js";
+import { createAnswerPolicy } from "./modules/ask/answer-policy.js";
+import { createEmailDelivery } from "./modules/platform/email-delivery.js";
 
 export interface ContainerDeps {
   env: Env;
@@ -121,6 +124,8 @@ export function createContainer({ env, db, gemini, logger, mailer: mailerDep }: 
     audit,
     logger,
     identity,
+    checkPause: createCheckPause(db),
+    policy: createAnswerPolicy(db),
   });
   const feedback = createFeedbackService({ repo: repos.feedback, audit });
 
@@ -138,21 +143,25 @@ export function createContainer({ env, db, gemini, logger, mailer: mailerDep }: 
     connectors,
     extractionSections: env.EXTRACTION_MAX_WINDOWS,
   });
-  const sweeps = createSweeps({
-    db,
-    bounties,
-    logger,
-    queue,
-    mailer,
-    appUrl: publicOrigin(env),
-  });
+  // The weekly digest is emailed by emailDelivery, like every notification with email on.
+  const sweeps = createSweeps({ db, bounties, logger, queue });
+  const emailDelivery = createEmailDelivery({ db, mailer, logger, env });
   const worker = createWorker({
     queue,
     handlers,
     logger,
     pollIntervalMs: env.WORKER_POLL_INTERVAL_MS,
     concurrency: env.WORKER_CONCURRENCY,
-    sweeps,
+    // Maintenance, then any notification emails it and the last minute made due.
+    sweeps: {
+      run: () => {
+        const report = sweeps.run();
+        emailDelivery
+          .deliver()
+          .catch((error: unknown) => logger.error({ err: error }, "Email delivery failed"));
+        return report;
+      },
+    },
     sweepIntervalMs: env.MAINTENANCE_SWEEP_INTERVAL_MS,
   });
 
@@ -169,6 +178,7 @@ export function createContainer({ env, db, gemini, logger, mailer: mailerDep }: 
     queue,
     worker,
     sweeps,
+    emailDelivery,
     connectors,
     store,
     notifier,

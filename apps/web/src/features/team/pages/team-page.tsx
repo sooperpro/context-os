@@ -101,19 +101,21 @@ export function TeamPage() {
             : undefined
         }
         actions={
-          first ? (
-            <>
-              <Button
-                variant="outline"
-                onClick={() => setAssigning({ id: first.person.id, name: first.person.name })}
-              >
-                <AssignmentAddIcon aria-hidden /> Assign learning
-              </Button>
-              <Button nativeButton={false} render={<Link to={checkinPath(first.person.id)} />}>
-                <EditNoteIcon aria-hidden /> Record check-in
-              </Button>
-            </>
-          ) : undefined
+          <>
+            {first ? (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => setAssigning({ id: first.person.id, name: first.person.name })}
+                >
+                  <AssignmentAddIcon aria-hidden /> Assign learning
+                </Button>
+                <Button nativeButton={false} render={<Link to={checkinPath(first.person.id)} />}>
+                  <EditNoteIcon aria-hidden /> Record check-in
+                </Button>
+              </>
+            ) : null}
+          </>
         }
       />
       {roster.isPending ? (

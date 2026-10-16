@@ -37,17 +37,55 @@ function seedMyLearning(): MyLearning {
   return {
     onboardingFinishedOn: "2022-05-06",
     assigned: [
-      { id: "readiness-reviews", title: "Running readiness reviews", kind: "review", reason: "Assigned by Elena Brooks to all managers", dueOn: dateFromToday(18), lessonCount: 3, lessonsDone: 2, minutes: 45 },
-      { id: "kestrel-managers", title: "Kestrel for managers", kind: "project", reason: "Optional · your team delivers it", dueOn: null, lessonCount: 2, lessonsDone: 0, minutes: 20 },
+      {
+        id: "tutorial-readiness-reviews",
+        title: "Running readiness reviews",
+        kind: "review",
+        reason: "Assigned by Elena Brooks to all managers",
+        dueOn: dateFromToday(18),
+        lessonCount: 3,
+        lessonsDone: 2,
+        minutes: 45,
+      },
+      {
+        id: "tutorial-kestrel-managers",
+        title: "Kestrel for managers",
+        kind: "project",
+        reason: "Optional · your team delivers it",
+        dueOn: null,
+        lessonCount: 2,
+        lessonsDone: 0,
+        minutes: 20,
+      },
     ],
     suggested: [
-      { id: "decision-records", title: "Writing good decision records", kind: "decisions", reason: "Your team cites decision records in 40% of answers", minutes: 25 },
-      { id: "failed-check-coaching", title: "Coaching through a failed knowledge check", kind: "coaching", reason: "Leah failed the billing check twice", minutes: 15 },
+      {
+        id: "tutorial-decision-records",
+        title: "Writing good decision records",
+        kind: "decisions",
+        reason: "Your team cites decision records in 40% of answers",
+        minutes: 25,
+      },
+      {
+        id: "tutorial-failed-check-coaching",
+        title: "Coaching through a failed knowledge check",
+        kind: "coaching",
+        reason: "Leah failed the billing check twice",
+        minutes: 15,
+      },
     ],
     completed: [
-      { id: "manager-onboarding", title: "People manager onboarding v1", completedOn: "2022-03-18" },
+      {
+        id: "manager-onboarding",
+        title: "People manager onboarding v1",
+        completedOn: "2022-03-18",
+      },
       { id: "oncall-managers", title: "Platform on-call for managers", completedOn: "2025-06-12" },
-      { id: "customers-refresher", title: "Our customers and what they need (refresher)", completedOn: "2026-09-08" },
+      {
+        id: "customers-refresher",
+        title: "Our customers and what they need (refresher)",
+        completedOn: "2026-09-08",
+      },
     ],
   };
 }
@@ -1215,7 +1253,16 @@ export const myLearningMocks = [
       suggested: myLearning.suggested.filter((entry) => entry.id !== id),
       assigned: [
         ...myLearning.assigned,
-        { id: course.id, title: course.title, kind: course.kind, reason: "Added by you", dueOn: null, lessonCount: 2, lessonsDone: 0, minutes: course.minutes },
+        {
+          id: course.id,
+          title: course.title,
+          kind: course.kind,
+          reason: "Added by you",
+          dueOn: null,
+          lessonCount: 2,
+          lessonsDone: 0,
+          minutes: course.minutes,
+        },
       ],
     };
     return myLearning;

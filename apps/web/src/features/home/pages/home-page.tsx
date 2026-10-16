@@ -7,6 +7,7 @@ import { ManagerHome } from "@/features/home/components/manager-home";
 import { PeopleOpsHome } from "@/features/home/components/people-ops-home";
 import { useViewer } from "@/features/workspace/hooks/use-viewer";
 import { isPersona, setPreviewPersona } from "@/features/workspace/viewer";
+import { GuestHome } from "@/features/home/components/guest-home";
 
 /**
  * Home: the dashboard for the viewer's persona (employee, manager, People Ops or admin). In
@@ -40,6 +41,7 @@ export function HomePage() {
     case "people_ops":
       return <PeopleOpsHome />;
     case "employee":
-      return <EmployeeHome />;
+      // Guests share the employee screens but aren't onboarding: their Home is their projects.
+      return viewer.role === "guest" && !linked ? <GuestHome /> : <EmployeeHome />;
   }
 }

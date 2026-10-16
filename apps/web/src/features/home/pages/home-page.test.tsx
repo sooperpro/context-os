@@ -121,6 +121,7 @@ function renderHome(route = "/") {
     <AssistantContext value={assistant}>
       <Routes>
         <Route path="/" element={<HomePage />} />
+        <Route path="/welcome" element={<h1>Welcome page</h1>} />
       </Routes>
     </AssistantContext>,
     { route },
@@ -130,7 +131,17 @@ function renderHome(route = "/") {
 
 describe("HomePage", () => {
   afterEach(() => setPreviewPersona(null));
+
+  it("takes a new hire to the welcome on their first visit in a session", async () => {
+    sessionStorage.removeItem("contextos.welcome-shown");
+    live({ role: "member" });
+    renderHome();
+    expect(await screen.findByRole("heading", { name: "Welcome page" })).toBeInTheDocument();
+    expect(sessionStorage.getItem("contextos.welcome-shown")).toBe("1");
+  });
   it("shows a member the employee Home from live data", async () => {
+    // The welcome was already shown this session, so Home stays.
+    sessionStorage.setItem("contextos.welcome-shown", "1");
     live({ role: "member" });
     const assistant = renderHome();
 
@@ -151,6 +162,14 @@ describe("HomePage", () => {
     await user.click(within(week).getByRole("button", { name: /Done/ }));
     expect(within(week).getByText("Set up your local development environment")).toBeInTheDocument();
 
+    // Check-ins: the next dates, and what the manager chose to share.
+    const checkins = await screen.findByRole("region", { name: "Check-ins" });
+    expect(
+      within(within(checkins).getByRole("list", { name: "Coming up" })).getByText("30-day review"),
+    ).toBeInTheDocument();
+    expect(await within(checkins).findByText(/Strong first week/)).toBeInTheDocument();
+    expect(within(checkins).getByText("Shared by Daniel Reyes")).toBeInTheDocument();
+
     await user.click(screen.getByRole("button", { name: "Ask about this lesson" }));
     expect(assistant.openAssistant).toHaveBeenCalledWith("Why are we moving billing to Kafka?");
 
@@ -159,6 +178,37 @@ describe("HomePage", () => {
       "Who owns billing?{Enter}",
     );
     expect(assistant.openAssistant).toHaveBeenCalledWith("Who owns billing?");
+  });
+
+  it("tells a new hire whose roadmap isn't assigned yet that it's on its way", async () => {
+    sessionStorage.setItem("contextos.welcome-shown", "1");
+    live({ role: "member" });
+    mockServer.use(
+      http.get(api("/v1/me/onboarding"), () =>
+        HttpResponse.json(
+          { error: { code: "NOT_FOUND", message: "Onboarding roadmap was not found" } },
+          { status: 404 },
+        ),
+      ),
+      http.get(api("/v1/users/me"), () =>
+        HttpResponse.json({
+          id: "u1",
+          name: "Maya Okafor",
+          email: null,
+          role: "member",
+          workspaceId: "w1",
+          preferences: {},
+          organization: { isNewHire: true, startDate: "2026-10-16" },
+        }),
+      ),
+    );
+    renderHome();
+    const message = await screen.findByText(/Your onboarding roadmap isn't ready yet/);
+    const card = message.closest<HTMLElement>("[role=region]")!;
+    expect(within(card).getByRole("heading", { name: "Your onboarding" })).toBeInTheDocument();
+    expect(
+      within(card).getByRole("button", { name: "Open My learning" }).closest("a"),
+    ).toHaveAttribute("href", "/learning");
   });
 
   it("shows a manager their team's Home", async () => {

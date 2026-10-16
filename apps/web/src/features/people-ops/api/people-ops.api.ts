@@ -40,7 +40,7 @@ import { apiRequest } from "@/lib/api-client";
 
 /**
  * People Ops (HR) endpoints, for the `hr` role only (apps/api/src/modules/platform/people-ops.routes.ts).
- * With `VITE_MOCK_API` the mock layer answers them instead (src/mocks/people-ops.ts). Contracts:
+ * Tests use the fixtures in src/mocks/people-ops.ts. Contracts:
  * packages/shared/src/schemas/people-ops.ts. The probation list and the template list are HR Home's
  * (`HOME_ENDPOINTS.probationReviews`, `.templates`).
  */

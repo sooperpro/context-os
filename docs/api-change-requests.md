@@ -23,7 +23,7 @@ shape, then delete the mock.
 | Home · HR                                         | `GET /v1/people-ops/overview`, `/v1/people-ops/probation-reviews`, `/v1/people-ops/starters`, `/v1/people-ops/overdue-milestones`, `/v1/people-ops/templates`                                                                                                                                                                                                                                                                                                   | Live (`platform/people-ops.routes.ts`, `hr` role)                                                                                                                     |
 | Home · admin                                      | `GET /v1/connectors`, `/v1/users`, `/v1/audit`                                                                                                                                                                                                                                                                                                                                                                                                                  | Live. `/v1/audit` needs a sort, see 5                                                                                                                                 |
 | Home · admin                                      | Live: `GET /v1/admin/security`, `/v1/admin/sync-runs`, `/v1/admin/ai`; `PATCH /v1/admin/ai-settings`                                                                                                                                                                                                                                                                                                                                                            | Live (`platform/admin-overview.routes.ts`)                                                                                                                            |
-| Knowledge Hub                                     | `GET /v1/projects`, `/v1/projects/:id/context-items`, `/v1/users`, `/v1/org/teams`                                                                                                                                                                                                                                                                                                                                                                              | Live. Project category missing, see 1                                                                                                                                 |
+| Knowledge Hub                                     | `GET /v1/projects`, `/v1/projects/:id/context-items`, `/v1/users`, `/v1/org/teams`                                                                                                                                                                                                                                                                                                                                                                              | Live, with project categories (see 1)                                                                                                                                 |
 | Knowledge item page, Saved                        | Live: `GET /v1/projects/:id/hub`, `/v1/projects/:id/context-items`, `GET /v1/me/saved`, `PUT /v1/me/saved/:targetId`                                                                                                                                                                                                                                                                                                                                            | Live (`platform/saved.routes.ts`)                                                                                                                                     |
 | Project hub, Ask, Sources                         | project, hub, context, ask and source routes; `GET /v1/evidence/:id`; `POST /v1/ask/messages/:id/feedback`, `/promote`                                                                                                                                                                                                                                                                                                                                          | Live                                                                                                                                                                  |
 | Context Bot outside a project                     | `POST /v1/assistant/ask`, `/v1/assistant/answers/:id/feedback`, `/v1/assistant/gaps`                                                                                                                                                                                                                                                                                                                                                                            | Live (`ask/assistant.routes.ts`); inside a project it uses the live Ask threads                                                                                       |
@@ -37,12 +37,17 @@ shape, then delete the mock.
 | Review queue (manager)                            | `GET /v1/me/reviews`, `POST /v1/me/reviews/:id/decision`                                                                                                                                                                                                                                                                                                                                                                                                        | Live (`platform/manager.routes.ts`): Ask answers proposed for the Hub, see 9                                                                                          |
 | My learning (manager)                             | `GET /v1/me/learning`, `POST /v1/me/learning/:id/add`                                                                                                                                                                                                                                                                                                                                                                                                           | Live (`platform/manager.routes.ts`): learning paths, see 9                                                                                                            |
 | Onboarding, probation reviews, templates (HR)     | `GET /v1/people-ops/onboardings?q=&team=&filter=`, `/v1/people-ops/onboardings/:id`, `/v1/people-ops/onboarding-options`, `/v1/people-ops/probation-reviews/:id`, `/v1/people-ops/templates/:id`, `/v1/people-ops/template-library`; `PATCH /v1/people-ops/onboardings/:id`; `POST /v1/people-ops/onboardings`, `/onboardings/:id/setup/:step`, `/probation-reviews/:id/decision`, `/reminders`, `/templates`, `/templates/:id/draft`, `/templates/:id/publish` | Live (`platform/people-ops.routes.ts`, `hr` role)                                                                                                                     |
-| Members & roles (admin)                           | Live: `GET /v1/users` (`email`, `team`, `lastActiveAt`, `invitedAt` requested), `PATCH /v1/users/:id`, `POST /v1/users/invite`, org routes. Mocked: `GET /v1/admin/members/overview`, `/v1/admin/role-requests`; `POST /v1/admin/directory-sync`, `/v1/admin/role-requests/:id/decision`                                                                                                                                                                        | Live (`platform/members-admin.routes.ts`): seats, directory sync from Clerk, role requests (members can ask; admins decide)                                           |
+| Members & roles (admin)                           | Live: `GET /v1/users` (`email`, `team`, `lastActiveAt`, `invitedAt` requested), `PATCH /v1/users/:id`, `POST /v1/users/invite`, org routes. Mocked: `GET /v1/admin/members/overview`, `/v1/admin/role-requests`; `POST /v1/admin/directory-sync`, `/v1/admin/role-requests/:id/decision`                                                                                                                                                                        | Live (`platform/members-admin.routes.ts`): seats, directory sync (no external directory until SCIM), role requests (members can ask; admins decide)                   |
 | Connectors (admin)                                | `GET /v1/admin/connectors`; `POST /v1/admin/connectors/:id/authorize`, `/connect`, `/reconnect`, `/v1/admin/connector-requests`                                                                                                                                                                                                                                                                                                                                 | Live (`connectors/admin-connectors.routes.ts`); only Google Drive connects, others answer 503                                                                         |
 | Access policies, AI settings (admin)              | `GET /v1/admin/access-policies`, `/v1/admin/access-preview?personId=`, `/v1/admin/ai-settings`; `POST /v1/admin/access-policies`, `/v1/admin/access-conflicts/:id/resolve`; `PATCH /v1/admin/access-policies/:id`, `/v1/admin/ai-settings`                                                                                                                                                                                                                      | Live: policies, conflicts and preview (`platform/access-policies.routes.ts`), enforced for search, Hub and answers; AI settings (`platform/admin-overview.routes.ts`) |
 | Audit log (admin)                                 | `GET /v1/audit`                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Live. Sorted and filtered on the client until the API takes them, see 5                                                                                               |
 
 ## 1. Store a category on projects
+
+**Done.** `projects.category` (migration `0014_project_category`, existing rows read as `"project"`) is
+returned by every project route and accepted by create and update. The New project dialog has a
+Collection picker (preselected from the collection it is opened in) and Rename can move a project to
+another collection. Bruno `02 Projects` sends and asserts it.
 
 **Why.** The reference Knowledge Hub has eight filters: All, Company, Products, Projects, Systems,
 Processes, Decisions, Glossary & FAQs. Systems, Decisions and Glossary come from context items. Company,
@@ -88,10 +93,10 @@ minutes (for example 120 attempts at 1 s).
 app maps it to the People Ops persona. `GET /v1/workspaces/current` already returns the role.
 
 **Why.** The reference has a People Ops role with its own Home (onboarding across teams, probation
-reviews, starters, templates). The API's roles are owner, admin, manager, member and guest.
+reviews, starters, templates). The API's roles were owner, admin, manager, member and guest.
 
-**Today.** The HR Home is built and reachable only through the development "Prototype · view as"
-menu (`/?view=people_ops`). No real account sees it.
+**Before.** The HR Home was built and reachable only through the development "Prototype · view as"
+menu (`/?view=people_ops`). No real account saw it.
 
 **Change.** Either add a `people_ops` system role, or a permission (an `assignment` type such as
 `people_ops`) that managers or admins can hold. The web app needs one boolean on
@@ -167,9 +172,10 @@ status, and is admin territory ("Members & roles").
 
 **Today.** People and profiles use a frontend adapter over `GET /v1/users`, `GET /v1/users/me`,
 `GET /v1/org/teams` and `GET /v1/people/:id`. It provides live directory search, team membership,
-reporting relationships and expertise inferred from domain-owner assignments. Unsupported fields
-are left empty rather than filled with preview data: skills, bio, buddy, onboarding visibility, team
-focus and explicit team leads.
+reporting relationships and expertise inferred from domain-owner assignments. Pronouns, location,
+bio, skills and avatar shape are live: people edit them in Settings › Profile (`PATCH /v1/users/me`),
+and `GET /v1/users` and `GET /v1/people/:id` return them as `profile`. Unsupported fields are left
+empty rather than filled with preview data: buddy, team focus and explicit team leads.
 
 **Future improvement.** Serve the consolidated contracts in
 `packages/shared/src/schemas/people.ts` to avoid client-side joins and per-person expertise calls:
@@ -180,8 +186,9 @@ focus and explicit team leads.
 - `GET /v1/people/teams`: the caller's team as an org chart, then every team with its lead and size.
 - `GET /v1/people/:id`: profile with bio, manager, reports and owned Knowledge Hub items. Include
   `onboarding` only when the caller is their manager or HR.
-- Profile fields (title, location, time zone, skills, bio) need a place to live: the user record, or a
-  profile table synced from the identity provider.
+- Profile fields: **done.** Pronouns, location, bio, skills and avatar shape live in the user's
+  preferences (`preferences.profile`, `preferences.avatarShape`), shared with the first-day welcome;
+  title, team and time zone stay in `memberships.organization`.
 
 ## 9. The manager's views
 
@@ -355,8 +362,8 @@ the preferred name, pronouns and location.
 questions), apps connected to the person's account (ContextOS for Slack) and a way to get a copy of
 their data.
 
-**Today.** Sign-in methods, 2-step verification and "Where you're signed in" read the identity
-provider (Clerk) directly, and signing out a device revokes its session there. Theme and reduced
+**Today.** Sign-in methods and "Where you're signed in" read our own sign-in (`GET /v1/session`,
+`GET /v1/session/devices`), and signing out a device deletes its session. Theme and reduced
 motion are saved on the device. Connected apps read `GET /v1/connectors`; disconnecting uses
 `DELETE /v1/connectors/:id?mode=keep_derived`, which revokes the connection but retains derived
 knowledge. Context Bot preferences and personal data export remain mocked in

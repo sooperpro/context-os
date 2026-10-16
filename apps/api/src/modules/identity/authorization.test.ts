@@ -113,7 +113,7 @@ describe("Authorization: role and access checks that must hold", () => {
     ).toBe(400);
   });
 
-  it("keeps people data out of the admin export", async () => {
+  it("keeps people data out of the admin export, and shows owners everything", async () => {
     t = createTestApp();
     owner = { ...t.container.devActor };
     t.container.store.insert({
@@ -123,11 +123,57 @@ describe("Authorization: role and access checks that must hold", () => {
       status: "private",
       data: { notes: "Private probation note" },
     });
+    // People Ops events stay in the trail, without the check-in pulse or the decision.
+    member("hana", "hr");
+    t.container.audit.record({
+      actor: { ...owner, id: "dan", name: "Dan", role: "manager" },
+      action: "checkin.create",
+      targetType: "checkin",
+      targetId: "c1",
+      metadata: { type: "weekly", pulse: "off_track", shared: false },
+    });
+    t.container.audit.record({
+      actor: { ...owner, id: "hana", name: "Hana", role: "hr" },
+      action: "probation.decision",
+      targetType: "onboarding_record",
+      targetId: "r1",
+      metadata: { outcome: "extended", extensionDays: 30, recommendation: "extend" },
+    });
+    member("ada", "admin");
+    as("ada", "admin");
     const response = await t.app.request("/api/v1/admin/export");
     expect(response.status).toBe(200);
-    const body = await json<{ records: Record<string, unknown> }>(response);
+    const body = await json<{
+      records: Record<string, unknown>;
+      auditLog: Array<{ action: string; metadata: Record<string, unknown> | null }>;
+    }>(response);
     expect(Object.keys(body.records)).not.toContain("checkin");
     expect(JSON.stringify(body)).not.toContain("Private probation note");
+    const exported = (action: string) => body.auditLog.find((row) => row.action === action);
+    expect(exported("checkin.create")?.metadata).toEqual({ type: "weekly", shared: false });
+    expect(exported("probation.decision")?.metadata).toEqual({});
+
+    const trail = async () =>
+      (
+        await json<{ items: Array<{ action: string; metadata: Record<string, unknown> | null }> }>(
+          await t.app.request("/api/v1/audit"),
+        )
+      ).items;
+    expect(JSON.stringify(await trail())).not.toMatch(/off_track|extended|"extend"/);
+    const csv = await (await t.app.request("/api/v1/audit?format=csv")).text();
+    expect(csv).not.toMatch(/off_track|extended/);
+    // People Ops reads its own trail in full, and owners see everything.
+    for (const [id, role] of [
+      ["hana", "hr"],
+      [owner.id, "owner"],
+    ] as const) {
+      as(id, role);
+      expect((await trail()).find((row) => row.action === "probation.decision")?.metadata).toEqual({
+        outcome: "extended",
+        extensionDays: 30,
+        recommendation: "extend",
+      });
+    }
   });
 
   it("shows a tutorial's content only to curators who can open all its sources", async () => {
@@ -171,38 +217,112 @@ describe("Authorization: role and access checks that must hold", () => {
     ).toBe(false);
   });
 
-  it("shows HR-only profile details to admins, the person and their manager only", async () => {
+  it("shows HR-only profile details to admins, People Ops, the person and their manager only", async () => {
     t = createTestApp();
     owner = { ...t.container.devActor };
     member("dan", "manager");
     member("leah", "member", "dan");
     member("sam", "member");
-    t.container.db
-      .update(memberships)
-      .set({
-        organization: { jobTitle: "Engineer", lastDay: "2026-12-31", suspendedBy: "directory" },
-      })
-      .run();
+    member("hana", "hr");
+    const organization = (startDate: string) =>
+      t.container.db
+        .update(memberships)
+        .set({
+          organization: {
+            jobTitle: "Engineer",
+            lastDay: "2026-12-31",
+            suspendedBy: "directory",
+            startDate,
+            isNewHire: false,
+          },
+        })
+        .run();
+    const daysAgo = (days: number) =>
+      new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+    organization(daysAgo(20));
     const leah = async () =>
       (
         await json<{ items: Array<{ id: string; organization: Record<string, unknown> }> }>(
           await t.app.request("/api/v1/users"),
         )
       ).items.find((entry) => entry.id === "leah")!.organization;
+    // Others learn that she's new, for the directory's filter, but not her start date.
     as("sam", "member");
-    expect(await leah()).toEqual({ jobTitle: "Engineer" });
+    expect(await leah()).toEqual({ jobTitle: "Engineer", isNewHire: true });
     expect(
       (
         await json<{ organization: Record<string, unknown> }>(
           await t.app.request("/api/v1/people/leah"),
         )
       ).organization,
-    ).toEqual({ jobTitle: "Engineer" });
+    ).toEqual({ jobTitle: "Engineer", isNewHire: true });
     expect((await t.app.request("/api/v1/users?status=suspended")).status).toBe(403);
-    as("dan", "manager");
-    expect(await leah()).toMatchObject({ lastDay: "2026-12-31" });
+    for (const [id, role] of [
+      ["leah", "member"],
+      ["dan", "manager"],
+      ["hana", "hr"],
+    ] as const) {
+      as(id, role);
+      expect(await leah()).toMatchObject({ lastDay: "2026-12-31", startDate: daysAgo(20) });
+    }
     asOwner();
-    expect(await leah()).toMatchObject({ lastDay: "2026-12-31" });
+    expect(await leah()).toMatchObject({ lastDay: "2026-12-31", startDate: daysAgo(20) });
+    // A year in, she's no longer a new joiner.
+    organization(daysAgo(365));
+    as("sam", "member");
+    expect(await leah()).toEqual({ jobTitle: "Engineer" });
+  });
+
+  it("invites a guest into chosen projects, and lets admins change their access", async () => {
+    t = createTestApp();
+    owner = { ...t.container.devActor };
+    const billing = await createProject(t.app, "Billing");
+    const search = await createProject(t.app, "Search");
+    const invite = (body: Record<string, unknown>) =>
+      t.app.request("/api/v1/users/invite", jsonRequest({ email: "ana@partner.test", ...body }));
+    // Only guests are added project by project.
+    expect((await invite({ role: "member", projectIds: [billing.id] })).status).toBe(400);
+    expect((await invite({ role: "guest", projectIds: [billing.id] })).status).toBe(201);
+
+    t.container.db.insert(users).values({ id: "ana", name: "Ana" }).run();
+    expect(t.container.identity.acceptInvitations("ana", "ana@partner.test")).toBe(1);
+    const projectsOf = async () =>
+      (
+        await json<{ items: Array<{ id: string; name: string }> }>(
+          await t.app.request("/api/v1/users/ana/projects"),
+        )
+      ).items.map((row) => row.name);
+    expect(await projectsOf()).toEqual(["Billing"]);
+    // The guest's Home says when their access ends.
+    as("ana", "guest");
+    const me = await json<{ guestExpiresAt: string | null }>(
+      await t.app.request("/api/v1/users/me"),
+    );
+    expect(Date.parse(me.guestExpiresAt ?? "")).toBeGreaterThan(Date.now());
+    asOwner();
+
+    // Admins add and remove project access later; both are audited.
+    const membership = (projectId: string) => `/api/v1/projects/${projectId}/memberships`;
+    expect(
+      (await t.app.request(membership(search.id), jsonRequest({ userId: "ana" }))).status,
+    ).toBe(201);
+    expect(await projectsOf()).toEqual(["Billing", "Search"]);
+    const remove = () => t.app.request(`${membership(billing.id)}/ana`, { method: "DELETE" });
+    expect((await remove()).status).toBe(204);
+    expect((await remove()).status).toBe(404);
+    expect(await projectsOf()).toEqual(["Search"]);
+    const actions = (
+      await json<{ items: Array<{ action: string }> }>(await t.app.request("/api/v1/audit"))
+    ).items.map((row) => row.action);
+    expect(actions).toEqual(
+      expect.arrayContaining(["project.member.add", "project.member.remove"]),
+    );
+
+    // Nobody else manages it.
+    member("dan", "manager");
+    as("dan", "manager");
+    expect((await t.app.request("/api/v1/users/ana/projects")).status).toBe(403);
+    expect((await remove()).status).toBe(403);
   });
 
   it("gives invited guests an expiry", () => {

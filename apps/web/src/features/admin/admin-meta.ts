@@ -14,6 +14,7 @@ import {
   DomainIcon,
   ErrorIcon,
   FolderIcon,
+  ForumIcon,
   GroupsIcon,
   HistoryIcon,
   HowToRegIcon,
@@ -106,7 +107,7 @@ export const STRICTNESS: Record<AnswerStrictness, { label: string; description: 
 
 /**
  * What each persona can do in ContextOS (prototype "What each role can do"). Product copy: the API
- * enforces it. HR is not a system role yet (docs/api-change-requests.md, item 4).
+ * enforces it. HR is the `hr` system role; its audit log holds People Ops events only.
  */
 export const CAPABILITY_ROLES = ["Employee", "Manager", "HR", "Admin"] as const;
 export const CAPABILITIES: Array<[string, [boolean, boolean, boolean, boolean]]> = [
@@ -173,6 +174,8 @@ export function auditArea(action: AuditEntry["action"]): {
       return { category: "Content", icon: DescriptionIcon };
     case "workspace":
       return { category: "Other", icon: DomainIcon };
+    case "conversation":
+      return { category: "Access", icon: ForumIcon };
     default:
       return { category: "Other", icon: HistoryIcon };
   }

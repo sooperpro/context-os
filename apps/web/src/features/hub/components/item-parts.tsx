@@ -3,11 +3,15 @@ import { Button } from "@/components/ui/button";
 import { TypeChip } from "@/components/ui/meta-chip";
 import { useSetVerification } from "@/features/hub/api/hub.queries";
 import { StateBadge } from "@/features/hub/components/badges";
+import { useCanVerify } from "@/features/hub/hooks";
 import { DECISION_STATUS_LABEL } from "@/lib/labels";
 
 /* Pieces of a context item shared by its card in the hub tabs and its own page. */
 
-/** Confirm, mark stale or dispute: people keep derived knowledge honest. */
+/**
+ * Confirm, mark stale or dispute: domain owners keep derived knowledge honest. Shown only to them,
+ * as the API refuses everyone else.
+ */
 export function VerificationControls({
   projectId,
   item,
@@ -16,6 +20,8 @@ export function VerificationControls({
   item: ContextItem;
 }) {
   const verify = useSetVerification(projectId);
+  const canVerify = useCanVerify(item.projectId);
+  if (!canVerify) return null;
   const set = (verification: Verification) => verify.mutate({ itemId: item.id, verification });
   return (
     <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Verification">

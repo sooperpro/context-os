@@ -4,7 +4,9 @@ Reviewed on 13 October 2026 against the [product handoff](ContextOS_Knowledge_Ha
 
 Status: **proposed additions and implementation requirements**. This document adds the missing stack choices and delivery plan; the packages and features below are not installed or implemented by this review. The application still uses its development actor and manual imports.
 
-Implementation follow-up: the later PRD backend extension installs the backend authentication/Drive/parser packages and implements a subset of these workflows. This planning document's Editor/Viewer role proposal is superseded by the PRD's Owner/Admin/Manager/Member/Guest roles. See [the implemented API guide](backend-api-use-cases.md) and [remaining release gates](backend-production-readiness.md) for current status.
+**Sign-in update (15 October 2026).** Clerk was not adopted. Sign-in is our own: Better Auth inside the API with email and password, emailed sign-in links, Google, Microsoft, and company SSO (OIDC or SAML) once a workspace verifies its email domain. Sessions are stored in SQLite behind an HttpOnly cookie, so the web app sends no bearer token; workspaces, memberships, roles and invitations stay in the application tables. See [decisions.md](decisions.md) and [api-reference.md](api-reference.md#authentication-and-tenancy). The sign-in rows below now describe what was built; the rest of this document is the original plan.
+
+Implementation follow-up: the later PRD backend extension installs the backend authentication/Drive/parser packages and implements a subset of these workflows. This planning document's Editor/Viewer role proposal is superseded by the PRD's Owner/Admin/Manager/Member/Guest roles plus HR (People Ops) from the [role access spec](../ContextOS_Role_Access_Spec.md). See [the implemented API guide](backend-api-use-cases.md) and [remaining release gates](backend-production-readiness.md) for current status.
 
 ## 1. Keep the current foundation
 
@@ -14,22 +16,22 @@ The handoff requires authentication, basic roles, and permission-aware ingestion
 
 ## 2. Stack additions
 
-| Capability                                               | Recommended addition                                                                                                   | Where it belongs                                     | Delivery                             |
-| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ------------------------------------ |
-| Sign-in, sessions, invitations, organization selection   | Clerk; `@clerk/react` for this Vite SPA                                                                                | Web provider, account controls, workspace UI         | Next implementation                  |
-| Verify authenticated requests and signed identity events | `@clerk/backend`; `authenticateRequest()` and `verifyWebhook()`                                                        | Hono middleware and webhook route                    | Next implementation                  |
-| Role-based authorization                                 | A small shared permission catalog + server-side policies + Drizzle membership tables                                   | `packages/shared` schemas; API services/repositories | Next implementation                  |
-| Drive OAuth and file APIs                                | `googleapis`, using its OAuth2 client and Drive v3 client                                                              | API connector module and worker                      | First connector                      |
-| Explicit file selection                                  | Google Picker browser API + enabled Drive API                                                                          | Web connection/source-selection UI                   | First connector                      |
-| Token protection                                         | Built-in `node:crypto` AES-256-GCM; externally supplied encryption key; managed secret store/KMS for deployment        | API credential service                               | Before persisting OAuth tokens       |
-| PDF text extraction                                      | `pdfjs-dist` (Mozilla PDF.js), isolated in a bounded worker operation                                                  | API parser module                                    | First connector                      |
-| Google Docs/plain text/Markdown extraction               | Drive text export + built-in text decoding                                                                             | API parser module                                    | First connector                      |
-| DOCX extraction                                          | `mammoth`, using raw-text extraction                                                                                   | API parser module                                    | After Docs/PDF pilot                 |
-| Raw file storage                                         | Restricted local directory for local development; private S3-compatible storage and `@aws-sdk/client-s3` when deployed | Storage adapter                                      | Only when raw bytes must be retained |
-| Browser authentication and access regression tests       | Playwright + `@clerk/testing`, alongside existing Vitest API tests                                                     | Web end-to-end suite                                 | Before shared pilot                  |
-| Connector monitoring                                     | Existing pino/audit/jobs, extended with redaction and sync/access events                                               | API                                                  | With connector                       |
+| Capability                                          | Recommended addition                                                                                                   | Where it belongs                                     | Delivery                             |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ------------------------------------ |
+| Sign-in, sessions, invitations, workspace selection | Better Auth (`better-auth`) with its magic-link and SSO plugins; sessions in SQLite behind an HttpOnly cookie          | API `modules/auth`; web sign-in and account screens  | Done (15 October)                    |
+| Verify authenticated requests                       | Better Auth `getSession()` on each request, then the active workspace's membership in the application tables           | Hono middleware (`identity.authenticate`)            | Done (15 October)                    |
+| Role-based authorization                            | A small shared permission catalog + server-side policies + Drizzle membership tables                                   | `packages/shared` schemas; API services/repositories | Next implementation                  |
+| Drive OAuth and file APIs                           | `googleapis`, using its OAuth2 client and Drive v3 client                                                              | API connector module and worker                      | First connector                      |
+| Explicit file selection                             | Google Picker browser API + enabled Drive API                                                                          | Web connection/source-selection UI                   | First connector                      |
+| Token protection                                    | Built-in `node:crypto` AES-256-GCM; externally supplied encryption key; managed secret store/KMS for deployment        | API credential service                               | Before persisting OAuth tokens       |
+| PDF text extraction                                 | `pdfjs-dist` (Mozilla PDF.js), isolated in a bounded worker operation                                                  | API parser module                                    | First connector                      |
+| Google Docs/plain text/Markdown extraction          | Drive text export + built-in text decoding                                                                             | API parser module                                    | First connector                      |
+| DOCX extraction                                     | `mammoth`, using raw-text extraction                                                                                   | API parser module                                    | After Docs/PDF pilot                 |
+| Raw file storage                                    | Restricted local directory for local development; private S3-compatible storage and `@aws-sdk/client-s3` when deployed | Storage adapter                                      | Only when raw bytes must be retained |
+| Browser authentication and access regression tests  | Playwright, alongside existing Vitest API tests                                                                        | Web end-to-end suite                                 | Before shared pilot                  |
+| Connector monitoring                                | Existing pino/audit/jobs, extended with redaction and sync/access events                                               | API                                                  | With connector                       |
 
-Clerk's current Vite instructions use `@clerk/react`. The backend SDK accepts a standard `Request`, so it can authenticate Hono's request directly. No framework migration is needed. See [React setup](https://clerk.com/docs/react/getting-started/quickstart), [request authentication](https://clerk.com/docs/reference/backend/authenticate-request), and [signed webhooks](https://clerk.com/docs/reference/backend/verify-webhook).
+Sign-in uses [Better Auth](https://www.better-auth.com/docs) as a library inside the API: it takes a standard `Request`, so Hono hands it the `/api/v1/auth/*` routes directly, and its tables live in the same SQLite database (`auth_*`). No framework migration or hosted identity vendor is needed.
 
 Use `googleapis` as the direct dependency; it already exposes the Google OAuth client. See the [official Node client](https://github.com/googleapis/google-api-nodejs-client). Keep the existing job queue initially; revisit PostgreSQL + pgvector and Redis/BullMQ when deployment/concurrency requires them. A separate authorization service such as OpenFGA is a later option if relationship policies outgrow relational checks.
 
@@ -50,7 +52,7 @@ Adding authentication is more than replacing the actor middleware: membership, r
 
 ## 4. Authentication and application roles
 
-Use Clerk for user identity, sessions, Organizations and invitations. Map one Clerk Organization to one ContextOS workspace using a unique external organization ID. Resolve the workspace from a verified session and active membership, not a client-supplied workspace ID. Keep ContextOS application roles in local membership tables as the authorization source of truth; initially map Clerk's built-in admin/member membership categories to those roles. Store workspace ownership explicitly and audit every role change. Clerk custom organization roles are optional and have production plan requirements; local application roles do not depend on that feature. See [Clerk roles and permissions](https://clerk.com/docs/guides/organizations/control-access/roles-and-permissions).
+Built: Better Auth holds user identity, sign-in methods and sessions; ContextOS's own tables hold workspaces, memberships and invitations. A session carries its active workspace, chosen through `PUT /session/workspace` and checked against an active membership on every request, never taken from a client-supplied workspace ID. ContextOS application roles live in the local membership tables as the authorization source of truth. Workspace ownership is explicit and every role change is audited.
 
 Proposed default policy:
 
@@ -68,17 +70,17 @@ Every signed-in user may authorize or disconnect their own Google connection. Co
 
 Implementation requirements:
 
-- Web obtains a session token through the Clerk SDK and sends `Authorization: Bearer …`; no tokens in URLs or long-lived browser storage.
+- Built: the session travels in an HttpOnly cookie (`credentials: "include"`); no tokens in URLs or browser storage. State-changing requests must come from a trusted origin.
 - Hono verifies the token with the backend SDK, an explicit allowed-origin list (`authorizedParties`), session-token type, and expected issuer/audience as applicable. Resolve current membership and disabled state; verify current provider membership for revocation-sensitive actions rather than relying only on delayed webhook delivery or old claims.
 - Extend `Actor` with the verified user/session/organization and resolved membership. Check permission in the API and scope every repository operation by workspace/project/source. UI visibility is a convenience, not an authorization check.
 - Use `401` for missing/invalid authentication, `403` for denied operations, and `404` for inaccessible foreign resources when revealing existence would leak data.
-- Verify Clerk webhooks on the raw request, deduplicate event IDs, handle out-of-order updates, and invalidate membership/cache state after removal or role changes. Preserve existing data by explicitly assigning the current default workspace to an organization during migration.
+- Membership and role changes take effect on the next request, because each request reads the membership; there is no identity webhook to verify. Preserve existing data by explicitly assigning the current default workspace to an organization during migration.
 - Keep public liveness/readiness limited to operational health. A future local development auth mode must be explicit; startup must reject that mode in production.
 - Include user ID and workspace ID in frontend cache scope; clear protected query state on sign-out or organization change.
 
 ## 5. Google Drive access and document reading
 
-Clerk Google sign-in authenticates the person to ContextOS. A separate Google OAuth consent grant authorizes Drive access. Use an authorization-code flow handled by the API, offline access for refresh, and a single-use random state bound to user/workspace/connection, with expiry and an allowlisted return URL. Implement PKCE where supported by the chosen web-client flow. Never treat callback query parameters as trusted tenant identity. See [Google web-server OAuth](https://developers.google.com/identity/protocols/oauth2/web-server).
+"Continue with Google" sign-in authenticates the person to ContextOS. A separate Google OAuth consent grant authorizes Drive access. Use an authorization-code flow handled by the API, offline access for refresh, and a single-use random state bound to user/workspace/connection, with expiry and an allowlisted return URL. Implement PKCE where supported by the chosen web-client flow. Never treat callback query parameters as trusted tenant identity. See [Google web-server OAuth](https://developers.google.com/identity/protocols/oauth2/web-server).
 
 Choose the source-selection mode explicitly:
 
@@ -138,7 +140,6 @@ Proposed routes under `/api/v1`:
 - `GET /connectors`; `POST /connectors/google-drive/authorize`; `GET /connectors/google-drive/callback`.
 - `GET /connectors/:connectionId/files`; `POST /projects/:projectId/source-scopes`; `POST /projects/:projectId/sync`.
 - `DELETE /connectors/:connectionId` with credential revocation and dependent-content invalidation.
-- `POST /webhooks/clerk`, authenticated by signature instead of the user's bearer token.
 
 Extend shared Zod schemas and existing error envelopes, add `sync_connector` jobs, and expose connection health/progress. All routes above are future endpoints, not part of today's Bruno collection.
 
@@ -148,8 +149,8 @@ Configuration to add when implementation starts (not currently supported by `Env
 
 | Location      | Variables                                                                                                                          |
 | ------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Web           | `VITE_CLERK_PUBLISHABLE_KEY`; optional `VITE_GOOGLE_PICKER_API_KEY` / `VITE_GOOGLE_CLOUD_PROJECT_NUMBER`                           |
-| API           | `AUTH_MODE`, `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `CLERK_WEBHOOK_SIGNING_SECRET`, `CLERK_AUTHORIZED_PARTIES`               |
+| Web           | Optional `VITE_GOOGLE_PICKER_API_KEY` / `VITE_GOOGLE_CLOUD_PROJECT_NUMBER`                                                         |
+| API (built)   | `AUTH_MODE=accounts`, `AUTH_SECRET`, `AUTH_URL`, `SMTP_URL`, `EMAIL_FROM`, `MICROSOFT_CLIENT_ID/SECRET/TENANT_ID`                  |
 | API connector | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `CONNECTOR_TOKEN_ENCRYPTION_KEY`, `CONNECTOR_TOKEN_KEY_VERSION` |
 | API storage   | `RAW_FILE_STORAGE_DIR`, byte/page/time limits; optional deployed bucket/region configuration                                       |
 
@@ -157,7 +158,7 @@ Only publishable/browser-restricted values belong in `VITE_*`; all credential se
 
 Suggested implementation sequence:
 
-1. Add Clerk, organization mapping, local memberships, roles, signed webhook lifecycle and migration of the default workspace. Protect existing APIs and update the web token/cache flow.
+1. Done: sign-in (Better Auth), local memberships and roles, workspace selection, and protected APIs with a cookie session.
 2. Add source-access policies and dependency records; close hub/history/context leakage paths before importing real private documents.
 3. Register Google OAuth/Picker, add encrypted credential handling, and validate actual scopes with test accounts.
 4. Implement selected-file Docs/PDF import, reader-access verification, backfill and manual sync through the existing worker.
@@ -167,8 +168,7 @@ Suggested implementation sequence:
 When step 1/3/4 implementation starts, resolve compatible versions and use these package targets:
 
 ```bash
-pnpm --filter @contextos/web add @clerk/react
-pnpm --filter @contextos/api add @clerk/backend googleapis pdfjs-dist
+pnpm --filter @contextos/api add googleapis pdfjs-dist
 # Add DOCX support only when enabled in the parser's format allowlist:
 pnpm --filter @contextos/api add mammoth
 ```

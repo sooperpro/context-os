@@ -1,6 +1,12 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CreateProjectInputSchema, type CreateProjectInput } from "@contextos/shared";
-import { useForm } from "react-hook-form";
+import {
+  CreateProjectInputSchema,
+  ProjectCategorySchema,
+  type CreateProjectInput,
+  type ProjectCategory,
+} from "@contextos/shared";
+import { useEffect, useId } from "react";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -14,29 +20,54 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
+import { PROJECT_CATEGORY_OPTIONS } from "@/features/knowledge/categories";
 import { useCreateProject } from "@/features/projects/api/projects.queries";
 
 interface CreateProjectDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** The Knowledge Hub collection to preselect; "Projects" when omitted. */
+  defaultCategory?: ProjectCategory;
 }
 
-export function CreateProjectDialog({ open, onOpenChange }: CreateProjectDialogProps) {
+const CATEGORY_ITEMS = Object.fromEntries(
+  PROJECT_CATEGORY_OPTIONS.map((option) => [option.value, option.label]),
+);
+
+export function CreateProjectDialog({
+  open,
+  onOpenChange,
+  defaultCategory = "project",
+}: CreateProjectDialogProps) {
+  const id = useId();
   const navigate = useNavigate();
   const createProject = useCreateProject();
   const form = useForm<CreateProjectInput>({
     resolver: zodResolver(CreateProjectInputSchema),
-    defaultValues: { name: "", description: "" },
+    defaultValues: { name: "", description: "", category: defaultCategory },
   });
   const errors = form.formState.errors;
+  const category = useWatch({ control: form.control, name: "category" }) ?? "project";
+
+  // Opening from another collection preselects it, unless the user already picked one.
+  useEffect(() => {
+    if (open && !form.formState.dirtyFields.category) form.setValue("category", defaultCategory);
+  }, [open, defaultCategory, form]);
 
   const onSubmit = form.handleSubmit((values) => {
     createProject.mutate(values, {
       onSuccess: (project) => {
         toast.success("Project created");
-        form.reset();
+        form.reset({ name: "", description: "", category: defaultCategory });
         onOpenChange(false);
         void navigate(`/projects/${project.id}`);
       },
@@ -65,6 +96,38 @@ export function CreateProjectDialog({ open, onOpenChange }: CreateProjectDialogP
               {errors.name ? (
                 <p className="text-xs text-destructive">{errors.name.message}</p>
               ) : null}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${id}-category`}>Collection</Label>
+              <Controller
+                control={form.control}
+                name="category"
+                render={({ field }) => (
+                  <Select
+                    items={CATEGORY_ITEMS}
+                    value={field.value ?? "project"}
+                    onValueChange={(value) => field.onChange(ProjectCategorySchema.parse(value))}
+                  >
+                    <SelectTrigger id={`${id}-category`} className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PROJECT_CATEGORY_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              <p className="text-xs text-muted-foreground">
+                Where it appears in the Knowledge Hub:{" "}
+                {PROJECT_CATEGORY_OPTIONS.find(
+                  (option) => option.value === category,
+                )?.description.toLowerCase()}
+                .
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="project-description">Description (optional)</Label>

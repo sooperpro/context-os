@@ -19,6 +19,7 @@ import { createNotifier } from "./notify.js";
 import { awardReputation } from "./reputation.js";
 import { workspaceSettings } from "./settings.js";
 import { createPlatformStore, type PlatformRecord } from "./store.js";
+import { manages } from "./reports.js";
 
 const AssignInput = z
   .object({
@@ -144,7 +145,7 @@ export function createLearningRoutes(container: Container) {
     if (
       row.ownerId !== actor.id &&
       !(row.data.mentorId === actor.id && identity.hasAssignment(actor, "mentor", row.ownerId)) &&
-      identity.requireMember(actor.workspaceId, row.ownerId).managerId !== actor.id
+      !manages(db, actor, row.ownerId)
     )
       throw new NotFoundError("Path assignment");
     return row;
@@ -489,7 +490,7 @@ export function createLearningRoutes(container: Container) {
       // path to a person: Manager, own reports; Member, as Mentor"). Curating a path isn't enough.
       if (
         !["owner", "admin"].includes(actor.role) &&
-        learnerMember.managerId !== actor.id &&
+        !manages(db, actor, input.userId) &&
         !identity.hasAssignment(actor, "mentor", input.userId)
       )
         throw new AppError(
@@ -511,7 +512,7 @@ export function createLearningRoutes(container: Container) {
         if (!assigned) {
           if (input.mentorId === actor.id)
             throw new AppError(403, "FORBIDDEN", "You can't name yourself as their mentor");
-          if (!["owner", "admin"].includes(actor.role) && learnerMember.managerId !== actor.id)
+          if (!["owner", "admin"].includes(actor.role) && !manages(db, actor, input.userId))
             throw new BadRequestError("Name someone who is assigned as this person's mentor");
           if (mentor.role === "guest") throw new BadRequestError("Guests can't mentor");
           db.insert(assignments)

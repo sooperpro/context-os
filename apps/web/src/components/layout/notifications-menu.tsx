@@ -115,6 +115,12 @@ export function NotificationsMenu() {
             );
           })
         )}
+        <DropdownMenuItem
+          className="justify-center text-sm font-medium"
+          render={<Link to="/notifications" />}
+        >
+          See all notifications
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

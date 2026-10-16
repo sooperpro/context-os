@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { OptionalSelect } from "@/features/members/components/optional-select";
+import { ProjectPicker } from "@/features/members/components/project-picker";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -100,6 +101,7 @@ function InviteMemberForm({ close }: { close: () => void }) {
       managerId: "",
       startDate: "",
       isNewHire: false,
+      projectIds: [],
     },
   });
   const errors = form.formState.errors;
@@ -177,6 +179,7 @@ function InviteMemberForm({ close }: { close: () => void }) {
             {...form.register("jobTitle")}
           />
         </div>
+
         <div className="space-y-2 sm:col-span-2">
           <Label htmlFor={`${id}-role`}>Role</Label>
           <Controller
@@ -188,8 +191,9 @@ function InviteMemberForm({ close }: { close: () => void }) {
                 value={field.value}
                 onValueChange={(next) => {
                   field.onChange(next);
-                  // Guests are not onboarded as new hires.
+                  // Guests are not onboarded as new hires; only guests are added to projects.
                   if (next === "guest") form.setValue("isNewHire", false);
+                  else form.setValue("projectIds", []);
                 }}
               >
                 <SelectTrigger id={`${id}-role`} className="w-full">
@@ -211,68 +215,92 @@ function InviteMemberForm({ close }: { close: () => void }) {
         </div>
       </div>
 
+      {role === "guest" ? (
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium">Projects they can see</legend>
+          <p className="text-xs text-on-surface-variant">
+            A guest sees nothing else. You can change this later from their row.
+          </p>
+          <Controller
+            control={form.control}
+            name="projectIds"
+            render={({ field }) => (
+              <ProjectPicker value={field.value ?? []} onChange={field.onChange} />
+            )}
+          />
+        </fieldset>
+      ) : null}
+
       <fieldset className="space-y-3">
         <legend className="text-sm font-medium">Where they fit (optional)</legend>
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor={`${id}-department`}>Department</Label>
-            <Controller
-              control={form.control}
-              name="departmentId"
-              render={({ field }) => (
-                <OptionalSelect
-                  id={`${id}-department`}
-                  value={field.value ?? ""}
-                  disabled={!departments.data}
-                  options={(departments.data ?? []).map((entry) => ({
-                    value: entry.id,
-                    label: entry.name,
-                  }))}
-                  onChange={(next) => {
-                    field.onChange(next);
-                    const team = teams.data?.find((entry) => entry.id === form.getValues("teamId"));
-                    if (next && team && team.departmentId !== next) form.setValue("teamId", "");
-                  }}
-                />
-              )}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor={`${id}-team`}>Team</Label>
-            <Controller
-              control={form.control}
-              name="teamId"
-              render={({ field }) => (
-                <OptionalSelect
-                  id={`${id}-team`}
-                  value={field.value ?? ""}
-                  disabled={!teams.data}
-                  options={teamOptions.map((entry) => ({ value: entry.id, label: entry.name }))}
-                  onChange={(next) => {
-                    field.onChange(next);
-                    const team = teams.data?.find((entry) => entry.id === next);
-                    if (team) form.setValue("departmentId", team.departmentId);
-                  }}
-                />
-              )}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor={`${id}-manager`}>Reports to</Label>
-            <Controller
-              control={form.control}
-              name="managerId"
-              render={({ field }) => (
-                <OptionalSelect
-                  id={`${id}-manager`}
-                  value={field.value ?? ""}
-                  disabled={!members.data}
-                  options={managerOptions.map((entry) => ({ value: entry.id, label: entry.name }))}
-                  onChange={field.onChange}
-                />
-              )}
-            />
-          </div>
+          <>
+            <div className="space-y-2">
+              <Label htmlFor={`${id}-department`}>Department</Label>
+              <Controller
+                control={form.control}
+                name="departmentId"
+                render={({ field }) => (
+                  <OptionalSelect
+                    id={`${id}-department`}
+                    value={field.value ?? ""}
+                    disabled={!departments.data}
+                    options={(departments.data ?? []).map((entry) => ({
+                      value: entry.id,
+                      label: entry.name,
+                    }))}
+                    onChange={(next) => {
+                      field.onChange(next);
+                      const team = teams.data?.find(
+                        (entry) => entry.id === form.getValues("teamId"),
+                      );
+                      if (next && team && team.departmentId !== next) form.setValue("teamId", "");
+                    }}
+                  />
+                )}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${id}-team`}>Team</Label>
+              <Controller
+                control={form.control}
+                name="teamId"
+                render={({ field }) => (
+                  <OptionalSelect
+                    id={`${id}-team`}
+                    value={field.value ?? ""}
+                    disabled={!teams.data}
+                    options={teamOptions.map((entry) => ({ value: entry.id, label: entry.name }))}
+                    onChange={(next) => {
+                      field.onChange(next);
+                      const team = teams.data?.find((entry) => entry.id === next);
+                      if (team) form.setValue("departmentId", team.departmentId);
+                    }}
+                  />
+                )}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${id}-manager`}>Reports to</Label>
+              <Controller
+                control={form.control}
+                name="managerId"
+                render={({ field }) => (
+                  <OptionalSelect
+                    id={`${id}-manager`}
+                    value={field.value ?? ""}
+                    disabled={!members.data}
+                    options={managerOptions.map((entry) => ({
+                      value: entry.id,
+                      label: entry.name,
+                    }))}
+                    onChange={field.onChange}
+                  />
+                )}
+              />
+            </div>
+          </>
+
           <div className="space-y-2">
             <Label htmlFor={`${id}-start`}>Start date</Label>
             <Input

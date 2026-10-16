@@ -28,7 +28,10 @@ describe("projects", () => {
 
     const read = await t.app.request(`/api/v1/projects/${created.id}`);
     expect(read.status).toBe(200);
-    expect(ProjectWithStatsSchema.parse(await read.json()).id).toBe(created.id);
+    expect(ProjectWithStatsSchema.parse(await read.json())).toMatchObject({
+      id: created.id,
+      category: "project",
+    });
 
     const updated = await t.app.request(
       `/api/v1/projects/${created.id}`,
@@ -43,6 +46,30 @@ describe("projects", () => {
     const deleted = await t.app.request(`/api/v1/projects/${created.id}`, { method: "DELETE" });
     expect(deleted.status).toBe(204);
     expect((await t.app.request(`/api/v1/projects/${created.id}`)).status).toBe(404);
+  });
+
+  it("stores the Knowledge Hub category on create and update", async () => {
+    const created = await t.app.request(
+      "/api/v1/projects",
+      jsonRequest({ name: "Handbook", category: "company" }),
+    );
+    expect(created.status).toBe(201);
+    const project = ProjectWithStatsSchema.parse(await created.json());
+    expect(project.category).toBe("company");
+
+    const moved = await t.app.request(
+      `/api/v1/projects/${project.id}`,
+      jsonRequest({ category: "process" }, "PATCH"),
+    );
+    expect(ProjectWithStatsSchema.parse(await moved.json()).category).toBe("process");
+    const list = ProjectListSchema.parse(await (await t.app.request("/api/v1/projects")).json());
+    expect(list.items.find((p) => p.id === project.id)?.category).toBe("process");
+
+    const bad = await t.app.request(
+      `/api/v1/projects/${project.id}`,
+      jsonRequest({ category: "misc" }, "PATCH"),
+    );
+    expect(bad.status).toBe(400);
   });
 
   it("validates input and scopes lookups", async () => {

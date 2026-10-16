@@ -405,6 +405,8 @@ function profile(id: string): PersonProfile {
   return {
     ...summary(key),
     bio: person.bio,
+    pronouns: null,
+    avatarShape: null,
     manager: person.manager ? personRef(person.manager) : null,
     reports: Object.keys(P)
       .filter((other) => P[other]?.manager === key)

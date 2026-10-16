@@ -16,6 +16,8 @@ import {
   type MyTask,
   type NextUp,
   type RoadmapModule as LearnerModule,
+  type LearningRequest,
+  type LearningRequestInput,
 } from "@contextos/shared";
 import { zValidator } from "@hono/zod-validator";
 import { and, eq, inArray } from "drizzle-orm";
@@ -23,10 +25,11 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { Container } from "../../container.js";
 import { memberships, sourceObjects } from "../../db/schema.js";
-import { AppError, NotFoundError } from "../../lib/errors.js";
+import { AppError, BadRequestError, NotFoundError } from "../../lib/errors.js";
 import { validationHook } from "../../middleware/validation.js";
 import type { Actor, AppEnv } from "../../types.js";
 import { createNotifier } from "../platform/notify.js";
+import { createCheckPause } from "./check-pause.js";
 import { createOnboardingRecords } from "../platform/onboarding-records.js";
 import {
   addDays,
@@ -97,6 +100,7 @@ export function createLearnerRoutes(container: Container) {
   const { store } = learning;
   const records = createOnboardingRecords(container);
   const notifier = createNotifier(db);
+  const checkPause = createCheckPause(db);
 
   /* ---- Resolving modules ------------------------------------------------------------------- */
 
@@ -231,6 +235,7 @@ export function createLearnerRoutes(container: Container) {
       minutes: lesson.minutes,
       questionCount: null,
       done: Boolean(resolved.data?.lessonsDone.includes(lesson.id)) || isDone(resolved),
+      restricted: !resolved.lessonOpen(lesson),
     }));
     if (resolved.content.check && resolved.questions.length)
       lessons.push({
@@ -402,7 +407,71 @@ export function createLearnerRoutes(container: Container) {
           visible.has(source.id) && source.url && /^https?:\/\//.test(source.url)
             ? source.url
             : null,
+        projectId: source.projectId,
       }));
+  };
+
+  /**
+   * Access to the sources behind a module's restricted lessons. Admins share pasted sources from the
+   * project's Sources page; Drive files are shared in Drive. The person asking never sees the
+   * titles of sources they can't open; the admins do.
+   */
+  const requestAccess = (
+    actor: Actor,
+    resolved: Resolved | null,
+    input: LearningRequestInput,
+  ): LearningRequest => {
+    if (!resolved) throw new BadRequestError("Say which module the lesson is in");
+    const ids = [...new Set(resolved.content.lessons.flatMap((lesson) => lesson.sourceIds))];
+    let visible = new Set<string>();
+    try {
+      if (resolved.content.projectId)
+        visible = new Set(identity.visibleSourceIds(actor, resolved.content.projectId));
+    } catch {
+      // Not in the project: nothing in it is open to them.
+    }
+    const missing = ids.filter((id) => !visible.has(id));
+    if (!missing.length)
+      throw new AppError(409, "CONFLICT", "You can already open everything in this module");
+    const admins = db
+      .select({ userId: memberships.userId, role: memberships.role })
+      .from(memberships)
+      .where(and(eq(memberships.workspaceId, actor.workspaceId), eq(memberships.status, "active")))
+      .all()
+      .filter((row) => ["owner", "admin"].includes(row.role) && row.userId !== actor.id);
+    const recipient = admins[0] ? records.personRef(actor.workspaceId, admins[0].userId) : null;
+    if (!recipient)
+      throw new AppError(409, "CONFLICT", "There's no admin to ask yet; ask your manager");
+    const row = store.create(
+      actor,
+      "learning_request",
+      { ...input, recipientId: recipient.id, sourceIds: missing },
+      { status: "open" },
+    );
+    const titles = db
+      .select({ title: sourceObjects.title })
+      .from(sourceObjects)
+      .where(inArray(sourceObjects.id, missing))
+      .all()
+      .map((source) => `“${source.title}”`);
+    const about = resolved.module?.title ?? resolved.content.title;
+    notifier.notifyAdmins(actor.workspaceId, {
+      type: "learning.access_request",
+      category: "maintenance",
+      title: `${actor.name} asked for access to the sources behind “${about}”`,
+      body: `${titles.join(", ")}. Share pasted sources from the project's Sources page; Drive files are shared in Google Drive.`,
+      link: resolved.content.projectId
+        ? `/projects/${resolved.content.projectId}/sources`
+        : "/knowledge",
+    });
+    audit.record({
+      actor,
+      action: "learning.request",
+      targetType: "learning_request",
+      targetId: row.id,
+      metadata: { type: "access", sources: missing.length },
+    });
+    return { id: row.id, recipient };
   };
 
   const roadmapView = (actor: Actor): MyRoadmap => {
@@ -622,7 +691,7 @@ export function createLearnerRoutes(container: Container) {
             type: "markdown",
             text: open
               ? lesson.body
-              : "## This lesson is restricted\n\nIt's based on sources you can't open yet. Ask their owner for access in the tool they live in, then come back to it.",
+              : "## This lesson is restricted\n\nIt's based on sources you can't open yet. Use Request access on the module's page, or ask their owner in the tool they live in, then come back to it.",
           },
         ],
         rating: resolved.data?.ratings[lesson.id] ?? null,
@@ -669,6 +738,7 @@ export function createLearnerRoutes(container: Container) {
           options: question.options,
         })),
       };
+      checkPause.open(actor, body.id);
       return c.json(body);
     })
     .post(
@@ -699,6 +769,8 @@ export function createLearnerRoutes(container: Container) {
           { at: new Date().toISOString(), score, total: review.length, passed },
         ];
         save(actor, resolved, { attempts, passed: passed || Boolean(resolved.data?.passed) });
+        // Submitted: Context Bot can explain the answers now.
+        checkPause.close(actor);
         const after = roadmapModules(actor);
         const inStage = after.filter((entry) => entry.module?.stageId === resolved.stage.id);
         const withChecks = after.filter((entry) => entry.questions.length > 0);
@@ -767,6 +839,7 @@ export function createLearnerRoutes(container: Container) {
         const actor = c.get("actor");
         const input = c.req.valid("json");
         const resolved = input.moduleId ? resolve(actor, input.moduleId) : null;
+        if (input.type === "access") return c.json(requestAccess(actor, resolved, input), 201);
         const managerId =
           db
             .select({ managerId: memberships.managerId })

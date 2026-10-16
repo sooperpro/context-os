@@ -3,6 +3,7 @@ import { RootLayout } from "@/app/root-layout";
 import { RedirectHome } from "@/components/redirect-home";
 import { RouteErrorBoundary } from "@/components/route-error-boundary";
 import { AdminOnly } from "@/features/admin/components/admin-only";
+import { OwnerOnly } from "@/features/conversations/components/owner-only";
 import { HrOnly } from "@/features/people-ops/components/hr-only";
 import { ManagerOnly } from "@/features/team/components/manager-only";
 import { CuratorOnly } from "@/features/tutorials/components/curator-only";
@@ -107,7 +108,7 @@ const appChildren = [
       const { MemberPage } = await import("@/features/team/pages/member-page");
       return {
         Component: () => (
-          <ManagerOnly alsoFor={["people_ops"]}>
+          <ManagerOnly hrMayRead>
             <MemberPage />
           </ManagerOnly>
         ),
@@ -128,16 +129,12 @@ const appChildren = [
     },
   },
   {
+    // Not manager-only: a proposed answer goes to the project's domain owner first, who may hold
+    // any role, and the API lists only what the caller may review.
     path: "reviews",
     lazy: async () => {
       const { ReviewQueuePage } = await import("@/features/contributions/pages/review-queue-page");
-      return {
-        Component: () => (
-          <ManagerOnly>
-            <ReviewQueuePage />
-          </ManagerOnly>
-        ),
-      };
+      return { Component: ReviewQueuePage };
     },
   },
   {
@@ -302,29 +299,19 @@ const appChildren = [
     },
   },
   {
+    // Every role: managers and People Ops have it in the rail, and an employee's Home links here
+    // when they have no onboarding roadmap. The API serves each person their own courses.
     path: "learning",
     lazy: async () => {
       const { MyLearningPage } = await import("@/features/learning/pages/my-learning-page");
-      return {
-        Component: () => (
-          <ManagerOnly alsoFor={["people_ops"]}>
-            <MyLearningPage />
-          </ManagerOnly>
-        ),
-      };
+      return { Component: MyLearningPage };
     },
   },
   {
     path: "learning/:courseId",
     lazy: async () => {
       const { CoursePage } = await import("@/features/learning/pages/course-page");
-      return {
-        Component: () => (
-          <ManagerOnly alsoFor={["people_ops"]}>
-            <CoursePage />
-          </ManagerOnly>
-        ),
-      };
+      return { Component: CoursePage };
     },
   },
   {
@@ -352,6 +339,56 @@ const appChildren = [
           </AdminOnly>
         ),
       };
+    },
+  },
+  {
+    path: "search",
+    lazy: async () => {
+      const { SearchPage } = await import("@/features/search/pages/search-page");
+      return { Component: SearchPage };
+    },
+  },
+  {
+    path: "conversations",
+    lazy: async () => {
+      const { ConversationsPage } =
+        await import("@/features/conversations/pages/conversations-page");
+      return {
+        Component: () => (
+          <OwnerOnly>
+            <ConversationsPage />
+          </OwnerOnly>
+        ),
+      };
+    },
+  },
+  {
+    path: "notifications",
+    lazy: async () => {
+      const { NotificationsPage } =
+        await import("@/features/notifications/pages/notifications-page");
+      return { Component: NotificationsPage };
+    },
+  },
+  {
+    path: "workspace",
+    lazy: async () => {
+      const { WorkspacePage } = await import("@/features/admin/pages/workspace-page");
+      return {
+        Component: () => (
+          <AdminOnly>
+            <WorkspacePage />
+          </AdminOnly>
+        ),
+      };
+    },
+  },
+  {
+    // Linked from the offboarding notification; the API lets only the manager and admins open it.
+    path: "continuity/checklists/:checklistId",
+    lazy: async () => {
+      const { ChecklistPage } = await import("@/features/continuity/pages/checklist-page");
+      return { Component: ChecklistPage };
     },
   },
   {

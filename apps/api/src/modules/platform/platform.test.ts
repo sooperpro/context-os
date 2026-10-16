@@ -31,7 +31,8 @@ describe("PRD platform access and workflows", () => {
 
   it("filters restricted sources before both retrieval paths, hides counts and protects Ask history", async () => {
     t = createTestApp();
-    const owner = { ...t.container.devActor };
+    // A manager adds and asks: owners open every source, so they'd see everything below.
+    const asker = actor("max", "manager");
     const project = await createProject(t.app);
     const source = await addSource(t.app, project.id);
     await t.drain();
@@ -66,10 +67,10 @@ describe("PRD platform access and workflows", () => {
     };
     expect(detail.stats.sources).toBe(0);
     expect(detail.stats.contextItems).toBe(0);
-    Object.assign(t.container.devActor, owner);
+    Object.assign(t.container.devActor, asker);
     t.container.db
       .delete(sourceAccess)
-      .where(and(eq(sourceAccess.sourceId, source.id), eq(sourceAccess.userId, owner.id)))
+      .where(and(eq(sourceAccess.sourceId, source.id), eq(sourceAccess.userId, asker.id)))
       .run();
     const revokedHistory = (await (
       await t.app.request(`/api/v1/projects/${project.id}/questions`)

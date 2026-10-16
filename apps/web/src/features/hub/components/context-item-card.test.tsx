@@ -1,5 +1,5 @@
 import type { ContextItem } from "@contextos/shared";
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ContextItemCard } from "@/features/hub/components/context-item-card";
@@ -63,17 +63,55 @@ describe("ContextItemCard", () => {
     });
   });
 
-  it("sends a verification change to the API", async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(jsonResponse({ ...decision, verification: "confirmed" }));
+  /** Answers by URL: the viewer, their ownership, and the verification change. */
+  const api = (owns: Array<{ scopeType: string; scopeId: string }>) =>
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/v1/workspaces/current"))
+        return Promise.resolve(
+          jsonResponse({
+            id: "w1",
+            name: "Tessellate",
+            role: "member",
+            authentication: "development",
+          }),
+        );
+      if (url.includes("/v1/users/me"))
+        return Promise.resolve(
+          jsonResponse({
+            id: "u1",
+            name: "Maya Okafor",
+            email: null,
+            role: "member",
+            workspaceId: "w1",
+            preferences: {},
+          }),
+        );
+      if (url.includes("/v1/people/u1"))
+        return Promise.resolve(
+          jsonResponse({
+            id: "u1",
+            name: "Maya Okafor",
+            role: "member",
+            assignments: owns.map((scope, index) => ({
+              id: `a${index}`,
+              type: "domain_owner",
+              ...scope,
+            })),
+          }),
+        );
+      return Promise.resolve(jsonResponse({ ...decision, verification: "confirmed" }));
+    });
+
+  it("lets the project's domain owner send a verification change", async () => {
+    const fetchSpy = api([{ scopeType: "project", scopeId: decision.projectId }]);
     renderWithProviders(
       <SourceDrawerContext value={{ open: vi.fn() }}>
         <ContextItemCard projectId={decision.projectId} item={decision} />
       </SourceDrawerContext>,
     );
 
-    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Confirm" }));
     expect(fetchSpy).toHaveBeenCalledWith(
       `/api/v1/projects/${decision.projectId}/context-items/${decision.id}/verification`,
       expect.objectContaining({
@@ -81,5 +119,22 @@ describe("ContextItemCard", () => {
         body: JSON.stringify({ verification: "confirmed" }),
       }),
     );
+  });
+
+  it("hides Confirm, Mark stale and Dispute from anyone who doesn't own the project", async () => {
+    const fetchSpy = api([{ scopeType: "project", scopeId: "another-project" }]);
+    renderWithProviders(
+      <SourceDrawerContext value={{ open: vi.fn() }}>
+        <ContextItemCard projectId={decision.projectId} item={decision} />
+      </SourceDrawerContext>,
+    );
+    await waitFor(() =>
+      expect(fetchSpy).toHaveBeenCalledWith(
+        expect.stringContaining("/v1/people/u1"),
+        expect.anything(),
+      ),
+    );
+    expect(screen.queryByRole("group", { name: "Verification" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument();
   });
 });

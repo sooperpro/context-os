@@ -31,6 +31,36 @@ export const TeamAreaSchema = z.enum([
 ]);
 export type TeamArea = z.infer<typeof TeamAreaSchema>;
 
+/** The expressive shapes someone can pick for their avatar (prototype settings.js `SHAPES`). */
+export const AvatarShapeSchema = z.enum([
+  "cookie9",
+  "cookie6",
+  "clover4",
+  "sunny",
+  "flower",
+  "cookie4",
+  "clover8",
+  "cookie12",
+]);
+export type AvatarShapeChoice = z.infer<typeof AvatarShapeSchema>;
+
+/** Longest values for the fields people write about themselves. */
+export const PROFILE_LIMITS = { pronouns: 40, location: 100, bio: 600, skill: 40, skills: 20 };
+
+/**
+ * What a person says about themselves (role access spec §4.9, Settings › Profile), on
+ * `GET /users/me` and their People profile. Empty strings mean "not set"; a null avatar shape means
+ * the one picked from their id.
+ */
+export const PersonalProfileSchema = z.object({
+  pronouns: z.string(),
+  location: z.string(),
+  bio: z.string(),
+  skills: z.array(z.string()),
+  avatarShape: AvatarShapeSchema.nullable(),
+});
+export type PersonalProfile = z.infer<typeof PersonalProfileSchema>;
+
 export const DirectoryPersonSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -97,6 +127,9 @@ export type TeamDirectory = z.infer<typeof TeamDirectorySchema>;
 /** `GET /v1/people/:id`: a profile. */
 export const PersonProfileSchema = DirectoryPersonSchema.extend({
   bio: z.string().nullable(),
+  pronouns: z.string().nullable().default(null),
+  /** The avatar shape they picked; null for the one picked from their id. */
+  avatarShape: AvatarShapeSchema.nullable().default(null),
   manager: PersonRefSchema.nullable(),
   reports: z.array(PersonRefSchema),
   /** Knowledge Hub pages they own. */

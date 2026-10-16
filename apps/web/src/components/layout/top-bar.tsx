@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { useNavigate } from "react-router";
 import { AccountMenu } from "@/components/layout/account-menu";
 import { useAssistant } from "@/components/layout/assistant-context";
 import { Brand } from "@/components/layout/brand";
@@ -11,18 +12,21 @@ import { SearchIcon } from "@/components/ui/icons";
 export const GLOBAL_SEARCH_ID = "global-search";
 
 /**
- * Top bar (72px), as in the prototype: search that hands its text to Context Bot, the "View as"
- * pill, theme, notifications and the account menu (which also switches workspaces). On compact
- * windows the brand moves here and search becomes an icon that opens the assistant.
+ * Top bar (72px), as in the prototype: search that opens the results page (where asking Context Bot
+ * is one option; an empty search opens the bot), the "View as" pill, theme, notifications and the
+ * account menu (which also switches workspaces). On compact windows the brand moves here and
+ * search becomes an icon that opens the assistant.
  */
 export function TopBar() {
   const { openAssistant } = useAssistant();
+  const navigate = useNavigate();
   const [query, setQuery] = useState("");
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const text = query.trim();
-    openAssistant(text.length > 0 ? text : undefined);
+    if (text.length >= 2) void navigate(`/search?q=${encodeURIComponent(text)}`);
+    else openAssistant();
     setQuery("");
   };
 

@@ -11,7 +11,6 @@ import {
   workspaces,
 } from "../../db/schema.js";
 import type { Logger } from "../../lib/logger.js";
-import { linkEmail, type Mailer } from "../../lib/mailer.js";
 import type { JobQueue } from "../jobs/jobs.queue.js";
 import type { BountyService } from "./bounties.js";
 import { addBusinessDays, businessDaysBetween } from "./health.js";
@@ -24,6 +23,7 @@ import {
 import { createNotifier } from "./notify.js";
 import { resolveSettings } from "./settings.js";
 import { createPlatformStore } from "./store.js";
+import { reportsOf } from "./reports.js";
 
 export interface SweepDeps {
   db: Db;
@@ -31,9 +31,6 @@ export interface SweepDeps {
   logger: Logger;
   /** Optional so callers that only need the maintenance effects can omit it. */
   queue?: JobQueue;
-  /** Emails the weekly digest to managers who turned email on; `appUrl` is the web app's origin. */
-  mailer?: Mailer;
-  appUrl?: string;
 }
 
 export interface SweepReport {
@@ -69,7 +66,7 @@ const FLAG_ESCALATION_BUSINESS_DAYS = 10;
  * Background maintenance per PRD §8.1.3, §8.8.3, §8.11, §13 and FR-ADM-008. Runs between
  * job polls; every effect is idempotent (marker fields on the affected record).
  */
-export function createSweeps({ db, bounties, logger, queue, mailer, appUrl }: SweepDeps) {
+export function createSweeps({ db, bounties, logger, queue }: SweepDeps) {
   const store = createPlatformStore(db);
   const notifier = createNotifier(db);
   const today = () => new Date().toISOString().slice(0, 10);
@@ -167,8 +164,8 @@ export function createSweeps({ db, bounties, logger, queue, mailer, appUrl }: Sw
             .all();
           const teams = new Map<string, string[]>();
           for (const member of members)
-            if (member.managerId)
-              teams.set(member.managerId, [...(teams.get(member.managerId) ?? []), member.userId]);
+            if (member.managerId && !teams.has(member.managerId))
+              teams.set(member.managerId, reportsOf(db, { id: member.managerId, workspaceId }));
           const workspaceProjects = db
             .select({ id: projects.id })
             .from(projects)
@@ -209,40 +206,13 @@ export function createSweeps({ db, bounties, logger, queue, mailer, appUrl }: Sw
             const body = reported
               ? `${reported} reported as knowledge gaps. See them on your Home.`
               : "See the knowledge gaps on your Home.";
-            const notification = notifier.notify(
+            // Emailed by email-delivery.ts too, when the manager turned email on.
+            notifier.notify(
               workspaceId,
               managerId,
               { type: "digest.weekly", category: "maintenance", title, body, link: "/" },
               settings,
             );
-            // Email it too when the manager turned email on in their notification settings (off by
-            // default).
-            const to = db
-              .select({ email: users.email })
-              .from(users)
-              .where(eq(users.id, managerId))
-              .get()?.email;
-            if (
-              mailer &&
-              appUrl &&
-              to &&
-              (notification?.data.channels as { email?: boolean })?.email
-            )
-              void mailer
-                .send(
-                  linkEmail({
-                    to,
-                    subject: title,
-                    intro: `${title}. ${body}`,
-                    action: "Open ContextOS",
-                    url: appUrl,
-                    outro:
-                      "You get this because email is on for maintenance updates in your notification settings.",
-                  }),
-                )
-                .catch((error: unknown) =>
-                  logger.error({ err: error }, "Weekly digest email could not be sent"),
-                );
             report.weeklyDigests += 1;
           }
         }

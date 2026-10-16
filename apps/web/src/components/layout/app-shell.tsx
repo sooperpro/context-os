@@ -13,6 +13,7 @@ import { Rail } from "@/components/layout/rail";
 import { GLOBAL_SEARCH_ID, TopBar } from "@/components/layout/top-bar";
 import { useViewer } from "@/features/workspace/hooks/use-viewer";
 import { useMediaQuery, WINDOW } from "@/hooks/use-media-query";
+import { useIsCurator } from "@/features/tutorials/use-is-curator";
 
 const RAIL_STORAGE_KEY = "contextos-rail";
 type RailPreference = "expanded" | "collapsed";
@@ -37,7 +38,8 @@ function isTypingTarget(target: EventTarget | null): boolean {
  */
 export function AppShell({ assistant }: { assistant: ReactNode }) {
   const viewer = useViewer();
-  const items = navItemsFor(viewer.role, viewer.persona);
+  const curator = useIsCurator();
+  const items = navItemsFor(viewer.role, viewer.persona, { curator });
 
   const expanded = useMediaQuery(WINDOW.expanded);
   const large = useMediaQuery(WINDOW.large);

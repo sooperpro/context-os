@@ -3,6 +3,7 @@ import {
   AssignmentInputSchema,
   AssignmentScopeTypeSchema,
   AssignmentTypeSchema,
+  ContinuityUpdateInputSchema,
   HubSectionKeySchema,
   InviteInputSchema,
   PageQuerySchema,
@@ -35,13 +36,14 @@ import {
 } from "../../db/schema.js";
 import { AppError, BadRequestError, NotFoundError } from "../../lib/errors.js";
 import { validationHook } from "../../middleware/validation.js";
-import type { AppEnv } from "../../types.js";
+import type { Actor, AppEnv } from "../../types.js";
 import { createNotifier } from "../platform/notify.js";
 import { ledgerSummary } from "../platform/reputation.js";
 import { resolveSettings, workspaceSettings } from "../platform/settings.js";
-import { createPlatformStore } from "../platform/store.js";
+import { createPlatformStore, type PlatformRecord } from "../platform/store.js";
+import { auditRowFor } from "../audit/audit.service.js";
 import { sendInvitationEmail } from "../auth/invitations.js";
-import { organizationFor, requireRole } from "./identity.service.js";
+import { organizationFor, personalProfileOf, requireRole } from "./identity.service.js";
 
 const adminRoles = ["owner", "admin"] as const;
 const ProjectMemberSchema = z.object({ userId: z.string().min(1).max(200) }).strict();
@@ -53,21 +55,6 @@ const AuditQuerySchema = PageQuerySchema.extend({
   to: z.iso.datetime().optional(),
   format: z.enum(["json", "csv"]).default("json"),
 });
-const ChecklistUpdateSchema = z
-  .object({
-    version: z.number().int().positive(),
-    areas: z
-      .array(
-        z.object({
-          key: z.string().min(1).max(300),
-          status: z.enum(["reassigned", "unowned"]),
-          assigneeId: z.string().min(1).max(200).optional(),
-        }),
-      )
-      .min(1)
-      .max(200),
-  })
-  .strict();
 const INVITATION_DAYS = 14;
 
 export function createIdentityRoutes(container: Container) {
@@ -82,6 +69,66 @@ export function createIdentityRoutes(container: Container) {
           ? value
           : JSON.stringify(value);
     return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+  };
+  const nameOf = (userId: string) =>
+    db.select({ name: users.name }).from(users).where(eq(users.id, userId)).get()?.name ?? userId;
+  const personRef = (actor: Actor, userId: string) => {
+    const member = identity.requireMemberOptional(actor.workspaceId, userId);
+    const title = member?.organization.jobTitle;
+    return { id: userId, name: nameOf(userId), title: typeof title === "string" ? title : null };
+  };
+  /** A hand-over checklist: its manager and admins only; 404 for everyone else. */
+  const checklistFor = (actor: Actor, id: string) => {
+    const row = store.get(actor, "continuity_checklist", id);
+    if (row.ownerId !== actor.id && !["owner", "admin"].includes(actor.role))
+      throw new NotFoundError("Continuity checklist");
+    return row;
+  };
+  const ASSIGNMENT_LABEL: Record<string, string> = {
+    mentor: "Mentor",
+    domain_owner: "Domain owner",
+    path_curator: "Path curator",
+    bounty_sponsor: "Bounty sponsor",
+    department_head: "Department head",
+    rewards_approver: "Rewards approver",
+    review_cycle_admin: "Review cycle admin",
+  };
+  const projectName = (actor: Actor, projectId: string) =>
+    db
+      .select({ name: projects.name })
+      .from(projects)
+      .where(and(eq(projects.workspaceId, actor.workspaceId), eq(projects.id, projectId)))
+      .get()?.name ?? "A deleted project";
+  const scopeLabel = (actor: Actor, scopeType: unknown, scopeId: string) => {
+    if (scopeType === "workspace") return "The whole workspace";
+    if (scopeType === "project") return projectName(actor, scopeId);
+    if (scopeType === "user") return nameOf(scopeId);
+    if (scopeType === "section") {
+      const [projectId = "", section = ""] = scopeId.split(":");
+      return `${projectName(actor, projectId)} · ${section.replaceAll("_", " ")}`;
+    }
+    return scopeId;
+  };
+  const checklistView = (actor: Actor, row: PlatformRecord) => {
+    const areas = (Array.isArray(row.data.areas) ? row.data.areas : []) as Array<
+      Record<string, unknown>
+    >;
+    return {
+      id: row.id,
+      version: row.version,
+      status: row.status === "completed" ? "completed" : "open",
+      leaver: personRef(actor, String(row.data.leaverId)),
+      createdAt: row.createdAt.toISOString(),
+      areas: areas.map((area) => ({
+        key: String(area.key),
+        type: ASSIGNMENT_LABEL[String(area.type)] ?? String(area.type),
+        scope: scopeLabel(actor, area.scopeType, String(area.scopeId)),
+        status: area.status === "reassigned" ? "reassigned" : "unowned",
+        assignee: typeof area.assigneeId === "string" ? personRef(actor, area.assigneeId) : null,
+        granted: area.granted === true,
+      })),
+      canGrant: ["owner", "admin"].includes(actor.role),
+    };
   };
   return new Hono<AppEnv>()
     .get("/workspaces/current", (c) => {
@@ -104,12 +151,17 @@ export function createIdentityRoutes(container: Container) {
     .get("/users/me", (c) => {
       const actor = c.get("actor");
       const membership = identity.requireMember(actor.workspaceId, actor.id);
+      const row = db.select().from(users).where(eq(users.id, actor.id)).get();
+      if (!row) throw new NotFoundError("User");
       return c.json({
-        ...db.select().from(users).where(eq(users.id, actor.id)).get(),
+        ...row,
+        profile: personalProfileOf(row.preferences, membership.organization),
         role: actor.role,
         workspaceId: actor.workspaceId,
         managerId: membership.managerId,
         organization: membership.organization,
+        // When a guest's access ends (null for everyone else).
+        guestExpiresAt: membership.guestExpiresAt?.toISOString() ?? null,
         assignments: db
           .select()
           .from(assignments)
@@ -136,17 +188,64 @@ export function createIdentityRoutes(container: Container) {
     })
     .patch("/users/me", zValidator("json", ProfileUpdateSchema, validationHook), (c) => {
       const actor = c.get("actor");
-      const input = c.req.valid("json");
+      const { name, pronouns, location, bio, skills, avatarShape, ...settings } =
+        c.req.valid("json");
       const row = db.select().from(users).where(eq(users.id, actor.id)).get();
       if (!row) throw new NotFoundError("User");
-      return c.json(
-        db
+      const membership = identity.requireMember(actor.workspaceId, actor.id);
+      // Profile fields join what the first-day welcome stored (preferred name, known topics).
+      const own = Object.fromEntries(
+        Object.entries({
+          pronouns,
+          location,
+          bio,
+          skills: skills?.filter(
+            (skill, index) =>
+              skills.findIndex(
+                (other) => other.toLocaleLowerCase() === skill.toLocaleLowerCase(),
+              ) === index,
+          ),
+        }).filter(([, value]) => value !== undefined),
+      );
+      const { avatarShape: _previousShape, ...withoutShape } = row.preferences;
+      const preferences = {
+        ...(avatarShape === undefined ? row.preferences : withoutShape),
+        ...settings,
+        ...(avatarShape ? { avatarShape } : {}),
+        ...(Object.keys(own).length
+          ? {
+              profile: {
+                ...(typeof row.preferences.profile === "object" ? row.preferences.profile : {}),
+                ...own,
+                updatedAt: new Date().toISOString(),
+              },
+            }
+          : {}),
+      };
+      // The directory shows the workspace's location, so a new one is written there too.
+      const { location: _previousLocation, ...organizationRest } = membership.organization;
+      const organization =
+        location === undefined
+          ? membership.organization
+          : location
+            ? { ...organizationRest, location }
+            : organizationRest;
+      const updated = db.transaction(() => {
+        if (location !== undefined)
+          db.update(memberships)
+            .set({ organization })
+            .where(
+              and(eq(memberships.workspaceId, actor.workspaceId), eq(memberships.userId, actor.id)),
+            )
+            .run();
+        return db
           .update(users)
-          .set({ name: input.name ?? row.name, preferences: { ...row.preferences, ...input } })
+          .set({ name: name ?? row.name, preferences })
           .where(eq(users.id, actor.id))
           .returning()
-          .get(),
-      );
+          .get();
+      });
+      return c.json({ ...updated, profile: personalProfileOf(updated.preferences, organization) });
     })
     .get("/users", zValidator("query", UserDirectoryQuerySchema, validationHook), (c) => {
       const actor = c.get("actor");
@@ -177,7 +276,7 @@ export function createIdentityRoutes(container: Container) {
           if (teamId && organization.teamId !== teamId) return false;
           if (
             needle &&
-            !`${user.name} ${user.email ?? ""} ${typeof organization.jobTitle === "string" ? organization.jobTitle : ""}`
+            !`${user.name} ${user.email ?? ""} ${typeof organization.jobTitle === "string" ? organization.jobTitle : ""} ${personalProfileOf(user.preferences).skills.join(" ")}`
               .toLocaleLowerCase()
               .includes(needle)
           )
@@ -198,6 +297,10 @@ export function createIdentityRoutes(container: Container) {
             managerId: membership.managerId,
             organization: membership.organization,
           }),
+          // What they chose to show the directory (Settings › Profile); bio is on their profile.
+          profile: (({ pronouns, skills, avatarShape }) => ({ pronouns, skills, avatarShape }))(
+            personalProfileOf(user.preferences, membership.organization),
+          ),
           tier:
             settings.gamification.enabled && user.preferences.hideTier !== true
               ? ledgerSummary(db, actor.workspaceId, user.id, settings).tier
@@ -383,7 +486,7 @@ export function createIdentityRoutes(container: Container) {
             notifier.notify(actor.workspaceId, managerId, {
               type: "offboarding.continuity",
               category: "system",
-              title: `Knowledge continuity checklist for ${target.userId}`,
+              title: `Hand over ${nameOf(userId)}'s responsibilities`,
               body: `${ownedAreas.length} owned areas need reassignment`,
               link: `/continuity/checklists/${checklist.id}`,
             });
@@ -420,6 +523,12 @@ export function createIdentityRoutes(container: Container) {
       // Check every row before sending any, so a bad row in a bulk list leaves nothing half-sent.
       for (const invitation of invitations) {
         if (invitation.managerId) identity.requireMember(actor.workspaceId, invitation.managerId);
+        if (invitation.projectIds?.length) {
+          // Only guests are added project by project; everyone else sees the workspace's projects.
+          if (invitation.role !== "guest")
+            throw new BadRequestError("Only guests are invited into specific projects");
+          for (const projectId of invitation.projectIds) identity.requireProject(actor, projectId);
+        }
         if (invitation.departmentId) {
           const department = db
             .select({ id: departments.id })
@@ -598,6 +707,24 @@ export function createIdentityRoutes(container: Container) {
       });
       return c.body(null, 204);
     })
+    .get("/users/:id/projects", (c) => {
+      const actor = c.get("actor");
+      requireRole(actor, ...adminRoles);
+      const userId = c.req.param("id");
+      identity.requireMember(actor.workspaceId, userId);
+      // The projects someone was added to one by one: what a guest can see.
+      return c.json({
+        items: db
+          .select({ id: projects.id, name: projects.name })
+          .from(projectMemberships)
+          .innerJoin(projects, eq(projects.id, projectMemberships.projectId))
+          .where(
+            and(eq(projectMemberships.userId, userId), eq(projects.workspaceId, actor.workspaceId)),
+          )
+          .orderBy(projects.name)
+          .all(),
+      });
+    })
     .post(
       "/projects/:projectId/memberships",
       zValidator("json", ProjectMemberSchema, validationHook),
@@ -606,18 +733,68 @@ export function createIdentityRoutes(container: Container) {
         requireRole(actor, ...adminRoles);
         const projectId = c.req.param("projectId");
         identity.requireProject(actor, projectId);
-        identity.requireMember(actor.workspaceId, c.req.valid("json").userId);
-        return c.json(
-          db
-            .insert(projectMemberships)
-            .values({ projectId, userId: c.req.valid("json").userId })
-            .onConflictDoNothing()
-            .returning()
-            .get() ?? { projectId, userId: c.req.valid("json").userId },
-          201,
-        );
+        const { userId } = c.req.valid("json");
+        identity.requireMember(actor.workspaceId, userId);
+        const added = db
+          .insert(projectMemberships)
+          .values({ projectId, userId })
+          .onConflictDoNothing()
+          .returning()
+          .get();
+        if (added)
+          audit.record({
+            actor,
+            projectId,
+            action: "project.member.add",
+            targetType: "user",
+            targetId: userId,
+          });
+        return c.json(added ?? { projectId, userId }, 201);
       },
     )
+    .delete("/projects/:projectId/memberships/:userId", (c) => {
+      const actor = c.get("actor");
+      requireRole(actor, ...adminRoles);
+      const { projectId, userId } = c.req.param();
+      identity.requireProject(actor, projectId);
+      const removed = db
+        .delete(projectMemberships)
+        .where(
+          and(eq(projectMemberships.projectId, projectId), eq(projectMemberships.userId, userId)),
+        )
+        .returning()
+        .get();
+      if (!removed) throw new NotFoundError("Project membership");
+      audit.record({
+        actor,
+        projectId,
+        action: "project.member.remove",
+        targetType: "user",
+        targetId: userId,
+      });
+      return c.body(null, 204);
+    })
+    .get("/projects/:projectId/sources/:sourceId/access", (c) => {
+      const actor = c.get("actor");
+      requireRole(actor, ...adminRoles);
+      const { projectId, sourceId } = c.req.param();
+      identity.requireSource(actor, projectId, sourceId);
+      // People it was shared with one by one; connected sources follow their provider instead.
+      return c.json({
+        items: db
+          .select({
+            userId: sourceAccess.userId,
+            name: users.name,
+            expiresAt: sourceAccess.expiresAt,
+          })
+          .from(sourceAccess)
+          .innerJoin(users, eq(users.id, sourceAccess.userId))
+          .where(eq(sourceAccess.sourceId, sourceId))
+          .all()
+          .filter((row) => !row.expiresAt || row.expiresAt > new Date())
+          .map((row) => ({ ...row, expiresAt: row.expiresAt?.toISOString() ?? null })),
+      });
+    })
     .post(
       "/projects/:projectId/sources/:sourceId/access",
       zValidator("json", SourceAccessInputSchema, validationHook),
@@ -732,7 +909,10 @@ export function createIdentityRoutes(container: Container) {
             return false;
           }
         });
-      const page = rows.slice(offset, offset + limit);
+      // A CSV export holds the whole range (up to 10,000 rows), not one page.
+      const page = (
+        format === "csv" ? rows.slice(0, 10_000) : rows.slice(offset, offset + limit)
+      ).map((row) => auditRowFor(actor, row));
       if (format === "csv") {
         audit.record({
           actor,
@@ -785,14 +965,17 @@ export function createIdentityRoutes(container: Container) {
         : store.listOwned(actor, "continuity_checklist");
       return c.json({ items });
     })
+    .get("/continuity/checklists/:id", (c) => {
+      const actor = c.get("actor");
+      return c.json(checklistView(actor, checklistFor(actor, c.req.param("id"))));
+    })
     .patch(
       "/continuity/checklists/:id",
-      zValidator("json", ChecklistUpdateSchema, validationHook),
+      zValidator("json", ContinuityUpdateInputSchema, validationHook),
       (c) => {
         const actor = c.get("actor");
-        const row = store.get(actor, "continuity_checklist", c.req.param("id"));
-        if (row.ownerId !== actor.id && !["owner", "admin"].includes(actor.role))
-          throw new NotFoundError("Continuity checklist");
+        const row = checklistFor(actor, c.req.param("id"));
+        const canGrant = ["owner", "admin"].includes(actor.role);
         const input = c.req.valid("json");
         const areas = (Array.isArray(row.data.areas) ? row.data.areas : []) as Array<
           Record<string, unknown>
@@ -804,9 +987,12 @@ export function createIdentityRoutes(container: Container) {
             if (!change.assigneeId)
               throw new BadRequestError("assigneeId is required to reassign an area");
             identity.requireMember(actor.workspaceId, change.assigneeId);
+            const already = area.granted === true && area.assigneeId === change.assigneeId;
             const type = AssignmentTypeSchema.safeParse(area.type);
             const scopeType = AssignmentScopeTypeSchema.safeParse(area.scopeType);
-            if (["owner", "admin"].includes(actor.role) && type.success && scopeType.success)
+            // Only admins grant responsibilities; a manager's pick waits for one to apply it.
+            const grant = canGrant && !already && type.success && scopeType.success;
+            if (grant)
               db.insert(assignments)
                 .values({
                   id: randomUUID(),
@@ -821,12 +1007,15 @@ export function createIdentityRoutes(container: Container) {
               ...area,
               status: "reassigned",
               assigneeId: change.assigneeId,
+              granted: already || grant,
               reassignedAt: new Date().toISOString(),
             };
           }
-          return { ...area, status: "unowned", assigneeId: null };
+          return { ...area, status: "unowned", assigneeId: null, granted: false };
         });
-        const complete = updatedAreas.every((area) => area.status === "reassigned");
+        const complete = updatedAreas.every(
+          (area) => area.status === "reassigned" && area.granted === true,
+        );
         const updated = store.update(actor, row, input.version, {
           status: complete ? "completed" : "open",
           data: { ...row.data, areas: updatedAreas },
@@ -837,7 +1026,15 @@ export function createIdentityRoutes(container: Container) {
           targetType: "continuity_checklist",
           targetId: row.id,
         });
-        return c.json(updated);
+        if (updatedAreas.some((area) => area.status === "reassigned" && area.granted !== true))
+          notifier.notifyAdmins(actor.workspaceId, {
+            type: "offboarding.continuity_pending",
+            category: "system",
+            title: `${actor.name} picked new owners for ${nameOf(String(row.data.leaverId))}'s responsibilities`,
+            body: "Apply them to hand the responsibilities over.",
+            link: `/continuity/checklists/${row.id}`,
+          });
+        return c.json(checklistView(actor, updated));
       },
     );
 }

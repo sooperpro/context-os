@@ -11,10 +11,10 @@ import {
   type TutorialSummary,
 } from "@contextos/shared";
 import { zValidator } from "@hono/zod-validator";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, or } from "drizzle-orm";
 import { Hono } from "hono";
 import type { Container } from "../../container.js";
-import { projects, sourceObjects, users, type JobRow } from "../../db/schema.js";
+import { assignments, projects, sourceObjects, users, type JobRow } from "../../db/schema.js";
 import {
   AppError,
   BadRequestError,
@@ -43,6 +43,7 @@ import {
   type ProgressData,
 } from "./content.js";
 import { generateDraft } from "./tutorial-ai.js";
+import { manages } from "../platform/reports.js";
 
 /*
  * Tutorial Studio (FR-LRN-001/004/005/008/012). A curator asks for a tutorial on a project; a
@@ -87,6 +88,21 @@ export function createTutorialRoutes(container: Container) {
   const canCurate = (actor: Actor, projectId: string) =>
     ["owner", "admin", "hr"].includes(actor.role) ||
     identity.hasAssignment(actor, "path_curator", projectId);
+  /** Holds a path curator assignment for any project. */
+  const curatesAny = (actor: Actor) =>
+    actor.role !== "guest" &&
+    db
+      .select({ id: assignments.id })
+      .from(assignments)
+      .where(
+        and(
+          eq(assignments.workspaceId, actor.workspaceId),
+          eq(assignments.userId, actor.id),
+          eq(assignments.type, "path_curator"),
+          or(isNull(assignments.expiresAt), gt(assignments.expiresAt, new Date())),
+        ),
+      )
+      .all().length > 0;
   const requireCurator = (actor: Actor, projectId: string) => {
     const project = identity.requireProject(actor, projectId);
     if (!canCurate(actor, projectId))
@@ -226,7 +242,7 @@ export function createTutorialRoutes(container: Container) {
       const rows = store
         .listWhere(actor.workspaceId, TUTORIAL, {}, 1000)
         .filter((row) => row.projectId && canCurate(actor, row.projectId));
-      if (!rows.length && !["owner", "admin", "hr"].includes(actor.role))
+      if (!rows.length && !["owner", "admin", "hr"].includes(actor.role) && !curatesAny(actor))
         throw new AppError(403, "FORBIDDEN", "Tutorials are managed by admins and People Ops");
       return c.json({ items: rows.map(summary) });
     })
@@ -430,7 +446,7 @@ export function createTutorialRoutes(container: Container) {
         const member = identity.requireMember(actor.workspaceId, input.userId);
         // Curators, People Ops and the person's manager may assign.
         // Admins, owners and People Ops assign to anyone; managers to their own reports.
-        if (!["owner", "admin", "hr"].includes(actor.role) && member.managerId !== actor.id)
+        if (!["owner", "admin", "hr"].includes(actor.role) && !manages(db, actor, member.userId))
           throw new AppError(
             403,
             "FORBIDDEN",

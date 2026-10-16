@@ -22,6 +22,7 @@ import { validationHook } from "../../middleware/validation.js";
 import type { Actor, AppEnv } from "../../types.js";
 import { createNotifier } from "../platform/notify.js";
 import { createPlatformStore } from "../platform/store.js";
+import { domainOwnersOf } from "./answer-policy.js";
 import { isRestrictedTopic } from "./restricted.js";
 
 const IdParam = z.object({ id: IdSchema });
@@ -289,26 +290,45 @@ export function createAssistantRoutes(container: Container) {
     .post("/assistant/gaps", zValidator("json", KnowledgeGapInputSchema, validationHook), (c) => {
       const actor = c.get("actor");
       const input = c.req.valid("json");
+      // The project the question is most likely about, as when answering it; its domain owners
+      // hear about it (or the workspace-wide ones), and admins when nobody owns it.
+      const project = candidates(actor, services.projects.list(actor), input.question)[0]?.project;
+      const owners = domainOwnersOf(db, actor.workspaceId, project?.id ?? null).filter(
+        (userId) => userId !== actor.id,
+      );
       const gap = store.create(
         actor,
         "knowledge_gap",
         { question: input.question, page: null },
-        { status: "open" },
+        { status: "open", projectId: project?.id },
       );
-      notifier.notifyAdmins(actor.workspaceId, {
+      const notice = {
         type: "knowledge.gap_reported",
-        category: "maintenance",
+        category: "maintenance" as const,
         title: `Context Bot could not answer: ${input.question.slice(0, 120)}`,
         body: `${actor.name} asked this and got no answer.`,
-        link: "/knowledge",
+        link: project ? `/projects/${project.slug ?? project.id}` : "/knowledge",
         data: { gapId: gap.id },
-      });
+      };
+      if (owners.length)
+        for (const userId of owners) notifier.notify(actor.workspaceId, userId, notice);
+      else notifier.notifyAdmins(actor.workspaceId, notice);
       audit.record({
         actor,
         action: "assistant.gap",
         targetType: "knowledge_gap",
         targetId: gap.id,
       });
-      return c.json({ id: gap.id, notified: "Workspace admins" }, 201);
+      return c.json(
+        {
+          id: gap.id,
+          notified: !owners.length
+            ? "Workspace admins"
+            : project
+              ? `${project.name}'s domain owners`
+              : "Domain owners",
+        },
+        201,
+      );
     });
 }

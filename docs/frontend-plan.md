@@ -83,12 +83,13 @@ Window size classes are Tailwind breakpoints from the token package: `medium` 60
 `large` 1600.
 
 **Sign-in (done):** the prototype's split frame (`features/auth/components/sign-in-layout.tsx`: brand
-panel with expressive shapes and the pitch, card on the right, single-sign-on note) hosts Clerk's
-sign-in and organization list. Clerk's components are themed from the design tokens at runtime
-(`features/auth/clerk-appearance.ts`, read from the document so both themes work), which also covers
-the organization switcher and account menu in the top bar. The company-domain check belongs to
-Clerk's allowed-domain settings, not to the page. The first-day flow after sign-in (welcome, profile,
-first 90 days) is part of learning paths and onboarding.
+panel with expressive shapes and the pitch, card on the right, single-sign-on note) hosts our own
+sign-in form (`features/auth/components/sign-in-form.tsx`): email and password, an emailed sign-in
+link, Google, Microsoft and company SSO, as `GET /v1/auth-options` allows. `auth-gate.tsx` asks
+signed-in people without an active workspace to choose or create one, and the account menu switches
+between them. Company SSO and its verified email domain are set up by admins (`/v1/admin/sso`), not
+on this page. The first-day flow after sign-in (welcome, profile, first 90 days) is part of learning
+paths and onboarding.
 
 ### Phase 4: screens, in order of value
 
@@ -138,8 +139,8 @@ A pass over every built surface against the prototype's CSS and JS found three g
       welcome with prompt cards and the trust line, chat bubbles, the morphing loader, answer tools
       (helpful / not helpful with reasons / copy), the no-answer state with "Report a knowledge gap",
       error and retry, the 28px composer. Conversations run on the Ask threads API.
-- [x] Settings pinned to the rail bottom and linked from the account menu: profile name and time zone,
-      notification channels and quiet hours, theme, and sign-in through Clerk. Only settings the API
+- [x] Settings pinned to the rail bottom and linked from the account menu: profile (name, time zone, pronouns, location, bio, skills, avatar shape),
+      notification channels and quiet hours, theme, and sign-in methods and devices. Only settings the API
       stores are offered (no notification categories, language or reduce-motion toggle).
 
 - [x] Navigation follows the reference: no Projects item. The rail's "Knowledge Hub" (`/knowledge`) has
@@ -228,7 +229,7 @@ A pass over every built surface against the prototype's CSS and JS found three g
       roadmap. Employee Home offers it until it is finished.
 - [x] The rest of Settings from the reference: Reduce motion (this device, like the OS setting),
       Context Bot preferences that change the panel and lessons, sign-in and "Where you're signed
-      in" from Clerk with sign-out per device, connected apps and a copy of your data. Admins' links
+      in" from our own sessions (`/v1/session/devices`) with sign-out per device, connected apps and a copy of your data. Admins' links
       go to Members & roles, AI settings and Workspace setup.
 - [x] The Oct 14 reference update: Contributions and the employee Home's team updates card are
       soft-hidden for the Oct 18 demo behind `src/lib/hidden.ts` (routes go Home; flip a flag to bring

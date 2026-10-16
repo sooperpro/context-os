@@ -52,7 +52,7 @@ function aiRules(settings: AiPolicySettings): AiSetting[] {
     {
       id: "route_unanswered",
       label: "Route unanswered questions to knowledge owners",
-      detail: "Creates knowledge gaps for team owners.",
+      detail: "Sends a question its project can't answer to the project's domain owners.",
       enabled: settings.rules.route_unanswered,
       locked: false,
     },

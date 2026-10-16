@@ -151,6 +151,28 @@ export const CheckinInputSchema = z
   });
 export type CheckinInput = z.infer<typeof CheckinInputSchema>;
 
+/**
+ * `GET /v1/me/checkins`: the person's own check-ins. When the next ones are, and the notes their
+ * manager chose to share. Never ratings, pulse or the recommendation (role access spec §3).
+ */
+export const MyCheckinsSchema = z.object({
+  upcoming: z.array(z.object({ id: z.string(), title: z.string(), at: IsoDateTimeSchema })),
+  shared: z.array(
+    z.object({
+      id: z.string(),
+      /** For replying with `POST /v1/probation/checkins/:id/respond`. */
+      version: z.number().int(),
+      title: z.string(),
+      on: DateOnly,
+      by: PersonRefSchema.nullable(),
+      notes: z.string(),
+      nextSteps: z.string(),
+      response: z.string().nullable(),
+    }),
+  ),
+});
+export type MyCheckins = z.infer<typeof MyCheckinsSchema>;
+
 /* ---- Assigning ----------------------------------------------------------------------------- */
 
 /** `GET /v1/team/members/:id/assign-options`: what can be assigned, for the two dialogs. */

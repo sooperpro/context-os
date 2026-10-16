@@ -1,21 +1,24 @@
 import type { ReactNode } from "react";
 import { useViewer } from "@/features/workspace/hooks/use-viewer";
-import type { Persona } from "@/features/workspace/viewer";
 import { NotFoundPage } from "@/pages/not-found-page";
 
 /**
- * Manager pages are for managers (role access spec §4.6). Everyone else gets the not found page, as
- * the API refuses them too. `alsoFor` lets another persona in, such as People Ops on member pages.
- * Renders nothing while the role is loading.
+ * Team pages are for managers (role access spec §4.6); People Ops and owners may also open a member
+ * page, as the API lets them read it. Everyone else gets the not found page. Renders nothing while the role
+ * is loading.
  */
 export function ManagerOnly({
+  hrMayRead = false,
   children,
-  alsoFor = [],
 }: {
+  hrMayRead?: boolean;
   children: ReactNode;
-  alsoFor?: readonly Persona[];
 }) {
-  const { persona } = useViewer();
+  const { persona, seesEverything } = useViewer();
   if (!persona) return null;
-  return persona === "manager" || alsoFor.includes(persona) ? children : <NotFoundPage />;
+  return persona === "manager" || (hrMayRead && (persona === "people_ops" || seesEverything)) ? (
+    children
+  ) : (
+    <NotFoundPage />
+  );
 }

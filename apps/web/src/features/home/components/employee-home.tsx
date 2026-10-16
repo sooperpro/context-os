@@ -9,8 +9,8 @@ import type {
 } from "@contextos/shared";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { cn } from "cn";
-import { useId, useState, type ReactNode } from "react";
-import { Link } from "react-router";
+import { useEffect, useId, useState, type ReactNode } from "react";
+import { Link, useNavigate } from "react-router";
 import { AskBand } from "@/components/ask-band";
 import { useAssistant } from "@/components/layout/assistant-context";
 import { PageHeader } from "@/components/layout/page-header";
@@ -104,9 +104,38 @@ import { welcomeQuery } from "@/features/welcome/api/welcome.queries";
 import { HIDDEN } from "@/lib/hidden";
 
 /** The employee's Home (prototype `employeeHome`): what to do next, how onboarding is going, who to ask. */
-/** Until someone finishes their first-day welcome, Home offers it (prototype sign-in → `#welcome`). */
+/** Once per browser session, a new hire who hasn't finished the welcome is taken there first. */
+const WELCOME_SHOWN = "contextos.welcome-shown";
+let welcomeShown = false;
+function shownThisSession(): boolean {
+  try {
+    return welcomeShown || sessionStorage.getItem(WELCOME_SHOWN) === "1";
+  } catch {
+    return welcomeShown;
+  }
+}
+function markShown() {
+  welcomeShown = true;
+  try {
+    sessionStorage.setItem(WELCOME_SHOWN, "1");
+  } catch {
+    // Storage is off: the in-memory flag still stops a loop.
+  }
+}
+
+/**
+ * Until someone finishes their first-day welcome, Home offers it (prototype sign-in → `#welcome`),
+ * and their first visit in a session opens it. "Skip for now" there comes back here.
+ */
 function WelcomeBanner() {
   const welcome = useQuery(welcomeQuery());
+  const navigate = useNavigate();
+  const pending = Boolean(welcome.data && !welcome.data.completedAt);
+  useEffect(() => {
+    if (!pending || shownThisSession()) return;
+    markShown();
+    void navigate("/welcome");
+  }, [pending, navigate]);
   if (!welcome.data || welcome.data.completedAt) return null;
   return (
     <Banner
@@ -177,7 +206,11 @@ export function EmployeeHome() {
       <WelcomeBanner />
       <div className="grid grid-cols-1 gap-3 [grid-template-areas:'hero'_'prog'_'week'_'miles'_'ask'_'news'_'side'] medium:gap-4 @min-[640px]:grid-cols-2 @min-[640px]:[grid-template-areas:'hero_hero'_'prog_miles'_'week_week'_'ask_ask'_'news_news'_'side_side'] @min-[940px]:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)] @min-[940px]:[grid-template-areas:'hero_prog'_'week_miles'_'ask_ask'_'news_side']">
         <NextUpCard query={nextUp} />
-        {noPlan ? <NoPlanCard /> : <OnboardingCard query={onboarding} day={day} />}
+        {noPlan ? (
+          <NoPlanCard newHire={me.data?.organization?.isNewHire === true} />
+        ) : (
+          <OnboardingCard query={onboarding} day={day} />
+        )}
         <WeekCard query={tasks} stageName={stage?.name} />
         <MilestonesCard />
         <AskBand className="[grid-area:ask]" prompts={prompts} />
@@ -187,6 +220,7 @@ export function EmployeeHome() {
           {HIDDEN.homeTeamUpdates ? null : <TeamActivityCard />}
         </div>
         <div className="grid gap-3 [grid-area:side] medium:gap-4 @min-[640px]:grid-cols-2 @min-[940px]:grid-cols-1 [&>:only-child]:col-span-full">
+          <CheckinsCard />
           <MyPeopleCard />
           {HIDDEN.contributions ? null : <ContributionsCard />}
         </div>
@@ -352,12 +386,14 @@ function NextUpBody({ item, headingId }: { item: NextUp; headingId: string }) {
 
 /* ---- Your onboarding --------------------------------------------------------------------- */
 
-function NoPlanCard() {
+/** No roadmap: someone who isn't onboarding, or a new hire whose roadmap nobody has assigned yet. */
+function NoPlanCard({ newHire }: { newHire: boolean }) {
   return (
-    <SectionCard className="[grid-area:prog]" title="Your learning">
+    <SectionCard className="[grid-area:prog]" title={newHire ? "Your onboarding" : "Your learning"}>
       <p className="text-sm text-on-surface-variant">
-        You're not onboarding, so there's no roadmap. Tutorials assigned to you, and ones you can
-        add yourself, are in My learning.
+        {newHire
+          ? "Your onboarding roadmap isn't ready yet: your manager or People Ops will pick it for your role. Until then, tutorials assigned to you are in My learning."
+          : "You're not onboarding, so there's no roadmap. Tutorials assigned to you, and ones you can add yourself, are in My learning."}
       </p>
       <Button
         variant="outline"
@@ -658,7 +694,13 @@ function TaskRow({ task, overdue }: { task: MyTask; overdue: boolean }) {
               {TASK_ACTION[task.kind]}
             </Button>
           ) : (
-            <Button size="xs" variant="outline" onClick={() => comingSoon("Check-in agendas")}>
+            // A task without a page of its own (a check-in): the Check-ins card on this page.
+            <Button
+              size="xs"
+              variant="outline"
+              nativeButton={false}
+              render={<a href="#checkins" />}
+            >
               {TASK_ACTION[task.kind]}
             </Button>
           )}
@@ -893,6 +935,59 @@ function MyPeopleCard() {
       ) : (
         <p className="text-sm text-on-surface-variant">
           Your manager and buddy appear here once they are assigned.
+        </p>
+      )}
+    </SectionCard>
+  );
+}
+
+/* ---- Check-ins ------------------------------------------------------------------------------ */
+
+/** When the next check-ins are, and the notes the manager chose to share (never ratings or pulse). */
+function CheckinsCard() {
+  const query = useQuery(homeQuery("myCheckins"));
+  const upcoming = query.data?.upcoming.slice(0, 3) ?? [];
+  const shared = query.data?.shared.slice(0, 2) ?? [];
+  return (
+    <SectionCard id="checkins" title="Check-ins" endpoint={E.myCheckins.path} status={query}>
+      {upcoming.length || shared.length ? (
+        <div className="flex flex-col gap-4">
+          {upcoming.length ? (
+            <ul className="flex flex-col gap-2" aria-label="Coming up">
+              {upcoming.map((entry) => (
+                <li key={entry.id} className="flex items-center gap-3 text-sm">
+                  <EventIcon className="size-5 shrink-0 text-on-surface-variant" aria-hidden />
+                  <span className="min-w-0 flex-1 truncate">{entry.title}</span>
+                  <span className="shrink-0 text-xs text-on-surface-variant">
+                    {formatWeekday(entry.at)} {formatShortDate(entry.at)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {shared.map((entry) => (
+            <article
+              key={entry.id}
+              className="flex flex-col gap-1 rounded-xl bg-surface-container p-3"
+            >
+              <h3 className="text-sm font-medium">
+                {entry.title} · {formatShortDate(entry.on)}
+              </h3>
+              {entry.by ? (
+                <p className="text-xs text-on-surface-variant">Shared by {entry.by.name}</p>
+              ) : null}
+              {entry.notes ? <p className="text-sm whitespace-pre-line">{entry.notes}</p> : null}
+              {entry.nextSteps ? (
+                <p className="text-sm">
+                  <b className="font-medium">Next steps:</b> {entry.nextSteps}
+                </p>
+              ) : null}
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-on-surface-variant">
+          Your check-ins with your manager appear here once your onboarding starts.
         </p>
       )}
     </SectionCard>

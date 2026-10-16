@@ -6,17 +6,25 @@ import type {
   UserUpdate,
 } from "@contextos/shared";
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
+import { peopleKeys } from "@/features/people/api/people.queries";
 import { workspaceKeys } from "@/features/workspace/api/workspace.queries";
 import {
   createDepartment,
   createTeam,
+  grantAssignment,
+  listAssignments,
+  listPendingInvitations,
+  removeAssignment,
+  revokeInvitation,
   deleteDepartment,
   deleteTeam,
   inviteMember,
   listDepartments,
   listMembers,
+  listProjectAccess,
   listTeams,
   renameDepartment,
+  setProjectAccess,
   updateMember,
   updateTeam,
 } from "./members.api";
@@ -26,6 +34,9 @@ export const membersKeys = {
   list: () => [...membersKeys.all(), "list"] as const,
   departments: () => [...workspaceKeys.all, "departments"] as const,
   teams: () => [...workspaceKeys.all, "teams"] as const,
+  projectAccess: (userId: string) => [...membersKeys.all(), "projects", userId] as const,
+  assignments: () => [...membersKeys.all(), "assignments"] as const,
+  invitations: () => [...membersKeys.all(), "invitations"] as const,
 };
 
 export const membersQuery = () =>
@@ -34,6 +45,28 @@ export const departmentsQuery = () =>
   queryOptions({
     queryKey: membersKeys.departments(),
     queryFn: ({ signal }) => listDepartments(signal),
+  });
+export const projectAccessQuery = (userId: string) =>
+  queryOptions({
+    queryKey: membersKeys.projectAccess(userId),
+    queryFn: ({ signal }) => listProjectAccess(userId, signal),
+  });
+export const pendingInvitationsQuery = () =>
+  queryOptions({
+    queryKey: membersKeys.invitations(),
+    queryFn: ({ signal }) => listPendingInvitations(signal),
+  });
+export const useRevokeInvitation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: revokeInvitation,
+    onSettled: () => queryClient.invalidateQueries({ queryKey: membersKeys.invitations() }),
+  });
+};
+export const assignmentsQuery = () =>
+  queryOptions({
+    queryKey: membersKeys.assignments(),
+    queryFn: ({ signal }) => listAssignments(signal),
   });
 export const teamsQuery = () =>
   queryOptions({ queryKey: membersKeys.teams(), queryFn: ({ signal }) => listTeams(signal) });
@@ -77,3 +110,27 @@ export const useUpdateTeam = () =>
   );
 export const useDeleteTeam = () =>
   useInvalidating((id: string) => deleteTeam(id), membersKeys.teams);
+
+/** Matches a guest's project access to the chosen projects. */
+export const useSetProjectAccess = (userId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ from, to }: { from: string[]; to: string[] }) =>
+      setProjectAccess(userId, from, to),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: membersKeys.projectAccess(userId) }),
+  });
+};
+
+/** Grants and removals change who owns what: the list, expertise on People, and who can verify. */
+function useAssignmentMutation<TInput>(mutationFn: (input: TInput) => Promise<unknown>) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn,
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: membersKeys.assignments() });
+      await queryClient.invalidateQueries({ queryKey: peopleKeys.all });
+    },
+  });
+}
+export const useGrantAssignment = () => useAssignmentMutation(grantAssignment);
+export const useRemoveAssignment = () => useAssignmentMutation(removeAssignment);

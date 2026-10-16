@@ -43,18 +43,20 @@ import {
   type TemplateData,
 } from "./onboarding-records.js";
 import type { PlatformRecord } from "./store.js";
+import { manages } from "./reports.js";
 
 /*
  * People Ops (HR): onboarding records across the company, probation reviews and onboarding
- * templates (role access spec §4.2 HR Home, §4.7). Every `/people-ops` route is HR only: admins
- * govern the workspace but do not see onboarding records or check-in notes (spec §3, §6 rule 3).
+ * templates (role access spec §4.2 HR Home, §4.7). Every `/people-ops` route is for HR and owners,
+ * who see everything (decided 16 Oct 2026): admins govern the workspace but do not see onboarding
+ * records or check-in notes (spec §3, §6 rule 3).
  * The records themselves are in onboarding-records.ts, shared with the manager's team routes.
  */
 
 export function createPeopleOpsRoutes(container: Container) {
   const { db, identity, audit } = container;
   const notifier = createNotifier(db);
-  const hr = (actor: Actor) => requireRole(actor, "hr");
+  const hr = (actor: Actor) => requireRole(actor, "hr", "owner");
   const {
     store,
     activeMembers,
@@ -810,7 +812,7 @@ export function createPeopleOpsRoutes(container: Container) {
           const input = c.req.valid("json");
           const data = view.data;
           // The manager recommends, People Ops decides (Spec decision 2): never the same person.
-          if (data.managerId === actor.id)
+          if (data.managerId === actor.id || (data.personId && manages(db, actor, data.personId)))
             throw new AppError(
               403,
               "FORBIDDEN",
@@ -1177,7 +1179,7 @@ export function createPeopleOpsRoutes(container: Container) {
           const actor = c.get("actor");
           const userId = c.req.param("userId");
           const member = identity.requireMember(actor.workspaceId, userId);
-          if (member.managerId !== actor.id)
+          if (!manages(db, actor, member.userId))
             throw new AppError(
               403,
               "FORBIDDEN",

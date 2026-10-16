@@ -26,6 +26,14 @@ function mockApi(role = "member") {
           role,
           workspaceId: "w",
           preferences: { timezone: "Europe/London" },
+          organization: { jobTitle: "Product Engineer" },
+          profile: {
+            pronouns: "",
+            location: "London",
+            bio: "",
+            skills: ["Billing"],
+            avatarShape: null,
+          },
         }),
       );
     if (url.endsWith("/v1/users/me"))
@@ -70,6 +78,38 @@ describe("SettingsPage", () => {
       ).toEqual({
         name: "Maya O.",
         timezone: "Europe/London",
+      }),
+    );
+  });
+
+  it("edits pronouns, location, bio, skills and avatar shape, sending only what changed", async () => {
+    const calls = mockApi();
+    const user = userEvent.setup();
+    render();
+    await user.type(await screen.findByLabelText("Pronouns"), "she/her");
+    await user.type(screen.getByLabelText("Bio"), "Billing and invoices.");
+    await user.click(screen.getByRole("button", { name: "Remove Billing" }));
+    await user.type(screen.getByLabelText("Skills"), "Kafka{Enter}");
+    await user.type(screen.getByLabelText("Skills"), "kafka");
+    expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
+    await user.clear(screen.getByLabelText("Skills"));
+    await user.type(screen.getByLabelText("Skills"), "Go");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    expect(screen.getByRole("radio", { name: "Flower" })).toBeChecked();
+    await user.click(screen.getByRole("radio", { name: "Sunny" }));
+    expect(screen.getByText("Product Engineer")).toBeInTheDocument();
+    expect(screen.getByText(/From the HR system/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(
+        calls.find((call) => call.method === "PATCH" && call.url.endsWith("/v1/users/me"))?.body,
+      ).toEqual({
+        name: "Maya Okafor",
+        timezone: "Europe/London",
+        pronouns: "she/her",
+        bio: "Billing and invoices.",
+        skills: ["Kafka", "Go"],
+        avatarShape: "sunny",
       }),
     );
   });

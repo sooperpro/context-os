@@ -6,7 +6,7 @@ import {
   WorkspaceSettingsSchema,
 } from "@contextos/shared";
 import { zValidator } from "@hono/zod-validator";
-import { and, count, eq } from "drizzle-orm";
+import { and, count, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Container } from "../../container.js";
@@ -184,7 +184,7 @@ export function createWorkspaceRoutes(container: Container) {
       .where(
         and(
           eq(platformRecords.workspaceId, actor.workspaceId),
-          eq(platformRecords.kind, "path_assignment"),
+          inArray(platformRecords.kind, ["path_assignment", "hr_onboarding"]),
         ),
       )
       .limit(1)
@@ -306,7 +306,7 @@ export function createWorkspaceRoutes(container: Container) {
             type: "security.workspace_deletion",
             category: "security",
             title: `Workspace deletion scheduled for ${deletion.scheduledAt.slice(0, 10)}`,
-            link: "/admin/workspace",
+            link: "/workspace",
           });
           return c.json({ deletion }, 202);
         },

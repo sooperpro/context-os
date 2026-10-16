@@ -10,7 +10,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { DeleteIcon, OpenInNewIcon, SyncAltIcon, VisibilityIcon } from "@/components/ui/icons";
+import {
+  DeleteIcon,
+  OpenInNewIcon,
+  PersonAddIcon,
+  SyncAltIcon,
+  VisibilityIcon,
+} from "@/components/ui/icons";
 import {
   SegmentedItem,
   SegmentedItemBody,
@@ -24,7 +30,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { SOURCE_KIND_ICON } from "@/features/hub/components/kind-icon";
 import { useDeleteSource, useReprocessSource } from "@/features/sources/api/sources.queries";
 import { SourceStatusBadge } from "@/features/sources/components/source-status-badge";
+import { SourceShareDialog } from "@/features/sources/components/source-share-dialog";
 import { useSourceDrawer } from "@/features/sources/hooks/use-source-drawer";
+import { useViewer } from "@/features/workspace/hooks/use-viewer";
 import { formatCount, formatDate, formatDateTime } from "@/lib/format";
 import { SOURCE_KIND_LABEL } from "@/lib/labels";
 
@@ -39,6 +47,10 @@ export function SourceList({ projectId, sources }: SourceListProps) {
   const reprocess = useReprocessSource(projectId);
   const remove = useDeleteSource(projectId);
   const [pendingDelete, setPendingDelete] = useState<SourceObject | null>(null);
+  const [sharing, setSharing] = useState<SourceObject | null>(null);
+  // Admins share pasted or uploaded sources (restricted by default) one person at a time.
+  const { persona } = useViewer();
+  const canShare = (source: SourceObject) => persona === "admin" && source.connector === "manual";
 
   const confirmDelete = () => {
     if (!pendingDelete) return;
@@ -71,12 +83,18 @@ export function SourceList({ projectId, sources }: SourceListProps) {
                 <SegmentedItemMeta>
                   <span>{SOURCE_KIND_LABEL[source.kind]}</span>
                   {source.author ? <span>{source.author}</span> : null}
-                  <span>{source.sourceCreatedAt ? `Dated ${formatDate(source.sourceCreatedAt)}` : "Undated"}</span>
+                  <span>
+                    {source.sourceCreatedAt
+                      ? `Dated ${formatDate(source.sourceCreatedAt)}`
+                      : "Undated"}
+                  </span>
                 </SegmentedItemMeta>
                 <SegmentedItemMeta>
                   <span>Ingested {formatDateTime(source.ingestedAt)}</span>
                   <span>{source.contentLength.toLocaleString()} characters</span>
-                  {source.chunkCount > 0 ? <span>{formatCount(source.chunkCount, "chunk")}</span> : null}
+                  {source.chunkCount > 0 ? (
+                    <span>{formatCount(source.chunkCount, "chunk")}</span>
+                  ) : null}
                 </SegmentedItemMeta>
                 {source.status === "failed" && source.error ? (
                   <p className="text-xs text-error">{source.error}</p>
@@ -117,6 +135,23 @@ export function SourceList({ projectId, sources }: SourceListProps) {
                   </TooltipTrigger>
                   <TooltipContent>View content</TooltipContent>
                 </Tooltip>
+                {canShare(source) ? (
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`Share ${source.title} with a person`}
+                          onClick={() => setSharing(source)}
+                        />
+                      }
+                    >
+                      <PersonAddIcon />
+                    </TooltipTrigger>
+                    <TooltipContent>Share with a person</TooltipContent>
+                  </Tooltip>
+                ) : null}
                 <Tooltip>
                   <TooltipTrigger
                     render={
@@ -126,7 +161,9 @@ export function SourceList({ projectId, sources }: SourceListProps) {
                         aria-label={`Reprocess ${source.title}`}
                         disabled={reprocess.isPending || source.status === "processing"}
                         onClick={() =>
-                          reprocess.mutate(source.id, { onSuccess: () => toast.success("Reprocessing queued") })
+                          reprocess.mutate(source.id, {
+                            onSuccess: () => toast.success("Reprocessing queued"),
+                          })
                         }
                       />
                     }
@@ -157,7 +194,15 @@ export function SourceList({ projectId, sources }: SourceListProps) {
         })}
       </SegmentedList>
 
-      <Dialog open={pendingDelete !== null} onOpenChange={(open) => !open && setPendingDelete(null)}>
+      <SourceShareDialog
+        projectId={projectId}
+        source={sharing}
+        onOpenChange={(open) => (open ? null : setSharing(null))}
+      />
+      <Dialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => !open && setPendingDelete(null)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete this source?</DialogTitle>

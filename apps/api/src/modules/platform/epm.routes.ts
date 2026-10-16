@@ -25,6 +25,7 @@ import { buildFootprint, recencyBias } from "./epm.footprint.js";
 import { createNotifier } from "./notify.js";
 import { workspaceSettings } from "./settings.js";
 import { createPlatformStore, type PlatformRecord } from "./store.js";
+import { manages } from "./reports.js";
 
 const PHASES: ReviewCyclePhase[] = [
   "draft",
@@ -57,7 +58,7 @@ export function createEpmRoutes(container: Container) {
     return settings;
   };
   const directManager = (actor: Actor, userId: string) =>
-    identity.requireMember(actor.workspaceId, userId).managerId === actor.id;
+    Boolean(identity.requireMember(actor.workspaceId, userId)) && manages(db, actor, userId);
   const parseRange = (from?: string, to?: string) => {
     const end = to ? new Date(`${to}T23:59:59.999Z`) : new Date();
     const start = from ? new Date(`${from}T00:00:00Z`) : new Date(end.getTime() - 90 * 86400000);

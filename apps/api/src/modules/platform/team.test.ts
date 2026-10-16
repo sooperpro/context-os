@@ -8,6 +8,7 @@ import {
   CourseDetailSchema,
   CreatedSchema,
   KnowledgeGapListSchema,
+  MyCheckinsSchema,
   MyLearningSchema,
   ReviewDecisionSchema,
   ReviewQueueSchema,
@@ -222,9 +223,13 @@ describe("Manager: team onboarding, member pages, check-ins and assigning", () =
     as("sana", "member");
     expect((await t.app.request("/api/v1/team/onboarding")).status).toBe(403);
     // Admin rights grant no people data.
-    as("dev-user", "owner");
+    member("ada", "admin", null);
+    as("ada", "admin");
     expect((await t.app.request("/api/v1/team/onboarding")).status).toBe(403);
     expect((await t.app.request("/api/v1/team/members/leah")).status).toBe(404);
+    // Owners see everything: like People Ops, they may open a member page.
+    as("dev-user", "owner");
+    expect((await t.app.request("/api/v1/team/members/leah")).status).toBe(200);
     // People Ops may open a member page.
     as("hana", "hr");
     expect((await t.app.request("/api/v1/team/members/leah")).status).toBe(200);
@@ -483,6 +488,164 @@ describe("Manager: team onboarding, member pages, check-ins and assigning", () =
       await t.app.request(`/api/v1/people-ops/probation-reviews/${record.id}`),
     );
     expect(review.recommendation).toBe("confirm");
+  });
+
+  it("lets the person respond only to check-ins shared with them, without ratings or the recommendation", async () => {
+    t = createTestApp();
+    team();
+    as("dan", "manager");
+    const record = (shareWithPerson: boolean, notes: string) =>
+      t.app.request(
+        "/api/v1/team/members/leah/checkins",
+        jsonRequest({
+          type: "probation",
+          pulse: "off_track",
+          agendaCovered: [],
+          ratings: { products: 1, systems: 2, practices: 1, delivery: 1 },
+          blockers: ["workload"],
+          notes,
+          nextSteps: "Pair on the billing service.",
+          recommendation: "extend",
+          shareWithPerson,
+        }),
+      );
+    expect((await record(false, "Manager-only note.")).status).toBe(201);
+    expect((await record(true, "Shared note.")).status).toBe(201);
+    const checkin = (status: string) =>
+      t.container.db
+        .select()
+        .from(platformRecords)
+        .where(and(eq(platformRecords.kind, "checkin"), eq(platformRecords.status, status)))
+        .get()!;
+    const kept = checkin("private");
+    const shared = checkin("published");
+    const respond = (id: string, version: number) =>
+      t.app.request(
+        `/api/v1/probation/checkins/${id}/respond`,
+        jsonRequest({ version, response: "Thanks, that helps." }),
+      );
+
+    // A private check-in doesn't exist for Leah, and nothing is written to it.
+    as("leah", "member");
+    expect((await respond(kept.id, kept.version)).status).toBe(404);
+    expect(checkin("private").data.employeeResponse).toBeNull();
+
+    const response = await respond(shared.id, shared.version);
+    expect(response.status).toBe(200);
+    const { data } = await json<{ data: Record<string, unknown> }>(response);
+    expect(data).toMatchObject({
+      notes: "Shared note.",
+      nextSteps: "Pair on the billing service.",
+      employeeResponse: "Thanks, that helps.",
+    });
+    for (const key of ["ratings", "recommendation", "pulse", "blockers"])
+      expect(data, key).not.toHaveProperty(key);
+    // The stored check-in keeps everything for the manager and People Ops.
+    expect(checkin("published").data).toMatchObject({
+      recommendation: "extend",
+      employeeResponse: "Thanks, that helps.",
+    });
+
+    // Nobody else can respond to it.
+    as("sana", "member");
+    expect((await respond(shared.id, shared.version + 1)).status).toBe(404);
+  });
+
+  it("shows the person their upcoming check-ins and the notes shared with them", async () => {
+    t = createTestApp();
+    team();
+    as("dan", "manager");
+    const body = {
+      type: "weekly",
+      pulse: "concerns",
+      agendaCovered: [],
+      ratings: {},
+      blockers: ["workload"],
+      nextSteps: "Pair with Sana on billing.",
+      recommendation: null,
+    };
+    await t.app.request(
+      "/api/v1/team/members/leah/checkins",
+      jsonRequest({ ...body, notes: "Manager-only note.", shareWithPerson: false }),
+    );
+    await t.app.request(
+      "/api/v1/team/members/leah/checkins",
+      jsonRequest({ ...body, notes: "Good progress this week.", shareWithPerson: true }),
+    );
+    // The share notification opens her check-ins on Home.
+    const shareNotice = t.container.db
+      .select()
+      .from(platformRecords)
+      .where(and(eq(platformRecords.kind, "notification"), eq(platformRecords.ownerId, "leah")))
+      .all()
+      .find((row) => row.data.type === "checkin.published");
+    expect(shareNotice?.data.link).toBe("/#checkins");
+
+    as("leah", "member");
+    const response = await t.app.request("/api/v1/me/checkins");
+    expect(response.status).toBe(200);
+    const mine = MyCheckinsSchema.parse(await response.json());
+    // Day 20: the next weekly 1:1 and the 30-day review.
+    expect(mine.upcoming.map((entry) => entry.title)).toEqual(
+      expect.arrayContaining(["Weekly 1:1", "30-day review"]),
+    );
+    expect(mine.shared).toEqual([
+      expect.objectContaining({
+        title: "Weekly 1:1",
+        by: expect.objectContaining({ id: "dan" }) as unknown,
+        notes: "Good progress this week.",
+        nextSteps: "Pair with Sana on billing.",
+        response: null,
+      }),
+    ]);
+    expect(JSON.stringify(mine)).not.toMatch(/Manager-only|concerns|workload/);
+
+    // Someone with no onboarding record has nothing scheduled.
+    as("sana", "member");
+    expect(MyCheckinsSchema.parse(await json(await t.app.request("/api/v1/me/checkins")))).toEqual({
+      upcoming: [],
+      shared: [],
+    });
+  });
+
+  it("applies one indirect-reports rule to every manager action, following the setting", async () => {
+    t = createTestApp();
+    team();
+    // Ava manages Dan, who manages Leah.
+    member("ava", "manager", null);
+    t.container.db
+      .update(memberships)
+      .set({ managerId: "ava" })
+      .where(eq(memberships.userId, "dan"))
+      .run();
+    const recommend = () =>
+      t.app.request(
+        "/api/v1/probation/employees/leah/recommendation",
+        jsonRequest({ recommendation: "confirm", ratings: [], note: "Ready." }),
+      );
+
+    // Direct reports only by default: Leah is Dan's, not Ava's.
+    as("ava", "manager");
+    expect((await t.app.request("/api/v1/team/members/leah")).status).toBe(404);
+    expect((await recommend()).status).toBe(403);
+
+    // With indirect reports on, Ava can do everywhere what she can open: no 403 on the recommendation.
+    as("dev-user", "owner");
+    expect(
+      (
+        await t.app.request(
+          "/api/v1/workspaces/current",
+          jsonRequest({ version: 1, includeIndirectReports: true }, "PATCH"),
+        )
+      ).status,
+    ).toBe(200);
+    as("ava", "manager");
+    expect((await t.app.request("/api/v1/team/members/leah")).status).toBe(200);
+    expect((await recommend()).status).toBeLessThan(300);
+    const roster = await json<{ people: Array<{ person: { id: string } }> }>(
+      await t.app.request("/api/v1/team/onboarding"),
+    );
+    expect(roster.people.map((row) => row.person.id)).toContain("leah");
   });
 
   it("lists who needs attention, upcoming check-ins and the knowledge-check matrix", async () => {
@@ -760,6 +923,20 @@ describe("Manager: my learning, review queue and team knowledge", () => {
     monday.setUTCDate(monday.getUTCDate() + ((8 - monday.getUTCDay()) % 7 || 7));
     expect(t.container.sweeps.run(monday).weeklyDigests).toBe(1);
     expect(t.container.sweeps.run(monday).weeklyDigests).toBe(0);
+    // Email goes out with the person's other notifications, once quiet hours and the batching
+    // window allow.
+    const notice = t.container.db
+      .select()
+      .from(platformRecords)
+      .where(eq(platformRecords.kind, "notification"))
+      .all()
+      .find((row) => row.data.type === "digest.weekly")!;
+    const due = Math.max(
+      notice.createdAt.getTime(),
+      typeof notice.data.deliverAfter === "string" ? Date.parse(notice.data.deliverAfter) : 0,
+    );
+    await t.container.emailDelivery.deliver(new Date(due + 11 * 60_000));
+    await t.container.emailDelivery.deliver(new Date(due + 22 * 60_000));
     expect(sent).toEqual([
       expect.objectContaining({
         to: "dan@example.com",

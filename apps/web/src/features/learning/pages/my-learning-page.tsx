@@ -62,9 +62,10 @@ export function MyLearningPage() {
     "my-learning",
   );
   const query = useQuery(myLearningQuery());
+  // Tutorials open as a module; learning paths open on their course page.
+  const data = query.data;
   const me = useQuery(meQuery());
   const add = useAddCourse();
-  const data = query.data;
   const finished = data?.onboardingFinishedOn
     ? new Date(`${data.onboardingFinishedOn}T12:00:00`).toLocaleDateString(undefined, {
         year: "numeric",

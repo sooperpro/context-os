@@ -13,6 +13,8 @@ import { createNotifier } from "./notify.js";
 import { awardReputation } from "./reputation.js";
 import { workspaceSettings } from "./settings.js";
 import { createPlatformStore, type PlatformRecord } from "./store.js";
+import { manages } from "./reports.js";
+import { seesEverything } from "../identity/identity.service.js";
 
 const MilestoneInputSchema = z.object({
   key: z.string().min(1).max(100),
@@ -39,20 +41,6 @@ const CheckinInput = z
     supportNeeded: z.string().trim().max(4000),
   })
   .strict();
-/** Check-in fields the person may see once it is shared with them. */
-const SHARED_CHECKIN_FIELDS = new Set([
-  "type",
-  "pulse",
-  "notes",
-  "nextSteps",
-  "wentWell",
-  "toImprove",
-  "supportNeeded",
-  "authorId",
-  "publishedAt",
-  "employeeResponse",
-  "respondedAt",
-]);
 const ResponseInput = z
   .object({ version: z.number().int().positive(), response: z.string().trim().min(1).max(4000) })
   .strict();
@@ -84,13 +72,36 @@ export const DEFAULT_MILESTONES = (lengthDays: number) => [
   { key: "day90", title: "Probation review", dueOffsetDays: lengthDays },
 ];
 const MENTOR_GRACE_DAYS = 14;
+/**
+ * What the person a check-in is about may read of it: what their manager wrote for them and their
+ * own response. Ratings, pulse, blockers and the probation recommendation are for the manager and
+ * People Ops only (role access spec §3).
+ */
+const PERSON_CHECKIN_KEYS = [
+  "type",
+  "wentWell",
+  "toImprove",
+  "supportNeeded",
+  "notes",
+  "nextSteps",
+  "authorId",
+  "publishedAt",
+  "employeeResponse",
+  "respondedAt",
+] as const;
+const checkinForPerson = (row: PlatformRecord): PlatformRecord => ({
+  ...row,
+  data: Object.fromEntries(
+    PERSON_CHECKIN_KEYS.flatMap((key) => (key in row.data ? [[key, row.data[key]]] : [])),
+  ),
+});
 
 export function createOnboardingRoutes(container: Container) {
   const { db, identity, audit } = container;
   const store = createPlatformStore(db);
   const notifier = createNotifier(db);
   const directManager = (actor: Actor, userId: string) =>
-    identity.requireMember(actor.workspaceId, userId).managerId === actor.id;
+    Boolean(identity.requireMember(actor.workspaceId, userId)) && manages(db, actor, userId);
   const visible = (actor: Actor, plan: PlatformRecord) =>
     plan.ownerId === actor.id ||
     directManager(actor, plan.ownerId) ||
@@ -113,6 +124,12 @@ export function createOnboardingRoutes(container: Container) {
       verifiedBy?: string;
       achievedAt?: string;
     }>;
+  /** A plan's check-ins as the caller may see them: the person gets only the shared ones, trimmed. */
+  const checkinsFor = (actor: Actor, plan: PlatformRecord) => {
+    const rows = store.listChildren(actor, "checkin", plan.id);
+    if (plan.ownerId !== actor.id) return rows;
+    return rows.filter((row) => row.status === "published").map(checkinForPerson);
+  };
   const withHealth = (actor: Actor, plan: PlatformRecord) => ({
     ...plan,
     health: computeOnboardingHealth(db, plan, workspaceSettings(db, actor.workspaceId)),
@@ -367,7 +384,7 @@ export function createOnboardingRoutes(container: Container) {
     .get("/probation/employees/:userId/checkins", (c) => {
       const actor = c.get("actor");
       const plan = planFor(actor, c.req.param("userId"));
-      return c.json({ items: store.listChildren(actor, "checkin", plan.id) });
+      return c.json({ items: checkinsFor(actor, plan) });
     })
     .post(
       "/probation/checkins/:id/respond",
@@ -375,8 +392,7 @@ export function createOnboardingRoutes(container: Container) {
       (c) => {
         const actor = c.get("actor");
         const row = store.get(actor, "checkin", c.req.param("id"));
-        // Only a check-in shared with the person can be answered (Spec §3: check-in notes are
-        // the manager's unless shared).
+        // A check-in the manager kept private doesn't exist for the person it's about.
         if (row.ownerId !== actor.id || row.status !== "published")
           throw new NotFoundError("Check-in");
         const input = c.req.valid("json");
@@ -393,12 +409,7 @@ export function createOnboardingRoutes(container: Container) {
           title: `${actor.name} responded to your check-in`,
           link: `/onboarding/checkins/${row.id}`,
         });
-        // Echo only what the person was shown: ratings, blockers and the probation recommendation
-        // go to People Ops, never back to the person.
-        const data = Object.fromEntries(
-          Object.entries(updated.data).filter(([key]) => SHARED_CHECKIN_FIELDS.has(key)),
-        );
-        return c.json({ ...updated, data });
+        return c.json(checkinForPerson(updated));
       },
     )
     .post(
@@ -549,7 +560,7 @@ export function createOnboardingRoutes(container: Container) {
           completedAt: row.data.completedAt ?? null,
         })),
         contributions: Object.fromEntries(counts),
-        checkins: store.listChildren(actor, "checkin", plan.id),
+        checkins: checkinsFor(actor, plan),
         outcome: plan.data.outcome ?? null,
         decision:
           "A human manager makes the probation decision; ContextOS does not recommend pass or fail.",
@@ -560,9 +571,9 @@ export function createOnboardingRoutes(container: Container) {
       zValidator("json", OutcomeInput, validationHook),
       (c) => {
         const actor = c.get("actor");
-        // Managers recommend; People Ops records the employment status decision (role access spec
-        // §3). HR has no other access to the plan, so it is looked up directly.
-        if (actor.role !== "hr")
+        // Managers recommend; People Ops (or an owner) records the employment status decision (role
+        // access spec §3). HR has no other access to the plan, so it is looked up directly.
+        if (actor.role !== "hr" && !seesEverything(actor))
           throw new AppError(
             403,
             "FORBIDDEN",

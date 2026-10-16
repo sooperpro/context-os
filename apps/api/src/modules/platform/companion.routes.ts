@@ -273,6 +273,7 @@ export function createCompanionRoutes(container: Container) {
           .listOwned(actor, "notification", actor.id, 500)
           .filter(
             (row) =>
+              (row.data.channels as { inApp?: boolean } | undefined)?.inApp !== false &&
               (typeof row.data.deliverAfter === "string"
                 ? Date.parse(row.data.deliverAfter)
                 : row.createdAt.getTime()) <= now,

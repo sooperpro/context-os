@@ -37,10 +37,9 @@ describe("People Ops", () => {
       .where(and(eq(auditLog.workspaceId, t.container.workspace.id), eq(auditLog.action, action)))
       .all();
 
-  it("is HR only: admins, owners, managers and employees get 403", async () => {
+  it("is for HR and owners: admins, managers and employees get 403", async () => {
     t = createTestApp();
     for (const [id, role] of [
-      ["owner1", "owner"],
       ["admin1", "admin"],
       ["manager1", "manager"],
       ["member1", "member"],
@@ -838,7 +837,8 @@ describe("People Ops", () => {
     as("dana", "manager");
     expect((await t.app.request(path)).status).toBe(403);
     expect((await patch({ jobTitle: "Nope" })).status).toBe(403);
+    // Owners see everything, so they read it too.
     Object.assign(t.container.devActor, owner);
-    expect((await t.app.request(path)).status).toBe(403);
+    expect((await t.app.request(path)).status).toBe(200);
   });
 });

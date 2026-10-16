@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 import type { Theme } from "@/components/theme-context";
 import {
@@ -33,7 +33,8 @@ import {
   type MaterialIcon,
 } from "@/components/ui/icons";
 import { selectWorkspace, signOut } from "@/features/auth/api/auth.api";
-import { authKeys, sessionQuery } from "@/features/auth/api/auth.queries";
+import { meQuery } from "@/features/account/api/account.queries";
+import { sessionQuery } from "@/features/auth/api/auth.queries";
 import { useTheme } from "@/hooks/use-theme";
 import { initialsOf } from "@/lib/format";
 
@@ -54,15 +55,12 @@ const THEMES: Array<{
  */
 export function AccountMenu() {
   const { data: session } = useQuery(sessionQuery());
-  const queryClient = useQueryClient();
   const { theme, setTheme } = useTheme();
   const switchWorkspace = useMutation({
     mutationFn: selectWorkspace,
-    onSuccess: (next) => {
-      // Everything cached belongs to the previous workspace.
-      queryClient.clear();
-      queryClient.setQueryData(authKeys.session(), next);
-    },
+    // Everything cached belongs to the previous workspace, and every open screen reads it: start
+    // the app again in the new one. (Clearing the cache under mounted screens left them stuck.)
+    onSuccess: () => window.location.assign("/"),
   });
   const signOutNow = useMutation({
     mutationFn: signOut,
@@ -75,8 +73,9 @@ export function AccountMenu() {
   const workspaces = session?.workspaces ?? [];
   const activeWorkspaceId = session?.activeWorkspaceId ?? "";
   // Your avatar wears your shape, as on your profile (prototype `.avatar.shape-*`).
+  const me = useQuery({ ...meQuery(), enabled: user !== undefined });
   const tone = avatarToneFor(user?.id ?? "account");
-  const shape = avatarShapeFor(user?.id ?? "account");
+  const shape = avatarShapeFor(user?.id ?? "account", me.data?.profile?.avatarShape);
 
   return (
     <DropdownMenu>

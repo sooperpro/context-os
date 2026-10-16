@@ -109,6 +109,34 @@ describe("AuthGate after sign-in", () => {
     expect(await screen.findByText("Create your workspace")).toBeInTheDocument();
   });
 
+  it("opens the app once they pick one of several workspaces", async () => {
+    const second = {
+      ...WORKSPACE,
+      id: "w2",
+      name: "Acme Labs",
+      slug: "acme-labs",
+      role: "owner" as const,
+    };
+    let session: SessionState = {
+      ...signedIn,
+      activeWorkspaceId: null,
+      workspaces: [WORKSPACE, second],
+    };
+    mockServer.use(
+      http.get(buildApiUrl("/v1/session"), () => HttpResponse.json(session)),
+      http.put(buildApiUrl("/v1/session/workspace"), async ({ request }) => {
+        const { workspaceId } = (await request.json()) as { workspaceId: string };
+        session = { ...session, activeWorkspaceId: workspaceId };
+        return HttpResponse.json(session);
+      }),
+    );
+    renderApp();
+    const user = userEvent.setup();
+    expect(await screen.findByText("Choose your workspace")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Acme Labs/ }));
+    expect(await screen.findByRole("button", { name: "Load projects" })).toBeInTheDocument();
+  });
+
   it("explains when company SSO isn't set up for the email's domain", async () => {
     mockServer.use(
       http.get(buildApiUrl("/v1/session"), () =>

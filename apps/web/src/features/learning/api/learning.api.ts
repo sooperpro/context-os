@@ -31,10 +31,9 @@ import { z } from "zod";
 import { apiRequest } from "@/lib/api-client";
 
 /**
- * The learner's onboarding endpoints. The API serves My learning (`/v1/me/learning`); the roadmap,
- * modules, lessons and checks are not served yet (the API's `/learning/*` routes return generic
- * records), so in development the mock layer answers them (src/mocks/learning.ts). Contracts:
- * packages/shared/src/schemas/learning.ts.
+ * The learner's onboarding endpoints: My learning (`/v1/me/learning`), and the roadmap, modules,
+ * lessons and checks built from published tutorials (apps/api/src/modules/learning/learner.routes.ts).
+ * Tests use the fixtures in src/mocks/learning.ts. Contracts: packages/shared/src/schemas/learning.ts.
  */
 export const LEARNING_ENDPOINTS = {
   roadmap: { path: "/v1/me/roadmap", schema: MyRoadmapSchema },

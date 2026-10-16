@@ -15,7 +15,13 @@ import {
 } from "@contextos/shared";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
-import { memberships, platformRecords, sourceObjects, users } from "../../db/schema.js";
+import {
+  assignments,
+  memberships,
+  platformRecords,
+  sourceObjects,
+  users,
+} from "../../db/schema.js";
 import {
   addSource,
   createFakeGemini,
@@ -200,6 +206,133 @@ describe("Tutorials: drafted from knowledge, reviewed, published and taken", () 
     const done = await t.app.request(`/api/v1/me/lessons/${key}~l1/complete`, jsonRequest({}));
     expect(done.status).toBe(200);
     expect(MyLearningSchema.parse(await get("/me/learning")).assigned[0]?.lessonsDone).toBe(1);
+  });
+
+  it("lets a path curator open Tutorial Studio before their first tutorial", async () => {
+    t = createTestApp();
+    admin = owner();
+    const project = await createProject(t.app);
+    member("pc", "member");
+    member("plain", "member");
+    t.container.db
+      .insert(assignments)
+      .values({
+        id: "curates",
+        workspaceId: t.container.workspace.id,
+        userId: "pc",
+        type: "path_curator",
+        scopeType: "project",
+        scopeId: project.id,
+      })
+      .run();
+    as("pc", "member");
+    expect(await get("/tutorials")).toEqual({ items: [] });
+    as("plain", "member");
+    expect((await t.app.request("/api/v1/tutorials")).status).toBe(403);
+  });
+
+  it("asks admins for access to the sources behind restricted lessons, without naming them", async () => {
+    t = createTestApp();
+    admin = owner();
+    const { id } = await publishedTutorial();
+    const key = `tutorial-${id}`;
+    member("emp", "member");
+    await t.app.request(
+      `/api/v1/tutorials/${id}/assign`,
+      jsonRequest({ userId: "emp", dueOn: day(7) }),
+    );
+    t.container.db.update(sourceObjects).set({ visibility: "restricted" }).run();
+    as("emp", "member");
+    const module = ModuleDetailSchema.parse(await get(`/me/modules/${key}`));
+    expect(module.lessons.filter((lesson) => lesson.restricted).length).toBeGreaterThan(0);
+    const ask = () =>
+      t.app.request(
+        "/api/v1/me/learning-requests",
+        jsonRequest({
+          type: "access",
+          moduleId: key,
+          lessonId: null,
+          changeKind: null,
+          message: "I'd like access.",
+        }),
+      );
+    const sent = await ask();
+    expect(sent.status).toBe(201);
+    const title = t.container.db.select().from(sourceObjects).get()!.title;
+    expect(JSON.stringify(await json(sent))).not.toContain(title);
+    // The admins get the request, with the sources named.
+    const notice = t.container.db
+      .select()
+      .from(platformRecords)
+      .all()
+      .find((row) => row.kind === "notification" && row.data.type === "learning.access_request");
+    expect(notice?.ownerId).toBe(admin.id);
+    expect(String(notice?.data.body)).toContain(title);
+    // Nothing to ask for once they can open it all.
+    t.container.db.update(sourceObjects).set({ visibility: "workspace" }).run();
+    expect((await ask()).status).toBe(409);
+  });
+
+  it("pauses Context Bot on the server while a knowledge check is open", async () => {
+    t = createTestApp();
+    admin = owner();
+    const { project, id } = await publishedTutorial();
+    const key = `tutorial-${id}`;
+    member("emp", "member");
+    await t.app.request(
+      `/api/v1/tutorials/${id}/assign`,
+      jsonRequest({ userId: "emp", dueOn: day(7) }),
+    );
+    as("emp", "member");
+    const ask = () =>
+      t.app.request(
+        `/api/v1/projects/${project.id}/ask`,
+        jsonRequest({ question: "Why did billing change?" }),
+      );
+
+    // Opening the check pauses every way of asking, not just the panel in the app.
+    const check = KnowledgeCheckSchema.parse(await get(`/me/checks/${key}~check`));
+    const paused = await ask();
+    expect(paused.status).toBe(409);
+    expect(await json<{ error: { message: string } }>(paused)).toMatchObject({
+      error: {
+        message: expect.stringContaining("paused while your knowledge check is open") as unknown,
+      },
+    });
+    const thread = await json<{ id: string }>(
+      await t.app.request("/api/v1/ask/threads", jsonRequest({ projectId: project.id })),
+    );
+    expect(
+      (
+        await t.app.request(
+          `/api/v1/ask/threads/${thread.id}/messages`,
+          jsonRequest({ question: "Why did billing change?" }),
+        )
+      ).status,
+    ).toBe(409);
+
+    // Submitting ends the pause.
+    await t.app.request(
+      `/api/v1/me/checks/${key}~check/attempts`,
+      jsonRequest({
+        answers: check.questions.map((question) => ({ questionId: question.id, optionId: "a" })),
+      }),
+    );
+    expect((await ask()).status).toBe(201);
+
+    // With the workspace's "pause during checks" turned off, opening a check pauses nothing.
+    Object.assign(t.container.devActor, admin);
+    expect(
+      (
+        await t.app.request(
+          "/api/v1/admin/ai-settings",
+          jsonRequest({ rules: { pause_during_checks: false } }, "PATCH"),
+        )
+      ).status,
+    ).toBe(200);
+    as("emp", "member");
+    await get(`/me/checks/${key}~check`);
+    expect((await ask()).status).toBe(201);
   });
 
   it("assigns a tutorial to someone not onboarding; they take it in My learning", async () => {
