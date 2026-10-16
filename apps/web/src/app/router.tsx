@@ -3,6 +3,7 @@ import { RootLayout } from "@/app/root-layout";
 import { RedirectHome } from "@/components/redirect-home";
 import { RouteErrorBoundary } from "@/components/route-error-boundary";
 import { AdminOnly } from "@/features/admin/components/admin-only";
+import { OwnerOnly } from "@/features/conversations/components/owner-only";
 import { HrOnly } from "@/features/people-ops/components/hr-only";
 import { ManagerOnly } from "@/features/team/components/manager-only";
 import { CuratorOnly } from "@/features/tutorials/components/curator-only";
@@ -355,6 +356,20 @@ const appChildren = [
     lazy: async () => {
       const { SearchPage } = await import("@/features/search/pages/search-page");
       return { Component: SearchPage };
+    },
+  },
+  {
+    path: "conversations",
+    lazy: async () => {
+      const { ConversationsPage } =
+        await import("@/features/conversations/pages/conversations-page");
+      return {
+        Component: () => (
+          <OwnerOnly>
+            <ConversationsPage />
+          </OwnerOnly>
+        ),
+      };
     },
   },
   {

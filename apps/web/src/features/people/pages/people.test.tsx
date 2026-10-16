@@ -347,6 +347,33 @@ describe("People", () => {
       await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     });
 
+    it("gives owners HR's Edit details and a link to read the person's conversations", async () => {
+      asHr();
+      mockServer.use(
+        http.get(buildApiUrl("/v1/workspaces/current"), () =>
+          HttpResponse.json({
+            id: "ws",
+            name: "Tessellate",
+            role: "owner",
+            authentication: "development",
+          }),
+        ),
+        // Sana isn't onboarding.
+        http.get(buildApiUrl("/v1/people-ops/people/:id/onboarding"), () =>
+          HttpResponse.json(
+            { error: { code: "NOT_FOUND", message: "No onboarding" } },
+            { status: 404 },
+          ),
+        ),
+      );
+      renderAt("/people/p-sana", "p-owner");
+
+      expect(await screen.findByRole("button", { name: "Edit details" })).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Read conversations" }).closest("a"),
+      ).toHaveAttribute("href", "/conversations?person=p-sana");
+    });
+
     it("shows everyone who is not People Ops no Edit details button", async () => {
       renderAt("/people/p-sana", "p-hr");
       expect(

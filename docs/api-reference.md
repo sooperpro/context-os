@@ -20,9 +20,9 @@ Related guides: [backend-api-use-cases.md](backend-api-use-cases.md) (workflow w
 
 ### Roles, assignments and source parity
 
-- System roles (exactly one per member): `owner`, `admin`, `manager`, `hr` (People Ops), `member`, `guest` (PRD §6.2 and the [role access spec](../ContextOS_Role_Access_Spec.md)). HR reads company-wide onboarding, probation and template records and none of the admin screens; admins get no people data.
+- System roles (exactly one per member): `owner`, `admin`, `manager`, `hr` (People Ops), `member`, `guest` (PRD §6.2 and the [role access spec](../ContextOS_Role_Access_Spec.md)). HR reads company-wide onboarding, probation and template records and none of the admin screens; admins get no people data. Owners see everything: People Ops routes with HR's powers, People Ops audit details, every member's conversations and every source (decided 16 Oct 2026).
 - Assignments are additive grants (PRD §6.3): `mentor` (scope: user), `domain_owner` (scope: workspace, project or `section` = `<projectId>:<sectionKey>`), `path_curator` (project/workspace), `bounty_sponsor`, `department_head`, `rewards_approver`, `review_cycle_admin` (workspace).
-- **Permission parity (PRD §19, PP-1..PP-10)**: a role never widens content access. Every derived item (claim, hub section, answer, flag, learning item, conflict) is shown only when the caller can read the sources it rests on. Owners and admins get no bypass. Inaccessible content answers `404` or is filtered out silently.
+- **Permission parity (PRD §19, PP-1..PP-10)**: a role never widens content access. Every derived item (claim, hub section, answer, flag, learning item, conflict) is shown only when the caller can read the sources it rests on. Admins get no bypass. Owners do (decided 16 Oct 2026): they open every source whatever its sharing, though exclude policies still keep sources out of their answers. Inaccessible content answers `404` or is filtered out silently.
 - Manual sources are private to their creator until shared (`POST /projects/:ref/sources/:sourceId/access`); Google Drive sources are re-checked against the reader's own Google access before each protected request.
 
 ### Identifiers
@@ -90,7 +90,7 @@ Rate limiting: 120 requests per minute per client IP by default (`RateLimit` hea
 | Health                   | `GET /health`, `GET /health/ready`                                                                                                                                                                                                                                                                                                                                     |
 | Workspace                | `GET /workspaces/current`, `POST /workspaces`, `PATCH /workspaces/current`, `PATCH /workspaces/current/settings`, `GET/PATCH /workspaces/current/setup`, `POST/DELETE /workspaces/current/deletion`                                                                                                                                                                    |
 | Org structure            | `GET/POST /org/departments`, `PATCH/DELETE /org/departments/:id`, `GET/POST /org/teams`, `PATCH/DELETE /org/teams/:id`, `GET/PATCH /users/:id/organization`                                                                                                                                                                                                            |
-| Users                    | `GET/PATCH /users/me`, `GET /users`, `PATCH /users/:id`, `POST /users/invite`, `GET /users/invitations`, `DELETE /users/invitations/:id`, `GET /people/:id`                                                                                                                                                                                                            |
+| Users                    | `GET/PATCH /users/me`, `GET /users`, `PATCH /users/:id`, `POST /users/invite`, `GET /users/invitations`, `DELETE /users/invitations/:id`, `GET /people/:id`, `GET /people/:id/conversations`                                                                                                                                                                           |
 | Identity links           | `GET /users/me/identities`, `POST /users/identities/link`, `PATCH/DELETE /users/identities/:provider`, `GET /users/identities/unlinked`, `POST /users/:id/identities`, `PATCH /users/:id/identities/:provider`                                                                                                                                                         |
 | Assignments and access   | `GET/POST /assignments`, `DELETE /assignments/:id`, `POST /projects/:ref/memberships`, `POST /projects/:ref/sources/:sourceId/access`, `DELETE /projects/:ref/sources/:sourceId/access/:userId`                                                                                                                                                                        |
 | Audit and continuity     | `GET /audit`, `GET /continuity/checklists`, `PATCH /continuity/checklists/:id`                                                                                                                                                                                                                                                                                         |
@@ -281,6 +281,10 @@ Owner/admin, or manager for `member` invites into their own team (FR-WS-003). Bo
 ### `GET /users/invitations`, `DELETE /users/invitations/:id`
 
 Owner/admin: list invitation records; revoke a pending one (`204`; its link stops working).
+
+### `GET /people/:id/conversations`
+
+Owner only. Everything the member asked Context Bot, newest first (up to 200): project conversations, one-off project questions and the workspace bot (`PersonConversationsSchema`: `person`, `items[]` with `question`, `answer`, `project`, `thread`, `helpful`, `askedAt`). Each read writes a `conversation.view` audit entry. Unknown members `404`; other roles `403`.
 
 ### `GET /people/:id`
 
@@ -617,7 +621,7 @@ The maintenance sweep activates scheduled plans, sends overdue-milestone nudges 
 
 ### People Ops (HR)
 
-`apps/api/src/modules/platform/people-ops.routes.ts`. Every `/people-ops/*` route requires the `hr` role; owners and admins get 403 (role access spec §3: Admin does not see onboarding records or check-in notes). Contracts are in `packages/shared/src/schemas/people-ops.ts` and `home.ts`.
+`apps/api/src/modules/platform/people-ops.routes.ts`. Every `/people-ops/*` route requires the `hr` or `owner` role; admins get 403 (role access spec §3: Admin does not see onboarding records or check-in notes). Owners see everything (decided 16 Oct 2026) and also record the probation outcome. Contracts are in `packages/shared/src/schemas/people-ops.ts` and `home.ts`.
 
 An onboarding record (`hr_onboarding`) can exist before the person has an account. With a work email, creating one sends an invitation (role `member`, manager and start date applied on first sign-in) and the record links to the account by email. Records are also backfilled for people already onboarding: an active or scheduled onboarding plan, or a membership with `organization.isNewHire` and `startDate`. Progress is required path items done across the person's path assignments; check-ins come from their onboarding plan (one expected every 30 days); the probation review lives on the record, due after the workspace's `probationDefaultDays`. Templates start as six published standard templates; modules are a built-in catalog plus the workspace's published learning paths.
 

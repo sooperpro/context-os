@@ -1,11 +1,7 @@
 import type { AskThread } from "@contextos/shared";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
-import {
-  AddIcon,
-  ChatIcon,
-  DeleteIcon,
-} from "@/components/ui/icons";
+import { AddIcon, ChatIcon, DeleteIcon } from "@/components/ui/icons";
 import {
   SegmentedItem,
   SegmentedItemBody,
@@ -33,7 +29,8 @@ export function ThreadList({ threads, activeId, onSelect, onDelete }: ThreadList
       </Button>
       {threads.length === 0 ? (
         <p className="px-2 text-xs text-on-surface-variant">
-          Conversations are private to you and keep every answer with its citations.
+          Conversations are private to you and the workspace owners, and keep every answer with its
+          citations.
         </p>
       ) : (
         <SegmentedList aria-label="Conversations">
@@ -42,7 +39,10 @@ export function ThreadList({ threads, activeId, onSelect, onDelete }: ThreadList
             return (
               <SegmentedItem
                 key={thread.id}
-                className={cn("min-h-14 py-2", active && "bg-secondary-container text-on-secondary-container")}
+                className={cn(
+                  "min-h-14 py-2",
+                  active && "bg-secondary-container text-on-secondary-container",
+                )}
                 aria-current={active ? "true" : undefined}
               >
                 <button
@@ -52,7 +52,9 @@ export function ThreadList({ threads, activeId, onSelect, onDelete }: ThreadList
                 >
                   <ChatIcon className="size-4 shrink-0 text-on-surface-variant" aria-hidden />
                   <SegmentedItemBody>
-                    <SegmentedItemTitle className={cn(active && "text-on-secondary-container")}>{thread.title}</SegmentedItemTitle>
+                    <SegmentedItemTitle className={cn(active && "text-on-secondary-container")}>
+                      {thread.title}
+                    </SegmentedItemTitle>
                     <SegmentedItemMeta>{formatDate(thread.createdAt)}</SegmentedItemMeta>
                   </SegmentedItemBody>
                 </button>

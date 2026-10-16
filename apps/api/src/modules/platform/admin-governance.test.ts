@@ -111,8 +111,10 @@ describe("Admin governance: access policies, role requests, members", () => {
     };
     expect(await sourcesFor("fin", "member")).toBe(1);
     expect(await sourcesFor("eng", "member")).toBe(0);
-    // Admins don't bypass policies.
-    expect(await sourcesFor(admin.id, admin.role)).toBe(0);
+    // Admins don't bypass policies; owners see everything.
+    member("ada", "admin");
+    expect(await sourcesFor("ada", "admin")).toBe(0);
+    expect(await sourcesFor(admin.id, admin.role)).toBe(1);
 
     // Exclude: the finance team can still open it, but it is never used in answers.
     await t.app.request(`/api/v1/admin/access-policies/${policy.id}`, {

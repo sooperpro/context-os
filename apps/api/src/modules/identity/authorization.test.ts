@@ -113,7 +113,7 @@ describe("Authorization: role and access checks that must hold", () => {
     ).toBe(400);
   });
 
-  it("keeps people data out of the admin export", async () => {
+  it("keeps people data out of the admin export, and shows owners everything", async () => {
     t = createTestApp();
     owner = { ...t.container.devActor };
     t.container.store.insert({
@@ -139,6 +139,8 @@ describe("Authorization: role and access checks that must hold", () => {
       targetId: "r1",
       metadata: { outcome: "extended", extensionDays: 30, recommendation: "extend" },
     });
+    member("ada", "admin");
+    as("ada", "admin");
     const response = await t.app.request("/api/v1/admin/export");
     expect(response.status).toBe(200);
     const body = await json<{
@@ -160,13 +162,18 @@ describe("Authorization: role and access checks that must hold", () => {
     expect(JSON.stringify(await trail())).not.toMatch(/off_track|extended|"extend"/);
     const csv = await (await t.app.request("/api/v1/audit?format=csv")).text();
     expect(csv).not.toMatch(/off_track|extended/);
-    // People Ops reads its own trail in full.
-    as("hana", "hr");
-    expect((await trail()).find((row) => row.action === "probation.decision")?.metadata).toEqual({
-      outcome: "extended",
-      extensionDays: 30,
-      recommendation: "extend",
-    });
+    // People Ops reads its own trail in full, and owners see everything.
+    for (const [id, role] of [
+      ["hana", "hr"],
+      [owner.id, "owner"],
+    ] as const) {
+      as(id, role);
+      expect((await trail()).find((row) => row.action === "probation.decision")?.metadata).toEqual({
+        outcome: "extended",
+        extensionDays: 30,
+        recommendation: "extend",
+      });
+    }
   });
 
   it("shows a tutorial's content only to curators who can open all its sources", async () => {

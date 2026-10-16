@@ -223,9 +223,13 @@ describe("Manager: team onboarding, member pages, check-ins and assigning", () =
     as("sana", "member");
     expect((await t.app.request("/api/v1/team/onboarding")).status).toBe(403);
     // Admin rights grant no people data.
-    as("dev-user", "owner");
+    member("ada", "admin", null);
+    as("ada", "admin");
     expect((await t.app.request("/api/v1/team/onboarding")).status).toBe(403);
     expect((await t.app.request("/api/v1/team/members/leah")).status).toBe(404);
+    // Owners see everything: like People Ops, they may open a member page.
+    as("dev-user", "owner");
+    expect((await t.app.request("/api/v1/team/members/leah")).status).toBe(200);
     // People Ops may open a member page.
     as("hana", "hr");
     expect((await t.app.request("/api/v1/team/members/leah")).status).toBe(200);

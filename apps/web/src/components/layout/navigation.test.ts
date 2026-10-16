@@ -47,6 +47,19 @@ describe("navigation config", () => {
     ]);
     // The HR pages need the HR role, not just the persona.
     expect(rail("member", "people_ops")).toEqual(["home", "people", "knowledge"]);
+    expect(rail("admin", "admin")).toEqual([
+      "overview",
+      "tutorials",
+      "members",
+      "connectors",
+      "access",
+      "ai",
+      "audit",
+      "workspace",
+      "knowledge",
+      "setup",
+    ]);
+    // Owners see everything: the admin rail plus the directory, People Ops and conversations.
     expect(rail("owner", "admin")).toEqual([
       "overview",
       "tutorials",
@@ -57,6 +70,11 @@ describe("navigation config", () => {
       "audit",
       "workspace",
       "knowledge",
+      "people",
+      "onboarding",
+      "probation",
+      "templates",
+      "conversations",
       "setup",
     ]);
   });

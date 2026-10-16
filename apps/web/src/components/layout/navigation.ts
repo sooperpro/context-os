@@ -11,6 +11,8 @@ import {
   EditNoteIcon,
   EventAvailableFilledIcon,
   EventAvailableIcon,
+  ForumFilledIcon,
+  ForumIcon,
   GroupFilledIcon,
   GroupIcon,
   HistoryFilledIcon,
@@ -70,6 +72,8 @@ export interface NavItem {
   personas?: readonly Persona[];
   /** Also shown to path curators, whatever their role and persona (not guests). */
   alsoForCurators?: boolean;
+  /** Also shown to owners, who see everything (People Ops pages and the directory). */
+  alsoForOwner?: boolean;
 }
 
 export const NAV_ITEMS: readonly NavItem[] = [
@@ -120,6 +124,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     to: "/onboarding",
     roles: ["hr"],
     personas: ["people_ops"],
+    alsoForOwner: true,
   },
   {
     id: "probation",
@@ -130,6 +135,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     to: "/probation",
     roles: ["hr"],
     personas: ["people_ops"],
+    alsoForOwner: true,
   },
   {
     id: "templates",
@@ -139,6 +145,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     to: "/templates",
     roles: ["hr"],
     personas: ["people_ops"],
+    alsoForOwner: true,
   },
   {
     id: "tutorials",
@@ -235,9 +242,11 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: GroupIcon,
     activeIcon: GroupFilledIcon,
     to: "/people",
-    // The directory; guests cannot read it (API 403). Admins manage people from "Members & roles".
+    // The directory; guests cannot read it (API 403). Admins manage people from "Members & roles";
+    // owners also browse it, as they see everything.
     roles: ["owner", "admin", "manager", "hr", "member"],
     personas: ["employee", "manager", "people_ops"],
+    alsoForOwner: true,
   },
   {
     id: "contributions",
@@ -259,6 +268,17 @@ export const NAV_ITEMS: readonly NavItem[] = [
     // Managers and People Ops: the pages they have besides their team and onboarding work.
     roles: ["manager", "hr"],
     personas: ["manager", "people_ops"],
+  },
+  {
+    id: "conversations",
+    label: "Member conversations",
+    short: "Conversations",
+    icon: ForumIcon,
+    activeIcon: ForumFilledIcon,
+    to: "/conversations",
+    // Owners read what members asked Context Bot; each read is audited.
+    roles: ["owner"],
+    personas: ["admin"],
   },
   {
     id: "setup",
@@ -287,6 +307,25 @@ export function isInActivePaths(item: NavItem, pathname: string): boolean {
   );
 }
 
+/** The owner's rail: the admin's, then the people pages owners also see, before setup. */
+const OWNER_ORDER: readonly string[] = [
+  "overview",
+  "tutorials",
+  "members",
+  "connectors",
+  "access",
+  "ai",
+  "audit",
+  "workspace",
+  "knowledge",
+  "people",
+  "onboarding",
+  "probation",
+  "templates",
+  "conversations",
+  "setup",
+];
+
 /** Rails whose order differs from `NAV_ITEMS`, as in the prototype: People Ops puts People first. */
 const PERSONA_ORDER: Partial<Record<Persona, readonly string[]>> = {
   people_ops: [
@@ -311,10 +350,16 @@ export function navItemsFor(
     (item) =>
       !(HIDDEN.contributions && item.id === "contributions") &&
       ((curator && item.alsoForCurators === true && role !== "guest") ||
+        (role === "owner" && item.alsoForOwner === true) ||
         ((!item.roles || (role !== undefined && item.roles.includes(role))) &&
           (!item.personas || (persona !== undefined && item.personas.includes(persona))))),
   );
-  const order = persona ? PERSONA_ORDER[persona] : undefined;
+  const order =
+    role === "owner" && persona === "admin"
+      ? OWNER_ORDER
+      : persona
+        ? PERSONA_ORDER[persona]
+        : undefined;
   if (!order) return items;
   const rank = (item: NavItem) => {
     const index = order.indexOf(item.id);

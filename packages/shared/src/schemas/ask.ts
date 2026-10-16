@@ -69,6 +69,28 @@ export const AskThreadListSchema = listOf(AskThreadSchema);
 export const AskThreadDetailSchema = AskThreadSchema.extend({ messages: z.array(AnswerSchema) });
 export type AskThreadDetail = z.infer<typeof AskThreadDetailSchema>;
 
+/**
+ * `GET /people/:id/conversations`: everything a member asked Context Bot, in project conversations,
+ * one-off project questions and the workspace bot, newest first. Owners only; each read is audited.
+ */
+export const PersonConversationsSchema = z.object({
+  person: z.object({ id: z.string(), name: z.string() }),
+  items: z.array(
+    z.object({
+      id: IdSchema,
+      question: z.string(),
+      answer: AnswerSchema,
+      project: z.object({ id: IdSchema, name: z.string() }),
+      /** The private conversation it belongs to; null for one-off and workspace-bot questions. */
+      thread: z.object({ id: IdSchema, title: z.string() }).nullable(),
+      /** The asker's rating: true helpful, false not helpful, null unrated. */
+      helpful: z.boolean().nullable(),
+      askedAt: IsoDateTimeSchema,
+    }),
+  ),
+});
+export type PersonConversations = z.infer<typeof PersonConversationsSchema>;
+
 /** Server-sent events from `POST /ask/threads/:id/messages`. */
 export const ThreadStatusEventSchema = z.object({ state: z.enum(["retrieving"]).or(z.string()) });
 export const ThreadErrorEventSchema = z.object({ code: z.string(), message: z.string() });

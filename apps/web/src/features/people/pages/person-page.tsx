@@ -26,6 +26,7 @@ import {
   ConversionPathIcon,
   EditIcon,
   EventIcon,
+  ForumIcon,
   GavelIcon,
   GroupsIcon,
   LocalShippingIcon,
@@ -92,14 +93,16 @@ function Profile({ person }: { person: PersonProfile }) {
   const { openAssistant } = useAssistant();
   const first = firstName(person.name);
   // HR sees the onboarding card for everyone onboarding, with a link to their record (spec §4.5).
-  const { persona } = useViewer();
+  // Owners see everything, so they get HR's view too.
+  const { persona, seesEverything } = useViewer();
+  const peopleOps = persona === "people_ops" || seesEverything;
   // People Ops can change a person's job title, team and manager, but not their own.
-  const me = useQuery({ ...meQuery(), enabled: persona === "people_ops" });
-  const canEdit = persona === "people_ops" && me.data !== undefined && me.data.id !== person.id;
+  const me = useQuery({ ...meQuery(), enabled: peopleOps });
+  const canEdit = peopleOps && me.data !== undefined && me.data.id !== person.id;
   const [editing, setEditing] = useState(false);
   const record = useQuery({
     ...personOnboardingQuery(person.id),
-    enabled: persona === "people_ops",
+    enabled: peopleOps,
   }).data;
   const onboarding = record
     ? { startedOn: record.startDate, status: record.status }
@@ -142,6 +145,15 @@ function Profile({ person }: { person: PersonProfile }) {
             {canEdit ? (
               <Button variant="secondary" onClick={() => setEditing(true)}>
                 <EditIcon aria-hidden /> Edit details
+              </Button>
+            ) : null}
+            {seesEverything ? (
+              <Button
+                variant="outline"
+                nativeButton={false}
+                render={<Link to={`/conversations?person=${encodeURIComponent(person.id)}`} />}
+              >
+                <ForumIcon aria-hidden /> Read conversations
               </Button>
             ) : null}
             <Button onClick={() => comingSoon("Messages")}>

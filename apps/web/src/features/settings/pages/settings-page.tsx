@@ -184,7 +184,10 @@ export function SettingsPage() {
               <CardTitle className="text-base">Privacy</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 text-sm text-on-surface-variant">
-              <p>Your Context Bot conversations are private to you.</p>
+              <p>
+                Your Context Bot conversations are private to you and the workspace owners. Each
+                time an owner reads them, it&rsquo;s written to the audit log.
+              </p>
               <p>
                 Your manager and assigned mentor can see your learning progress, but not your quiz
                 scores.

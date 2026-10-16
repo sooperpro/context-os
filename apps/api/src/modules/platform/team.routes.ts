@@ -38,6 +38,7 @@ import {
 } from "./onboarding-roadmap.js";
 import type { PlatformRecord } from "./store.js";
 import { reportsOf as sharedReportsOf } from "./reports.js";
+import { seesEverything } from "../identity/identity.service.js";
 
 const DAY = 86_400_000;
 const PrepQuery = z.object({ type: CheckinTypeSchema.default("weekly") });
@@ -110,7 +111,8 @@ export function createTeamRoutes(container: Container) {
   /** The report's onboarding record; 404 for anyone else (their existence isn't revealed). */
   const memberRecord = (actor: Actor, personId: string, options: { hrMayRead?: boolean } = {}) => {
     const mayRead =
-      (options.hrMayRead === true && actor.role === "hr") || reportsOf(actor).includes(personId);
+      (options.hrMayRead === true && (actor.role === "hr" || seesEverything(actor))) ||
+      reportsOf(actor).includes(personId);
     const row = mayRead ? records.recordFor(actor, personId) : undefined;
     if (!row) throw new NotFoundError("Team member");
     return row;

@@ -19,6 +19,11 @@ export interface Viewer {
   persona: Persona | undefined;
   /** Development only: the persona being previewed, or null when showing the real role. */
   preview: Persona | null;
+  /**
+   * Owners see everything (decided 16 Oct 2026): People Ops pages with HR's powers, the full
+   * directory, members' Context Bot conversations and every source.
+   */
+  seesEverything: boolean;
 }
 
 /**
@@ -29,10 +34,12 @@ export function useViewer(): Viewer {
   const workspace = useQuery(currentWorkspaceQuery());
   const preview = useSyncExternalStore(subscribePreviewPersona, getPreviewPersona, () => null);
   const actualRole = workspace.data?.role;
+  const role = preview ? PERSONA_ROLE[preview] : actualRole;
   return {
-    role: preview ? PERSONA_ROLE[preview] : actualRole,
+    role,
     actualRole,
     persona: preview ?? (actualRole ? personaForRole(actualRole) : undefined),
     preview,
+    seesEverything: role === "owner",
   };
 }

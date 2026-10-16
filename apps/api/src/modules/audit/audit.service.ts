@@ -37,7 +37,14 @@ export function auditRowFor<T extends { action: string; metadata: Record<string,
   viewer: Pick<Actor, "role">,
   row: T,
 ): T {
-  if (viewer.role === "hr" || !row.metadata || !PEOPLE_OPS_ACTION.test(row.action)) return row;
+  // HR and owners (who see everything) read People Ops details; admins see only that it happened.
+  if (
+    viewer.role === "hr" ||
+    viewer.role === "owner" ||
+    !row.metadata ||
+    !PEOPLE_OPS_ACTION.test(row.action)
+  )
+    return row;
   return {
     ...row,
     metadata: Object.fromEntries(

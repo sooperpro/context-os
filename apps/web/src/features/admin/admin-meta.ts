@@ -14,6 +14,7 @@ import {
   DomainIcon,
   ErrorIcon,
   FolderIcon,
+  ForumIcon,
   GroupsIcon,
   HistoryIcon,
   HowToRegIcon,
@@ -173,6 +174,8 @@ export function auditArea(action: AuditEntry["action"]): {
       return { category: "Content", icon: DescriptionIcon };
     case "workspace":
       return { category: "Other", icon: DomainIcon };
+    case "conversation":
+      return { category: "Access", icon: ForumIcon };
     default:
       return { category: "Other", icon: HistoryIcon };
   }

@@ -76,6 +76,7 @@ import VerifiedFilledIcon from "@material-symbols/svg-400/rounded/verified-fill.
 import WarningIcon from "@material-symbols/svg-400/rounded/warning.svg?react";
 import ConfirmationNumberIcon from "@material-symbols/svg-400/rounded/confirmation_number.svg?react";
 import ForumIcon from "@material-symbols/svg-400/rounded/forum.svg?react";
+import ForumFilledIcon from "@material-symbols/svg-400/rounded/forum-fill.svg?react";
 import MergeTypeIcon from "@material-symbols/svg-400/rounded/merge_type.svg?react";
 import CloudDownloadIcon from "@material-symbols/svg-400/rounded/cloud_download.svg?react";
 import UploadIcon from "@material-symbols/svg-400/rounded/upload.svg?react";
@@ -390,6 +391,7 @@ export {
   CloudDownloadIcon,
   MergeTypeIcon,
   ForumIcon,
+  ForumFilledIcon,
   ConfirmationNumberIcon,
   AccountTreeIcon,
   ArticleIcon,

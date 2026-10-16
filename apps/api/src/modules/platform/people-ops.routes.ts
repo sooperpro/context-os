@@ -47,15 +47,16 @@ import { manages } from "./reports.js";
 
 /*
  * People Ops (HR): onboarding records across the company, probation reviews and onboarding
- * templates (role access spec §4.2 HR Home, §4.7). Every `/people-ops` route is HR only: admins
- * govern the workspace but do not see onboarding records or check-in notes (spec §3, §6 rule 3).
+ * templates (role access spec §4.2 HR Home, §4.7). Every `/people-ops` route is for HR and owners,
+ * who see everything (decided 16 Oct 2026): admins govern the workspace but do not see onboarding
+ * records or check-in notes (spec §3, §6 rule 3).
  * The records themselves are in onboarding-records.ts, shared with the manager's team routes.
  */
 
 export function createPeopleOpsRoutes(container: Container) {
   const { db, identity, audit } = container;
   const notifier = createNotifier(db);
-  const hr = (actor: Actor) => requireRole(actor, "hr");
+  const hr = (actor: Actor) => requireRole(actor, "hr", "owner");
   const {
     store,
     activeMembers,

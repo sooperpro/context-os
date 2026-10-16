@@ -14,6 +14,7 @@ import { awardReputation } from "./reputation.js";
 import { workspaceSettings } from "./settings.js";
 import { createPlatformStore, type PlatformRecord } from "./store.js";
 import { manages } from "./reports.js";
+import { seesEverything } from "../identity/identity.service.js";
 
 const MilestoneInputSchema = z.object({
   key: z.string().min(1).max(100),
@@ -570,9 +571,9 @@ export function createOnboardingRoutes(container: Container) {
       zValidator("json", OutcomeInput, validationHook),
       (c) => {
         const actor = c.get("actor");
-        // Managers recommend; People Ops records the employment status decision (role access spec
-        // §3). HR has no other access to the plan, so it is looked up directly.
-        if (actor.role !== "hr")
+        // Managers recommend; People Ops (or an owner) records the employment status decision (role
+        // access spec §3). HR has no other access to the plan, so it is looked up directly.
+        if (actor.role !== "hr" && !seesEverything(actor))
           throw new AppError(
             403,
             "FORBIDDEN",

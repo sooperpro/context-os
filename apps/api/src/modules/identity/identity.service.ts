@@ -193,6 +193,15 @@ export function personalProfileOf(
   };
 }
 
+/**
+ * Owners see everything in their workspace (decided 16 Oct 2026): every person's data, People Ops
+ * records with HR's powers, every member's Context Bot conversations, and every source whatever
+ * its sharing. Admins keep the narrower rules.
+ */
+export function seesEverything(actor: Pick<Actor, "role">): boolean {
+  return actor.role === "owner";
+}
+
 export function requireRole(actor: Actor, ...roles: Array<Actor["role"]>): void {
   if (!roles.includes(actor.role))
     throw new AppError(403, "FORBIDDEN", "This operation is not permitted");
@@ -469,7 +478,8 @@ export function createIdentityService(db: Db, devActor: Actor, auth: Auth | null
     },
     /**
      * Sources the actor may open in a project: the source's own permissions (mirrored, or shared
-     * with the workspace), narrowed by the workspace's access policies. Admins get no bypass.
+     * with the workspace), narrowed by the workspace's access policies. Owners open every source;
+     * admins get no bypass. Exclude policies still keep sources out of everyone's answers.
      */
     visibleSourceIds(actor: Actor, projectId: string): string[] {
       return service.policyFilteredSources(actor, projectId).visible;
@@ -489,13 +499,16 @@ export function createIdentityService(db: Db, devActor: Actor, auth: Auth | null
             or(isNull(sourceAccess.expiresAt), gt(sourceAccess.expiresAt, new Date())),
           ),
         );
+      const everything = seesEverything(actor);
       const rows = db
         .select({ id: sourceObjects.id, metadata: sourceObjects.metadata })
         .from(sourceObjects)
         .where(
           and(
             eq(sourceObjects.projectId, projectId),
-            or(eq(sourceObjects.visibility, "workspace"), inArray(sourceObjects.id, grants)),
+            everything
+              ? undefined
+              : or(eq(sourceObjects.visibility, "workspace"), inArray(sourceObjects.id, grants)),
           ),
         )
         .all();
@@ -510,6 +523,7 @@ export function createIdentityService(db: Db, devActor: Actor, auth: Auth | null
       for (const row of rows) {
         const covering = policiesCovering(policies, projectId, row.metadata?.scopeId);
         if (
+          !everything &&
           covering.length &&
           !covering.some((policy) => policy.groups.some((group) => groups.has(group)))
         )
