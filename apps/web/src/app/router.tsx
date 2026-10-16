@@ -299,29 +299,19 @@ const appChildren = [
     },
   },
   {
+    // Every role: managers and People Ops have it in the rail, and an employee's Home links here
+    // when they have no onboarding roadmap. The API serves each person their own courses.
     path: "learning",
     lazy: async () => {
       const { MyLearningPage } = await import("@/features/learning/pages/my-learning-page");
-      return {
-        Component: () => (
-          <ManagerOnly hrMayRead>
-            <MyLearningPage />
-          </ManagerOnly>
-        ),
-      };
+      return { Component: MyLearningPage };
     },
   },
   {
     path: "learning/:courseId",
     lazy: async () => {
       const { CoursePage } = await import("@/features/learning/pages/course-page");
-      return {
-        Component: () => (
-          <ManagerOnly hrMayRead>
-            <CoursePage />
-          </ManagerOnly>
-        ),
-      };
+      return { Component: CoursePage };
     },
   },
   {

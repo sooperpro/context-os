@@ -180,6 +180,37 @@ describe("HomePage", () => {
     expect(assistant.openAssistant).toHaveBeenCalledWith("Who owns billing?");
   });
 
+  it("tells a new hire whose roadmap isn't assigned yet that it's on its way", async () => {
+    sessionStorage.setItem("contextos.welcome-shown", "1");
+    live({ role: "member" });
+    mockServer.use(
+      http.get(api("/v1/me/onboarding"), () =>
+        HttpResponse.json(
+          { error: { code: "NOT_FOUND", message: "Onboarding roadmap was not found" } },
+          { status: 404 },
+        ),
+      ),
+      http.get(api("/v1/users/me"), () =>
+        HttpResponse.json({
+          id: "u1",
+          name: "Maya Okafor",
+          email: null,
+          role: "member",
+          workspaceId: "w1",
+          preferences: {},
+          organization: { isNewHire: true, startDate: "2026-10-16" },
+        }),
+      ),
+    );
+    renderHome();
+    const message = await screen.findByText(/Your onboarding roadmap isn't ready yet/);
+    const card = message.closest<HTMLElement>("[role=region]")!;
+    expect(within(card).getByRole("heading", { name: "Your onboarding" })).toBeInTheDocument();
+    expect(
+      within(card).getByRole("button", { name: "Open My learning" }).closest("a"),
+    ).toHaveAttribute("href", "/learning");
+  });
+
   it("shows a manager their team's Home", async () => {
     live({ role: "manager" });
     renderHome();

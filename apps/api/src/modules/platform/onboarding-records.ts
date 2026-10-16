@@ -188,6 +188,19 @@ const stages = (first: string[], core: string[], own: string[]): TemplateStage[]
   { id: "ownership", name: "Ownership", weekStart: 7, weekEnd: 12, moduleIds: own },
 ];
 const COMPANY = ["mod-welcome", "mod-security", "mod-customers", "mod-money", "mod-company-check"];
+/** Words in a job title or team that point at a template family, checked in this order. */
+const FAMILY_WORDS: Array<[TemplateFamily, RegExp]> = [
+  ["manager", /\b(manager|lead|head|director|vp)\b/],
+  [
+    "engineering",
+    /\b(engineer|engineering|developer|sre|devops|qa|frontend|backend|software|platform)\b/,
+  ],
+  ["data", /\b(data|analyst|analytics|scientist|bi)\b/],
+  ["design", /\b(design|designer|ux|ui|researcher)\b/],
+  ["support", /\b(support|customer|success|helpdesk)\b/],
+  ["sales", /\b(sales|account executive|sdr|bdr|business development)\b/],
+];
+
 const STARTER_TEMPLATES: Array<
   Pick<TemplateData, "name" | "family" | "roles" | "teams" | "stages">
 > = [
@@ -584,11 +597,28 @@ export function createOnboardingRecords(container: Container) {
         },
       });
     }
+    // A new hire's roadmap comes from their record's template. Records made here (from an invite
+    // marked "new hire", or a manager's plan) get the standard template their job title points at,
+    // so the roadmap starts on its own; People Ops can change it on the record.
+    const templates = () => templateRows(actor).filter(isAssignable);
+    const matchTemplate = (title: string, team: string) => {
+      const text = `${title} ${team}`.toLowerCase();
+      const options = templates();
+      const byRole = options.find((row) =>
+        templateData(row).roles.some((role) => role && text.includes(role.toLowerCase())),
+      );
+      if (byRole) return byRole.id;
+      const family = FAMILY_WORDS.find(([, words]) => words.test(text))?.[0];
+      return family
+        ? (options.find((row) => templateData(row).family === family)?.id ?? null)
+        : null;
+    };
     const backfill = (userId: string, input: Partial<OnboardingData> & { startDate: string }) => {
       const member = members.find((entry) => entry.userId === userId);
       if (!member || linked.has(userId)) return;
       linked.add(userId);
       const title = member.organization.jobTitle;
+      const team = teamName(actor.workspaceId, member.organization);
       store.insert({
         workspaceId: actor.workspaceId,
         ownerId: userId,
@@ -599,10 +629,10 @@ export function createOnboardingRecords(container: Container) {
           name: member.name,
           title: typeof title === "string" ? title : "",
           email: member.email?.toLowerCase() ?? null,
-          team: teamName(actor.workspaceId, member.organization),
+          team,
           managerId: member.managerId,
           buddyId: null,
-          templateId: null,
+          templateId: matchTemplate(typeof title === "string" ? title : "", team),
           peoplePartnerId: null,
           ...input,
           setup: {
@@ -626,6 +656,20 @@ export function createOnboardingRecords(container: Container) {
       const { isNewHire, startDate } = member.organization;
       if (isNewHire === true && typeof startDate === "string")
         backfill(member.userId, { startDate: startDate.slice(0, 10) });
+    }
+    // Records made here before templates were matched: give them one too, unless someone already
+    // started a roadmap. Records People Ops left for later ("Choose later") are theirs to decide.
+    for (const row of store.listWhere(actor.workspaceId, ONBOARDING, { status: "active" }, 1000)) {
+      const data = recordData(row);
+      if (
+        data.templateId ||
+        !data.personId ||
+        data.setup.account?.by !== "Existing account" ||
+        roadmapRow(actor.workspaceId, data.personId)
+      )
+        continue;
+      const templateId = matchTemplate(data.title, data.team);
+      if (templateId) store.patch(row, { data: { ...data, templateId } });
     }
   };
 
