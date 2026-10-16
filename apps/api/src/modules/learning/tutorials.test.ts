@@ -4,6 +4,7 @@ import {
   LessonSchema,
   MilestoneListSchema,
   ModuleDetailSchema,
+  RevisitListSchema,
   MyLearningSchema,
   MyOnboardingSchema,
   MyRoadmapSchema,
@@ -438,6 +439,48 @@ describe("Tutorials: drafted from knowledge, reviewed, published and taken", () 
         await json(await t.app.request(`/api/v1/me/learning/${key}/add`, jsonRequest({}))),
       ).assigned.map((entry) => entry.id),
     ).toContain(key);
+  });
+
+  it("marks lessons and modules to revisit later without changing progress, and points to the next module", async () => {
+    t = createTestApp();
+    admin = owner();
+    const { id } = await publishedTutorial();
+    member("emp", "member");
+    await t.app.request(
+      `/api/v1/tutorials/${id}/assign`,
+      jsonRequest({ userId: "emp", dueOn: day(7) }),
+    );
+    as("emp", "member");
+    const key = `tutorial-${id}`;
+    const put = (target: string) =>
+      t.app.request(`/api/v1/me/revisit/${encodeURIComponent(target)}`, { method: "PUT" });
+
+    expect((await put(`${key}~l1`)).status).toBe(200);
+    expect((await put(key)).status).toBe(200);
+    expect((await put(`${key}~missing`)).status).toBe(404);
+    expect(RevisitListSchema.parse(await get("/me/revisit")).items).toEqual([
+      expect.objectContaining({ id: key, kind: "module" }),
+      expect.objectContaining({ id: `${key}~l1`, kind: "lesson" }),
+    ]);
+    const module = ModuleDetailSchema.parse(await get(`/me/modules/${key}`));
+    expect(module.revisit).toBe(true);
+    expect(
+      module.lessons.filter((lesson) => lesson.type !== "check").map((lesson) => lesson.revisit),
+    ).toEqual([true, false]);
+    expect(LessonSchema.parse(await get(`/me/lessons/${key}~l1`)).revisit).toBe(true);
+    // A mark isn't progress: nothing is done or started.
+    expect(module.progress).toBe(0);
+    expect(module.status).not.toBe("done");
+    // The tutorial's author is listed as its owner; nothing is left after this one.
+    expect(module.people.map((entry) => entry.role)).toEqual(["Module owner"]);
+    expect(module.nextModule).toBeNull();
+
+    await t.app.request(`/api/v1/me/revisit/${encodeURIComponent(`${key}~l1`)}`, {
+      method: "DELETE",
+    });
+    expect(RevisitListSchema.parse(await get("/me/revisit")).items).toEqual([
+      expect.objectContaining({ id: key, kind: "module" }),
+    ]);
   });
 
   it("keeps people on their version until the curator moves them (FR-LRN-012)", async () => {

@@ -14,6 +14,8 @@ import {
   ModuleDetailSchema,
   MyLearningSchema,
   MyRoadmapSchema,
+  RevisitListSchema,
+  RevisitStateSchema,
   type CheckAttemptInput,
   type CheckResult,
   type CourseDetail,
@@ -26,6 +28,7 @@ import {
   type ModuleDetail,
   type MyLearning,
   type MyRoadmap,
+  type RevisitList,
 } from "@contextos/shared";
 import { z } from "zod";
 import { apiRequest } from "@/lib/api-client";
@@ -67,6 +70,8 @@ export const LEARNING_ENDPOINTS = {
     input: AddCourseInputSchema,
   },
   course: { path: "/v1/me/learning/:id", schema: CourseDetailSchema },
+  revisitList: { path: "/v1/me/revisit", schema: RevisitListSchema },
+  revisit: { path: "/v1/me/revisit/:id", schema: RevisitStateSchema },
 } as const;
 
 const E = LEARNING_ENDPOINTS;
@@ -99,6 +104,16 @@ export const rateLearning = (input: LearningRatingInput) =>
 
 export const sendLearningRequest = (input: LearningRequestInput): Promise<LearningRequest> =>
   apiRequest(E.request.path, { method: "POST", body: input, schema: E.request.schema });
+
+export const fetchRevisitList = (signal?: AbortSignal): Promise<RevisitList> =>
+  apiRequest(E.revisitList.path, { schema: E.revisitList.schema, signal });
+
+/** Mark or unmark a lesson or module to come back to; progress doesn't change. */
+export const setRevisit = (id: string, revisit: boolean) =>
+  apiRequest(withId(E.revisit.path, id), {
+    method: revisit ? "PUT" : "DELETE",
+    schema: E.revisit.schema,
+  });
 
 export const fetchMyLearning = (signal?: AbortSignal): Promise<MyLearning> =>
   apiRequest(E.myLearning.path, { schema: E.myLearning.schema, signal });

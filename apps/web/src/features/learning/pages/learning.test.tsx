@@ -1,5 +1,7 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ModuleDetail } from "@contextos/shared";
+import { http, HttpResponse } from "msw";
 import { Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -13,6 +15,7 @@ import { RoadmapPage } from "@/features/learning/pages/roadmap-page";
 import { employeeHandlers } from "@/test/employee-mocks";
 import { learnerHandlers } from "@/test/learning-mocks";
 import { mockServer, setupMockApi } from "@/test/msw";
+import { buildApiUrl } from "@/lib/api-client";
 import { renderWithProviders } from "@/test/utils";
 
 setupMockApi();
@@ -95,6 +98,70 @@ describe("My roadmap", () => {
     );
     expect(screen.getByText(/Finance only. You don’t have access./)).toBeInTheDocument();
     expect(screen.getByText("Expert · Billing pipeline")).toBeInTheDocument();
+  });
+});
+
+describe("A finished module", () => {
+  const finished: ModuleDetail = {
+    id: "m9",
+    number: 2,
+    title: "Security basics",
+    kind: "company",
+    status: "done",
+    stage: { id: "foundations", name: "Foundations", moduleCount: 3, opensOn: null },
+    objective: "Keep the company safe.",
+    objectives: [],
+    minutes: 20,
+    duration: null,
+    owner: null,
+    updatedAt: null,
+    reviewedBy: null,
+    progress: 1,
+    completedOn: "2026-10-10",
+    result: "Completed",
+    lessons: [
+      {
+        id: "m9~l1",
+        number: 1,
+        title: "Passwords",
+        type: "article",
+        minutes: 5,
+        questionCount: null,
+        done: true,
+        revisit: true,
+      },
+    ],
+    sources: [],
+    people: [],
+    suggestedQuestion: null,
+    rating: null,
+    revisit: false,
+    nextModule: { id: "m10", title: "Product tour" },
+  };
+
+  it("offers the next module, marks it to revisit later, and hides an empty People card", async () => {
+    let marked: string | null = null;
+    mockServer.use(
+      http.get(buildApiUrl("/v1/me/modules/:id"), () => HttpResponse.json(finished)),
+      http.put(buildApiUrl("/v1/me/revisit/:id"), ({ params }) => {
+        marked = String(params.id);
+        return HttpResponse.json({ revisit: true });
+      }),
+    );
+    const user = userEvent.setup();
+    renderAt("/roadmap/modules/m9");
+
+    expect((await screen.findByText("Next module: Product tour")).closest("a")).toHaveAttribute(
+      "href",
+      "/roadmap/modules/m10",
+    );
+    expect(
+      within(screen.getByRole("region", { name: "Lessons" })).getByText(/Revisit later/),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "People" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Revisit later" }));
+    await vi.waitFor(() => expect(marked).toBe("m9"));
   });
 });
 

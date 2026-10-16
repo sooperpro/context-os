@@ -21,6 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { DotList } from "@/components/ui/dot-list";
 import {
+  ArrowForwardIcon,
   ChatIcon,
   CheckCircleFilledIcon,
   ChevronRightIcon,
@@ -33,6 +34,7 @@ import {
   PersonIcon,
   PlayArrowFilledIcon,
   RadioButtonUncheckedIcon,
+  RouteIcon,
   ScheduleIcon,
   SchoolIcon,
   SmartToyIcon,
@@ -56,12 +58,14 @@ import { LEARNING_ENDPOINTS as E } from "@/features/learning/api/learning.api";
 import { moduleQuery, useLearningRequest } from "@/features/learning/api/learning.queries";
 import { LessonNumber } from "@/features/learning/components/lesson-number";
 import { RatingButtons } from "@/features/learning/components/rating-buttons";
+import { RevisitButton } from "@/features/learning/components/revisit-button";
 import { ClarificationDialog } from "@/features/learning/components/request-dialogs";
 import {
   LESSON_TYPE,
   MODULE_KIND,
   ROADMAP_PATH,
   learningPath,
+  modulePath,
   moduleTime,
 } from "@/features/learning/learning-meta";
 import { comingSoon } from "@/lib/coming-soon";
@@ -284,6 +288,26 @@ function ModuleView({ module }: { module: ModuleDetail }) {
                     ? `Resume lesson ${current.number}`
                     : "Start module"}
               </Button>
+            ) : done && module.nextModule ? (
+              <Button
+                size="md"
+                nativeButton={false}
+                render={<Link to={modulePath(module.nextModule.id)} />}
+              >
+                <ArrowForwardIcon aria-hidden />
+                Next module: {module.nextModule.title}
+              </Button>
+            ) : done ? (
+              <Button
+                size="md"
+                nativeButton={false}
+                render={
+                  <Link to={module.stage.id === "my-learning" ? "/learning" : ROADMAP_PATH} />
+                }
+              >
+                <RouteIcon aria-hidden />
+                {module.stage.id === "my-learning" ? "Back to My learning" : "Back to My roadmap"}
+              </Button>
             ) : null}
             <Button
               size="md"
@@ -295,6 +319,7 @@ function ModuleView({ module }: { module: ModuleDetail }) {
             <Button variant="ghost" className="text-current" onClick={() => setClarifyOpen(true)}>
               <ContactSupportIcon aria-hidden /> Request clarification
             </Button>
+            <RevisitButton id={module.id} revisit={module.revisit === true} />
           </div>
         </div>
       </section>
@@ -338,6 +363,7 @@ function ModuleView({ module }: { module: ModuleDetail }) {
                                 ? `${lesson.questionCount ?? 5} questions`
                                 : `${lesson.minutes} min`,
                               lesson.done ? "Done" : null,
+                              lesson.revisit ? "Revisit later" : null,
                             ]}
                           />
                         </SegmentedItemMeta>
@@ -473,27 +499,29 @@ function ModuleView({ module }: { module: ModuleDetail }) {
               </SegmentedList>
             </SectionCard>
           ) : null}
-          <SectionCard title="People">
-            <SegmentedList>
-              {module.people.map((entry) => (
-                <SegmentedItem key={entry.person.id} className="min-h-0 gap-3 py-2 pr-2 pl-2.5">
-                  <PersonAvatar person={entry.person} size="md" />
-                  <SegmentedItemBody>
-                    <SegmentedItemTitle>{entry.person.name}</SegmentedItemTitle>
-                    <span className="truncate text-xs text-on-surface-variant">{entry.role}</span>
-                  </SegmentedItemBody>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`Message ${entry.person.name}`}
-                    onClick={() => comingSoon("Messages")}
-                  >
-                    <ChatIcon />
-                  </Button>
-                </SegmentedItem>
-              ))}
-            </SegmentedList>
-          </SectionCard>
+          {module.people.length ? (
+            <SectionCard title="People">
+              <SegmentedList>
+                {module.people.map((entry) => (
+                  <SegmentedItem key={entry.person.id} className="min-h-0 gap-3 py-2 pr-2 pl-2.5">
+                    <PersonAvatar person={entry.person} size="md" />
+                    <SegmentedItemBody>
+                      <SegmentedItemTitle>{entry.person.name}</SegmentedItemTitle>
+                      <span className="truncate text-xs text-on-surface-variant">{entry.role}</span>
+                    </SegmentedItemBody>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Message ${entry.person.name}`}
+                      onClick={() => comingSoon("Messages")}
+                    >
+                      <ChatIcon />
+                    </Button>
+                  </SegmentedItem>
+                ))}
+              </SegmentedList>
+            </SectionCard>
+          ) : null}
           <SectionCard title="Was this module useful?">
             <RatingButtons
               targetType="module"

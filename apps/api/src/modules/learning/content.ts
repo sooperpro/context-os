@@ -53,6 +53,8 @@ export interface ProgressData {
   attempts: Array<{ at: string; score: number; total: number; passed: boolean }>;
   passed: boolean | null;
   ratings: Record<string, "up" | "down">;
+  /** Lesson ids, and `module` for the module itself, the learner wants to come back to. */
+  revisit?: string[];
   startedAt: string;
   completedAt: string | null;
   /** My learning entries: who assigned it and by when. */

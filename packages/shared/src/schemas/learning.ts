@@ -125,6 +125,8 @@ export const ModuleLessonSchema = z.object({
   done: z.boolean(),
   /** Built on sources the person can't open: they can ask for access (`type: "access"`). */
   restricted: z.boolean().optional(),
+  /** Marked by the learner to come back to. */
+  revisit: z.boolean().optional(),
 });
 export type ModuleLesson = z.infer<typeof ModuleLessonSchema>;
 
@@ -177,8 +179,25 @@ export const ModuleDetailSchema = z.object({
   people: z.array(z.object({ person: PersonRefSchema, role: z.string() })),
   suggestedQuestion: z.string().nullable(),
   rating: LearningRatingValueSchema.nullable(),
+  /** Marked by the learner to come back to. */
+  revisit: z.boolean().optional(),
+  /** What to take after this module: the next unlocked one that isn't finished. */
+  nextModule: z.object({ id: z.string(), title: z.string() }).nullable().optional(),
 });
 export type ModuleDetail = z.infer<typeof ModuleDetailSchema>;
+
+/** `GET /v1/me/revisit`: lessons and modules the learner marked to come back to. */
+export const RevisitItemSchema = z.object({
+  id: z.string(),
+  kind: z.enum(["module", "lesson"]),
+  title: z.string(),
+  module: z.object({ id: z.string(), title: z.string() }),
+});
+export type RevisitItem = z.infer<typeof RevisitItemSchema>;
+export const RevisitListSchema = z.object({ items: z.array(RevisitItemSchema) });
+export type RevisitList = z.infer<typeof RevisitListSchema>;
+/** `PUT` / `DELETE /v1/me/revisit/:id`: the mark after the change. */
+export const RevisitStateSchema = z.object({ revisit: z.boolean() });
 
 /* ---- Lesson (`GET /v1/me/lessons/:id`) ------------------------------------------------------- */
 
@@ -267,6 +286,8 @@ export const LessonSchema = z.object({
   reviewedOn: DateOnly.nullable(),
   blocks: z.array(LessonBlockSchema),
   rating: LearningRatingValueSchema.nullable(),
+  /** Marked by the learner to come back to. */
+  revisit: z.boolean().optional(),
 });
 export type Lesson = z.infer<typeof LessonSchema>;
 

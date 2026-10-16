@@ -15,6 +15,7 @@ import {
   type MyRoadmap,
   type MyTask,
   type NextUp,
+  type RevisitList,
   type RoadmapModule as LearnerModule,
   type LearningRequest,
   type LearningRequestInput,
@@ -93,6 +94,9 @@ interface Resolved {
   /** False when the learner can't open every source behind it: nothing of it is shown. */
   open: boolean;
 }
+
+/** The revisit mark for the module itself, beside its lesson ids. */
+const MODULE_MARK = "module";
 
 export function createLearnerRoutes(container: Container) {
   const { db, identity, audit } = container;
@@ -236,6 +240,7 @@ export function createLearnerRoutes(container: Container) {
       questionCount: null,
       done: Boolean(resolved.data?.lessonsDone.includes(lesson.id)) || isDone(resolved),
       restricted: !resolved.lessonOpen(lesson),
+      revisit: revisitOf(resolved).includes(lesson.id),
     }));
     if (resolved.content.check && resolved.questions.length)
       lessons.push({
@@ -270,6 +275,9 @@ export function createLearnerRoutes(container: Container) {
 
   const ownerRef = (workspaceId: string, content: ModuleContent) =>
     content.ownerId ? records.personRef(workspaceId, content.ownerId) : null;
+
+  /** Lesson ids, and `MODULE_MARK` for the module itself, the learner marked to come back to. */
+  const revisitOf = (resolved: Resolved) => resolved.data?.revisit ?? [];
 
   /** Modules of the caller's roadmap in order (stages, then due date). */
   const roadmapModules = (actor: Actor) => {
@@ -564,6 +572,7 @@ export function createLearnerRoutes(container: Container) {
     const publisher = resolved.content.publishedBy
       ? records.personRef(ws, resolved.content.publishedBy)
       : null;
+    const owner = ownerRef(ws, resolved.content);
     return {
       id: resolved.key,
       number: resolved.number,
@@ -577,7 +586,7 @@ export function createLearnerRoutes(container: Container) {
       objectives: resolved.open ? resolved.content.objectives : [],
       minutes: totalMinutes(resolved.content) || null,
       duration: null,
-      owner: ownerRef(ws, resolved.content),
+      owner,
       updatedAt: resolved.content.publishedAt,
       reviewedBy: publisher?.name ?? null,
       progress: fraction(resolved),
@@ -585,11 +594,69 @@ export function createLearnerRoutes(container: Container) {
       result: resultOf(resolved),
       lessons: lessonsOf(resolved),
       sources: resolved.open ? sourcesOf(actor, resolved.content) : [],
-      people: publisher ? [{ person: publisher, role: "Reviewed this tutorial" }] : [],
+      people: [
+        ...(owner ? [{ person: owner, role: "Module owner" }] : []),
+        ...(publisher && publisher.id !== owner?.id
+          ? [{ person: publisher, role: "Reviewed this tutorial" }]
+          : []),
+      ],
       suggestedQuestion: `What should I know about ${resolved.module?.title ?? resolved.content.title}?`,
       rating: resolved.data?.ratings[resolved.key] ?? null,
+      revisit: revisitOf(resolved).includes(MODULE_MARK),
     };
   };
+
+  /** The module to take after this one: the next unlocked one that isn't finished. */
+  const nextAfter = (actor: Actor, key: string) => {
+    const next = [...roadmapModules(actor), ...standalone(actor)].find(
+      (entry) => entry.key !== key && !entry.locked && !isDone(entry),
+    );
+    return next ? { id: next.key, title: next.module?.title ?? next.content.title } : null;
+  };
+
+  /* ---- Revisit later ------------------------------------------------------------------------ */
+
+  /** Mark or unmark a lesson (`<moduleId>~<lessonId>`) or a module. Progress and status don't change. */
+  const setRevisit = (actor: Actor, id: string, on: boolean) => {
+    const { resolved, mark } = id.includes("~")
+      ? (({ resolved, lesson }) => ({ resolved, mark: lesson.id }))(lessonParam(actor, id))
+      : { resolved: resolve(actor, id), mark: MODULE_MARK };
+    // Written straight to the progress record: `save` would also mark the roadmap module active.
+    const row =
+      resolved.progress ??
+      learning.startProgress(
+        actor.workspaceId,
+        actor.id,
+        resolved.key,
+        resolved.content,
+        resolved.module ? {} : { placement: "my_learning" },
+      );
+    const current = learning.progressData(row)?.revisit ?? [];
+    learning.patchProgress(row, {
+      revisit: on ? [...new Set([...current, mark])] : current.filter((entry) => entry !== mark),
+    });
+    return { revisit: on };
+  };
+
+  const revisitList = (actor: Actor): RevisitList => ({
+    items: [...roadmapModules(actor), ...standalone(actor)].flatMap((resolved) => {
+      const marks = revisitOf(resolved);
+      const module = { id: resolved.key, title: resolved.module?.title ?? resolved.content.title };
+      return [
+        ...(marks.includes(MODULE_MARK)
+          ? [{ id: module.id, kind: "module" as const, title: module.title, module }]
+          : []),
+        ...resolved.content.lessons
+          .filter((lesson) => marks.includes(lesson.id))
+          .map((lesson) => ({
+            id: `${resolved.key}~${lesson.id}`,
+            kind: "lesson" as const,
+            title: lesson.title,
+            module,
+          })),
+      ];
+    }),
+  });
 
   const nextUp = (actor: Actor): NextUp | null => {
     const candidates = [...roadmapModules(actor), ...standalone(actor)].filter(
@@ -658,8 +725,12 @@ export function createLearnerRoutes(container: Container) {
     .get("/me/roadmap", (c) => c.json(roadmapView(c.get("actor"))))
     .get("/me/modules/:id", (c) => {
       const actor = c.get("actor");
-      return c.json(moduleView(actor, resolve(actor, c.req.param("id"))));
+      const resolved = resolve(actor, c.req.param("id"));
+      return c.json({ ...moduleView(actor, resolved), nextModule: nextAfter(actor, resolved.key) });
     })
+    .get("/me/revisit", (c) => c.json(revisitList(c.get("actor"))))
+    .put("/me/revisit/:id", (c) => c.json(setRevisit(c.get("actor"), c.req.param("id"), true)))
+    .delete("/me/revisit/:id", (c) => c.json(setRevisit(c.get("actor"), c.req.param("id"), false)))
     .get("/me/lessons/:id", (c) => {
       const actor = c.get("actor");
       const { resolved, lesson, index } = lessonParam(actor, c.req.param("id"));
@@ -695,6 +766,7 @@ export function createLearnerRoutes(container: Container) {
           },
         ],
         rating: resolved.data?.ratings[lesson.id] ?? null,
+        revisit: revisitOf(resolved).includes(lesson.id),
       };
       return c.json(body);
     })
@@ -774,9 +846,6 @@ export function createLearnerRoutes(container: Container) {
         const after = roadmapModules(actor);
         const inStage = after.filter((entry) => entry.module?.stageId === resolved.stage.id);
         const withChecks = after.filter((entry) => entry.questions.length > 0);
-        const next = [...after, ...standalone(actor)].find(
-          (entry) => entry.key !== resolved.key && !entry.locked && !isDone(entry),
-        );
         audit.record({
           actor,
           action: "learning.check.attempt",
@@ -803,9 +872,7 @@ export function createLearnerRoutes(container: Container) {
                 checksTotal: withChecks.length,
               }
             : null,
-          nextModule: next
-            ? { id: next.key, title: next.module?.title ?? next.content.title }
-            : null,
+          nextModule: nextAfter(actor, resolved.key),
         };
         return c.json(result);
       },

@@ -30,6 +30,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { LEARNING_ENDPOINTS as E } from "@/features/learning/api/learning.api";
 import { roadmapQuery } from "@/features/learning/api/learning.queries";
 import { ModuleRow } from "@/features/learning/components/module-row";
+import { RevisitLaterCard } from "@/features/learning/components/revisit-later";
 import {
   ClarificationDialog,
   RoadmapChangeDialog,
@@ -188,6 +189,7 @@ export function RoadmapPage() {
               ) : null}
             </PageMain>
             <PageSide>
+              <RevisitLaterCard />
               <SectionCard
                 title="Progress"
                 action={<OnboardingStatusChip status={roadmap.status} />}

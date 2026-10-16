@@ -9,9 +9,11 @@ import {
   fetchLesson,
   fetchModule,
   fetchMyLearning,
+  fetchRevisitList,
   fetchRoadmap,
   rateLearning,
   sendLearningRequest,
+  setRevisit,
   submitCheckAttempt,
   takeCourseStep,
 } from "./learning.api";
@@ -24,7 +26,15 @@ export const learningKeys = {
   check: (id: string) => [...learningKeys.all, "check", id] as const,
   mine: () => [...learningKeys.all, "mine"] as const,
   course: (id: string) => [...learningKeys.all, "course", id] as const,
+  revisit: () => [...learningKeys.all, "revisit"] as const,
 };
+
+/** Lessons and modules the learner marked to come back to. */
+export const revisitQuery = () =>
+  queryOptions({
+    queryKey: learningKeys.revisit(),
+    queryFn: ({ signal }) => fetchRevisitList(signal),
+  });
 
 /** "My learning", for people past onboarding. */
 export const myLearningQuery = () =>
@@ -76,6 +86,14 @@ function useRefreshProgress() {
       queryClient.invalidateQueries({ queryKey: learningKeys.all }),
       queryClient.invalidateQueries({ queryKey: homeKeys.all }),
     ]);
+}
+
+export function useSetRevisit() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, revisit }: { id: string; revisit: boolean }) => setRevisit(id, revisit),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: learningKeys.all }),
+  });
 }
 
 export function useCompleteLesson() {

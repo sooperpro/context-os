@@ -80,6 +80,7 @@ import {
 } from "@/features/contributions/contribution-meta";
 import { HOME_ENDPOINTS as E } from "@/features/home/api/home.api";
 import { ROADMAP_PATH, learningPath } from "@/features/learning/learning-meta";
+import { RevisitLaterLinks } from "@/features/learning/components/revisit-later";
 import { homeQuery } from "@/features/home/api/home.queries";
 import { ApiClientError } from "@/lib/api-client";
 import { comingSoon } from "@/lib/coming-soon";
@@ -287,6 +288,7 @@ function NextUpCard({ query }: { query: UseQueryResult<{ item: NextUp | null }> 
         ) : (
           <NextUpBody item={item} headingId={headingId} />
         )}
+        <RevisitLaterLinks />
       </div>
       <div
         aria-hidden
