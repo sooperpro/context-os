@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useId } from "react";
 import { Link, useSearchParams } from "react-router";
 import { PageHeader } from "@/components/layout/page-header";
+import { Markdown } from "@/components/markdown";
 import { SectionCard } from "@/components/section-card";
 import { Label } from "@/components/ui/label";
 import {
@@ -14,6 +15,7 @@ import {
 import { personConversationsQuery } from "@/features/conversations/api/conversations.api";
 import { membersQuery } from "@/features/members/api/members.queries";
 import { formatDateTime } from "@/lib/format";
+import { stripCitations } from "@/lib/citations";
 
 /**
  * Owners read everything a member asked Context Bot (decided 16 Oct 2026: owners see everything).
@@ -74,9 +76,10 @@ export function ConversationsPage() {
               {conversations.data.items.map((item) => (
                 <li key={item.id} className="flex flex-col gap-1.5 py-4">
                   <span className="font-medium">{item.question}</span>
-                  <p className="text-sm whitespace-pre-line text-on-surface-variant">
-                    {item.answer.answer}
-                  </p>
+                  <Markdown
+                    text={stripCitations(item.answer.answer)}
+                    className="text-sm text-on-surface-variant"
+                  />
                   <span className="text-xs text-on-surface-variant">
                     <Link to={`/projects/${item.project.id}`} className="hover:underline">
                       {item.project.name}

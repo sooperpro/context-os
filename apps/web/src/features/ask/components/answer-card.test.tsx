@@ -17,10 +17,32 @@ const answer: Answer = {
   timelineContext: null,
   uncertainties: ["Rollback steps are not documented."],
   citations: [
-    { ref: 1, chunkId: "22222222-2222-4222-8222-222222222222", sourceObjectId: "33333333-3333-4333-8333-333333333333", sourceTitle: "Kestrel rollout plan", sourceKind: "document", sourceUrl: null, sourceCreatedAt: null, excerpt: "exports fail silently", claim: "exports were slow" },
-    { ref: 2, chunkId: "22222222-2222-4222-8222-222222222223", sourceObjectId: "44444444-4444-4444-8444-444444444444", sourceTitle: "ADR-042", sourceKind: "document", sourceUrl: "https://example.test/adr", sourceCreatedAt: "2026-03-18T00:00:00.000Z", excerpt: "tiers depend on events", claim: "tiers depend on it" },
+    {
+      ref: 1,
+      chunkId: "22222222-2222-4222-8222-222222222222",
+      sourceObjectId: "33333333-3333-4333-8333-333333333333",
+      sourceTitle: "Kestrel rollout plan",
+      sourceKind: "document",
+      sourceUrl: null,
+      sourceCreatedAt: null,
+      excerpt: "exports fail silently",
+      claim: "exports were slow",
+    },
+    {
+      ref: 2,
+      chunkId: "22222222-2222-4222-8222-222222222223",
+      sourceObjectId: "44444444-4444-4444-8444-444444444444",
+      sourceTitle: "ADR-042",
+      sourceKind: "document",
+      sourceUrl: "https://example.test/adr",
+      sourceCreatedAt: "2026-03-18T00:00:00.000Z",
+      excerpt: "tiers depend on events",
+      claim: "tiers depend on it",
+    },
   ],
-  relatedItems: [{ id: "66666666-6666-4666-8666-666666666666", kind: "decision", title: "ADR-042" }],
+  relatedItems: [
+    { id: "66666666-6666-4666-8666-666666666666", kind: "decision", title: "ADR-042" },
+  ],
   model: "gemini",
   createdAt: "2026-10-14T00:00:00.000Z",
 };
@@ -37,8 +59,39 @@ describe("AnswerCard", () => {
     expect(screen.getByText("Verified · 2 sources agree")).toBeInTheDocument();
     expect(screen.getByText("Rollback steps are not documented.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Open source 2: ADR-042" }));
-    expect(open).toHaveBeenCalledWith({ sourceId: answer.citations[1]?.sourceObjectId, quote: "tiers depend on events" });
+    expect(open).toHaveBeenCalledWith({
+      sourceId: answer.citations[1]?.sourceObjectId,
+      quote: "tiers depend on events",
+    });
     // Base UI renders the anchor with role="button"; the href still points at the source.
-    expect(screen.getByRole("button", { name: "Open ADR-042 in its source" })).toHaveAttribute("href", "https://example.test/adr");
+    expect(screen.getByRole("button", { name: "Open ADR-042 in its source" })).toHaveAttribute(
+      "href",
+      "https://example.test/adr",
+    );
+  });
+
+  it("formats Markdown in every part of the answer the model writes", () => {
+    const { container } = renderWithProviders(
+      <SourceDrawerContext value={{ open: vi.fn() }}>
+        <AnswerCard
+          answer={{
+            ...answer,
+            rationale: "Two sources **agree** [1].",
+            currentState: { statement: "`Dual-write` is **on** [1].", asOf: null },
+            timelineContext: "Started in *March* [2].",
+            uncertainties: ["Rollback for `ledger` is **undocumented**."],
+            citations: answer.citations.map((citation) => ({
+              ...citation,
+              claim: `**${citation.claim}** [${citation.ref}]`,
+            })),
+          }}
+        />
+      </SourceDrawerContext>,
+    );
+    expect(screen.getByText("Dual-write").tagName).toBe("CODE");
+    expect(screen.getByText("March").tagName).toBe("EM");
+    expect(screen.getByText("undocumented").tagName).toBe("STRONG");
+    expect(screen.getByText("exports were slow").tagName).toBe("STRONG");
+    expect(container).not.toHaveTextContent(/[*`]/);
   });
 });

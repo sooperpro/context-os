@@ -34,6 +34,7 @@ import { useAnswerFeedback, useReportKnowledgeGap } from "@/features/ask/api/ass
 import { CiteButton } from "@/features/ask/components/cite-button";
 import { comingSoon } from "@/lib/coming-soon";
 import { HIDDEN } from "@/lib/hidden";
+import { stripCitations } from "@/lib/citations";
 
 const REASONS: Array<[NonNullable<AssistantFeedbackInput["reason"]>, string]> = [
   ["incorrect", "Incorrect"],
@@ -390,9 +391,11 @@ function NoAnswerCard({ answer }: { answer: AssistantAnswer }) {
       </StatusChip>
       {answer.blocks.map((block, index) =>
         block.type === "paragraph" ? (
-          <p key={index} className="text-[15px] leading-6">
-            {block.text}
-          </p>
+          <Markdown
+            key={index}
+            text={stripCitations(block.text)}
+            className="text-[15px] leading-6"
+          />
         ) : null,
       )}
       {answer.searched.length ? (
