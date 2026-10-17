@@ -3,24 +3,15 @@ import { useBotContext } from "@/components/layout/bot-context";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { useState, type ReactNode } from "react";
-import { Link, useParams } from "react-router";
+import { Link } from "react-router";
 import { toast } from "sonner";
 import { useAssistant } from "@/components/layout/assistant-context";
 import { PageColumns, PageMain, PageSide } from "@/components/layout/page-columns";
 import { OnboardingStatusChip } from "@/components/onboarding-status-chip";
 import { PlanProgress, PlanTickNote } from "@/components/plan-progress";
-import { ProfileHero } from "@/components/profile-hero";
 import { SectionCard } from "@/components/section-card";
 import { Badge } from "@/components/ui/badge";
 import { BotGlyph } from "@/components/ui/bot-glyph";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { DotList } from "@/components/ui/dot-list";
 import {
@@ -64,13 +55,8 @@ import {
   AssignRoadmapDialog,
 } from "@/features/team/components/assign-dialogs";
 import { CheckMark } from "@/features/team/components/check-mark";
-import {
-  CHECKIN_TYPE_LABEL,
-  ESCALATED_TO,
-  PULSE,
-  TEAM_PATH,
-  checkinPath,
-} from "@/features/team/team-meta";
+import { CHECKIN_TYPE_LABEL, ESCALATED_TO, PULSE, checkinPath } from "@/features/team/team-meta";
+import { ApiClientError } from "@/lib/api-client";
 import { daysFromToday, firstName, formatShortDate, formatWeekday } from "@/lib/format";
 
 const MODULE_STATE: Record<
@@ -89,9 +75,11 @@ const MODULE_STATE: Record<
   blocked: { label: "Blocked", tone: "error", lead: "error", icon: <BlockIcon /> },
 };
 
-/** A team member's onboarding (prototype `memberPage`), as their manager sees it. */
-export function MemberPage() {
-  const { personId = "" } = useParams();
+/**
+ * A person's onboarding (prototype `memberPage`), as their manager, People Ops and owners see it:
+ * the Onboarding tab of their profile (N-14). `/team/:id` links open it.
+ */
+export function MemberOnboardingTab({ personId }: { personId: string }) {
   const query = useQuery(teamMemberQuery(personId));
   if (query.isPending) {
     return (
@@ -101,14 +89,19 @@ export function MemberPage() {
     );
   }
   if (query.isError) {
-    return (
-      <div className="mx-auto max-w-360">
-        <SectionCard
-          title="This onboarding could not be loaded"
-          endpoint={E.member.path}
-          status={query}
-        />
-      </div>
+    const none = query.error instanceof ApiClientError && [403, 404].includes(query.error.status);
+    return none ? (
+      <SectionCard title="Onboarding">
+        <p className="text-sm text-on-surface-variant">
+          There's no onboarding here for you to see.
+        </p>
+      </SectionCard>
+    ) : (
+      <SectionCard
+        title="This onboarding could not be loaded"
+        endpoint={E.member.path}
+        status={query}
+      />
     );
   }
   return <MemberView member={query.data} />;
@@ -174,63 +167,44 @@ function MemberView({ member }: { member: TeamMemberDetail }) {
   };
 
   return (
-    <div className="mx-auto flex max-w-360 flex-col gap-4">
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink render={<Link to={TEAM_PATH} />}>Team onboarding</BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage>{member.person.name}</BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
-      <ProfileHero
-        person={member.person}
-        chips={
-          <>
-            <OnboardingStatusChip status={member.status} />
-            <Badge variant="neutral">
-              {started ? `Day ${1 - days} of 90` : `Starts ${formatShortDate(member.startDate)}`}
-            </Badge>
-            {member.buddy ? <Badge variant="ai">Buddy: {member.buddy.name}</Badge> : null}
-          </>
-        }
-        subtitle={
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <OnboardingStatusChip status={member.status} />
+        <Badge variant="neutral">
+          {started ? `Day ${1 - days} of 90` : `Starts ${formatShortDate(member.startDate)}`}
+        </Badge>
+        {member.buddy ? <Badge variant="ai">Buddy: {member.buddy.name}</Badge> : null}
+        <span className="text-sm text-on-surface-variant">
           <DotList
             parts={[
-              member.person.title,
               started
-                ? `started ${formatShortDate(member.startDate)}`
-                : `starts ${formatShortDate(member.startDate)}`,
+                ? `Started ${formatShortDate(member.startDate)}`
+                : `Starts ${formatShortDate(member.startDate)}`,
               member.stage ?? "Pre-boarding",
             ]}
           />
-        }
-        actions={
-          <>
-            <Button nativeButton={false} render={<Link to={checkinPath(member.person.id)} />}>
-              <EditNoteIcon aria-hidden /> Record check-in
-            </Button>
-            {hasRoadmap ? (
-              <Button variant="secondary" onClick={() => setAssigning("learning")}>
-                <AssignmentAddIcon aria-hidden /> Assign learning task
-              </Button>
-            ) : (
-              <Button variant="secondary" onClick={() => setAssigning("roadmap")}>
-                <RouteIcon aria-hidden /> Assign roadmap
-              </Button>
-            )}
-            <Button
-              variant="ai-tonal"
-              onClick={() => openAssistant(`Summarize ${member.person.name}’s onboarding progress`)}
-            >
-              <SmartToyIcon aria-hidden /> Ask about {first}
-            </Button>
-          </>
-        }
-      />
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button nativeButton={false} render={<Link to={checkinPath(member.person.id)} />}>
+          <EditNoteIcon aria-hidden /> Record check-in
+        </Button>
+        {hasRoadmap ? (
+          <Button variant="secondary" onClick={() => setAssigning("learning")}>
+            <AssignmentAddIcon aria-hidden /> Assign learning task
+          </Button>
+        ) : (
+          <Button variant="secondary" onClick={() => setAssigning("roadmap")}>
+            <RouteIcon aria-hidden /> Assign roadmap
+          </Button>
+        )}
+        <Button
+          variant="ai-tonal"
+          onClick={() => openAssistant(`Summarize ${member.person.name}’s onboarding progress`)}
+        >
+          <SmartToyIcon aria-hidden /> Ask about {first}
+        </Button>
+      </div>
 
       {member.insight ? (
         <section

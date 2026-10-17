@@ -119,6 +119,11 @@ describe("MembersPage", () => {
     const table = await membersTable();
     expect(within(table).getByText("maya@tessellate.io")).toBeInTheDocument();
     expect(within(table).getByText("Platform")).toBeInTheDocument();
+    // A name opens that person's profile (N-14).
+    expect(within(table).getByRole("link", { name: /Maya Okafor/ })).toHaveAttribute(
+      "href",
+      "/people/u1",
+    );
     expect(screen.getByRole("group", { name: "Members by role" })).toHaveTextContent(
       "Employees1Managers1Owners1",
     );

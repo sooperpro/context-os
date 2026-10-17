@@ -1,5 +1,6 @@
 import type { MembershipStatus, SystemRole, WorkspaceMember } from "@contextos/shared";
 import { useState, type ReactNode } from "react";
+import { Link } from "react-router";
 import { toast } from "sonner";
 import { PersonCell } from "@/components/person-cell";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,7 @@ import {
 } from "@/components/ui/table";
 import { useUpdateMember } from "@/features/members/api/members.queries";
 import { ProjectAccessDialog } from "@/features/members/components/project-access-dialog";
+import { peoplePath } from "@/features/people/people-meta";
 import { formatRelativeTime } from "@/lib/format";
 import { ROLE_LABEL } from "@/lib/labels";
 
@@ -126,7 +128,17 @@ export function MembersTable({ members, viewer }: MembersTableProps) {
               return (
                 <TableRow key={member.id}>
                   <TableCell>
-                    <PersonCell person={member} meta={member.email ?? undefined} />
+                    {/* One page per person (N-14): a member's name opens their profile. */}
+                    {member.invitedAt ? (
+                      <PersonCell person={member} meta={member.email ?? undefined} />
+                    ) : (
+                      <Link
+                        to={peoplePath(member.id)}
+                        className="text-on-surface no-underline hover:underline"
+                      >
+                        <PersonCell person={member} meta={member.email ?? undefined} />
+                      </Link>
+                    )}
                   </TableCell>
                   <TableCell className="text-sm">
                     {member.team ?? <span className="text-on-surface-variant">—</span>}

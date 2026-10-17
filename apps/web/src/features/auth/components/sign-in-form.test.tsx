@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter } from "react-router";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AuthGate } from "@/features/auth/components/auth-gate";
 import { buildApiUrl } from "@/lib/api-client";
 import { createQueryClient } from "@/lib/query-client";
@@ -63,6 +63,8 @@ function renderApp() {
 }
 
 describe("Sign in and sign up with a password", () => {
+  // Signed-out visitors at the root see the landing page; its Log in opens the form (N-5).
+  beforeEach(() => window.history.replaceState(null, "", "/?mode=sign-in"));
   afterEach(() => window.history.replaceState(null, "", "/"));
 
   it("creates an account and asks to confirm the email", async () => {

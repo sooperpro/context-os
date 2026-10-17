@@ -1,0 +1,225 @@
+/* Motion for the public landing page (N-5). Everything here stops for people who ask for less
+   motion (the media query at the end). */
+
+html:has(.landing-root) {
+  scroll-behavior: smooth;
+}
+
+@keyframes landing-drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(6%, -8%, 0) scale(1.1);
+  }
+  100% {
+    transform: translate3d(-4%, 5%, 0) scale(0.95);
+  }
+}
+@keyframes landing-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
+@keyframes landing-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+@keyframes landing-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes landing-fill {
+  from {
+    width: 0;
+  }
+}
+@keyframes landing-blink {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+@keyframes landing-caret {
+  50% {
+    opacity: 0;
+  }
+}
+@keyframes landing-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes landing-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes landing-swap {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes landing-grow-x {
+  from {
+    transform: scaleX(0);
+  }
+}
+@keyframes landing-grow-y {
+  from {
+    transform: scaleY(0);
+  }
+}
+@keyframes landing-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes landing-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+/* Context Bot section: the active capability's timer, its panel, and the parts inside. */
+.landing-progress {
+  transform-origin: left;
+  animation: landing-progress 6s linear both;
+}
+.landing-swap {
+  animation: landing-swap 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.landing-grow-x {
+  transform-origin: left;
+  animation: landing-grow-x 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.landing-grow-y {
+  transform-origin: top;
+  animation: landing-grow-y 1.2s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.landing-slide-in {
+  animation: landing-slide-in 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.landing-ping {
+  animation: landing-ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.landing-blob {
+  animation: landing-drift 18s ease-in-out infinite alternate;
+}
+.landing-blob-slow {
+  animation: landing-drift 26s ease-in-out infinite alternate-reverse;
+}
+.landing-float {
+  animation: landing-float 6s ease-in-out infinite;
+}
+.landing-float-late {
+  animation: landing-float 7s ease-in-out 1.5s infinite;
+}
+.landing-spin {
+  animation: landing-spin 40s linear infinite;
+}
+.landing-marquee {
+  animation: landing-marquee 48s linear infinite;
+}
+.landing-marquee-track:hover .landing-marquee {
+  animation-play-state: paused;
+}
+.landing-pop {
+  animation: landing-pop 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.landing-fill {
+  animation: landing-fill 1.8s cubic-bezier(0.2, 0.8, 0.2, 1) 0.4s both;
+}
+.landing-dot {
+  animation: landing-blink 1.2s ease-in-out infinite;
+}
+.landing-caret {
+  animation: landing-caret 1s step-end infinite;
+}
+
+/* Sections rise in as they scroll into view. */
+.landing-reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition:
+    opacity 0.8s cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.landing-reveal[data-visible="true"] {
+  opacity: 1;
+  transform: none;
+}
+/* The line joining the steps draws itself once they're in view. */
+.landing-line {
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 1.4s cubic-bezier(0.2, 0.8, 0.2, 1) 0.3s;
+}
+[data-visible="true"] .landing-line {
+  transform: scaleX(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-blob,
+  .landing-blob-slow,
+  .landing-float,
+  .landing-float-late,
+  .landing-spin,
+  .landing-marquee,
+  .landing-pop,
+  .landing-fill,
+  .landing-dot,
+  .landing-caret,
+  .landing-progress,
+  .landing-swap,
+  .landing-grow-x,
+  .landing-grow-y,
+  .landing-slide-in,
+  .landing-ping {
+    animation: none;
+  }
+  .landing-reveal,
+  .landing-line {
+    transition: none;
+    opacity: 1;
+    transform: none;
+  }
+}

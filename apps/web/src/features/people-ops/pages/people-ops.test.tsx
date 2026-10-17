@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { Route, Routes } from "react-router";
+import { Route, Routes, useParams } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import {
   AssistantContext,
@@ -14,7 +14,7 @@ import { ProbationListPage } from "@/features/people-ops/pages/probation-list-pa
 import { TemplateEditorPage } from "@/features/people-ops/pages/template-editor-page";
 import { TemplatesPage } from "@/features/people-ops/pages/templates-page";
 import { CheckinPage } from "@/features/team/pages/checkin-page";
-import { MemberPage } from "@/features/team/pages/member-page";
+import { MemberOnboardingTab } from "@/features/team/pages/member-page";
 import { buildApiUrl } from "@/lib/api-client";
 import { markTemplateInReview } from "@/mocks/people-ops";
 import { managerHandlers } from "@/test/manager-mocks";
@@ -23,6 +23,12 @@ import { peopleOpsHandlers } from "@/test/people-ops-mocks";
 import { renderWithProviders } from "@/test/utils";
 
 setupMockApi();
+
+/** The profile's Onboarding tab (N-14), where team cards and saved check-ins lead. */
+function OnboardingTabRoute() {
+  const { personId = "" } = useParams();
+  return <MemberOnboardingTab personId={personId} />;
+}
 
 function renderAt(
   route: string,
@@ -75,7 +81,7 @@ function renderAt(
         <Route path="/probation/:reviewId" element={<ProbationDetailPage />} />
         <Route path="/templates" element={<TemplatesPage />} />
         <Route path="/templates/:templateId" element={<TemplateEditorPage />} />
-        <Route path="/team/:personId" element={<MemberPage />} />
+        <Route path="/people/:personId" element={<OnboardingTabRoute />} />
         <Route path="/team/:personId/check-in" element={<CheckinPage />} />
       </Routes>
     </AssistantContext>,
@@ -311,9 +317,8 @@ describe("Probation reviews", () => {
 
     await user.click(await screen.findByRole("radio", { name: /Extend 30 days/ }));
     await user.click(screen.getByRole("button", { name: "Save and send recommendation" }));
-    expect(
-      await screen.findByRole("heading", { level: 1, name: "Arjun Mehta" }),
-    ).toBeInTheDocument();
+    // Saved: back on their onboarding, the profile's Onboarding tab.
+    expect(await screen.findByRole("button", { name: "Record check-in" })).toBeInTheDocument();
 
     // People Ops now has it to review.
     const response = await fetch(

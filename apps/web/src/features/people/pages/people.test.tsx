@@ -262,14 +262,19 @@ describe("People", () => {
     expect(assistant.openAssistant).toHaveBeenCalledWith("What does Sana work on?");
   });
 
-  it("shows a manager their report's onboarding, linking to the team member page", async () => {
+  it("gives a manager their report's onboarding as a tab of the profile (N-14)", async () => {
     renderAt("/people/p-maya", "p-daniel");
 
     const onboarding = await screen.findByRole("region", { name: /Onboarding/ });
     expect(within(onboarding).getByText("On track")).toBeInTheDocument();
     expect(within(onboarding).getByRole("button", { name: "Open onboarding" })).toHaveAttribute(
       "href",
-      "/team/p-maya",
+      "/people/p-maya?tab=onboarding",
+    );
+    const tabs = screen.getByRole("navigation", { name: "Maya’s pages" });
+    expect(within(tabs).getByRole("link", { name: "Onboarding" })).toHaveAttribute(
+      "href",
+      "/people/p-maya?tab=onboarding",
     );
   });
 
@@ -280,6 +285,8 @@ describe("People", () => {
       await screen.findByRole("heading", { level: 1, name: "Maya Okafor" }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: /Onboarding/ })).not.toBeInTheDocument();
+    // No onboarding to see: no tabs, just the profile.
+    expect(screen.queryByRole("link", { name: "Onboarding" })).not.toBeInTheDocument();
   });
   describe("editing details", () => {
     const platform = "22222222-2222-4222-8222-222222222221";

@@ -54,7 +54,7 @@ export function SignInLayout({ title, description, children }: SignInLayoutProps
 }
 
 /** Five expressive shapes with three icons: roadmap, Context Bot, people. Slow spins, off when motion is reduced. */
-function BrandArt() {
+export function BrandArt() {
   return (
     <div
       aria-hidden
