@@ -20,6 +20,8 @@ import {
   LockIcon,
   ManageSearchIcon,
   OpenInNewIcon,
+  PersonIcon,
+  GroupsIcon,
   SearchOffIcon,
   SubdirectoryArrowRightIcon,
   SyncProblemIcon,
@@ -236,7 +238,14 @@ function AnsweredCard({
                     aria-hidden
                     className="grid size-8 shrink-0 place-items-center rounded-md bg-surface-container-highest text-on-surface-variant [&_svg]:size-4"
                   >
-                    <HubIcon />
+                    {/* From the ContextOS directory: a person or the teams view. */}
+                    {entry.to?.startsWith("/people/") ? (
+                      <PersonIcon />
+                    ) : entry.to?.startsWith("/people") ? (
+                      <GroupsIcon />
+                    ) : (
+                      <HubIcon />
+                    )}
                   </span>
                 )}
                 <span className="flex min-w-0 flex-1 flex-col">

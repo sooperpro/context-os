@@ -16,6 +16,7 @@ import { AUTH_BASE_PATH } from "./modules/auth/auth.js";
 import { createSessionRoutes } from "./modules/auth/session.routes.js";
 import { createSsoRoutes } from "./modules/auth/sso.routes.js";
 import { createAssistantRoutes } from "./modules/ask/assistant.routes.js";
+import { createOrgContext } from "./modules/ask/org-context.js";
 import { createMessageRoutes } from "./modules/ask/messages.routes.js";
 import { createThreadRoutes } from "./modules/ask/threads.routes.js";
 import { createAdminConnectorRoutes } from "./modules/connectors/admin-connectors.routes.js";
@@ -213,7 +214,7 @@ export function createApp({ env, container, version = "0.1.0" }: AppDeps) {
     .route("/context-items", createContextRoutes(services.context))
     .route("/conflicts", createConflictRoutes(container))
     .route("/canonical-sources", createCanonicalSourceRoutes(container))
-    .route("/ask", createAskRoutes(services.ask))
+    .route("/ask", createAskRoutes(services.ask, createOrgContext(container)))
     .route("/questions", createQuestionRoutes(services.ask))
     .route("/feedback", createFeedbackRoutes(services.feedback))
     .route(
