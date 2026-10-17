@@ -18,6 +18,7 @@ import { validationHook } from "../../middleware/validation.js";
 import type { Actor, AppEnv } from "../../types.js";
 import { requireRole } from "../identity/identity.service.js";
 import { createCheckPause } from "../learning/check-pause.js";
+import { createOrgContext } from "./org-context.js";
 
 /** How many of a member's questions an owner reads at once, newest first. */
 const CONVERSATION_LIMIT = 200;
@@ -25,6 +26,7 @@ const CONVERSATION_LIMIT = 200;
 export function createThreadRoutes(container: Container) {
   const { db, identity, services, audit } = container;
   const checkPause = createCheckPause(db);
+  const org = createOrgContext(container);
   const get = (actor: Actor, id: string) => {
     const row = db
       .select()
@@ -185,11 +187,16 @@ export function createThreadRoutes(container: Container) {
               data: JSON.stringify({ state: "retrieving" }),
             });
             try {
+              // A conversation about one source stays on it; otherwise the directory helps too.
+              const facts = thread.sourceId
+                ? []
+                : org.factsFor(actor, input.question, { projectId: project.id });
               const answer = await services.ask.ask(
                 actor,
                 project,
                 input,
                 thread.sourceId ?? undefined,
+                facts,
               );
               const permitted = new Set(identity.visibleSourceIds(actor, project.id));
               if (!answer.citations.every((citation) => permitted.has(citation.sourceObjectId)))

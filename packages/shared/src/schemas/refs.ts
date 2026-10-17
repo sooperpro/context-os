@@ -66,3 +66,23 @@ export const KnowledgeSectionSchema = z.enum([
   "glossary",
 ]);
 export type KnowledgeSection = z.infer<typeof KnowledgeSectionSchema>;
+
+/**
+ * Where a module's lessons (a tutorial) stand, as the one thing to act on first: being written,
+ * failed, a draft never published, waiting for or sent back from review, an update drafted after
+ * the Knowledge Hub changed, edits not yet published, sources changed since it was written,
+ * published and current, or archived.
+ */
+export const LessonStateSchema = z.enum([
+  "writing",
+  "failed",
+  "draft",
+  "in_review",
+  "sent_back",
+  "update_ready",
+  "unpublished_edits",
+  "sources_changed",
+  "published",
+  "archived",
+]);
+export type LessonState = z.infer<typeof LessonStateSchema>;

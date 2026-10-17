@@ -1,12 +1,17 @@
-import type { Answer, AnswerConfidence, Citation } from "@contextos/shared";
+import type { Answer, AnswerConfidence, Citation, DirectoryCitation } from "@contextos/shared";
+import { Link, useNavigate } from "react-router";
 import { Markdown } from "@/components/markdown";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  AccountTreeIcon,
   CheckCircleFilledIcon,
+  FolderOpenIcon,
+  GroupsIcon,
   HelpIcon,
   OpenInNewIcon,
   PendingIcon,
+  PersonIcon,
   UpdateIcon,
   WarningIcon,
 } from "@/components/ui/icons";
@@ -22,15 +27,28 @@ import { CiteButton } from "@/features/ask/components/cite-button";
 
 type Tone = React.ComponentProps<typeof StatusChip>["tone"];
 
+/** What a directory citation is about, by its icon: a person, a team, a department, a project. */
+const DIRECTORY_ICON: Record<DirectoryCitation["kind"], React.ReactNode> = {
+  person: <PersonIcon />,
+  team: <GroupsIcon />,
+  department: <AccountTreeIcon />,
+  project: <FolderOpenIcon />,
+};
+
 /** The prototype's confidence labels; state is icon + label, never color alone. */
 const CONFIDENCE: Record<
   AnswerConfidence,
-  { tone: Tone; icon: React.ReactNode; label: (sources: number) => string }
+  { tone: Tone; icon: React.ReactNode; label: (sources: number, directoryOnly: boolean) => string }
 > = {
   high: {
     tone: "success",
     icon: <CheckCircleFilledIcon />,
-    label: (sources) => (sources > 1 ? `Verified · ${sources} sources agree` : "Verified"),
+    label: (sources, directoryOnly) =>
+      directoryOnly
+        ? "Verified · from the ContextOS directory"
+        : sources > 1
+          ? `Verified · ${sources} sources agree`
+          : "Verified",
   },
   medium: { tone: "info", icon: <PendingIcon />, label: () => "Partly verified" },
   low: { tone: "warning", icon: <WarningIcon />, label: () => "Low confidence" },
@@ -67,16 +85,24 @@ export function AnswerCard({ answer }: AnswerCardProps) {
  */
 export function AnswerBody({ answer }: AnswerCardProps) {
   const drawer = useSourceDrawer();
-  const citationByRef = new Map(answer.citations.map((c) => [c.ref, c]));
-  const openCitation = (citation: Citation) =>
-    drawer.open({ sourceId: citation.sourceObjectId, quote: citation.excerpt.slice(0, 280) });
+  const navigate = useNavigate();
+  const directory = answer.directory ?? [];
+  const citationByRef: CitationMap = new Map<number, Citation | DirectoryCitation>([
+    ...answer.citations.map((c) => [c.ref, c] as const),
+    ...directory.map((entry) => [entry.ref, entry] as const),
+  ]);
+  const openCitation = (citation: Citation | DirectoryCitation) => {
+    if ("to" in citation) void navigate(citation.to);
+    else drawer.open({ sourceId: citation.sourceObjectId, quote: citation.excerpt.slice(0, 280) });
+  };
   const confidence = CONFIDENCE[answer.confidence];
-  const distinctSources = new Set(answer.citations.map((c) => c.sourceObjectId)).size;
+  const distinctSources =
+    new Set(answer.citations.map((c) => c.sourceObjectId)).size + directory.length;
 
   return (
     <div className="flex flex-col gap-4">
       <StatusChip tone={confidence.tone} icon={confidence.icon} className="self-start">
-        {confidence.label(distinctSources)}
+        {confidence.label(distinctSources, directory.length > 0 && answer.citations.length === 0)}
       </StatusChip>
       <AnswerText
         text={answer.answer}
@@ -129,12 +155,42 @@ export function AnswerBody({ answer }: AnswerCardProps) {
         </section>
       ) : null}
 
-      {answer.citations.length > 0 ? (
+      {answer.citations.length > 0 || directory.length > 0 ? (
         <section className="space-y-2">
           <h3 className="text-xs font-medium tracking-wide text-on-surface-variant uppercase">
             Sources
           </h3>
           <ol className="flex flex-col gap-0.5">
+            {directory.map((entry) => (
+              <li
+                key={`directory-${entry.ref}`}
+                className="flex items-start gap-2.5 rounded-xs bg-pane px-3 py-2.5 text-xs first:rounded-t-lg last:rounded-b-lg"
+              >
+                <span
+                  aria-hidden
+                  className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-xs bg-ai-container font-mono text-[11px] font-semibold text-on-ai-container"
+                >
+                  {entry.ref}
+                </span>
+                <span
+                  aria-hidden
+                  className="grid size-7 shrink-0 place-items-center rounded-sm bg-surface-container-highest text-on-surface-variant [&_svg]:size-4"
+                >
+                  {DIRECTORY_ICON[entry.kind]}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <Link
+                    to={entry.to}
+                    className="block max-w-full truncate rounded-xs text-sm font-medium text-on-surface no-underline outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
+                    {entry.title}
+                  </Link>
+                  <p className="text-on-surface-variant">
+                    ContextOS directory{entry.detail ? ` · ${entry.detail}` : ""}
+                  </p>
+                </div>
+              </li>
+            ))}
             {answer.citations.map((citation) => {
               const Icon = SOURCE_KIND_ICON[citation.sourceKind];
               return (
@@ -215,6 +271,8 @@ export function AnswerBody({ answer }: AnswerCardProps) {
  * The answer as formatted Markdown, with its `[n]` markers as citation chips: each marker becomes a
  * `#cite-n` link, which renders as the chip that opens the source.
  */
+type CitationMap = Map<number, Citation | DirectoryCitation>;
+
 function AnswerText({
   text,
   citationByRef,
@@ -222,8 +280,8 @@ function AnswerText({
   className,
 }: {
   text: string;
-  citationByRef: Map<number, Citation>;
-  onCite: (citation: Citation) => void;
+  citationByRef: CitationMap;
+  onCite: (citation: Citation | DirectoryCitation) => void;
   className?: string;
 }) {
   const linked = text.replace(/\[(\d+)\](?!\()/g, (marker, n: string) =>
@@ -251,7 +309,7 @@ function AnswerText({
           return (
             <CiteButton
               n={citation.ref}
-              title={citation.sourceTitle}
+              title={"to" in citation ? citation.title : citation.sourceTitle}
               onClick={() => onCite(citation)}
             />
           );

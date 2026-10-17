@@ -340,7 +340,8 @@ describe("Templates", () => {
     ).toBeInTheDocument();
     const save = screen.getByRole("button", { name: "Save draft" });
     expect(save).toBeDisabled();
-    await user.click(screen.getByRole("button", { name: "Move Pricing and packaging 2026 down" }));
+    await user.click(screen.getByRole("button", { name: "Move Pricing and packaging 2026" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Move down" }));
     expect(screen.getByText("· Unsaved changes")).toBeInTheDocument();
     await user.click(save);
     expect(await screen.findByText("Draft v3")).toBeInTheDocument();
@@ -469,6 +470,116 @@ describe("Templates", () => {
     await waitFor(() => expect(body).toMatchObject({ publishModules: true }));
   });
 
+  it("opens a published module's lessons from the template, shows what waits and publishes updates", async () => {
+    const user = userEvent.setup();
+    const module = (
+      id: string,
+      title: string,
+      lessonState: "update_ready" | "published",
+      lessonsEditable: boolean,
+    ) => ({
+      id: `tutorial-${id}`,
+      title,
+      kind: "project" as const,
+      minutes: 20,
+      owner: "Elena Brooks",
+      lessons: "ready" as const,
+      tutorialId: id,
+      lessonState,
+      lessonsEditable,
+    });
+    const live = {
+      id: "tpl-live",
+      name: "Support specialist",
+      family: "support",
+      version: "v1",
+      status: "published",
+      publishedVersion: "v1",
+      activeCount: 2,
+      archived: false,
+      deletable: false,
+      roles: ["Support specialist"],
+      teams: [],
+      weeks: 4,
+      passMark: 4,
+      probationDays: 90,
+      checkins: [{ title: "30-day check-in", day: 30 }],
+      generation: null,
+      generated: null,
+      review: null,
+      createdBy: null,
+      editable: true,
+      department: null,
+      updatedAt: "2026-10-17T05:00:00.000Z",
+      updatedBy: "Elena Brooks",
+      stages: [
+        {
+          id: "stage-1",
+          name: "Induction",
+          weekStart: 1,
+          weekEnd: 2,
+          modules: [
+            module("t-tickets", "Handling tickets", "update_ready", true),
+            module("t-mission", "Our mission", "published", false),
+          ],
+        },
+      ],
+      history: [],
+    };
+    let published = false;
+    renderAt("/templates/tpl-live", {
+      handlers: [
+        http.get(buildApiUrl("/v1/people-ops/templates/tpl-live"), () => HttpResponse.json(live)),
+        http.post(buildApiUrl("/v1/people-ops/templates/tpl-live/publish-lessons"), () => {
+          published = true;
+          return HttpResponse.json(live);
+        }),
+      ],
+    });
+
+    // Its state and a way into the Studio, only where the viewer may edit.
+    const tickets = (await screen.findByText("Handling tickets")).closest<HTMLElement>(
+      "[data-slot=segmented-item]",
+    )!;
+    expect(within(tickets).getByText("Update ready to review")).toBeInTheDocument();
+    expect(within(tickets).getByRole("link", { name: "Edit lessons" })).toHaveAttribute(
+      "href",
+      "/tutorials/t-tickets?template=tpl-live",
+    );
+    const mission = screen
+      .getByText("Our mission")
+      .closest<HTMLElement>("[data-slot=segmented-item]")!;
+    expect(within(mission).queryByRole("link", { name: "Edit lessons" })).not.toBeInTheDocument();
+
+    // The waiting update goes out on its own, without a new template version.
+    expect(await screen.findByText("1 module has a lesson update waiting")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Publish lesson updates" }));
+    await waitFor(() => expect(published).toBe(true));
+  });
+
+  it("moves a module to another stage without dragging", async () => {
+    const user = userEvent.setup();
+    renderAt("/templates/tpl-sales-ae");
+    const pitch = await screen.findByRole("list", { name: "Modules in Product & pitch" });
+    expect(within(pitch).queryByText("Pricing and packaging 2026")).not.toBeInTheDocument();
+    // Each module can be dragged by its handle, or moved from its menu.
+    expect(
+      screen.getByRole("button", { name: "Reorder Pricing and packaging 2026" }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Move Pricing and packaging 2026" }));
+    // The keyboard way into the submenu: focus "Move to stage", then the right arrow.
+    (await screen.findByRole("menuitem", { name: "Move to stage" })).focus();
+    await user.keyboard("{ArrowRight}");
+    await user.click(await screen.findByRole("menuitem", { name: "Product & pitch" }));
+    expect(await within(pitch).findByText("Pricing and packaging 2026")).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("list", { name: "Modules in Foundations" })).queryByText(
+        "Pricing and packaging 2026",
+      ),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("· Unsaved changes")).toBeInTheDocument();
+  });
+
   it("lets a manager submit their template for review instead of publishing it", async () => {
     const user = userEvent.setup();
     renderAt("/templates/tpl-sales-ae", { role: "manager" });
@@ -480,7 +591,8 @@ describe("Templates", () => {
     expect(
       screen.queryByRole("button", { name: "More actions for this template" }),
     ).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Move Pricing and packaging 2026 down" }));
+    await user.click(screen.getByRole("button", { name: "Move Pricing and packaging 2026" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Move down" }));
     await user.click(submit);
     const dialog = await screen.findByRole("dialog", {
       name: "Submit Sales · Account executive for review?",
@@ -532,8 +644,11 @@ describe("Templates", () => {
     expect(dialog).toHaveTextContent("keeps their roadmap");
     await user.click(within(dialog).getByRole("button", { name: "Archive template" }));
 
-    const banner = await screen.findByRole("status");
-    expect(banner).toHaveTextContent("This template is archived");
+    // The archived banner (drag and drop keeps its own live region for announcements).
+    const banner = (await screen.findByText("This template is archived")).closest<HTMLElement>(
+      "[role=status]",
+    )!;
+    expect(banner).toHaveTextContent("It isn’t offered for new onboardings");
     expect(screen.getByRole("button", { name: "Save draft" })).toBeDisabled();
     expect(screen.getByRole("button", { name: /^Publish/ })).toBeDisabled();
 

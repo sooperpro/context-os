@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { IsoDateTimeSchema } from "./common.js";
 import { ModuleKindSchema } from "./learning.js";
-import { PersonRefSchema, ReviewStateSchema } from "./refs.js";
+import { LessonStateSchema, PersonRefSchema, ReviewStateSchema } from "./refs.js";
 
 /*
  * Tutorials: step-by-step learning built from a project's knowledge (FR-LRN-001/004/005/008/012).
@@ -73,6 +73,20 @@ export const TutorialContentSchema = z.object({
 export type TutorialContent = z.infer<typeof TutorialContentSchema>;
 
 /** `GET /v1/tutorials`: everything curators can manage, newest first. */
+/** A template that uses a tutorial as one of its modules, and where. */
+export const TutorialUsageSchema = z.object({
+  templateId: z.string(),
+  templateName: z.string(),
+  /** False while the template has never been published. */
+  published: z.boolean(),
+  stage: z.string(),
+  weekStart: z.number().int(),
+  weekEnd: z.number().int(),
+  /** Its place in the template: stage order, then module order. */
+  position: Count,
+});
+export type TutorialUsage = z.infer<typeof TutorialUsageSchema>;
+
 export const TutorialSummarySchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -92,10 +106,16 @@ export const TutorialSummarySchema = z.object({
   /** Sources changed or removed since it was generated (FR-LRN-008). */
   staleSources: Count,
   learners: Count,
+  /** Learners who started a version and haven't finished it. */
+  inProgress: Count,
   updatedAt: IsoDateTimeSchema,
   createdBy: PersonRefSchema.nullable(),
   /** A path curator's or manager's draft waiting for People Ops, or sent back to them. */
   review: ReviewStateSchema.nullable(),
+  /** The one thing to act on first. */
+  state: LessonStateSchema,
+  /** Templates that use it, in their stage order; empty when no template does. */
+  usedIn: z.array(TutorialUsageSchema),
 });
 export type TutorialSummary = z.infer<typeof TutorialSummarySchema>;
 export const TutorialListSchema = z.object({ items: z.array(TutorialSummarySchema) });

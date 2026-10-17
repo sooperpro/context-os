@@ -23,6 +23,7 @@ import type { Actor, AppEnv } from "../../types.js";
 import { createNotifier } from "../platform/notify.js";
 import { createPlatformStore } from "../platform/store.js";
 import { domainOwnersOf } from "./answer-policy.js";
+import { createOrgContext, type OrgFact } from "./org-context.js";
 import { isRestrictedTopic } from "./restricted.js";
 
 const IdParam = z.object({ id: IdSchema });
@@ -52,6 +53,7 @@ export function createAssistantRoutes(container: Container) {
   const { db, identity, services, repos, audit } = container;
   const store = createPlatformStore(db);
   const notifier = createNotifier(db);
+  const org = createOrgContext(container);
 
   /** Readable projects, best lexical match first, then the ones with the most readable sources. */
   const candidates = (actor: Actor, projects: ProjectWithStats[], question: string) => {
@@ -101,6 +103,26 @@ export function createAssistantRoutes(container: Container) {
       }));
   };
 
+  /** The people an answer is about (their profile is a click away), then who owns the project. */
+  const people = (
+    actor: Actor,
+    project: ProjectWithStats,
+    answer: Answer,
+  ): AssistantAnswer["people"] => {
+    const cited = (answer.directory ?? [])
+      .filter((entry) => entry.kind === "person")
+      .map((entry) => {
+        // "Engineering Manager · Platform team": the job title (or role) comes first.
+        const title = entry.detail.split(" · ")[0] ?? null;
+        return { person: { id: entry.id, name: entry.title, title }, why: entry.detail };
+      });
+    const seen = new Set(cited.map((entry) => entry.person.id));
+    return [
+      ...cited,
+      ...owners(actor, project).filter((entry) => !seen.has(entry.person.id)),
+    ].slice(0, 3);
+  };
+
   const empty = (question: string) => ({
     id: randomUUID(),
     question,
@@ -112,6 +134,36 @@ export function createAssistantRoutes(container: Container) {
     searched: [],
     followups: [],
     related: [],
+  });
+
+  /**
+   * No project to answer in yet (a new workspace), but the directory knows: its facts as they are,
+   * each cited, without the model. Not saved, so it can't be rated.
+   */
+  const directoryOnly = (question: string, facts: OrgFact[]): AssistantAnswer => ({
+    ...empty(question),
+    outcome: "answered",
+    confidence: { level: "verified", label: "Verified · from the ContextOS directory" },
+    blocks: [
+      paragraph("Here's what ContextOS knows:"),
+      {
+        type: "list",
+        ordered: false,
+        items: facts.map((fact, index) => `${fact.text} [${index + 1}]`),
+      },
+    ],
+    people: facts
+      .flatMap((fact) => (fact.person ? [{ person: fact.person, why: fact.detail }] : []))
+      .slice(0, 3),
+    sources: facts.map((fact) => ({
+      title: fact.title,
+      system: "ContextOS",
+      provider: null,
+      detail: fact.detail,
+      url: null,
+      to: fact.to,
+      stale: null,
+    })),
   });
 
   const toAssistantAnswer = (
@@ -133,9 +185,23 @@ export function createAssistantRoutes(container: Container) {
         : [],
     );
     // One entry per source, in citation order; several citations of a source share a number.
+    // Directory facts (people, teams, project owners) are sources from ContextOS itself.
     const sources: AssistantAnswer["sources"] = [];
     const positionBySource = new Map<string, number>();
     const positionByRef = new Map<number, number>();
+    const directory = answer.directory ?? [];
+    for (const entry of directory) {
+      sources.push({
+        title: entry.title,
+        system: "ContextOS",
+        provider: null,
+        detail: entry.detail,
+        url: null,
+        to: entry.to,
+        stale: null,
+      });
+      positionByRef.set(entry.ref, sources.length);
+    }
     for (const citation of [...answer.citations].sort((a, b) => a.ref - b.ref)) {
       let position = positionBySource.get(citation.sourceObjectId);
       if (position === undefined) {
@@ -159,26 +225,33 @@ export function createAssistantRoutes(container: Container) {
       }
       positionByRef.set(citation.ref, position);
     }
-    const text = answer.answer
-      .replace(/\[(\d+)\]/g, (_marker, n: string) => {
-        const position = positionByRef.get(Number(n));
-        return position ? `[${position}]` : "";
-      })
-      .replace(/ +([.,;:])/g, "$1")
-      .trim();
-    const blocks: AssistantAnswer["blocks"] = [paragraph(text)];
+    // Citation numbers become source positions everywhere the answer cites.
+    const renumber = (text: string) =>
+      text
+        .replace(/\[(\d+)\]/g, (_marker, n: string) => {
+          const position = positionByRef.get(Number(n));
+          return position ? `[${position}]` : "";
+        })
+        .replace(/ +([.,;:])/g, "$1")
+        .trim();
+    const blocks: AssistantAnswer["blocks"] = [paragraph(renumber(answer.answer))];
     if (answer.currentState)
       blocks.push(
         paragraph(
-          `**Current state:** ${answer.currentState.statement}${
+          `**Current state:** ${renumber(answer.currentState.statement)}${
             answer.currentState.asOf ? ` (as of ${answer.currentState.asOf})` : ""
           }`,
         ),
       );
     if (answer.uncertainties.length > 0)
-      blocks.push({ type: "list", ordered: false, items: answer.uncertainties });
+      blocks.push({ type: "list", ordered: false, items: answer.uncertainties.map(renumber) });
     const insufficient = answer.confidence === "insufficient";
-    const count = sources.length === 1 ? "1 source" : `${sources.length} sources`;
+    const count =
+      sources.length === directory.length
+        ? "from the ContextOS directory"
+        : sources.length === 1
+          ? "1 source"
+          : `${sources.length} sources`;
     return {
       ...empty(answer.question),
       id: answer.id,
@@ -189,15 +262,15 @@ export function createAssistantRoutes(container: Container) {
         : answer.confidence === "high"
           ? {
               level: "verified",
-              label: `Verified · ${sources.length > 1 ? `${sources.length} sources agree` : count}`,
+              label: `Verified · ${sources.length > 1 && sources.length > directory.length ? `${sources.length} sources agree` : count}`,
             }
           : {
               level: "partial",
               label: `${answer.confidence === "medium" ? "Partly supported" : "Low confidence"} · ${count}`,
             },
       blocks,
-      note: answer.rationale,
-      people: owners(actor, project),
+      note: answer.rationale ? renumber(answer.rationale) : null,
+      people: people(actor, project, answer),
       sources,
       searched: insufficient ? searched : [],
       related: answer.relatedItems.map((item) => ({
@@ -230,7 +303,12 @@ export function createAssistantRoutes(container: Container) {
           } satisfies AssistantAnswer);
         const projects = services.projects.list(actor);
         const ranked = candidates(actor, projects, input.question);
-        if (ranked.length === 0)
+        // What ContextOS knows about the people and teams it names, from this workspace only.
+        const facts = org.factsFor(actor, input.question);
+        // A question about people needs no documents: any project the asker can open keeps it.
+        const home = ranked[0]?.project ?? (facts.length ? projects[0] : undefined);
+        if (!home && facts.length) return c.json(directoryOnly(input.question, facts));
+        if (!home)
           return c.json({
             ...empty(input.question),
             outcome: "no_answer",
@@ -243,13 +321,18 @@ export function createAssistantRoutes(container: Container) {
             ],
             searched: projects.map((project) => project.name),
           } satisfies AssistantAnswer);
-        const best = ranked[0]!;
-        const project = identity.requireProject(actor, best.project.id);
-        const answer = await services.ask.ask(actor, project, { question: input.question });
+        const project = identity.requireProject(actor, home.id);
+        const answer = await services.ask.ask(
+          actor,
+          project,
+          { question: input.question },
+          undefined,
+          facts,
+        );
         return c.json(
           toAssistantAnswer(
             actor,
-            best.project,
+            home,
             answer,
             ranked.map((entry) => entry.project.name),
           ),

@@ -1,13 +1,13 @@
 import type { TutorialContent, TutorialDetail, TutorialLesson } from "@contextos/shared";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
-import { useId, useState } from "react";
-import { useParams } from "react-router";
+import { lazy, Suspense, useId, useState } from "react";
+import { Link, useParams, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/page-header";
-import { Markdown } from "@/components/markdown";
 import { ReviewBanner, SendBackDialog } from "@/components/review-parts";
 import { SectionCard } from "@/components/section-card";
+import { DragHandle, SortableList } from "@/components/sortable-list";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  ArrowBackIcon,
   ArrowDownwardIcon,
   ArrowUpwardIcon,
   CheckCircleFilledIcon,
@@ -26,12 +27,19 @@ import {
   DescriptionIcon,
   GroupIcon,
   LockIcon,
+  MoreVertIcon,
   QuizIcon,
   RateReviewIcon,
   SendIcon,
   SmartToyIcon,
   WarningIcon,
 } from "@/components/ui/icons";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader } from "@/components/ui/loader";
@@ -48,6 +56,8 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { directoryQuery } from "@/features/people/api/people.queries";
+import { templateQuery } from "@/features/people-ops/api/people-ops.queries";
+import { templatePath } from "@/features/people-ops/people-ops-meta";
 import { TUTORIAL_ENDPOINTS } from "@/features/tutorials/api/tutorials.api";
 import {
   tutorialQuery,
@@ -84,7 +94,33 @@ export function TutorialStudioPage() {
         className="mx-auto max-w-360"
       />
     );
-  return <Studio tutorial={query.data} />;
+  return (
+    <>
+      <BackToTemplate />
+      <Studio tutorial={query.data} />
+    </>
+  );
+}
+
+/** Opened from a template's "Edit lessons": the way back to it. */
+function BackToTemplate() {
+  const [params] = useSearchParams();
+  const templateId = params.get("template") ?? "";
+  const template = useQuery({ ...templateQuery(templateId), enabled: templateId !== "" });
+  if (!templateId) return null;
+  return (
+    <div className="mx-auto mb-2 w-full max-w-360">
+      <Button
+        variant="ghost"
+        size="xs"
+        nativeButton={false}
+        render={<Link to={templatePath(templateId)} />}
+      >
+        <ArrowBackIcon aria-hidden />
+        {template.data ? `Back to ${template.data.name}` : "Back to template"}
+      </Button>
+    </div>
+  );
 }
 
 function Studio({ tutorial }: { tutorial: TutorialDetail }) {
@@ -377,15 +413,17 @@ function Outline({
     lessons.splice(index + by, 0, lesson!);
     onChange({ ...content, lessons });
   };
-  const item = (active: boolean) =>
+  // `fill`: a lesson row's title takes the room its move and delete buttons leave, and truncates.
+  const item = (active: boolean, { fill = false } = {}) =>
     cn(
-      "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-start text-sm transition-colors",
+      "flex items-center gap-2 rounded-lg px-3 py-2 text-start text-sm transition-colors",
+      fill ? "min-w-0 flex-1" : "w-full",
       active ? "bg-secondary-container font-medium" : "hover:bg-surface-container-high",
     );
   return (
     <nav
       aria-label="Tutorial outline"
-      className="flex flex-col gap-1 self-start rounded-3xl bg-card p-3"
+      className="flex min-w-0 flex-col gap-1 self-start rounded-3xl bg-card p-3"
     >
       <button
         type="button"
@@ -396,57 +434,78 @@ function Outline({
         Overview
       </button>
       <span className="mt-2 px-3 text-xs font-medium text-on-surface-variant">Lessons</span>
-      <ol className="flex flex-col gap-0.5">
-        {content.lessons.map((lesson, index) => {
+      <SortableList
+        label="Lessons"
+        items={content.lessons}
+        getId={(lesson) => lesson.id}
+        getLabel={(lesson) => lesson.title}
+        onReorder={(lessons) => onChange({ ...content, lessons })}
+      >
+        {(lesson, index, row) => {
           const active = selection.kind === "lesson" && selection.id === lesson.id;
+          const remove = () => {
+            onChange({
+              ...content,
+              lessons: content.lessons.filter((entry) => entry.id !== lesson.id),
+            });
+            if (active) onSelect({ kind: "overview" });
+          };
           return (
-            <li key={lesson.id} className="group flex items-center gap-0.5">
+            <li
+              ref={row.setRow}
+              style={row.style}
+              className={cn("flex min-w-0 items-center gap-0.5 rounded-lg bg-card", row.className)}
+            >
+              <DragHandle handle={row.handle} label={`Reorder ${lesson.title}`} />
               <button
                 type="button"
-                className={item(active)}
+                className={item(active, { fill: true })}
+                title={lesson.title}
                 aria-current={active ? "true" : undefined}
                 onClick={() => onSelect({ kind: "lesson", id: lesson.id })}
               >
                 <span className="text-xs text-on-surface-variant tabular-nums">{index + 1}</span>
                 <span className="min-w-0 flex-1 truncate">{lesson.title}</span>
               </button>
-              <Button
-                size="icon-sm"
-                variant="ghost"
-                aria-label={`Move ${lesson.title} up`}
-                disabled={index === 0}
-                onClick={() => move(index, -1)}
-              >
-                <ArrowUpwardIcon />
-              </Button>
-              <Button
-                size="icon-sm"
-                variant="ghost"
-                aria-label={`Move ${lesson.title} down`}
-                disabled={index === content.lessons.length - 1}
-                onClick={() => move(index, 1)}
-              >
-                <ArrowDownwardIcon />
-              </Button>
+              {/* Moving without dragging; shows with the handle. */}
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      aria-label={`Move ${lesson.title}`}
+                      className="opacity-0 transition-opacity group-focus-within/sortable:opacity-100 group-hover/sortable:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100 [@media(hover:none)]:opacity-100"
+                    />
+                  }
+                >
+                  <MoreVertIcon />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem disabled={index === 0} onClick={() => move(index, -1)}>
+                    <ArrowUpwardIcon aria-hidden /> Move up
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={index === content.lessons.length - 1}
+                    onClick={() => move(index, 1)}
+                  >
+                    <ArrowDownwardIcon aria-hidden /> Move down
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button
                 size="icon-sm"
                 variant="ghost"
                 aria-label={`Remove ${lesson.title}`}
                 disabled={content.lessons.length === 1}
-                onClick={() => {
-                  onChange({
-                    ...content,
-                    lessons: content.lessons.filter((entry) => entry.id !== lesson.id),
-                  });
-                  if (active) onSelect({ kind: "overview" });
-                }}
+                onClick={remove}
               >
                 <DeleteIcon />
               </Button>
             </li>
           );
-        })}
-      </ol>
+        }}
+      </SortableList>
       {content.check ? (
         <button
           type="button"
@@ -464,7 +523,13 @@ function Outline({
 
 /* ---- Editors ---------------------------------------------------------------------------------- */
 
-/** Markdown with a learner preview: what you see under "Preview" is what learners read. */
+/** The visual editor loads only when a lesson is edited, so other pages stay light. */
+const RichMarkdownEditor = lazy(() => import("@/components/rich-markdown/rich-markdown-editor"));
+
+/**
+ * Lesson text: a visual editor where what you see is what learners read, or the Markdown it is
+ * stored as. Both edit the same text.
+ */
 function MarkdownField({
   label,
   value,
@@ -477,27 +542,25 @@ function MarkdownField({
   onChange: (value: string) => void;
 }) {
   const id = useId();
+  const markdownId = useId();
   return (
-    <Tabs defaultValue="preview" className="gap-2">
+    <Tabs defaultValue="edit" className="gap-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Label htmlFor={id}>{label}</Label>
         <TabsList>
-          <TabsTrigger value="preview">Preview</TabsTrigger>
-          <TabsTrigger value="edit">Edit Markdown</TabsTrigger>
+          <TabsTrigger value="edit">Edit</TabsTrigger>
+          <TabsTrigger value="markdown">Markdown</TabsTrigger>
         </TabsList>
       </div>
-      <TabsContent value="preview">
-        <div className="rounded-2xl bg-pane px-5 py-4 text-[15px] leading-6">
-          {value.trim() ? (
-            <Markdown text={value} />
-          ) : (
-            <p className="text-on-surface-variant">Nothing written yet.</p>
-          )}
-        </div>
-      </TabsContent>
       <TabsContent value="edit">
+        <Suspense fallback={<Skeleton className="h-48 rounded-2xl" aria-busy="true" />}>
+          <RichMarkdownEditor id={id} label={label} value={value} onChange={onChange} />
+        </Suspense>
+      </TabsContent>
+      <TabsContent value="markdown">
         <Textarea
-          id={id}
+          id={markdownId}
+          aria-label={`${label} (Markdown)`}
           value={value}
           rows={rows}
           className="font-mono text-[13px] leading-5"
@@ -769,8 +832,9 @@ function PublishDialog({
 }) {
   const publish = usePublishTutorial(tutorial.id);
   const switchId = useId();
-  // An update drafted after the Hub changed moves people part-way through to it by default.
-  const [updateLearners, setUpdateLearners] = useState(tutorial.update !== null);
+  // People part-way through finish the version they started unless the publisher moves them.
+  const [updateLearners, setUpdateLearners] = useState(false);
+  const partWay = tutorial.inProgress;
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="sm:max-w-md">
@@ -785,7 +849,7 @@ function PublishDialog({
             onboarding templates, and found in My learning.
           </DialogDescription>
         </DialogHeader>
-        {tutorial.publishedVersion && tutorial.learners ? (
+        {tutorial.publishedVersion && partWay ? (
           <div className="flex items-start gap-3 rounded-2xl bg-pane p-3.5">
             <Switch
               id={switchId}
@@ -793,9 +857,14 @@ function PublishDialog({
               onCheckedChange={(checked) => setUpdateLearners(Boolean(checked))}
             />
             <Label htmlFor={switchId} className="flex flex-col items-start gap-0.5 font-normal">
-              <span className="font-medium">Move people already taking it to this version</span>
+              <span className="font-medium">
+                Move the {partWay === 1 ? "person" : `${partWay} people`} part-way through to this
+                version
+              </span>
               <span className="text-xs text-on-surface-variant">
-                Otherwise they finish the version they started. Finished lessons stay finished.
+                {updateLearners
+                  ? "They switch now. Lessons they finished that are still in this version stay done."
+                  : `${partWay === 1 ? "They finish" : "They each finish"} version ${tutorial.publishedVersion}, the one they started. Everyone who starts from now gets this version.`}
               </span>
             </Label>
           </div>
