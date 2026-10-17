@@ -12,6 +12,7 @@ import {
   type TutorialContent,
   type TutorialDetail,
   type TutorialSummary,
+  type TutorialUsage,
 } from "@contextos/shared";
 import { zValidator } from "@hono/zod-validator";
 import { and, eq, inArray } from "drizzle-orm";
@@ -48,6 +49,7 @@ import {
   type ProgressData,
 } from "./content.js";
 import { AUTOMATIC_UPDATE, createGenerationRuns } from "./generation-runs.js";
+import { lessonState } from "./lesson-state.js";
 import {
   generateDraft,
   knowledgeFor,
@@ -185,8 +187,8 @@ export function createTutorialRoutes(container: Container) {
   };
   const person = (workspaceId: string, userId: string | null) =>
     userId ? records.personRef(workspaceId, userId) : null;
-  const learners = (row: PlatformRecord) =>
-    store.listWhere(row.workspaceId, PROGRESS, { parentId: row.id }, 5000).length;
+  const progressOf = (row: PlatformRecord) =>
+    store.listWhere(row.workspaceId, PROGRESS, { parentId: row.id }, 5000);
   const status = (row: PlatformRecord): TutorialSummary["status"] => {
     const data = dataOf(row);
     if (!data.content && data.generation.state === "running") return "generating";
@@ -194,8 +196,14 @@ export function createTutorialRoutes(container: Container) {
     return row.status as TutorialSummary["status"];
   };
 
-  const summary = (row: PlatformRecord): TutorialSummary => {
+  /** `usage`: which templates use each tutorial, computed once for a list. */
+  const summary = (
+    row: PlatformRecord,
+    usage: Map<string, TutorialUsage[]> = records.tutorialUsage(row.workspaceId),
+  ): TutorialSummary => {
     const data = dataOf(row);
+    const progress = progressOf(row);
+    const staleSources = sourceStates(data).filter((source) => source.state !== "current").length;
     const project = row.projectId
       ? db
           .select({ id: projects.id, name: projects.name })
@@ -218,11 +226,17 @@ export function createTutorialRoutes(container: Container) {
       minutes: minutesOf(data.content),
       publishedVersion: data.publishedVersion,
       unpublishedChanges: data.content !== null && data.publishedRevision !== data.draftRevision,
-      staleSources: sourceStates(data).filter((source) => source.state !== "current").length,
-      learners: learners(row),
+      staleSources,
+      learners: progress.length,
+      inProgress: progress.filter((entry) => !(entry.data as unknown as ProgressData).completedAt)
+        .length,
       updatedAt: row.updatedAt.toISOString(),
       createdBy: person(row.workspaceId, row.ownerId),
       review: reviewView(data.review, (userId) => person(row.workspaceId, userId)),
+      state: lessonState(row, staleSources),
+      usedIn: (usage.get(row.id) ?? []).sort(
+        (a, b) => a.templateName.localeCompare(b.templateName) || a.position - b.position,
+      ),
     };
   };
   const detail = (row: PlatformRecord, actor: Actor): TutorialDetail => {
@@ -497,7 +511,8 @@ export function createTutorialRoutes(container: Container) {
         !identity.curatesAny(actor)
       )
         throw new AppError(403, "FORBIDDEN", "Tutorials are managed by admins and People Ops");
-      return c.json({ items: rows.map(summary) });
+      const usage = records.tutorialUsage(actor.workspaceId);
+      return c.json({ items: rows.map((row) => summary(row, usage)) });
     })
     .post("/tutorials", zValidator("json", TutorialCreateInputSchema, validationHook), (c) => {
       const actor = c.get("actor");

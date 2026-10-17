@@ -1,6 +1,7 @@
 import type { TemplateDetail, TemplateModule } from "@contextos/shared";
 import { useBotContext } from "@/components/layout/bot-context";
 import { useQuery } from "@tanstack/react-query";
+import { cn } from "cn";
 import { useId, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
@@ -8,6 +9,7 @@ import { PageColumns, PageMain, PageSide } from "@/components/layout/page-column
 import { PreviewDataChip } from "@/components/preview-data-chip";
 import { ReviewBanner, SendBackDialog } from "@/components/review-parts";
 import { SectionCard } from "@/components/section-card";
+import { DragHandle, SortableGroup, SortableScope } from "@/components/sortable-list";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -23,6 +25,9 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -42,6 +47,7 @@ import {
   SendIcon,
   SmartToyIcon,
   UndoIcon,
+  WarningIcon,
 } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -60,8 +66,8 @@ import {
   SegmentedItemLead,
   SegmentedItemMeta,
   SegmentedItemTitle,
-  SegmentedList,
 } from "@/components/ui/segmented-list";
+import { StatusChip } from "@/components/ui/status-chip";
 import { Timeline, TimelineItem } from "@/components/ui/timeline";
 import { PEOPLE_OPS_ENDPOINTS as E } from "@/features/people-ops/api/people-ops.api";
 import {
@@ -70,6 +76,7 @@ import {
   useArchiveTemplate,
   useDeleteTemplate,
   usePublishTemplate,
+  usePublishTemplateLessons,
   useRestoreTemplate,
   useSaveTemplateDraft,
   useSendBackTemplate,
@@ -91,7 +98,11 @@ import {
   weeksLabel,
 } from "@/features/people-ops/people-ops-meta";
 import { useCreateTutorial } from "@/features/tutorials/api/tutorials.queries";
-import { tutorialPath } from "@/features/tutorials/tutorials-meta";
+import {
+  LESSON_STATE,
+  tutorialFromTemplate,
+  tutorialPath,
+} from "@/features/tutorials/tutorials-meta";
 import { useIsReviewer } from "@/features/workspace/hooks/use-is-reviewer";
 import { formatCount, formatShortDate } from "@/lib/format";
 import { toastWithUndo } from "@/lib/undo-toast";
@@ -165,6 +176,7 @@ function Editor({ template }: { template: TemplateDetail }) {
   const navigate = useNavigate();
   const save = useSaveTemplateDraft(template.id);
   const publish = usePublishTemplate(template.id);
+  const publishLessons = usePublishTemplateLessons(template.id);
   const submit = useSubmitTemplate(template.id);
   const sendBack = useSendBackTemplate(template.id);
   // Owner, Admin and HR publish; managers and path curators submit their own drafts for review.
@@ -220,6 +232,16 @@ function Editor({ template }: { template: TemplateDetail }) {
       (module) => module.lessons === "draft" && module.id.startsWith("tutorial-"),
     ),
   );
+  // Published modules whose lessons have an update waiting: offered to publish with the template.
+  const lessonUpdates = stages.flatMap((stage) =>
+    stage.modules.filter(
+      (module) =>
+        module.lessons === "ready" &&
+        (module.lessonState === "update_ready" ||
+          module.lessonState === "unpublished_edits" ||
+          module.lessonState === "in_review"),
+    ),
+  );
   const stageEdited = (values: { name: string; weekStart: number; weekEnd: number }) => {
     setStages((current) =>
       (editingStage === NEW_STAGE
@@ -258,6 +280,22 @@ function Editor({ template }: { template: TemplateDetail }) {
       if (module) next.splice(index + by, 0, module);
       return next;
     });
+
+  /** Into another stage, at its end ("Move to stage" in a module's menu). */
+  const moveToStage = (fromId: string, index: number, toId: string) => {
+    const module = stages.find((stage) => stage.id === fromId)?.modules[index];
+    if (!module) return;
+    setStages((current) =>
+      current.map((stage) =>
+        stage.id === fromId
+          ? { ...stage, modules: stage.modules.filter((_, position) => position !== index) }
+          : stage.id === toId
+            ? { ...stage, modules: [...stage.modules, module] }
+            : stage,
+      ),
+    );
+    setDirty(true);
+  };
 
   const remove = (stageId: string, index: number) => {
     const module = stages.find((stage) => stage.id === stageId)?.modules[index];
@@ -440,40 +478,102 @@ function Editor({ template }: { template: TemplateDetail }) {
           }
         />
       ) : null}
+      {reviewer && !archived && !dirty && lessonUpdates.length ? (
+        <Banner
+          tone="info"
+          icon={<PublishIcon aria-hidden />}
+          title={`${formatCount(lessonUpdates.length, "module")} ${lessonUpdates.length === 1 ? "has" : "have"} a lesson update waiting`}
+          description={`${lessonUpdates.map((module) => module.title).join(", ")}. Publishing them doesn't change the template's version. People part-way through a module finish the version they started.`}
+          actions={
+            <Button
+              size="xs"
+              variant="outline"
+              disabled={publishLessons.isPending}
+              onClick={() =>
+                publishLessons.mutate(undefined, {
+                  onSuccess: () =>
+                    toast.success(
+                      `Published lesson updates for ${formatCount(lessonUpdates.length, "module")}`,
+                    ),
+                  onError: (error) => toast.error(error.message),
+                })
+              }
+            >
+              Publish lesson updates
+            </Button>
+          }
+        />
+      ) : null}
 
       <PageColumns>
         <PageMain>
-          {stages.map((stage, stageIndex) => (
-            <SectionCard
-              key={stage.id}
-              title={
-                <span className="flex items-center gap-3">
-                  <span
-                    aria-hidden
-                    className="grid size-8 shrink-0 place-items-center rounded-full bg-primary text-sm font-medium text-primary-foreground"
-                  >
-                    {stageIndex + 1}
+          <SortableScope
+            groups={stages.map((stage) => ({
+              id: stage.id,
+              label: stage.name,
+              items: stage.modules,
+            }))}
+            getId={(module) => module.id}
+            getLabel={(module) => module.title}
+            disabled={locked}
+            onChange={(groups) => {
+              setStages((current) =>
+                current.map((stage) => {
+                  const group = groups.find((entry) => entry.id === stage.id);
+                  return group ? { ...stage, modules: group.items } : stage;
+                }),
+              );
+              setDirty(true);
+            }}
+          >
+            {stages.map((stage, stageIndex) => (
+              <SectionCard
+                key={stage.id}
+                title={
+                  <span className="flex items-center gap-3">
+                    <span
+                      aria-hidden
+                      className="grid size-8 shrink-0 place-items-center rounded-full bg-primary text-sm font-medium text-primary-foreground"
+                    >
+                      {stageIndex + 1}
+                    </span>
+                    {stage.name}
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      disabled={locked}
+                      aria-label={`Edit ${stage.name}`}
+                      onClick={() => setEditingStage(stage.id)}
+                    >
+                      <EditIcon aria-hidden />
+                    </Button>
                   </span>
-                  {stage.name}
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    disabled={locked}
-                    aria-label={`Edit ${stage.name}`}
-                    onClick={() => setEditingStage(stage.id)}
-                  >
-                    <EditIcon aria-hidden />
-                  </Button>
-                </span>
-              }
-              count={`${weeksLabel(stage)} · ${formatCount(stage.modules.length, "module")}`}
-            >
-              {stage.modules.length ? (
-                <SegmentedList>
-                  {stage.modules.map((module, index) => {
+                }
+                count={`${weeksLabel(stage)} · ${formatCount(stage.modules.length, "module")}`}
+              >
+                <SortableGroup
+                  id={stage.id}
+                  items={stage.modules}
+                  label={`Modules in ${stage.name}`}
+                  as="div"
+                  empty={
+                    <p className="rounded-xl border border-dashed border-outline-variant px-4 py-3 text-sm text-on-surface-variant">
+                      {locked
+                        ? "No modules in this stage yet."
+                        : "No modules in this stage yet. Add one, or drag one here."}
+                    </p>
+                  }
+                >
+                  {(module, index, row) => {
                     const Kind = TEMPLATE_MODULE_KIND[module.kind].icon;
+                    const others = stages.filter((entry) => entry.id !== stage.id);
                     return (
-                      <SegmentedItem key={module.id} className="gap-3">
+                      <SegmentedItem
+                        ref={row.setRow}
+                        style={row.style}
+                        className={cn("gap-3", row.className)}
+                      >
+                        <DragHandle handle={row.handle} label={`Reorder ${module.title}`} />
                         <SegmentedItemLead tone="neutral" size="sm">
                           <Kind />
                         </SegmentedItemLead>
@@ -489,6 +589,15 @@ function Editor({ template }: { template: TemplateDetail }) {
                               {template.generated.reasons[module.id]}
                             </p>
                           ) : null}
+                          {module.lessonState && LESSON_STATE[module.lessonState].attention ? (
+                            <StatusChip
+                              tone={LESSON_STATE[module.lessonState].tone}
+                              icon={<WarningIcon />}
+                              className="self-start"
+                            >
+                              {LESSON_STATE[module.lessonState].label}
+                            </StatusChip>
+                          ) : null}
                           {module.lessons === "none" && reviewer ? (
                             <Button
                               variant="ghost"
@@ -499,34 +608,63 @@ function Editor({ template }: { template: TemplateDetail }) {
                             >
                               Draft lessons
                             </Button>
-                          ) : module.lessons === "draft" && module.tutorialId ? (
+                          ) : module.tutorialId && module.lessonsEditable ? (
+                            // The module's lessons in the Studio, published or a draft.
                             <Link
-                              to={tutorialPath(module.tutorialId)}
+                              to={tutorialFromTemplate(module.tutorialId, template.id)}
                               className="self-start text-sm text-primary"
                             >
-                              Review draft lessons
+                              {module.lessons === "draft" ? "Review draft lessons" : "Edit lessons"}
                             </Link>
                           ) : null}
                         </SegmentedItemBody>
-                        <span className="flex shrink-0">
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            disabled={locked || index === 0}
-                            aria-label={`Move ${module.title} up`}
-                            onClick={() => move(stage.id, index, -1)}
-                          >
-                            <ArrowUpwardIcon aria-hidden />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            disabled={locked || index === stage.modules.length - 1}
-                            aria-label={`Move ${module.title} down`}
-                            onClick={() => move(stage.id, index, 1)}
-                          >
-                            <ArrowDownwardIcon aria-hidden />
-                          </Button>
+                        <span className="flex shrink-0 items-center">
+                          {locked ? null : (
+                            // Moving without dragging; shows with the handle.
+                            <DropdownMenu>
+                              <DropdownMenuTrigger
+                                render={
+                                  <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    aria-label={`Move ${module.title}`}
+                                    className="opacity-0 transition-opacity group-focus-within/sortable:opacity-100 group-hover/sortable:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100 [@media(hover:none)]:opacity-100"
+                                  />
+                                }
+                              >
+                                <MoreVertIcon />
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  disabled={index === 0}
+                                  onClick={() => move(stage.id, index, -1)}
+                                >
+                                  <ArrowUpwardIcon aria-hidden /> Move up
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  disabled={index === stage.modules.length - 1}
+                                  onClick={() => move(stage.id, index, 1)}
+                                >
+                                  <ArrowDownwardIcon aria-hidden /> Move down
+                                </DropdownMenuItem>
+                                {others.length ? (
+                                  <DropdownMenuSub>
+                                    <DropdownMenuSubTrigger>Move to stage</DropdownMenuSubTrigger>
+                                    <DropdownMenuSubContent>
+                                      {others.map((target) => (
+                                        <DropdownMenuItem
+                                          key={target.id}
+                                          onClick={() => moveToStage(stage.id, index, target.id)}
+                                        >
+                                          {target.name}
+                                        </DropdownMenuItem>
+                                      ))}
+                                    </DropdownMenuSubContent>
+                                  </DropdownMenuSub>
+                                ) : null}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon-sm"
@@ -539,23 +677,21 @@ function Editor({ template }: { template: TemplateDetail }) {
                         </span>
                       </SegmentedItem>
                     );
-                  })}
-                </SegmentedList>
-              ) : (
-                <p className="text-sm text-on-surface-variant">No modules in this stage yet.</p>
-              )}
-              <Button
-                variant="ghost"
-                size="xs"
-                className="self-start"
-                disabled={locked}
-                aria-label={`Add module to ${stage.name}`}
-                onClick={() => setAdding({ id: stage.id, name: stage.name })}
-              >
-                <AddIcon aria-hidden /> Add module
-              </Button>
-            </SectionCard>
-          ))}
+                  }}
+                </SortableGroup>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className="self-start"
+                  disabled={locked}
+                  aria-label={`Add module to ${stage.name}`}
+                  onClick={() => setAdding({ id: stage.id, name: stage.name })}
+                >
+                  <AddIcon aria-hidden /> Add module
+                </Button>
+              </SectionCard>
+            ))}
+          </SortableScope>
           <Button
             variant="outline"
             size="sm"
@@ -818,10 +954,11 @@ function Editor({ template }: { template: TemplateDetail }) {
         next={next}
         mode={reviewer ? "publish" : "submit"}
         draftModules={draftModules.map((module) => module.title)}
+        lessonUpdates={lessonUpdates.map((module) => module.title)}
         open={publishing}
         pending={publish.isPending || submit.isPending}
         onOpenChange={setPublishing}
-        onPublish={(note) =>
+        onPublish={(note, { withLessonUpdates }) =>
           reviewer
             ? publish.mutate(
                 {
@@ -830,6 +967,9 @@ function Editor({ template }: { template: TemplateDetail }) {
                   ...plan(),
                   note,
                   ...(draftModules.length ? { publishModules: true } : {}),
+                  ...(withLessonUpdates && lessonUpdates.length
+                    ? { publishLessonUpdates: true }
+                    : {}),
                 },
                 {
                   onSuccess: (published) => {

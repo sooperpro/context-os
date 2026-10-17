@@ -80,6 +80,7 @@ export function createPeopleOpsRoutes(container: Container) {
     templateData,
     catalog,
     templateDetail,
+    waitingLessonUpdates,
     templateSummary,
     applyStages,
     assignWaiting,
@@ -1345,6 +1346,15 @@ export function createPeopleOpsRoutes(container: Container) {
               "CONFLICT",
               `${drafts.length} module${drafts.length === 1 ? " is" : "s are"} still ${drafts.length === 1 ? "a draft" : "drafts"}. Publish or remove ${drafts.length === 1 ? "it" : "them"} first.`,
             );
+          // Lesson updates waiting on its published modules go out with it when asked. People
+          // part-way through a module keep the version they started.
+          const updates = input.publishLessonUpdates
+            ? waitingLessonUpdates(
+                actor.workspaceId,
+                next.stages.flatMap((stage) => stage.moduleIds),
+              )
+            : [];
+          if (updates.length) container.connectors.publishModules?.(actor, updates);
           const submitter = data.review?.state === "in_review" ? data.review.by : null;
           const version = data.status === "published" ? data.version + 1 : data.version;
           const updated = db.transaction(() => {
@@ -1400,6 +1410,28 @@ export function createPeopleOpsRoutes(container: Container) {
           return c.json(templateDetail(updated, actor));
         },
       )
+      // Its modules' lesson updates on their own, without a new template version (People Ops,
+      // admins and owners): after editing lessons from the template, one click publishes them.
+      .post("/people-ops/templates/:id/publish-lessons", (c) => {
+        const actor = c.get("actor");
+        requireReviewer(actor, "publish lessons");
+        const row = store.get(actor, TEMPLATE, c.req.param("id"));
+        const updates = waitingLessonUpdates(
+          actor.workspaceId,
+          templateData(row).stages.flatMap((stage) => stage.moduleIds),
+        );
+        if (!updates.length)
+          throw new AppError(409, "CONFLICT", "No lesson updates are waiting in this template");
+        container.connectors.publishModules?.(actor, updates);
+        audit.record({
+          actor,
+          action: "template.publish_lessons",
+          targetType: "template",
+          targetId: row.id,
+          metadata: { tutorials: updates.length },
+        });
+        return c.json(templateDetail(row, actor));
+      })
       .post(
         "/people-ops/templates/:id/submit",
         zValidator("json", TemplatePublishInputSchema, validationHook),

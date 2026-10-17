@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { Shape } from "@/components/ui/shape";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   templateAudienceQuery,
@@ -275,6 +276,7 @@ export function PublishDialog({
   next,
   mode = "publish",
   draftModules = [],
+  lessonUpdates = [],
   open,
   pending,
   onPublish,
@@ -285,13 +287,17 @@ export function PublishDialog({
   mode?: "publish" | "submit";
   /** Titles of its modules whose lessons are still drafts: published with it. */
   draftModules?: string[];
+  /** Titles of its published modules with a lesson update waiting: published with it if ticked. */
+  lessonUpdates?: string[];
   open: boolean;
   pending: boolean;
-  onPublish: (note: string) => void;
+  onPublish: (note: string, options: { withLessonUpdates: boolean }) => void;
   onOpenChange: (open: boolean) => void;
 }) {
   const noteId = useId();
+  const updatesId = useId();
   const [note, setNote] = useState("");
+  const [withLessonUpdates, setWithLessonUpdates] = useState(true);
   if (mode === "submit")
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -300,7 +306,7 @@ export function PublishDialog({
             className="contents"
             onSubmit={(event) => {
               event.preventDefault();
-              onPublish(note);
+              onPublish(note, { withLessonUpdates: false });
             }}
           >
             <DialogHeader>
@@ -340,7 +346,7 @@ export function PublishDialog({
           className="contents"
           onSubmit={(event) => {
             event.preventDefault();
-            onPublish(note);
+            onPublish(note, { withLessonUpdates });
           }}
         >
           <DialogHeader>
@@ -371,6 +377,28 @@ export function PublishDialog({
               <span className="text-xs text-on-surface-variant">
                 To check a module’s lessons first, open “Review draft lessons” under it.
               </span>
+            </div>
+          ) : null}
+          {lessonUpdates.length ? (
+            <div className="flex items-start gap-3 rounded-xl bg-pane px-3.5 py-3 text-sm">
+              <Switch
+                id={updatesId}
+                checked={withLessonUpdates}
+                onCheckedChange={(checked) => setWithLessonUpdates(Boolean(checked))}
+              />
+              <Label htmlFor={updatesId} className="flex flex-col items-start gap-1 font-normal">
+                <span className="font-medium">
+                  Also publish lesson updates for {formatCount(lessonUpdates.length, "module")}
+                </span>
+                <span className="text-on-surface-variant">
+                  {lessonUpdates.slice(0, 5).join(", ")}
+                  {lessonUpdates.length > 5 ? ` and ${lessonUpdates.length - 5} more` : ""}
+                </span>
+                <span className="text-xs text-on-surface-variant">
+                  People part-way through a module finish the version they started. To check an
+                  update first, open “Edit lessons” under it.
+                </span>
+              </Label>
             </div>
           ) : null}
           <div className="flex flex-col gap-1.5">

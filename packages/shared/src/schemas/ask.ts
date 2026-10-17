@@ -32,6 +32,21 @@ export const RelatedItemSchema = z.object({
   title: z.string(),
 });
 
+/**
+ * Something ContextOS itself knows that an answer cites: a person's directory entry, a team, a
+ * department or a project's owners. `ref` continues the passage numbers, so `[ref]` in the text
+ * cites it; `to` is the page it comes from.
+ */
+export const DirectoryCitationSchema = z.object({
+  ref: z.number().int().positive(),
+  kind: z.enum(["person", "team", "department", "project"]),
+  id: z.string(),
+  title: z.string(),
+  detail: z.string(),
+  to: z.string(),
+});
+export type DirectoryCitation = z.infer<typeof DirectoryCitationSchema>;
+
 export const AnswerSchema = z.object({
   id: IdSchema,
   projectId: IdSchema,
@@ -43,6 +58,8 @@ export const AnswerSchema = z.object({
   timelineContext: z.string().nullable(),
   uncertainties: z.array(z.string()),
   citations: z.array(CitationSchema),
+  /** Directory facts it cites (people, teams, project owners); missing on older answers. */
+  directory: z.array(DirectoryCitationSchema).optional(),
   relatedItems: z.array(RelatedItemSchema),
   model: z.string(),
   createdAt: IsoDateTimeSchema,

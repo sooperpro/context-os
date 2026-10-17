@@ -18,6 +18,7 @@ import { keepPreviousData, queryOptions, useMutation, useQueryClient } from "@ta
 import { homeKeys } from "@/features/home/api/home.queries";
 import { membersKeys } from "@/features/members/api/members.queries";
 import { peopleKeys } from "@/features/people/api/people.queries";
+import { tutorialKeys } from "@/features/tutorials/api/tutorials.queries";
 import {
   archiveTemplate,
   completeSetupStep,
@@ -41,6 +42,7 @@ import {
   type RoleLookup,
   messageOnboarding,
   publishTemplate,
+  publishTemplateLessons,
   remindManagers,
   restoreTemplate,
   saveTemplateDraft,
@@ -222,6 +224,16 @@ export function usePublishTemplate(id: string) {
   return useMutation({
     mutationFn: (input: TemplatePublishInput) => publishTemplate(id, input),
     onSuccess: () => refresh(),
+  });
+}
+
+export function usePublishTemplateLessons(id: string) {
+  const refresh = useRefresh();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => publishTemplateLessons(id),
+    onSuccess: () =>
+      Promise.all([refresh(), queryClient.invalidateQueries({ queryKey: tutorialKeys.all })]),
   });
 }
 

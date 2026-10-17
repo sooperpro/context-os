@@ -94,4 +94,44 @@ describe("AnswerCard", () => {
     expect(screen.getByText("exports were slow").tagName).toBe("STRONG");
     expect(container).not.toHaveTextContent(/[*`]/);
   });
+
+  it("cites the ContextOS directory: who someone is, with their profile as the source", () => {
+    const open = vi.fn();
+    renderWithProviders(
+      <SourceDrawerContext value={{ open }}>
+        <AnswerCard
+          answer={{
+            ...answer,
+            question: "Who is Rahul?",
+            answer: "Rahul Agarwal is the Engineering Manager of the Platform team [1].",
+            currentState: null,
+            uncertainties: [],
+            citations: [],
+            relatedItems: [],
+            directory: [
+              {
+                ref: 1,
+                kind: "person",
+                id: "rahul",
+                title: "Rahul Agarwal",
+                detail: "Engineering Manager · Platform team",
+                to: "/people/rahul",
+              },
+            ],
+          }}
+        />
+      </SourceDrawerContext>,
+    );
+    expect(screen.getByText("Verified · from the ContextOS directory")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Open source 1: Rahul Agarwal" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Rahul Agarwal" })).toHaveAttribute(
+      "href",
+      "/people/rahul",
+    );
+    expect(
+      screen.getByText("ContextOS directory · Engineering Manager · Platform team"),
+    ).toBeInTheDocument();
+  });
 });

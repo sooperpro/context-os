@@ -17,6 +17,7 @@ import { createSessionRoutes } from "./modules/auth/session.routes.js";
 import { createSsoRoutes } from "./modules/auth/sso.routes.js";
 import { createAssistantRoutes } from "./modules/ask/assistant.routes.js";
 import { createKnowledgeGapRoutes } from "./modules/ask/knowledge-gaps.js";
+import { createOrgContext } from "./modules/ask/org-context.js";
 import { createSkillRoutes } from "./modules/identity/skills.js";
 import { createDirectMessageRoutes } from "./modules/platform/direct-messages.routes.js";
 import { createMessageRoutes } from "./modules/ask/messages.routes.js";
@@ -216,7 +217,7 @@ export function createApp({ env, container, version = "0.1.0" }: AppDeps) {
     .route("/context-items", createContextRoutes(services.context))
     .route("/conflicts", createConflictRoutes(container))
     .route("/canonical-sources", createCanonicalSourceRoutes(container))
-    .route("/ask", createAskRoutes(services.ask))
+    .route("/ask", createAskRoutes(services.ask, createOrgContext(container)))
     .route("/questions", createQuestionRoutes(services.ask))
     .route("/feedback", createFeedbackRoutes(services.feedback))
     .route(
