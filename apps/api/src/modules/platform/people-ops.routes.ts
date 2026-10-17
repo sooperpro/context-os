@@ -538,6 +538,22 @@ export function createPeopleOpsRoutes(container: Container) {
               },
             });
           });
+          if (teamId && teamId !== before.teamId)
+            notifyPerson(
+              actor.workspaceId,
+              userId,
+              `You're now on the ${teamName(actor.workspaceId, organization)} team`,
+              "/people?view=teams",
+              "team.joined",
+            );
+          if (before.manager && before.manager.id !== managerId && before.manager.id !== actor.id)
+            notifyPerson(
+              actor.workspaceId,
+              before.manager.id,
+              `${before.name} no longer reports to you`,
+              `/people/${userId}`,
+              "people_ops.manager_changed",
+            );
           if (managerId && managerId !== before.manager?.id) {
             notifyPerson(
               actor.workspaceId,
@@ -673,6 +689,16 @@ export function createPeopleOpsRoutes(container: Container) {
               `/people`,
               "onboarding.buddy_assigned",
             );
+          // Someone already in the workspace gets their roadmap now (N-12); new people see it on
+          // their first sign-in.
+          if (member && templateId)
+            notifyPerson(
+              actor.workspaceId,
+              member.userId,
+              "Your onboarding roadmap is ready",
+              "/roadmap",
+              "onboarding.roadmap_assigned",
+            );
           if (pendingTemplateId)
             store.patch(row, {
               data: {
@@ -771,6 +797,44 @@ export function createPeopleOpsRoutes(container: Container) {
               `You are ${data.name}'s onboarding buddy`,
               "/people",
               "onboarding.buddy_assigned",
+            );
+          // The new hire, their previous manager and the People partner hear about changes (N-12).
+          if (input.managerId && input.managerId !== data.managerId) {
+            notifyPerson(
+              actor.workspaceId,
+              data.personId,
+              `Your manager is now ${personRef(actor.workspaceId, input.managerId)?.name ?? "someone new"}`,
+              "/",
+              "onboarding.manager_changed",
+            );
+            if (data.managerId !== actor.id)
+              notifyPerson(
+                actor.workspaceId,
+                data.managerId,
+                `${data.name} is no longer on your team`,
+                "/team",
+                "onboarding.manager_changed",
+              );
+          }
+          if (input.templateId && input.templateId !== data.templateId)
+            notifyPerson(
+              actor.workspaceId,
+              data.personId,
+              "Your onboarding roadmap is ready",
+              "/roadmap",
+              "onboarding.roadmap_assigned",
+            );
+          if (
+            input.peoplePartnerId &&
+            input.peoplePartnerId !== data.peoplePartnerId &&
+            input.peoplePartnerId !== actor.id
+          )
+            notifyPerson(
+              actor.workspaceId,
+              input.peoplePartnerId,
+              `You're the People partner for ${data.name}'s onboarding`,
+              `/onboarding/${row.id}`,
+              "onboarding.partner_assigned",
             );
           return c.json(recordDetail(updated));
         },
@@ -1119,6 +1183,14 @@ export function createPeopleOpsRoutes(container: Container) {
           targetId: row.id,
           metadata: { name: templateData(row).name },
         });
+        // Its author hears when a reviewer archived it (N-12).
+        if (row.ownerId !== actor.id)
+          notifier.notify(actor.workspaceId, row.ownerId, {
+            type: "template.archived",
+            category: "onboarding",
+            title: `${actor.name} archived the template “${templateData(row).name}”`,
+            link: `/templates/${row.id}`,
+          });
         return c.json(templateDetail(updated, actor));
       })
       .post("/people-ops/templates/:id/restore", (c) => {
@@ -1154,6 +1226,13 @@ export function createPeopleOpsRoutes(container: Container) {
           targetId: row.id,
           metadata: { name: templateData(row).name },
         });
+        if (row.ownerId !== actor.id)
+          notifier.notify(actor.workspaceId, row.ownerId, {
+            type: "template.deleted",
+            category: "onboarding",
+            title: `${actor.name} deleted the template “${templateData(row).name}”`,
+            link: "/templates",
+          });
         return c.body(null, 204);
       })
       .get("/people-ops/template-library", (c) => {

@@ -418,6 +418,7 @@ function profile(id: string): PersonProfile {
         : [];
     }),
     onboarding: null,
+    bookingUrl: null,
   };
 }
 

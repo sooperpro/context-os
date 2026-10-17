@@ -2,7 +2,7 @@ import type { KnowledgeSection, PersonProfile } from "@contextos/shared";
 import { useBotContext } from "@/components/layout/bot-context";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useParams, useSearchParams } from "react-router";
 import { useAssistant } from "@/components/layout/assistant-context";
 import { PageColumns, PageMain, PageSide } from "@/components/layout/page-columns";
 import { OnboardingStatusChip } from "@/components/onboarding-status-chip";
@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/icons";
 import { Loader } from "@/components/ui/loader";
 import { MetaChip, TypeChip } from "@/components/ui/meta-chip";
+import { PillTab, PillTabs } from "@/components/ui/pill-tabs";
 import { PEOPLE_ENDPOINTS as E } from "@/features/people/api/people.api";
 import { personQuery } from "@/features/people/api/people.queries";
 import { OrgNode, PersonBadges } from "@/features/people/components/person-parts";
@@ -48,9 +49,10 @@ import { meQuery } from "@/features/account/api/account.queries";
 import { personOnboardingQuery } from "@/features/people-ops/api/people-ops.queries";
 import { PersonDetailsDialog } from "@/features/people-ops/components/person-details-dialog";
 import { onboardingPath } from "@/features/people-ops/people-ops-meta";
+import { useMessageDialog } from "@/features/messages/hooks/use-message-dialog";
+import { MemberOnboardingTab } from "@/features/team/pages/member-page";
 import { memberPath } from "@/features/team/team-meta";
 import { useViewer } from "@/features/workspace/hooks/use-viewer";
-import { comingSoon } from "@/lib/coming-soon";
 import { firstName, formatJoined, formatTimeZone } from "@/lib/format";
 import { SECTION_LABEL } from "@/lib/labels";
 
@@ -91,7 +93,9 @@ export function PersonPage() {
 
 function Profile({ person }: { person: PersonProfile }) {
   const { openAssistant } = useAssistant();
+  const { message, dialog } = useMessageDialog();
   const first = firstName(person.name);
+  const self = person.relations.includes("you");
   // HR sees the onboarding card for everyone onboarding, with a link to their record (spec §4.5).
   // Owners see everything, so they get HR's view too.
   const { persona, seesEverything } = useViewer();
@@ -107,6 +111,11 @@ function Profile({ person }: { person: PersonProfile }) {
   const onboarding = record
     ? { startedOn: record.startDate, status: record.status }
     : person.onboarding;
+  // One page per person (N-14): their onboarding is a tab here, for whoever may see it (their
+  // manager, People Ops and owners); everyone else only has the profile.
+  const [params] = useSearchParams();
+  const tab = onboarding && params.get("tab") === "onboarding" ? "onboarding" : "profile";
+  const profilePath = `/people/${encodeURIComponent(person.id)}`;
   useBotContext(
     {
       chips: [
@@ -156,12 +165,28 @@ function Profile({ person }: { person: PersonProfile }) {
                 <ForumIcon aria-hidden /> Read conversations
               </Button>
             ) : null}
-            <Button onClick={() => comingSoon("Messages")}>
-              <ChatIcon aria-hidden /> Message
-            </Button>
-            <Button variant="outline" onClick={() => comingSoon("Booking time")}>
-              <EventIcon aria-hidden /> Book time
-            </Button>
+            {self ? null : (
+              <Button onClick={() => message(person)}>
+                <ChatIcon aria-hidden /> Message
+              </Button>
+            )}
+            {person.bookingUrl ? (
+              <Button
+                variant="outline"
+                nativeButton={false}
+                render={<a href={person.bookingUrl} target="_blank" rel="noopener noreferrer" />}
+              >
+                <EventIcon aria-hidden /> Book time
+              </Button>
+            ) : self ? (
+              <Button variant="outline" nativeButton={false} render={<Link to="/settings" />}>
+                <EventIcon aria-hidden /> Add a booking link
+              </Button>
+            ) : (
+              <Button variant="outline" disabled title={`${first} hasn’t added a booking link yet`}>
+                <EventIcon aria-hidden /> Book time
+              </Button>
+            )}
             <Button variant="ai-tonal" onClick={() => openAssistant(`What does ${first} work on?`)}>
               <SmartToyIcon aria-hidden /> What does {first} work on?
             </Button>
@@ -186,124 +211,140 @@ function Profile({ person }: { person: PersonProfile }) {
           ) : null}
         </div>
       </ProfileHero>
-      <PageColumns>
-        <PageMain>
-          <SectionCard title="About">
-            {person.bio ? <p className="text-base whitespace-pre-line">{person.bio}</p> : null}
-            {!person.bio && !person.skills.length ? (
-              <p className="text-sm text-on-surface-variant">
-                {person.relations.includes("you") ? (
-                  <>
-                    Add a bio and skills in <Link to="/settings">Settings</Link> so people know what
-                    to ask you about.
-                  </>
-                ) : (
-                  `${first} hasn’t added a bio or skills yet.`
-                )}
-              </p>
+      {onboarding ? (
+        <PillTabs aria-label={`${first}’s pages`}>
+          <PillTab active={tab === "profile"} render={<Link to={profilePath} replace />}>
+            Profile
+          </PillTab>
+          <PillTab
+            active={tab === "onboarding"}
+            render={<Link to={memberPath(person.id)} replace />}
+          >
+            Onboarding
+          </PillTab>
+        </PillTabs>
+      ) : null}
+      {tab === "onboarding" ? (
+        <MemberOnboardingTab personId={person.id} />
+      ) : (
+        <PageColumns>
+          <PageMain>
+            <SectionCard title="About">
+              {person.bio ? <p className="text-base whitespace-pre-line">{person.bio}</p> : null}
+              {!person.bio && !person.skills.length ? (
+                <p className="text-sm text-on-surface-variant">
+                  {person.relations.includes("you") ? (
+                    <>
+                      Add a bio and skills in <Link to="/settings">Settings</Link> so people know
+                      what to ask you about.
+                    </>
+                  ) : (
+                    `${first} hasn’t added a bio or skills yet.`
+                  )}
+                </p>
+              ) : null}
+              {person.skills.length ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {person.skills.map((skill) => (
+                    <MetaChip key={skill} tone="outline" className="h-7.5 px-3 text-sm">
+                      {skill}
+                    </MetaChip>
+                  ))}
+                </div>
+              ) : null}
+            </SectionCard>
+            {person.owns.length ? (
+              <SectionCard title="Owns in the Knowledge Hub" count={person.owns.length}>
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-2">
+                  {person.owns.map((item) => {
+                    const Icon = SECTION_ICON[item.section];
+                    return (
+                      <Link
+                        key={item.id}
+                        to={
+                          item.projectId
+                            ? `/projects/${item.projectId}`
+                            : `/knowledge?cat=${item.section}`
+                        }
+                        className="flex flex-col items-start gap-2 rounded-lg bg-pane p-3.5 text-on-surface no-underline transition-colors hover:bg-[color-mix(in_srgb,var(--color-pane),var(--color-on-surface)_5%)]"
+                      >
+                        <TypeChip>
+                          <Icon aria-hidden /> {SECTION_LABEL[item.section]}
+                        </TypeChip>
+                        <span className="text-sm font-medium">{item.title}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </SectionCard>
             ) : null}
-            {person.skills.length ? (
-              <div className="flex flex-wrap gap-1.5">
-                {person.skills.map((skill) => (
-                  <MetaChip key={skill} tone="outline" className="h-7.5 px-3 text-sm">
-                    {skill}
-                  </MetaChip>
-                ))}
-              </div>
-            ) : null}
-          </SectionCard>
-          {person.owns.length ? (
-            <SectionCard title="Owns in the Knowledge Hub" count={person.owns.length}>
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-2">
-                {person.owns.map((item) => {
-                  const Icon = SECTION_ICON[item.section];
-                  return (
-                    <Link
-                      key={item.id}
-                      to={
-                        item.projectId
-                          ? `/projects/${item.projectId}`
-                          : `/knowledge?cat=${item.section}`
-                      }
-                      className="flex flex-col items-start gap-2 rounded-lg bg-pane p-3.5 text-on-surface no-underline transition-colors hover:bg-[color-mix(in_srgb,var(--color-pane),var(--color-on-surface)_5%)]"
+            {onboarding ? (
+              <SectionCard
+                title="Onboarding"
+                className="bg-[color-mix(in_srgb,var(--color-primary-container)_45%,var(--color-card))]"
+                action={<OnboardingStatusChip status={onboarding.status} />}
+              >
+                <p className="text-sm">
+                  In onboarding since {formatJoined(onboarding.startedOn).replace(/^Joined /, "")}.
+                  Progress, check-ins and readiness are on the onboarding page.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    nativeButton={false}
+                    render={<Link to={memberPath(person.id)} />}
+                  >
+                    Open onboarding
+                  </Button>
+                  {record ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      nativeButton={false}
+                      render={<Link to={onboardingPath(record.id)} />}
                     >
-                      <TypeChip>
-                        <Icon aria-hidden /> {SECTION_LABEL[item.section]}
-                      </TypeChip>
-                      <span className="text-sm font-medium">{item.title}</span>
-                    </Link>
-                  );
-                })}
+                      Open onboarding record
+                    </Button>
+                  ) : null}
+                </div>
+              </SectionCard>
+            ) : null}
+          </PageMain>
+          <PageSide>
+            <SectionCard title="Reporting line">
+              <div className="flex flex-col">
+                {person.manager ? (
+                  <>
+                    <OrgNode person={person.manager} />
+                    <span aria-hidden className="ms-5.5 h-3.5 w-0.5 bg-outline-variant" />
+                  </>
+                ) : null}
+                <OrgNode
+                  person={{ id: person.id, name: person.name, title: person.title }}
+                  emphasis
+                />
+                {person.reports.length ? (
+                  <>
+                    <span aria-hidden className="ms-5.5 h-3.5 w-0.5 bg-outline-variant" />
+                    <ul className="flex flex-col gap-0.5" aria-label={`Reports to ${first}`}>
+                      {person.reports.map((report) => (
+                        <li key={report.id}>
+                          <OrgNode person={report} size="xs" />
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                ) : null}
               </div>
             </SectionCard>
-          ) : null}
-          {onboarding ? (
-            <SectionCard
-              title="Onboarding"
-              className="bg-[color-mix(in_srgb,var(--color-primary-container)_45%,var(--color-card))]"
-              action={<OnboardingStatusChip status={onboarding.status} />}
-            >
-              <p className="text-sm">
-                In onboarding since {formatJoined(onboarding.startedOn).replace(/^Joined /, "")}.
-                Progress, check-ins and readiness are on the onboarding page.
-              </p>
-              {record ? (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="self-start"
-                  nativeButton={false}
-                  render={<Link to={onboardingPath(record.id)} />}
-                >
-                  Open onboarding record
-                </Button>
-              ) : (
-                // Only their manager gets `onboarding` from the API: open the team member page.
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="self-start"
-                  nativeButton={false}
-                  render={<Link to={memberPath(person.id)} />}
-                >
-                  Open onboarding
-                </Button>
-              )}
-            </SectionCard>
-          ) : null}
-        </PageMain>
-        <PageSide>
-          <SectionCard title="Reporting line">
-            <div className="flex flex-col">
-              {person.manager ? (
-                <>
-                  <OrgNode person={person.manager} />
-                  <span aria-hidden className="ms-5.5 h-3.5 w-0.5 bg-outline-variant" />
-                </>
-              ) : null}
-              <OrgNode
-                person={{ id: person.id, name: person.name, title: person.title }}
-                emphasis
-              />
-              {person.reports.length ? (
-                <>
-                  <span aria-hidden className="ms-5.5 h-3.5 w-0.5 bg-outline-variant" />
-                  <ul className="flex flex-col gap-0.5" aria-label={`Reports to ${first}`}>
-                    {person.reports.map((report) => (
-                      <li key={report.id}>
-                        <OrgNode person={report} size="xs" />
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              ) : null}
-            </div>
-          </SectionCard>
-        </PageSide>
-      </PageColumns>
+          </PageSide>
+        </PageColumns>
+      )}
       {canEdit ? (
         <PersonDetailsDialog personId={person.id} open={editing} onOpenChange={setEditing} />
       ) : null}
+      {dialog}
     </div>
   );
 }

@@ -412,29 +412,33 @@ export function createLearningContent(container: Container) {
       .find((row) => row.status === "active") ?? null;
 
   /** Reflect a module's progress on the roadmap HR and the manager read. */
+  /** Updates a module on the person's roadmap; true when that finished the whole roadmap. */
   const syncRoadmapModule = (
     workspaceId: string,
     userId: string,
     moduleId: string,
     change: Partial<RoadmapModule>,
     historyText?: string,
-  ) => {
+  ): boolean => {
     const row = roadmapRow(workspaceId, userId);
-    if (!row) return;
+    if (!row) return false;
     const data = roadmapData(row);
-    if (!data.modules.some((entry) => entry.id === moduleId)) return;
+    if (!data.modules.some((entry) => entry.id === moduleId)) return false;
     const today = new Date().toISOString().slice(0, 10);
+    const modules = data.modules.map((entry) =>
+      entry.id === moduleId ? { ...entry, ...change } : entry,
+    );
     store.patch(row, {
       data: {
         ...data,
-        modules: data.modules.map((entry) =>
-          entry.id === moduleId ? { ...entry, ...change } : entry,
-        ),
+        modules,
         history: historyText
           ? [{ on: today, text: historyText, by: userId }, ...data.history]
           : data.history,
       } satisfies RoadmapData,
     });
+    const allDone = (list: RoadmapModule[]) => list.every((entry) => entry.status === "done");
+    return allDone(modules) && !allDone(data.modules);
   };
 
   return {

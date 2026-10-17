@@ -60,7 +60,6 @@ import {
 } from "@/features/team/components/assign-dialogs";
 import { ESCALATED_TO, TEAM_PATH, checkinPath, memberPath } from "@/features/team/team-meta";
 import { useEscalateMember } from "@/features/team/api/team.queries";
-import { comingSoon } from "@/lib/coming-soon";
 import {
   daysFromToday,
   firstName,
@@ -75,6 +74,7 @@ import { DotList } from "@/components/ui/dot-list";
 import { DashboardGrid } from "./dashboard";
 import { span } from "./dashboard-meta";
 import { HIDDEN } from "@/lib/hidden";
+import { useMessageDialog } from "@/features/messages/hooks/use-message-dialog";
 
 /** The manager's Home (prototype `managerHome`): who needs attention, upcoming check-ins, the team's plan. */
 export function ManagerHome() {
@@ -174,6 +174,7 @@ function AttentionCard({
   query: UseQueryResult<{ items: AttentionItem[] }>;
   onAssign: (kind: "learning" | "roadmap", person: { id: string; name: string }) => void;
 }) {
+  const { message, dialog } = useMessageDialog();
   const items = query.data?.items ?? [];
   const escalate = useEscalateMember();
   return (
@@ -252,7 +253,7 @@ function AttentionCard({
                                           "The escalation could not be sent. Please try again.",
                                         ),
                                     })
-                                  : comingSoon("Messages")
+                                  : message(person)
                           }
                         >
                           {action.label}
@@ -270,6 +271,7 @@ function AttentionCard({
           Everyone is on track. Nothing needs you today.
         </p>
       )}
+      {dialog}
     </SectionCard>
   );
 }

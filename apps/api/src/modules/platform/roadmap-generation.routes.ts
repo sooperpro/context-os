@@ -298,6 +298,7 @@ export function createRoadmapGeneration(
         items,
         topics: topicsFor(data.family),
         tutorials: tutorialList,
+        company: workspaceSettings(db, ws).company,
       });
       const plan = checkPlan(
         await gemini.generateStructured({

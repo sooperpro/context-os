@@ -13,6 +13,7 @@ import { RESET_PASSWORD_PATH } from "@/features/auth/api/auth.api";
 import { ResetPasswordScreen } from "@/features/auth/components/reset-password-screen";
 import { SignInForm, SignInScreen } from "@/features/auth/components/sign-in-form";
 import { SignInLayout } from "@/features/auth/components/sign-in-layout";
+import { LandingPage } from "@/features/landing/pages/landing-page";
 import { createWorkspace } from "@/features/workspace/api/workspace.api";
 import { ApiClientError } from "@/lib/api-client";
 
@@ -47,8 +48,19 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   if (session.isError) {
     const signedOut = session.error instanceof ApiClientError && session.error.status === 401;
+    // Signed out at the root: the landing page, unless they chose Log in or Sign up (N-5), or
+    // their session ended while they were using the app (the last session is still cached).
+    const landing =
+      session.data === undefined &&
+      window.location.pathname === "/" &&
+      !new URLSearchParams(window.location.search).has("mode") &&
+      !new URLSearchParams(window.location.search).has("error");
     return signedOut ? (
-      <SignInScreen />
+      landing ? (
+        <LandingPage />
+      ) : (
+        <SignInScreen />
+      )
     ) : (
       <SignInLayout title="Sign in" description="ContextOS couldn't be reached.">
         <Banner tone="error" title="Something went wrong" description={session.error.message} />

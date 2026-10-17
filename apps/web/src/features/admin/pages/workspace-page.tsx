@@ -24,6 +24,7 @@ import {
   useWorkspaceDeletion,
 } from "@/features/admin/api/workspace-admin.api";
 import { currentWorkspaceQuery } from "@/features/workspace/api/workspace.queries";
+import { CompanyProfileForm } from "@/features/workspace/components/company-profile-form";
 import { useViewer } from "@/features/workspace/hooks/use-viewer";
 import { formatLongDate, formatPercent } from "@/lib/format";
 
@@ -45,6 +46,9 @@ export function WorkspacePage() {
         title="Workspace"
         description="How knowledge and Context Bot are doing across the workspace, and its data."
       />
+      <SectionCard title="Company profile">
+        <CompanyProfileForm />
+      </SectionCard>
       <AnalyticsCard />
       <ExportCard />
       {role === "owner" ? <DeletionCard /> : null}

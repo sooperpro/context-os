@@ -4,6 +4,7 @@ import {
   PeopleDirectorySchema,
   PersonalProfileSchema,
   PersonProfileSchema,
+  SkillSuggestionListSchema,
   TeamDirectorySchema,
   type DirectoryPerson,
   type ExpertList,
@@ -60,6 +61,10 @@ const TeamSchema = z.object({
   name: z.string(),
   departmentId: z.string(),
   parentId: z.string().nullable(),
+  leadId: z.string().nullable().optional(),
+});
+const DepartmentListSchema = z.object({
+  items: z.array(z.object({ id: z.string(), name: z.string() })),
 });
 const TeamListSchema = z.object({ items: z.array(TeamSchema) });
 
@@ -272,39 +277,49 @@ function teamLead(teamMembers: Member[]): Member | undefined {
 }
 
 export async function fetchTeams(signal?: AbortSignal): Promise<TeamDirectory> {
-  const data = await loadDirectory(signal);
+  const [data, departments] = await Promise.all([
+    loadDirectory(signal),
+    // Only the department names on the cards depend on this; a failure leaves them out.
+    apiRequest("/v1/org/departments", {
+      query: { limit: 100, offset: 0 },
+      schema: DepartmentListSchema,
+      signal,
+    }).catch(() => ({ items: [] })),
+  ]);
   const teams = new Map(data.teams.map((team) => [team.id, team]));
+  const departmentNames = new Map(departments.items.map((entry) => [entry.id, entry.name]));
   const directory = new Map(
     data.members.map((member) => [
       member.id,
       toDirectoryPerson(member, teams, data.viewer, data.profiles.get(member.id)),
     ]),
   );
-  const items = data.teams.flatMap((team) => {
+  // The lead an admin or People Ops chose (N-9), else the team's most likely lead.
+  const leadOf = (team: Team, members: Member[]) =>
+    data.members.find((member) => member.id === team.leadId) ?? teamLead(members);
+  // Every team is listed, including new ones nobody is on yet.
+  const items = data.teams.map((team) => {
     const members = data.members.filter((member) => member.organization.teamId === team.id);
-    const lead = teamLead(members);
-    if (!lead) return [];
-    return [
-      {
-        id: team.id,
-        name: team.name,
-        area: teamArea(team, data.members),
-        size: members.length,
-        focus: "Team directory",
-        lead: personRef(lead),
-        members: members
-          .filter((member) => member.id !== lead.id)
-          .slice(0, 5)
-          .map(personRef),
-      },
-    ];
+    const lead = leadOf(team, members);
+    return {
+      id: team.id,
+      name: team.name,
+      area: teamArea(team, data.members),
+      size: members.length,
+      focus: departmentNames.get(team.departmentId) ?? "Team",
+      lead: lead ? personRef(lead) : null,
+      members: members
+        .filter((member) => member.id !== lead?.id)
+        .slice(0, 5)
+        .map(personRef),
+    };
   });
   const ownTeamId = data.viewer?.organization.teamId;
   const ownTeam = ownTeamId ? teams.get(ownTeamId) : undefined;
   const ownMembers = ownTeam
     ? data.members.filter((member) => member.organization.teamId === ownTeam.id)
     : [];
-  const lead = teamLead(ownMembers);
+  const lead = ownTeam ? leadOf(ownTeam, ownMembers) : undefined;
   return TeamDirectorySchema.parse({
     myTeam:
       ownTeam && lead
@@ -388,9 +403,20 @@ export async function fetchPerson(id: string, signal?: AbortSignal): Promise<Per
     bio: (profile.profile?.bio ?? "") || null,
     pronouns: (profile.profile?.pronouns ?? "") || null,
     avatarShape: profile.profile?.avatarShape ?? null,
+    bookingUrl: (profile.profile?.bookingUrl ?? "") || null,
     manager: manager ? personRef(manager) : null,
     reports: members.items.filter((entry) => entry.managerId === member.id).map(personRef),
     owns,
     onboarding: profile.onboarding,
   });
+}
+
+/** Skills to offer as someone types: people here first, then ESCO's list (N-10). */
+export async function fetchSkillSuggestions(q: string, signal?: AbortSignal) {
+  const result = await apiRequest("/v1/skills/suggest", {
+    query: { q },
+    schema: SkillSuggestionListSchema,
+    signal,
+  });
+  return result.items;
 }

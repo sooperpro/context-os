@@ -1,9 +1,10 @@
-import type {
-  AdminConnector,
-  AuditEntry,
-  SecurityCheck,
-  SystemRole,
-  WorkspaceMember,
+import {
+  SETUP_STEPS,
+  type AdminConnector,
+  type AuditEntry,
+  type SecurityCheck,
+  type SystemRole,
+  type WorkspaceMember,
 } from "@contextos/shared";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import type { ReactNode } from "react";
@@ -24,6 +25,7 @@ import {
   KeyIcon,
   PersonAddIcon,
   PolicyIcon,
+  RocketLaunchIcon,
   SyncAltIcon,
   SyncProblemIcon,
   TuneIcon,
@@ -59,7 +61,10 @@ import {
 } from "@/features/admin/admin-meta";
 import { HOME_ENDPOINTS as E } from "@/features/home/api/home.api";
 import { homeQuery } from "@/features/home/api/home.queries";
+import { gapsQuery } from "@/features/knowledge-gaps/api/gaps.api";
 import { membersQuery } from "@/features/members/api/members.queries";
+import { setupQuery } from "@/features/setup/api/setup.queries";
+import { STEP_COPY } from "@/features/setup/components/setup-steps";
 import { currentWorkspaceQuery } from "@/features/workspace/api/workspace.queries";
 import {
   formatCount,
@@ -106,6 +111,7 @@ export function AdminHome() {
           </>
         }
       />
+      <SetupBanner />
       {broken.length ? (
         <Banner
           tone="error"
@@ -139,8 +145,84 @@ export function AdminHome() {
         <AiAnswersCard />
         <AuditCard />
         <MembersCard query={members} />
+        <KnowledgeGapsCard />
       </DashboardGrid>
     </div>
+  );
+}
+
+/* ---- Company setup (N-7) ------------------------------------------------------------------ */
+
+/** Until every setup step is done or skipped: how far along it is, and the way back in. */
+function SetupBanner() {
+  const setup = useQuery(setupQuery());
+  if (!setup.data) return null;
+  const steps = SETUP_STEPS.map((step) => ({ step, status: setup.data.data.steps[step] }));
+  const done = steps.filter((entry) => entry.status === "completed").length;
+  const next = steps.find((entry) => !entry.status || entry.status === "pending");
+  if (!next) return null;
+  return (
+    <Banner
+      tone="info"
+      className="mb-3 medium:mb-4"
+      icon={<RocketLaunchIcon aria-hidden />}
+      title={done ? "Finish setting up your company" : "Set up your company"}
+      description={`${done} of ${steps.length} steps done. Next: ${STEP_COPY[next.step].title}.`}
+      actions={
+        <Button nativeButton={false} render={<Link to="/setup" />}>
+          {done ? "Resume setup" : "Start setup"}
+        </Button>
+      }
+    />
+  );
+}
+
+/* ---- Knowledge gaps (live) ---------------------------------------------------------------- */
+
+/** The most pressing open gaps across the workspace, with a way into the full list. */
+function KnowledgeGapsCard() {
+  const query = useQuery(gapsQuery("open"));
+  const data = query.data;
+  return (
+    <SectionCard
+      className={span(12)}
+      title="Knowledge gaps"
+      count={data?.counts.open}
+      endpoint="/v1/knowledge-gaps"
+      status={query}
+      action={
+        <Button
+          variant="ghost"
+          size="sm"
+          nativeButton={false}
+          render={<Link to="/knowledge-gaps" />}
+        >
+          See all
+        </Button>
+      }
+    >
+      {data?.items.length ? (
+        <ul
+          aria-label="Open knowledge gaps"
+          className="flex flex-col divide-y divide-outline-variant"
+        >
+          {data.items.slice(0, 5).map((gap) => (
+            <li key={gap.id} className="flex flex-wrap items-baseline justify-between gap-x-4 py-2">
+              <span className="min-w-0 flex-[1_1_280px] text-sm">{gap.question}</span>
+              <span className="text-xs text-on-surface-variant tabular-nums">
+                {gap.project ? `${gap.project.name} · ` : ""}
+                {gap.reports ? `reported ${gap.reports}×` : `${gap.askers} people`}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : data ? (
+        <p className="text-sm text-on-surface-variant">
+          No open gaps. A question shows here when someone reports it, or once {data.privacyFloor}{" "}
+          different people ask something Context Bot couldn't answer.
+        </p>
+      ) : null}
+    </SectionCard>
   );
 }
 

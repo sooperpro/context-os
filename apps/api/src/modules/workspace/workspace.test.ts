@@ -231,6 +231,113 @@ describe("Phase 1 workspace and organization", () => {
     expect((await createTeam(department.id, "Not allowed")).status).toBe(403);
   });
 
+  it("lets People Ops run teams: add and remove people and set a lead, telling each person (N-9)", async () => {
+    t = createTestApp();
+    const workspaceId = t.container.workspace.id;
+    Object.assign(t.container.devActor, seedMember("hana", "hr"));
+    const department = await createDepartment();
+    const created = await createTeam(department.id, "Platform");
+    expect(created.status).toBe(201);
+    const platform = (await created.json()) as { id: string; leadId: string | null };
+    expect(platform.leadId).toBeNull();
+    for (const id of ["ada", "bo", "cy"]) seedMember(id);
+    const addPeople = (userIds: string[]) =>
+      t.app.request(`/api/v1/org/teams/${platform.id}/members`, jsonRequest({ userIds }));
+    const added = await addPeople(["ada", "bo", "cy", "ada"]);
+    expect(added.status).toBe(200);
+    expect(await added.json()).toEqual({ added: ["ada", "bo", "cy"] });
+    expect(await (await addPeople(["ada"])).json()).toEqual({ added: [] });
+    expect((await addPeople(["nobody"])).status).toBe(404);
+    const organization = (userId: string) =>
+      t.container.db
+        .select()
+        .from(memberships)
+        .where(and(eq(memberships.workspaceId, workspaceId), eq(memberships.userId, userId)))
+        .get()?.organization;
+    // Joining a team puts them in its department too.
+    expect(organization("bo")).toMatchObject({ departmentId: department.id, teamId: platform.id });
+
+    const setLead = (leadId: string | null) =>
+      t.app.request(`/api/v1/org/teams/${platform.id}`, jsonRequest({ leadId }, "PATCH"));
+    const lead = await setLead("ada");
+    expect(lead.status).toBe(200);
+    expect(await lead.json()).toMatchObject({ leadId: "ada" });
+    expect((await setLead("nobody")).status).toBe(404);
+    const listed = (await (await t.app.request("/api/v1/org/teams")).json()) as {
+      items: Array<{ id: string; leadId: string | null }>;
+    };
+    expect(listed.items).toEqual([expect.objectContaining({ id: platform.id, leadId: "ada" })]);
+
+    const removeCy = () =>
+      t.app.request(`/api/v1/org/teams/${platform.id}/members/cy`, { method: "DELETE" });
+    expect((await removeCy()).status).toBe(204);
+    expect(organization("cy")).toMatchObject({ departmentId: department.id, teamId: null });
+    expect((await removeCy()).status).toBe(404);
+
+    const titles = (userId: string) =>
+      t.container.store
+        .listWhere(workspaceId, "notification", { ownerId: userId }, 20)
+        .map((row) => row.data.title);
+    expect(titles("ada")).toEqual(
+      expect.arrayContaining([
+        "You're now on the Platform team",
+        "You're now the lead of the Platform team",
+      ]),
+    );
+    expect(titles("bo")).toEqual(["You're now on the Platform team"]);
+    expect(titles("cy")).toContain("You're no longer on the Platform team");
+    expect(titles("hana")).toEqual([]);
+
+    Object.assign(t.container.devActor, seedMember("mo", "manager"));
+    expect((await addPeople(["mo"])).status).toBe(403);
+    expect((await setLead(null)).status).toBe(403);
+  });
+
+  it("keeps the company profile and confirms the first setup steps from what exists (N-7)", async () => {
+    t = createTestApp();
+    const evidence = async () =>
+      (
+        (await (await t.app.request("/api/v1/workspaces/current/setup")).json()) as {
+          evidence: { completed: Record<string, boolean> };
+        }
+      ).evidence.completed;
+    expect(await evidence()).toMatchObject({ company_profile: false, org_structure: false });
+
+    const profile = {
+      description: "Fleet telematics for logistics companies.",
+      products: "Tracker, Route planner",
+      workingHours: "Mon–Fri 9–17:30 UK, hybrid",
+    };
+    const saved = await t.app.request(
+      "/api/v1/workspaces/current/company",
+      jsonRequest(profile, "PUT"),
+    );
+    expect(saved.status).toBe(200);
+    expect(await saved.json()).toEqual(profile);
+    const current = (await (await t.app.request("/api/v1/workspaces/current")).json()) as {
+      settings: { company: unknown };
+    };
+    expect(current.settings.company).toEqual(profile);
+    const department = await createDepartment();
+    expect(await evidence()).toMatchObject({ company_profile: true, org_structure: false });
+    await createTeam(department.id, "Platform");
+    expect(await evidence()).toMatchObject({ company_profile: true, org_structure: true });
+
+    // Everyone can read it; only owners and admins change it.
+    Object.assign(t.container.devActor, seedMember("mia", "member"));
+    expect(await (await t.app.request("/api/v1/workspaces/current/company")).json()).toEqual(
+      profile,
+    );
+    expect(
+      (
+        await t.app.request(
+          "/api/v1/workspaces/current/company",
+          jsonRequest({ ...profile, description: "" }, "PUT"),
+        )
+      ).status,
+    ).toBe(403);
+  });
+
   it("rejects reporting cycles, last-owner removal and guest expiry removal", async () => {
     t = createTestApp();
     const first = seedMember("first");

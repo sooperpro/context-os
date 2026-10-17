@@ -28,6 +28,7 @@ import { excludedSources, policyConflictCount } from "./access-policies.routes.j
 import { directorySyncRuns } from "./members-admin.routes.js";
 import { mergeSettings, resolveSettings, workspaceSettings } from "./settings.js";
 import { createPlatformStore } from "./store.js";
+import { createGapGroups } from "../ask/knowledge-gaps.js";
 
 const PERIOD_DAYS = 30;
 const LOCKED = new Set<AiSetting["id"]>(["access_only", "include_dms"]);
@@ -160,41 +161,31 @@ export function createAdminOverviewRoutes(container: Container) {
 
     // Ask history is private (D1): a question only surfaces once enough different people asked it.
     const projectName = new Map(owned.map((project) => [project.id, project.name]));
-    const unanswered = new Map<
-      string,
-      { question: string; askers: Set<string>; asks: number; routedTo: string; reported: boolean }
-    >();
+    // Wordings that mean the same thing are one question.
+    const unanswered = createGapGroups((question) => ({
+      question: question.trim(),
+      askers: new Set<string>(),
+      asks: 0,
+      routedTo: "",
+      reported: false,
+    }));
     for (const row of rows) {
       if (row.answer.confidence !== "insufficient") continue;
-      const key = row.question.trim().toLocaleLowerCase();
-      const entry = unanswered.get(key) ?? {
-        question: row.question.trim(),
-        askers: new Set<string>(),
-        asks: 0,
-        routedTo: projectName.get(row.projectId) ?? "Knowledge owners",
-        reported: false,
-      };
+      const entry = unanswered.add(row.question);
+      entry.routedTo ||= projectName.get(row.projectId) ?? "Knowledge owners";
       entry.askers.add(row.actorId);
       entry.asks += 1;
-      unanswered.set(key, entry);
     }
     // Gaps people chose to report are shared on purpose, so they count from the first report.
     for (const gap of store.listWhere(actor.workspaceId, "knowledge_gap", {}, 500)) {
       if (gap.createdAt < since) continue;
       const question = (typeof gap.data.question === "string" ? gap.data.question : "").trim();
       if (!question) continue;
-      const key = question.toLocaleLowerCase();
-      const entry = unanswered.get(key) ?? {
-        question,
-        askers: new Set<string>(),
-        asks: 0,
-        routedTo: "Workspace admins",
-        reported: true,
-      };
+      const entry = unanswered.add(question);
+      entry.routedTo ||= "Workspace admins";
       entry.askers.add(gap.ownerId);
       entry.asks += 1;
       entry.reported = true;
-      unanswered.set(key, entry);
     }
 
     return {
@@ -214,7 +205,9 @@ export function createAdminOverviewRoutes(container: Container) {
         withReason >= 3 && unhelpfulReasons[0]
           ? `${Math.round(unhelpfulReasons[0].share * 100)}% of unhelpful ratings say “${unhelpfulReasons[0].reason.toLocaleLowerCase()}”.`
           : null,
-      unanswered: [...unanswered.values()]
+      unanswered: unanswered
+        .entries()
+        .map(([, entry]) => entry)
         .filter((entry) => entry.reported || entry.askers.size >= kAnonymity)
         .sort((a, b) => b.asks - a.asks)
         .slice(0, 5)

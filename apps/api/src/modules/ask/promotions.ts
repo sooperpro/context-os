@@ -60,7 +60,7 @@ export function decidePromotion(
     category: "maintenance",
     title: input.accepted ? "Your answer was added to the hub" : "Your hub proposal was declined",
     body: input.reason,
-    link: `/projects/${project.slug ?? project.id}`,
+    link: `/projects/${project.id}`,
     projectId: project.id,
   });
   audit.record({

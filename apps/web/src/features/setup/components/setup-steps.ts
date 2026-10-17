@@ -5,18 +5,32 @@ export const STEP_COPY: Record<
   SetupStep,
   { title: string; short: string; description: string; evidence: string }
 > = {
-  connect_source: {
-    title: "Connect a source",
-    short: "Connect",
+  company_profile: {
+    title: "Tell us about the company",
+    short: "Company",
     description:
-      "Authorize Google Drive with read-only access. ContextOS never writes to your sources and only indexes what the connected account can already open.",
+      "What the company does, what it sells and when people work. The AI reads it when it drafts onboarding templates and modules; you can change it later on the Workspace page.",
+    evidence: "Completes when the profile says what the company does.",
+  },
+  org_structure: {
+    title: "Departments and teams",
+    short: "Teams",
+    description:
+      "Add the company's departments and the teams in them, and put people on their teams. Job titles come in the templates step, where each role gets its onboarding.",
+    evidence: "Completes when there is at least one department with a team.",
+  },
+  connect_source: {
+    title: "Connect Google Drive",
+    short: "Drive",
+    description:
+      "Authorize Google Drive with read-only access, then pick folders. Auto-organise files them under Company knowledge and sorts them into the Hub's Company, Products, Projects and Processes collections, so no project is needed.",
     evidence: "Completes when a Google Drive connection is recorded for your account.",
   },
   select_scopes: {
     title: "Choose content",
     short: "Content",
     description:
-      "Pick the documents to import from the connected drive into a project. Permission mirroring stays on: people only see sources they can open in Drive.",
+      "Pick more folders to import, auto-organised, or feed one project's sources. Permission mirroring stays on: people only see sources they can open in Drive.",
     evidence: "Completes when at least one source has been imported through a connector.",
   },
   create_project: {
@@ -34,10 +48,10 @@ export const STEP_COPY: Record<
     evidence: "Completes when every role listed has a template.",
   },
   invite_team: {
-    title: "Invite your team",
-    short: "Team",
+    title: "Invite People Ops and managers",
+    short: "Invite",
     description:
-      "Invite the people who own the knowledge, so answers can point to them. Roles in ContextOS apply when they accept.",
+      "Invite People Ops to run onboarding and the managers who own the knowledge, so answers can point to them. Roles in ContextOS apply when they accept.",
     evidence: "Completes when a second member joins or an invitation is sent.",
   },
   assign_new_hire: {

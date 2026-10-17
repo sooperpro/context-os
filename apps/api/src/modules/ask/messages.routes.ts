@@ -15,6 +15,7 @@ import { validationHook } from "../../middleware/validation.js";
 import type { Actor, AppEnv } from "../../types.js";
 import { createNotifier } from "../platform/notify.js";
 import { createPlatformStore } from "../platform/store.js";
+import { domainOwnersOf } from "./answer-policy.js";
 import { decidePromotion } from "./promotions.js";
 
 const IdParam = z.object({ id: IdSchema });
@@ -69,7 +70,7 @@ export function createMessageRoutes(container: Container) {
             type: "security.answer_leak_reported",
             category: "security",
             title: `An answer in ${project.name} was reported as leaking restricted content`,
-            link: `/admin/audit?targetId=${row.id}`,
+            link: "/audit",
             data: { questionId: row.id, projectId: project.id },
           });
         return c.json({ id: row.id, feedback });
@@ -125,6 +126,21 @@ export function createMessageRoutes(container: Container) {
           targetType: "promotion",
           targetId: promotion.id,
         });
+        // Its reviewers, as the review queue picks them: the domain owners, else the manager (N-12).
+        const owners = domainOwnersOf(db, actor.workspaceId, project.id).filter(
+          (id) => id !== actor.id,
+        );
+        const manager = identity.requireMemberOptional(actor.workspaceId, actor.id)?.managerId;
+        for (const reviewer of owners.length ? owners : manager ? [manager] : [])
+          notifier.notify(actor.workspaceId, reviewer, {
+            type: "promotion.proposed",
+            category: "maintenance",
+            title: `${actor.name} proposed an answer for ${project.name}`,
+            body: String(promotion.data.title),
+            link: "/reviews",
+            batchKey: `promotions:${project.id}:${reviewer}`,
+            projectId: project.id,
+          });
         return c.json(promotion, 201);
       },
     )

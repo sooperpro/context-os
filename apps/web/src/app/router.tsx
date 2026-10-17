@@ -7,6 +7,7 @@ import { OwnerOnly } from "@/features/conversations/components/owner-only";
 import { HrOnly } from "@/features/people-ops/components/hr-only";
 import { TemplatesOnly } from "@/features/people-ops/components/templates-only";
 import { ManagerOnly } from "@/features/team/components/manager-only";
+import { TeamMemberRedirect } from "@/features/team/components/team-member-redirect";
 import { CuratorOnly } from "@/features/tutorials/components/curator-only";
 import { HIDDEN } from "@/lib/hidden";
 import { NotFoundPage } from "@/pages/not-found-page";
@@ -104,17 +105,9 @@ const appChildren = [
     },
   },
   {
+    // A person's onboarding is the Onboarding tab of their profile now (N-14).
     path: "team/:personId",
-    lazy: async () => {
-      const { MemberPage } = await import("@/features/team/pages/member-page");
-      return {
-        Component: () => (
-          <ManagerOnly hrMayRead>
-            <MemberPage />
-          </ManagerOnly>
-        ),
-      };
-    },
+    Component: TeamMemberRedirect,
   },
   {
     path: "team/:personId/check-in",
@@ -335,7 +328,7 @@ const appChildren = [
       const { MembersPage } = await import("@/features/members/pages/members-page");
       return {
         Component: () => (
-          <AdminOnly>
+          <AdminOnly alsoFor={["people_ops"]}>
             <MembersPage />
           </AdminOnly>
         ),
@@ -361,6 +354,15 @@ const appChildren = [
           </OwnerOnly>
         ),
       };
+    },
+  },
+  {
+    // Domain owners and admins; the API refuses everyone else and the page says so.
+    path: "knowledge-gaps",
+    lazy: async () => {
+      const { KnowledgeGapsPage } =
+        await import("@/features/knowledge-gaps/pages/knowledge-gaps-page");
+      return { Component: KnowledgeGapsPage };
     },
   },
   {
@@ -478,6 +480,19 @@ export const router = createBrowserRouter([
     ? [{ path: "/dev/welcome", ErrorBoundary: RouteErrorBoundary, lazy: welcomeRoute }]
     : []),
   { path: "/welcome", ErrorBoundary: RouteErrorBoundary, lazy: welcomeRoute },
+  // The signed-out landing page (N-5), viewable while signed in during development.
+  ...(import.meta.env.DEV
+    ? [
+        {
+          path: "/dev/landing",
+          ErrorBoundary: RouteErrorBoundary,
+          lazy: async () => {
+            const { LandingPage } = await import("@/features/landing/pages/landing-page");
+            return { Component: LandingPage };
+          },
+        },
+      ]
+    : []),
   {
     path: "/",
     Component: RootLayout,

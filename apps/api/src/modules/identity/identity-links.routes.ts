@@ -270,7 +270,7 @@ export function createIdentityLinkRoutes(
           type: "identity.suggested",
           category: "system",
           title: `Confirm your ${row.provider} identity link`,
-          link: "/settings/identities",
+          link: "/settings?tab=security",
         });
         audit.record({
           actor,
@@ -327,6 +327,16 @@ export function createIdentityLinkRoutes(
           targetType: "identity_link",
           targetId: row.id,
         });
+        if (id !== actor.id)
+          notifier.notify(actor.workspaceId, id, {
+            type: `identity.${status}`,
+            category: "security",
+            title:
+              status === "confirmed"
+                ? `${actor.name} linked your ${provider} account to you`
+                : `${actor.name} turned down the suggested ${provider} account link`,
+            link: "/settings?tab=security",
+          });
         return c.json(updated);
       },
     );

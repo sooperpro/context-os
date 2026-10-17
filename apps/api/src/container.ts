@@ -1,6 +1,7 @@
 import type { Env } from "./config/env.js";
+import { eq } from "drizzle-orm";
 import type { Db } from "./db/index.js";
-import { assignments, memberships, users } from "./db/schema.js";
+import { assignments, memberships, projectMemberships, users } from "./db/schema.js";
 import type { GeminiClient } from "./lib/gemini.js";
 import type { Logger } from "./lib/logger.js";
 import { createMailer, type Mailer } from "./lib/mailer.js";
@@ -30,8 +31,9 @@ import { createSourceService } from "./modules/sources/sources.service.js";
 import { ensureDefaultWorkspace } from "./modules/workspace/workspace.repository.js";
 import type { Actor } from "./types.js";
 import { createCheckPause } from "./modules/learning/check-pause.js";
-import { createAnswerPolicy } from "./modules/ask/answer-policy.js";
+import { createAnswerPolicy, domainOwnersOf } from "./modules/ask/answer-policy.js";
 import { createEmailDelivery } from "./modules/platform/email-delivery.js";
+import { createEscoSkills } from "./modules/identity/skills.js";
 
 export interface ContainerDeps {
   env: Env;
@@ -90,7 +92,31 @@ export function createContainer({ env, db, gemini, logger, mailer: mailerDep }: 
     feedback: createFeedbackRepository(db),
   };
 
-  const projects = createProjectService({ repo: repos.projects, audit, identity });
+  const projects = createProjectService({
+    repo: repos.projects,
+    audit,
+    identity,
+    onRemoved: (actor, project) => {
+      const people = new Set([
+        ...domainOwnersOf(db, project.workspaceId, project.id),
+        ...db
+          .select({ userId: projectMemberships.userId })
+          .from(projectMemberships)
+          .where(eq(projectMemberships.projectId, project.id))
+          .all()
+          .map((row) => row.userId),
+      ]);
+      people.delete(actor.id);
+      return () => {
+        for (const userId of people)
+          notifier.notify(project.workspaceId, userId, {
+            type: "project.deleted",
+            category: "system",
+            title: `${actor.name} deleted the project ${project.name}`,
+          });
+      };
+    },
+  });
   const backfilled = projects.backfillSlugs();
   if (backfilled > 0) logger.info({ backfilled }, "Assigned slugs to legacy projects");
   const context = createContextService({ repo: repos.context, audit, logger, identity });
@@ -142,6 +168,23 @@ export function createContainer({ env, db, gemini, logger, mailer: mailerDep }: 
     logger,
     connectors,
     extractionSections: env.EXTRACTION_MAX_WINDOWS,
+    // Its domain owners, or the admins when it has none (N-12).
+    onSourceFailed: (source) => {
+      const project = repos.projects.findByIdUnscoped(source.projectId);
+      if (!project) return;
+      const notice = {
+        type: "source.failed",
+        category: "maintenance" as const,
+        title: `"${source.title}" couldn't be read in ${project.name}`,
+        body: "Context Bot can't use it until it's fixed or added again.",
+        link: `/projects/${project.id}/sources`,
+        batchKey: `source-failed:${project.id}`,
+        projectId: project.id,
+      };
+      const owners = domainOwnersOf(db, project.workspaceId, project.id);
+      if (!owners.length) notifier.notifyAdmins(project.workspaceId, notice);
+      for (const userId of owners) notifier.notify(project.workspaceId, userId, notice);
+    },
   });
   // The weekly digest is emailed by emailDelivery, like every notification with email on.
   const sweeps = createSweeps({ db, bounties, logger, queue });
@@ -183,6 +226,7 @@ export function createContainer({ env, db, gemini, logger, mailer: mailerDep }: 
     store,
     notifier,
     repos,
+    skills: createEscoSkills({ baseUrl: env.ESCO_API_URL, logger }),
     services: { projects, sources, context, hub, ask, feedback, bounties, conflicts },
   };
 }

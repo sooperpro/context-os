@@ -14,6 +14,7 @@ import { SYNC_INTERVAL_MS } from "../platform/sweeps.js";
 import { createNotifier } from "../platform/notify.js";
 import { workspaceSettings } from "../platform/settings.js";
 import { createPlatformStore } from "../platform/store.js";
+import { gapWords, sameGap } from "./knowledge-gaps.js";
 
 /** How far back repeated unanswered questions are counted. */
 const ROUTE_WINDOW_DAYS = 30;
@@ -131,7 +132,9 @@ export function createAnswerPolicy(db: Db) {
     routeUnanswered(actor: Actor, projectId: string, question: string): string | null {
       const ai = workspaceSettings(db, actor.workspaceId).ai;
       if (!ai.rules.route_unanswered) return null;
-      const key = normalize(question);
+      const words = gapWords(question);
+      const same = (other: string) =>
+        normalize(other) === normalize(question) || sameGap(gapWords(other), words);
       const since = new Date(Date.now() - ROUTE_WINDOW_DAYS * 24 * HOUR);
       const askers = new Set(
         db
@@ -143,15 +146,13 @@ export function createAnswerPolicy(db: Db) {
           .from(questions)
           .where(and(eq(questions.projectId, projectId), gt(questions.createdAt, since)))
           .all()
-          .filter(
-            (row) => row.answer.confidence === "insufficient" && normalize(row.question) === key,
-          )
+          .filter((row) => row.answer.confidence === "insufficient" && same(row.question))
           .map((row) => row.actorId),
       );
       if (askers.size < ai.routeAfterAsks) return null;
       const already = store
         .listWhere(actor.workspaceId, "knowledge_gap", { projectId }, 500)
-        .some((gap) => gap.data.routed === true && normalize(String(gap.data.question)) === key);
+        .some((gap) => gap.data.routed === true && same(String(gap.data.question)));
       if (already) return null;
 
       const recipients = domainOwnersOf(db, actor.workspaceId, projectId);
@@ -175,7 +176,7 @@ export function createAnswerPolicy(db: Db) {
         category: "maintenance" as const,
         title: `Asked ${askers.size} times without an answer: ${question.trim().slice(0, 120)}`,
         body: "Add or update a source that answers it.",
-        link: `/projects/${projectId}`,
+        link: `/knowledge-gaps?project=${projectId}`,
         projectId,
         data: { gapId: gap.id },
       };

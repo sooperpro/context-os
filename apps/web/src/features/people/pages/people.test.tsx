@@ -88,7 +88,17 @@ function renderAt(route: string, viewerId = "p-maya") {
       HttpResponse.json({
         items: [
           { id: teamPlatform, name: "Platform", departmentId: "d1", parentId: null },
-          { id: teamSales, name: "Sales", departmentId: "d2", parentId: null },
+          // Marcus leads Sales, chosen in Departments and teams.
+          { id: teamSales, name: "Sales", departmentId: "d2", parentId: null, leadId: "p-marcus" },
+          { id: "team-new", name: "Growth", departmentId: "d2", parentId: null },
+        ],
+      }),
+    ),
+    http.get(buildApiUrl("/v1/org/departments"), () =>
+      HttpResponse.json({
+        items: [
+          { id: "d1", name: "Engineering" },
+          { id: "d2", name: "Sales" },
         ],
       }),
     ),
@@ -160,7 +170,7 @@ describe("People", () => {
     const user = userEvent.setup();
     renderAt("/people");
 
-    expect(await screen.findByText("5 people · 2 teams")).toBeInTheDocument();
+    expect(await screen.findByText("5 people · 3 teams")).toBeInTheDocument();
     expect(await screen.findByRole("list", { name: "People" })).toBeInTheDocument();
     expect(card("Daniel Reyes")).toHaveAttribute("href", "/people/p-daniel");
     expect(within(card("Daniel Reyes")).getByText("Your manager")).toBeInTheDocument();
@@ -218,7 +228,15 @@ describe("People", () => {
       "href",
       "/people/p-leah",
     );
-    expect(screen.getByRole("article", { name: "Sales" })).toHaveTextContent("1 person");
+    const sales = screen.getByRole("article", { name: "Sales" });
+    expect(sales).toHaveTextContent("1 person");
+    // Each card names the team's department.
+    expect(screen.getByRole("article", { name: "Platform" })).toHaveTextContent("Engineering");
+    expect(within(sales).getByRole("link", { name: /Marcus Cole/ })).toHaveTextContent("Lead");
+    // A team nobody is on yet is still listed.
+    expect(screen.getByRole("article", { name: "Growth" })).toHaveTextContent(
+      "No one on this team yet",
+    );
   });
 
   it("shows a profile: what they own and their reporting line", async () => {
@@ -244,14 +262,19 @@ describe("People", () => {
     expect(assistant.openAssistant).toHaveBeenCalledWith("What does Sana work on?");
   });
 
-  it("shows a manager their report's onboarding, linking to the team member page", async () => {
+  it("gives a manager their report's onboarding as a tab of the profile (N-14)", async () => {
     renderAt("/people/p-maya", "p-daniel");
 
     const onboarding = await screen.findByRole("region", { name: /Onboarding/ });
     expect(within(onboarding).getByText("On track")).toBeInTheDocument();
     expect(within(onboarding).getByRole("button", { name: "Open onboarding" })).toHaveAttribute(
       "href",
-      "/team/p-maya",
+      "/people/p-maya?tab=onboarding",
+    );
+    const tabs = screen.getByRole("navigation", { name: "Maya’s pages" });
+    expect(within(tabs).getByRole("link", { name: "Onboarding" })).toHaveAttribute(
+      "href",
+      "/people/p-maya?tab=onboarding",
     );
   });
 
@@ -262,6 +285,8 @@ describe("People", () => {
       await screen.findByRole("heading", { level: 1, name: "Maya Okafor" }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: /Onboarding/ })).not.toBeInTheDocument();
+    // No onboarding to see: no tabs, just the profile.
+    expect(screen.queryByRole("link", { name: "Onboarding" })).not.toBeInTheDocument();
   });
   describe("editing details", () => {
     const platform = "22222222-2222-4222-8222-222222222221";
@@ -388,10 +413,46 @@ describe("People", () => {
       expect(
         await screen.findByRole("heading", { level: 1, name: "Sana Iqbal" }),
       ).toBeInTheDocument();
+      // Their own profile: no Message to themselves, a way to add a booking link instead.
       await waitFor(() =>
-        expect(screen.getByRole("button", { name: "Message" })).toBeInTheDocument(),
+        expect(screen.getByRole("button", { name: "Add a booking link" })).toHaveAttribute(
+          "href",
+          "/settings",
+        ),
       );
+      expect(screen.queryByRole("button", { name: "Message" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Edit details" })).not.toBeInTheDocument();
     });
+  });
+
+  it("messages someone from their profile, with an email copy (ALL-3)", async () => {
+    const sent: unknown[] = [];
+    mockServer.use(
+      http.post(buildApiUrl("/v1/people/:id/messages"), async ({ request, params }) => {
+        sent.push({ to: params.id, body: await request.json() });
+        return HttpResponse.json({ inApp: true, emailed: true });
+      }),
+    );
+    const user = userEvent.setup();
+    renderAt("/people/p-sana", "p-maya");
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Sana Iqbal" }),
+    ).toBeInTheDocument();
+    // No booking link yet: Book time says so.
+    expect(screen.getByRole("button", { name: "Book time" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Message" }));
+    const dialog = await screen.findByRole("dialog", { name: "Message Sana Iqbal" });
+    await user.type(
+      within(dialog).getByLabelText("Message"),
+      "Can you walk me through the ingest gateway?",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "Send" }));
+    await waitFor(() =>
+      expect(sent).toEqual([
+        { to: "p-sana", body: { text: "Can you walk me through the ingest gateway?" } },
+      ]),
+    );
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 });

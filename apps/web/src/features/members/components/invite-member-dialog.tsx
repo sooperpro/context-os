@@ -69,21 +69,31 @@ const ROLE_ITEMS = Object.fromEntries(ROLES.map((option) => [option.value, optio
 interface InviteMemberDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** The role the form starts with, such as People Ops from setup (N-7). Employee otherwise. */
+  defaultRole?: InviteForm["role"];
 }
 
 /** Emails an invitation. The role and details apply when they sign in with that address. */
-export function InviteMemberDialog({ open, onOpenChange }: InviteMemberDialogProps) {
+export function InviteMemberDialog({ open, onOpenChange, defaultRole }: InviteMemberDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
         {/* Mounted while open, so every invite starts from a blank form. */}
-        {open ? <InviteMemberForm close={() => onOpenChange(false)} /> : null}
+        {open ? (
+          <InviteMemberForm close={() => onOpenChange(false)} defaultRole={defaultRole} />
+        ) : null}
       </DialogContent>
     </Dialog>
   );
 }
 
-function InviteMemberForm({ close }: { close: () => void }) {
+function InviteMemberForm({
+  close,
+  defaultRole = "member",
+}: {
+  close: () => void;
+  defaultRole?: InviteForm["role"];
+}) {
   const id = useId();
   const invite = useInviteMember();
   const departments = useQuery(departmentsQuery());
@@ -94,7 +104,7 @@ function InviteMemberForm({ close }: { close: () => void }) {
     resolver: zodResolver(InviteFormSchema),
     defaultValues: {
       email: "",
-      role: "member",
+      role: defaultRole,
       name: "",
       jobTitle: "",
       departmentId: "",

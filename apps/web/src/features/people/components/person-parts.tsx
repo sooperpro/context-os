@@ -130,17 +130,21 @@ export function TeamCard({ team }: { team: DirectoryTeam }) {
       </div>
       <p className="text-xs">{team.focus}</p>
       <div className="mt-auto flex items-center justify-between gap-2">
-        <Link
-          to={peoplePath(team.lead.id)}
-          className="flex items-center gap-2 text-on-surface no-underline"
-        >
-          <PersonAvatar person={team.lead} size="sm" />
-          <span className="text-xs">
-            <b className="font-medium">{team.lead.name}</b>
-            <br />
-            <span className="text-on-surface-variant">Lead</span>
-          </span>
-        </Link>
+        {team.lead ? (
+          <Link
+            to={peoplePath(team.lead.id)}
+            className="flex items-center gap-2 text-on-surface no-underline"
+          >
+            <PersonAvatar person={team.lead} size="sm" />
+            <span className="text-xs">
+              <b className="font-medium">{team.lead.name}</b>
+              <br />
+              <span className="text-on-surface-variant">Lead</span>
+            </span>
+          </Link>
+        ) : (
+          <span className="text-xs text-on-surface-variant">No one on this team yet</span>
+        )}
         {team.members.length ? (
           <AvatarGroup
             aria-label={`${team.members.length} more members`}

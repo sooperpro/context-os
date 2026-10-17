@@ -801,7 +801,7 @@ export function createLearningRoutes(container: Container) {
               type: "quiz.failed_three_times",
               category: "onboarding",
               title: `${actor.name} may need help with "${item.title}"`,
-              link: `/learning/assignments/${row.id}`,
+              link: "/learning",
               nudge: true,
               projectId: row.projectId ?? undefined,
             });
@@ -925,7 +925,7 @@ export function createLearningRoutes(container: Container) {
         type: "signoff.requested",
         category: "onboarding",
         title: `${actor.name} requested sign-off for "${item.title}"`,
-        link: `/learning/signoffs/${progress.id}`,
+        link: "/learning",
         data: { progressId: progress.id, assignmentId: row.id },
         projectId: row.projectId ?? undefined,
       });

@@ -28,6 +28,7 @@ import {
 import { AppError, NotFoundError } from "../../lib/errors.js";
 import type { Actor } from "../../types.js";
 import type { Auth } from "../auth/auth.js";
+import { createNotifier } from "../platform/notify.js";
 
 /** A workspace access policy (role access spec §4.8): who may open a project or a synced folder. */
 export interface AccessPolicyRecord {
@@ -190,6 +191,10 @@ export function personalProfileOf(
       .filter(Boolean)
       .slice(0, PROFILE_LIMITS.skills),
     avatarShape: AvatarShapeSchema.safeParse(preferences.avatarShape).data ?? null,
+    // Only an https booking page is ever shown as a link (ALL-3).
+    bookingUrl: /^https:\/\/\S+$/.test(text(stored.bookingUrl, PROFILE_LIMITS.bookingUrl))
+      ? text(stored.bookingUrl, PROFILE_LIMITS.bookingUrl)
+      : "",
   };
 }
 
@@ -217,6 +222,7 @@ export function createIdentityService(db: Db, devActor: Actor, auth: Auth | null
   const isActive = (membership: ReturnType<typeof member>) =>
     membership?.status === "active" &&
     (!membership.guestExpiresAt || membership.guestExpiresAt > new Date());
+  const notifier = createNotifier(db);
   const profileName = (userId: string, fallback: string) =>
     db.select({ name: users.name }).from(users).where(eq(users.id, userId)).get()?.name ?? fallback;
 
@@ -308,6 +314,22 @@ export function createIdentityService(db: Db, devActor: Actor, auth: Auth | null
           .where(eq(platformRecords.id, invitation.id))
           .run();
       });
+      // The person who sent the invitation and the new person's manager hear that they joined (N-12).
+      const name = profileName(userId, address);
+      if (values.managerId && values.managerId !== userId)
+        notifier.notify(invitation.workspaceId, values.managerId, {
+          type: "invitation.accepted",
+          category: "system",
+          title: `${name} joined and reports to you`,
+          link: `/team/${userId}`,
+        });
+      if (invitation.ownerId !== userId && invitation.ownerId !== values.managerId)
+        notifier.notify(invitation.workspaceId, invitation.ownerId, {
+          type: "invitation.accepted",
+          category: "system",
+          title: `${name} accepted your invitation`,
+          link: `/people/${userId}`,
+        });
     }
     return pending.length;
   };

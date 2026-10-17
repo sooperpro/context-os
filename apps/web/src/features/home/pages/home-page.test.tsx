@@ -385,6 +385,30 @@ describe("HomePage", () => {
     ).toBeInTheDocument();
   });
 
+  it("leads an owner back to setup until every step is done or skipped (N-7)", async () => {
+    live({ role: "owner" });
+    mockServer.use(
+      http.get(api("/v1/workspaces/current/setup"), () =>
+        HttpResponse.json({
+          id: "setup-1",
+          version: 3,
+          status: "in_progress",
+          data: { steps: { company_profile: "completed", connect_source: "skipped" } },
+          evidence: { completed: {}, sync: { sources: 0, ready: 0, pending: 0, failed: 0 } },
+        }),
+      ),
+    );
+    renderHome();
+
+    const banner = await screen.findByText("Finish setting up your company");
+    const box = banner.closest<HTMLElement>("[data-slot=banner]")!;
+    expect(box).toHaveTextContent("1 of 8 steps done. Next: Departments and teams.");
+    expect(within(box).getByRole("button", { name: "Resume setup" })).toHaveAttribute(
+      "href",
+      "/setup",
+    );
+  });
+
   it("shows an owner the employee Home while previewing as Employee", async () => {
     live({ role: "owner" });
     setPreviewPersona("employee");

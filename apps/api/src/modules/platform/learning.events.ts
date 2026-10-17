@@ -91,7 +91,7 @@ export function completeAssignmentIfDone(
       type: "path.completed_by_learner",
       category: "gamification",
       title: `A learner completed "${String(path.data.title)}"`,
-      link: `/learning/paths/${path.id}`,
+      link: "/learning",
       batchKey: `path-completions:${path.id}`,
       projectId: assignment.projectId ?? undefined,
     });

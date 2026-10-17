@@ -2,6 +2,7 @@ import type {
   InviteForm,
   OrgNameInput,
   TeamInput,
+  TeamMembersInput,
   TeamUpdateInput,
   UserUpdate,
 } from "@contextos/shared";
@@ -9,18 +10,21 @@ import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query
 import { peopleKeys } from "@/features/people/api/people.queries";
 import { workspaceKeys } from "@/features/workspace/api/workspace.queries";
 import {
+  addTeamMembers,
   createDepartment,
   createTeam,
   grantAssignment,
   listAssignments,
   listPendingInvitations,
   removeAssignment,
+  removeTeamMember,
   revokeInvitation,
   deleteDepartment,
   deleteTeam,
   inviteMember,
   listDepartments,
   listMembers,
+  listOrgPeople,
   listProjectAccess,
   listTeams,
   renameDepartment,
@@ -32,6 +36,7 @@ import {
 export const membersKeys = {
   all: () => [...workspaceKeys.all, "members"] as const,
   list: () => [...membersKeys.all(), "list"] as const,
+  orgPeople: () => [...membersKeys.all(), "org-people"] as const,
   departments: () => [...workspaceKeys.all, "departments"] as const,
   teams: () => [...workspaceKeys.all, "teams"] as const,
   projectAccess: (userId: string) => [...membersKeys.all(), "projects", userId] as const,
@@ -103,13 +108,37 @@ export const useDeleteDepartment = () =>
   useInvalidating((id: string) => deleteDepartment(id), membersKeys.departments);
 export const useCreateTeam = () =>
   useInvalidating((input: TeamInput) => createTeam(input), membersKeys.teams);
+/** Renames, moves or sets the lead of a team; People › Teams shows the lead. */
 export const useUpdateTeam = () =>
-  useInvalidating(
-    ({ id, ...input }: TeamUpdateInput & { id: string }) => updateTeam(id, input),
-    membersKeys.teams,
-  );
+  useTeamChange(({ id, ...input }: TeamUpdateInput & { id: string }) => updateTeam(id, input));
 export const useDeleteTeam = () =>
   useInvalidating((id: string) => deleteTeam(id), membersKeys.teams);
+
+export const orgPeopleQuery = () =>
+  queryOptions({
+    queryKey: membersKeys.orgPeople(),
+    queryFn: ({ signal }) => listOrgPeople(signal),
+  });
+/** A team or who is on it changed: refresh Members & roles, the teams and People › Teams. */
+function useTeamChange<TInput, TResult>(mutationFn: (input: TInput) => Promise<TResult>) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn,
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: membersKeys.all() });
+      await queryClient.invalidateQueries({ queryKey: membersKeys.teams() });
+      await queryClient.invalidateQueries({ queryKey: peopleKeys.all });
+    },
+  });
+}
+export const useAddTeamMembers = () =>
+  useTeamChange(({ teamId, ...input }: TeamMembersInput & { teamId: string }) =>
+    addTeamMembers(teamId, input),
+  );
+export const useRemoveTeamMember = () =>
+  useTeamChange(({ teamId, userId }: { teamId: string; userId: string }) =>
+    removeTeamMember(teamId, userId),
+  );
 
 /** Matches a guest's project access to the chosen projects. */
 export const useSetProjectAccess = (userId: string) => {

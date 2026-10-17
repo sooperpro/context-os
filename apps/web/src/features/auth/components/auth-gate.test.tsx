@@ -1,9 +1,9 @@
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter } from "react-router";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import type { SessionState } from "@contextos/shared";
 import { AuthGate } from "@/features/auth/components/auth-gate";
 import { apiRequest, buildApiUrl } from "@/lib/api-client";
@@ -56,6 +56,35 @@ function renderApp() {
 }
 
 describe("AuthGate after sign-in", () => {
+  afterEach(() => window.history.replaceState(null, "", "/"));
+
+  it("shows a signed-out visitor the landing page, whose Log in opens the sign-in form (N-5)", async () => {
+    mockServer.use(
+      http.get(buildApiUrl("/v1/session"), () =>
+        HttpResponse.json(
+          { error: { code: "UNAUTHENTICATED", message: "Sign in to continue" } },
+          { status: 401 },
+        ),
+      ),
+    );
+    renderApp();
+    expect(
+      await screen.findByRole("heading", { level: 1, name: /Everything your people need to know/ }),
+    ).toBeInTheDocument();
+    const account = screen.getByRole("banner");
+    expect(within(account).getByRole("button", { name: "Log in" })).toHaveAttribute(
+      "href",
+      "/?mode=sign-in",
+    );
+    expect(screen.getAllByRole("button", { name: /Sign up your company/ })[0]).toHaveAttribute(
+      "href",
+      "/?mode=sign-up",
+    );
+    // Picking a capability shows its example.
+    await userEvent.setup().click(screen.getByRole("button", { name: /Explains the why/ }));
+    expect(await screen.findByText("Why are we on the ledger service?")).toBeInTheDocument();
+  });
+
   it("returns to sign-in when the session ends while the app is open", async () => {
     let session: SessionState | null = signedIn;
     mockServer.use(
@@ -138,6 +167,7 @@ describe("AuthGate after sign-in", () => {
   });
 
   it("explains when company SSO isn't set up for the email's domain", async () => {
+    window.history.replaceState(null, "", "/?mode=sign-in");
     mockServer.use(
       http.get(buildApiUrl("/v1/session"), () =>
         HttpResponse.json(

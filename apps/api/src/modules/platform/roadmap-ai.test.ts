@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { checkPlan, newModulesFor, planKnowledgeCheck, type RoadmapPlan } from "./roadmap-ai.js";
+import { draftPrompt } from "../learning/tutorial-ai.js";
+import {
+  checkPlan,
+  newModulesFor,
+  planKnowledgeCheck,
+  planPrompt,
+  type RoadmapPlan,
+} from "./roadmap-ai.js";
 
 /** The checks a planned roadmap goes through before anything is saved (N-18, no AI). */
 describe("Roadmap plan checks", () => {
@@ -160,5 +167,40 @@ describe("Roadmap plan checks", () => {
     expect(planKnowledgeCheck({ items: [], jobTitle: "Sales executive" })).toContain(
       "Not enough company knowledge to plan a roadmap for Sales executive",
     );
+  });
+
+  it("tells the AI how the company describes itself, and nothing when it hasn't (N-7)", () => {
+    const company = {
+      description: "Fleet telematics for logistics companies.",
+      products: "Tracker, Route planner",
+      workingHours: "",
+    };
+    const base = {
+      jobTitle: "Sales executive",
+      team: null,
+      seniority: null,
+      defaultProbationDays: 90,
+      projects: [],
+      items: [],
+      topics: [],
+      tutorials: [],
+    };
+    const { prompt } = planPrompt({ ...base, company });
+    expect(prompt).toContain(
+      "<company_profile>\nWhat the company does: Fleet telematics for logistics companies.\nProducts and services: Tracker, Route planner\n</company_profile>",
+    );
+    expect(prompt).not.toContain("Working hours");
+    expect(planPrompt(base).prompt).not.toContain("<company_profile>");
+    expect(
+      draftPrompt({
+        projectName: null,
+        audience: "New hires",
+        focus: null,
+        covers: null,
+        items: [],
+        passages: [],
+        company,
+      }).prompt,
+    ).toContain("What the company does: Fleet telematics for logistics companies.");
   });
 });

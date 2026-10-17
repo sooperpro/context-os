@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
 import {
+  CompanyProfileInputSchema,
   MemberOrganizationSchema,
   PageQuerySchema,
+  SetupStepSchema,
+  TeamMembersInputSchema,
   WorkspaceCreateSchema,
   WorkspaceSettingsSchema,
 } from "@contextos/shared";
@@ -26,30 +29,24 @@ import { validationHook } from "../../middleware/validation.js";
 import type { Actor, AppEnv } from "../../types.js";
 import { requireRole } from "../identity/identity.service.js";
 import { createNotifier } from "../platform/notify.js";
-import { mergeSettings, resolveSettings } from "../platform/settings.js";
+import { mergeSettings, resolveSettings, workspaceSettings } from "../platform/settings.js";
 import { createSetupTemplates } from "../platform/setup-templates.js";
 import { createPlatformStore } from "../platform/store.js";
 
 const NameSchema = z.object({ name: z.string().trim().min(1).max(200) }).strict();
+const LeadSchema = z.string().min(1).max(200).nullable();
 const TeamSchema = NameSchema.extend({
   departmentId: z.uuid(),
   parentId: z.uuid().nullable().default(null),
+  leadId: LeadSchema.default(null),
 });
 const TeamUpdateSchema = NameSchema.partial()
-  .extend({ parentId: z.uuid().nullable().optional() })
+  .extend({ parentId: z.uuid().nullable().optional(), leadId: LeadSchema.optional() })
   .strict();
-const SetupStep = z.enum([
-  "connect_source",
-  "select_scopes",
-  "create_project",
-  "onboarding_templates",
-  "invite_team",
-  "assign_new_hire",
-]);
 const SetupUpdate = z
   .object({
     version: z.number().int().positive(),
-    step: SetupStep,
+    step: SetupStepSchema,
     status: z.enum(["pending", "completed", "skipped"]),
   })
   .strict();
@@ -62,7 +59,26 @@ export function createWorkspaceRoutes(container: Container) {
   const store = createPlatformStore(db);
   const setupTemplates = createSetupTemplates(container);
   const admin = (actor: Actor) => requireRole(actor, "owner", "admin");
+  /** Departments, teams and who is on them: owners, admins and People Ops (N-9). */
+  const orgEditor = (actor: Actor) => requireRole(actor, "owner", "admin", "hr");
   const notifier = createNotifier(db);
+  /** Tells someone about a change to their team, unless they made it themselves. */
+  const tellTeam = (actor: Actor, userId: string, type: string, title: string) => {
+    if (userId !== actor.id)
+      notifier.notify(actor.workspaceId, userId, {
+        type,
+        category: "system",
+        title,
+        link: "/people?view=teams",
+      });
+  };
+  const setOrganization = (actor: Actor, userId: string, organization: Record<string, unknown>) =>
+    db
+      .update(memberships)
+      .set({ organization })
+      .where(and(eq(memberships.workspaceId, actor.workspaceId), eq(memberships.userId, userId)))
+      .returning()
+      .get();
   /** Owner/admin settings update with optimistic locking; sections merge deeply (§7.17). */
   const updateSettings = (actor: Actor, input: SettingsInput) => {
     admin(actor);
@@ -198,8 +214,18 @@ export function createWorkspaceRoutes(container: Container) {
       )
       .limit(1)
       .get();
+    const company = workspaceSettings(db, actor.workspaceId).company;
+    const orgCount = (table: typeof departments | typeof teams) =>
+      db
+        .select({ total: count() })
+        .from(table)
+        .where(eq(table.workspaceId, actor.workspaceId))
+        .get()!.total;
     return {
       completed: {
+        // N-7: a description of the company, and at least one department with a team.
+        company_profile: company.description.trim().length > 0,
+        org_structure: orgCount(departments) > 0 && orgCount(teams) > 0,
         connect_source: connected > 0,
         select_scopes: sourceRows.some((row) => !!row.connectionId),
         create_project: projectRows.length > 0,
@@ -338,8 +364,49 @@ export function createWorkspaceRoutes(container: Container) {
           targetType: "workspace",
           targetId: row.id,
         });
+        // Admins were told when it was scheduled; they hear it's off too (N-12).
+        notifier.notifyAdmins(actor.workspaceId, {
+          type: "security.workspace_deletion_cancelled",
+          category: "security",
+          title: `${actor.name} cancelled the workspace deletion`,
+          link: "/workspace",
+        });
         return c.body(null, 204);
       })
+      .get("/workspaces/current/company", (c) => {
+        const actor = c.get("actor");
+        requireRole(actor, "owner", "admin", "manager", "hr", "member");
+        return c.json(workspaceSettings(db, actor.workspaceId).company);
+      })
+      .put(
+        "/workspaces/current/company",
+        zValidator("json", CompanyProfileInputSchema, validationHook),
+        (c) => {
+          const actor = c.get("actor");
+          admin(actor);
+          const company = c.req.valid("json");
+          db.transaction(() => {
+            const row = db
+              .select()
+              .from(workspaces)
+              .where(eq(workspaces.id, actor.workspaceId))
+              .get();
+            if (!row) throw new NotFoundError("Workspace");
+            db.update(workspaces)
+              // A new version, so a settings form opened before this save doesn't overwrite it.
+              .set({ settings: { ...row.settings, company }, version: row.version + 1 })
+              .where(eq(workspaces.id, row.id))
+              .run();
+            audit.record({
+              actor,
+              action: "workspace.company.update",
+              targetType: "workspace",
+              targetId: row.id,
+            });
+          });
+          return c.json(workspaceSettings(db, actor.workspaceId).company);
+        },
+      )
       .get("/workspaces/current/setup", (c) => {
         const actor = c.get("actor");
         admin(actor);
@@ -361,7 +428,7 @@ export function createWorkspaceRoutes(container: Container) {
           db.transaction(() => {
             const updated = store.update(actor, row, input.version, {
               data: { steps },
-              status: SetupStep.options.every(
+              status: SetupStepSchema.options.every(
                 (step) => steps[step] === "completed" || steps[step] === "skipped",
               )
                 ? "completed"
@@ -394,7 +461,7 @@ export function createWorkspaceRoutes(container: Container) {
       })
       .post("/org/departments", zValidator("json", NameSchema, validationHook), (c) => {
         const actor = c.get("actor");
-        admin(actor);
+        orgEditor(actor);
         const row = db.transaction(() => {
           const created = db
             .insert(departments)
@@ -413,7 +480,7 @@ export function createWorkspaceRoutes(container: Container) {
       })
       .patch("/org/departments/:id", zValidator("json", NameSchema, validationHook), (c) => {
         const actor = c.get("actor");
-        admin(actor);
+        orgEditor(actor);
         const row = department(actor, c.req.param("id"));
         return c.json(
           db.transaction(() => {
@@ -435,7 +502,7 @@ export function createWorkspaceRoutes(container: Container) {
       })
       .delete("/org/departments/:id", (c) => {
         const actor = c.get("actor");
-        admin(actor);
+        orgEditor(actor);
         const row = department(actor, c.req.param("id"));
         const assigned = db
           .select()
@@ -499,9 +566,10 @@ export function createWorkspaceRoutes(container: Container) {
       )
       .post("/org/teams", zValidator("json", TeamSchema, validationHook), (c) => {
         const actor = c.get("actor");
-        admin(actor);
+        orgEditor(actor);
         const input = c.req.valid("json");
         department(actor, input.departmentId);
+        if (input.leadId) identity.requireMember(actor.workspaceId, input.leadId);
         const id = randomUUID();
         validateTree(actor, { id, ...input });
         const row = db.transaction(() => {
@@ -513,30 +581,91 @@ export function createWorkspaceRoutes(container: Container) {
           audit.record({ actor, action: "team.create", targetType: "team", targetId: id });
           return created;
         });
+        if (row.leadId)
+          tellTeam(actor, row.leadId, "team.lead", `You're now the lead of the ${row.name} team`);
         return c.json(row, 201);
       })
       .patch("/org/teams/:id", zValidator("json", TeamUpdateSchema, validationHook), (c) => {
         const actor = c.get("actor");
-        admin(actor);
+        orgEditor(actor);
         const row = team(actor, c.req.param("id"));
         const input = c.req.valid("json");
+        if (input.leadId) identity.requireMember(actor.workspaceId, input.leadId);
         validateTree(actor, { ...row, ...input });
-        return c.json(
+        const updated = db.transaction(() => {
+          const next = db.update(teams).set(input).where(eq(teams.id, row.id)).returning().get();
+          audit.record({
+            actor,
+            action: "team.update",
+            targetType: "team",
+            targetId: row.id,
+            ...(input.leadId !== undefined ? { metadata: { leadId: input.leadId } } : {}),
+          });
+          return next;
+        });
+        if (updated.leadId && updated.leadId !== row.leadId)
+          tellTeam(
+            actor,
+            updated.leadId,
+            "team.lead",
+            `You're now the lead of the ${updated.name} team`,
+          );
+        return c.json(updated);
+      })
+      .post(
+        "/org/teams/:id/members",
+        zValidator("json", TeamMembersInputSchema, validationHook),
+        (c) => {
+          const actor = c.get("actor");
+          orgEditor(actor);
+          const row = team(actor, c.req.param("id"));
+          // Joining a team puts someone in its department too; anyone already on it is skipped.
+          const added = [...new Set(c.req.valid("json").userIds)]
+            .map((userId) => identity.requireMember(actor.workspaceId, userId))
+            .filter((member) => member.organization.teamId !== row.id);
           db.transaction(() => {
-            const updated = db
-              .update(teams)
-              .set(input)
-              .where(eq(teams.id, row.id))
-              .returning()
-              .get();
-            audit.record({ actor, action: "team.update", targetType: "team", targetId: row.id });
-            return updated;
-          }),
-        );
+            for (const member of added)
+              setOrganization(actor, member.userId, {
+                ...member.organization,
+                departmentId: row.departmentId,
+                teamId: row.id,
+              });
+            audit.record({
+              actor,
+              action: "team.members.add",
+              targetType: "team",
+              targetId: row.id,
+              metadata: { userIds: added.map((member) => member.userId) },
+            });
+          });
+          for (const member of added)
+            tellTeam(actor, member.userId, "team.joined", `You're now on the ${row.name} team`);
+          return c.json({ added: added.map((member) => member.userId) });
+        },
+      )
+      .delete("/org/teams/:id/members/:userId", (c) => {
+        const actor = c.get("actor");
+        orgEditor(actor);
+        const row = team(actor, c.req.param("id"));
+        const member = identity.requireMember(actor.workspaceId, c.req.param("userId"));
+        if (member.organization.teamId !== row.id) throw new NotFoundError("Team member");
+        db.transaction(() => {
+          // They stay in the department; only the team is cleared.
+          setOrganization(actor, member.userId, { ...member.organization, teamId: null });
+          audit.record({
+            actor,
+            action: "team.members.remove",
+            targetType: "team",
+            targetId: row.id,
+            metadata: { userId: member.userId },
+          });
+        });
+        tellTeam(actor, member.userId, "team.left", `You're no longer on the ${row.name} team`);
+        return c.body(null, 204);
       })
       .delete("/org/teams/:id", (c) => {
         const actor = c.get("actor");
-        admin(actor);
+        orgEditor(actor);
         const row = team(actor, c.req.param("id"));
         const assigned = db
           .select()
@@ -566,7 +695,8 @@ export function createWorkspaceRoutes(container: Container) {
           actor.id !== member.userId &&
           actor.id !== member.managerId &&
           actor.role !== "owner" &&
-          actor.role !== "admin"
+          actor.role !== "admin" &&
+          actor.role !== "hr"
         )
           throw new NotFoundError("Member organization profile");
         return c.json({
@@ -580,38 +710,29 @@ export function createWorkspaceRoutes(container: Container) {
         zValidator("json", MemberOrganizationSchema, validationHook),
         (c) => {
           const actor = c.get("actor");
-          admin(actor);
+          orgEditor(actor);
           const member = identity.requireMember(actor.workspaceId, c.req.param("id"));
           const organization = { ...member.organization, ...c.req.valid("json") };
           if (typeof organization.departmentId === "string")
             department(actor, organization.departmentId);
-          if (typeof organization.teamId === "string") {
-            const row = team(actor, organization.teamId);
-            if (organization.departmentId !== row.departmentId)
-              throw new BadRequestError("Team must belong to the assigned department");
-          }
-          return c.json(
-            db.transaction(() => {
-              const updated = db
-                .update(memberships)
-                .set({ organization })
-                .where(
-                  and(
-                    eq(memberships.workspaceId, actor.workspaceId),
-                    eq(memberships.userId, member.userId),
-                  ),
-                )
-                .returning()
-                .get();
-              audit.record({
-                actor,
-                action: "user.organization.update",
-                targetType: "user",
-                targetId: member.userId,
-              });
-              return updated;
-            }),
-          );
+          const newTeam =
+            typeof organization.teamId === "string" ? team(actor, organization.teamId) : null;
+          if (newTeam && organization.departmentId !== newTeam.departmentId)
+            throw new BadRequestError("Team must belong to the assigned department");
+          const joined = newTeam && newTeam.id !== member.organization.teamId ? newTeam : null;
+          const updated = db.transaction(() => {
+            const next = setOrganization(actor, member.userId, organization);
+            audit.record({
+              actor,
+              action: "user.organization.update",
+              targetType: "user",
+              targetId: member.userId,
+            });
+            return next;
+          });
+          if (joined)
+            tellTeam(actor, member.userId, "team.joined", `You're now on the ${joined.name} team`);
+          return c.json(updated);
         },
       )
   );

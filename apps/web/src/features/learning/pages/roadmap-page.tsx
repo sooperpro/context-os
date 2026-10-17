@@ -37,13 +37,14 @@ import {
 } from "@/features/learning/components/request-dialogs";
 import { StageTabs } from "@/features/learning/components/stage-tabs";
 import { STAGE_PANEL_ID, stageTabId } from "@/features/learning/learning-meta";
-import { comingSoon } from "@/lib/coming-soon";
 import { daysFromToday, formatPercent, formatShortDate } from "@/lib/format";
+import { useMessageDialog } from "@/features/messages/hooks/use-message-dialog";
 
 const HISTORY_ICON = { module: SchoolIcon, check: QuizIcon, practical: ConstructionIcon } as const;
 
 /** My roadmap (prototype `roadmapPage`): the plan by stage, progress, help and what's done. */
 export function RoadmapPage() {
+  const { message, dialog } = useMessageDialog();
   const query = useQuery(roadmapQuery());
   const { openAssistant } = useAssistant();
   const [params, setParams] = useSearchParams();
@@ -255,7 +256,7 @@ export function RoadmapPage() {
                       variant="ghost"
                       size="icon-sm"
                       aria-label={`Message ${roadmap.buddy.name}`}
-                      onClick={() => comingSoon("Messages")}
+                      onClick={() => message(roadmap.buddy!)}
                     >
                       <ChatIcon />
                     </Button>
@@ -316,6 +317,7 @@ export function RoadmapPage() {
         topics={[]}
         owner={null}
       />
+      {dialog}
     </div>
   );
 }

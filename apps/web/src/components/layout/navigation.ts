@@ -167,8 +167,9 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: ManageAccountsIcon,
     activeIcon: ManageAccountsFilledIcon,
     to: "/members",
-    roles: ["owner", "admin"],
-    personas: ["admin"],
+    // People Ops runs departments and teams here; roles stay with owners and admins.
+    roles: ["owner", "admin", "hr"],
+    personas: ["admin", "people_ops"],
   },
   {
     id: "connectors",
@@ -336,6 +337,7 @@ const PERSONA_ORDER: Partial<Record<Persona, readonly string[]>> = {
     "probation",
     "templates",
     "people",
+    "members",
     "knowledge",
     "learning",
     "audit",

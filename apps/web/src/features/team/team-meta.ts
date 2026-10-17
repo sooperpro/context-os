@@ -31,9 +31,11 @@ export const ESCALATED_TO: Record<"admins" | "people_ops", string> = {
 };
 
 export const TEAM_PATH = "/team";
-export const memberPath = (personId: string) => `${TEAM_PATH}/${encodeURIComponent(personId)}`;
+/** A person's onboarding: the Onboarding tab of their profile (N-14). */
+export const memberPath = (personId: string) =>
+  `/people/${encodeURIComponent(personId)}?tab=onboarding`;
 export const checkinPath = (personId: string, type?: CheckinType) =>
-  `${memberPath(personId)}/check-in${type ? `?type=${type}` : ""}`;
+  `${TEAM_PATH}/${encodeURIComponent(personId)}/check-in${type ? `?type=${type}` : ""}`;
 
 export const CHECK_CELL_LABEL: Record<CheckCell, string> = {
   pass: "Passed",

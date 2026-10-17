@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Route, Routes } from "react-router";
+import { Route, Routes, useParams } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   AssistantContext,
@@ -10,7 +10,7 @@ import { Toaster } from "sonner";
 import { ReviewQueuePage } from "@/features/contributions/pages/review-queue-page";
 import { MyLearningPage } from "@/features/learning/pages/my-learning-page";
 import { CheckinPage } from "@/features/team/pages/checkin-page";
-import { MemberPage } from "@/features/team/pages/member-page";
+import { MemberOnboardingTab } from "@/features/team/pages/member-page";
 import { TeamPage } from "@/features/team/pages/team-page";
 import { http, HttpResponse } from "msw";
 import { buildApiUrl } from "@/lib/api-client";
@@ -19,6 +19,12 @@ import { mockServer, setupMockApi } from "@/test/msw";
 import { renderWithProviders } from "@/test/utils";
 
 setupMockApi();
+
+/** The profile's Onboarding tab (N-14), where team cards and saved check-ins lead. */
+function OnboardingTabRoute() {
+  const { personId = "" } = useParams();
+  return <MemberOnboardingTab personId={personId} />;
+}
 // The API serves these screens; the fixtures stand in for it.
 beforeEach(() => mockServer.use(...managerHandlers()));
 
@@ -49,7 +55,7 @@ function renderAt(route: string) {
     <AssistantContext value={assistant}>
       <Routes>
         <Route path="/team" element={<TeamPage />} />
-        <Route path="/team/:personId" element={<MemberPage />} />
+        <Route path="/people/:personId" element={<OnboardingTabRoute />} />
         <Route path="/team/:personId/check-in" element={<CheckinPage />} />
         <Route path="/reviews" element={<ReviewQueuePage />} />
         <Route path="/learning" element={<MyLearningPage />} />
@@ -68,7 +74,7 @@ describe("Team onboarding", () => {
     const cards = within(list).getAllByRole("link");
     expect(cards[0]).toHaveTextContent("Chloe Martin");
     expect(cards[1]).toHaveTextContent("Leah Park");
-    expect(cards[0]).toHaveAttribute("href", "/team/p-chloe");
+    expect(cards[0]).toHaveAttribute("href", "/people/p-chloe?tab=onboarding");
     expect(within(cards[1]!).getByText("2 modules are 5 days overdue")).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Team status" })).toHaveTextContent(
       "1Blocked1At risk1Needs setup2On track",
@@ -80,10 +86,9 @@ describe("Team onboarding", () => {
 
   it("shows a member's onboarding, assigns learning from the suggestion, and edits the roadmap", async () => {
     const user = userEvent.setup();
-    renderAt("/team/p-leah");
+    renderAt("/people/p-leah?tab=onboarding");
 
-    expect(await screen.findByRole("heading", { level: 1, name: "Leah Park" })).toBeInTheDocument();
-    const insight = screen.getByRole("region", { name: "Context Bot suggestion" });
+    const insight = await screen.findByRole("region", { name: "Context Bot suggestion" });
     await user.click(within(insight).getByRole("button", { name: "Book a session with Priya" }));
     const dialog = await screen.findByRole("dialog", { name: "Assign a learning task" });
     // Anyone on the team can be picked; the page's person comes preselected.
@@ -130,8 +135,8 @@ describe("Team onboarding", () => {
     await user.type(screen.getByRole("textbox", { name: "Notes" }), "Agreed a session with Priya.");
     await user.click(screen.getByRole("button", { name: "Save check-in" }));
 
-    expect(await screen.findByRole("heading", { level: 1, name: "Leah Park" })).toBeInTheDocument();
-    const checkins = screen.getByRole("region", { name: /Check-ins/ });
+    // Saved: back on her onboarding, the profile's Onboarding tab.
+    const checkins = await screen.findByRole("region", { name: /Check-ins/ });
     expect(await within(checkins).findByText("Agreed a session with Priya.")).toBeInTheDocument();
   });
 
@@ -142,9 +147,8 @@ describe("Team onboarding", () => {
     expect(await screen.findByRole("radio", { name: /Confirm/ })).toBeChecked();
     await user.click(screen.getByRole("radio", { name: /Extend 30 days/ }));
     await user.click(screen.getByRole("button", { name: "Save and send recommendation" }));
-    expect(
-      await screen.findByRole("heading", { level: 1, name: "Arjun Mehta" }),
-    ).toBeInTheDocument();
+    // Saved: back on their onboarding, the profile's Onboarding tab.
+    expect(await screen.findByRole("button", { name: "Record check-in" })).toBeInTheDocument();
   });
 });
 

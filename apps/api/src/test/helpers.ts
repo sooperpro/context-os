@@ -354,6 +354,8 @@ export function createTestApp<G extends GeminiClient = FakeGemini>(
     GOOGLE_CLIENT_ID: undefined,
     GOOGLE_CLIENT_SECRET: undefined,
     CONNECTOR_TOKEN_ENCRYPTION_KEY: undefined,
+    // Tests never call ESCO; skills.test.ts covers the lookup with a fake fetch.
+    ESCO_API_URL: "",
     ...options.env,
     NODE_ENV: "test",
     AUTH_MODE: options.env?.AUTH_MODE ?? "development",

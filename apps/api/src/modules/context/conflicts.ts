@@ -165,7 +165,7 @@ export function createConflictService({
         type: "conflict.detected",
         category: "maintenance",
         title: `Sources disagree about "${subject}" in ${project.name}`,
-        link: `/projects/${project.slug ?? project.id}/conflicts/${row.id}`,
+        link: `/projects/${project.id}`,
         batchKey: `conflicts:${project.id}`,
         projectId: project.id,
       });

@@ -17,6 +17,8 @@ export interface ProjectServiceDeps {
   repo: ProjectRepository;
   audit: AuditService;
   identity: IdentityService;
+  /** Who to tell a project was deleted, read before it goes, and how to tell them (N-12). */
+  onRemoved?: (actor: Actor, project: ProjectRow) => () => void;
 }
 
 /** The project connected content feeds when no project is chosen. */
@@ -51,7 +53,7 @@ export function uniqueSlug(
   return `${base.slice(0, 40)}-${randomUUID().slice(0, 8)}`;
 }
 
-export function createProjectService({ repo, audit, identity }: ProjectServiceDeps) {
+export function createProjectService({ repo, audit, identity, onRemoved }: ProjectServiceDeps) {
   const withStats = (row: ProjectRow, actor?: Actor): ProjectWithStats => ({
     ...toProject(row),
     stats: actor ? identity.statsFor(actor, row.id) : repo.stats(row.id),
@@ -137,7 +139,9 @@ export function createProjectService({ repo, audit, identity }: ProjectServiceDe
     },
 
     remove(actor: Actor, project: ProjectRow): void {
+      const tell = onRemoved?.(actor, project);
       repo.delete(project.id);
+      tell?.();
       audit.record({
         actor,
         projectId: project.id,

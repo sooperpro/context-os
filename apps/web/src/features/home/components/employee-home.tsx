@@ -83,7 +83,6 @@ import { ROADMAP_PATH, learningPath } from "@/features/learning/learning-meta";
 import { RevisitLaterLinks } from "@/features/learning/components/revisit-later";
 import { homeQuery } from "@/features/home/api/home.queries";
 import { ApiClientError } from "@/lib/api-client";
-import { comingSoon } from "@/lib/coming-soon";
 import { CONTRIBUTION_KIND_LABEL, KNOWLEDGE_ORIGIN_LABEL } from "@/lib/labels";
 import {
   daysFromToday,
@@ -103,6 +102,7 @@ import { DotList } from "@/components/ui/dot-list";
 import { formatDateRange } from "./dashboard-meta";
 import { welcomeQuery } from "@/features/welcome/api/welcome.queries";
 import { HIDDEN } from "@/lib/hidden";
+import { useMessageDialog } from "@/features/messages/hooks/use-message-dialog";
 
 /** The employee's Home (prototype `employeeHome`): what to do next, how onboarding is going, who to ask. */
 /** Once per browser session, a new hire who hasn't finished the welcome is taken there first. */
@@ -904,6 +904,7 @@ function relationLabel(entry: MyPerson): string {
 }
 
 function MyPeopleCard() {
+  const { message, dialog } = useMessageDialog();
   const query = useQuery(homeQuery("myPeople"));
   return (
     <SectionCard
@@ -927,7 +928,7 @@ function MyPeopleCard() {
                 variant="ghost"
                 size="icon-sm"
                 aria-label={`Message ${entry.person.name}`}
-                onClick={() => comingSoon("Messages")}
+                onClick={() => message(entry.person)}
               >
                 <ChatIcon />
               </Button>
@@ -939,6 +940,7 @@ function MyPeopleCard() {
           Your manager and buddy appear here once they are assigned.
         </p>
       )}
+      {dialog}
     </SectionCard>
   );
 }

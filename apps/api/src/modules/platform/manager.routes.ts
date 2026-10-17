@@ -26,6 +26,7 @@ import { roadmapData } from "./onboarding-roadmap.js";
 import { workspaceSettings } from "./settings.js";
 import { createPlatformStore, type PlatformRecord } from "./store.js";
 import { reportsOf } from "./reports.js";
+import { createGapGroups } from "../ask/knowledge-gaps.js";
 
 const DAY = 86_400_000;
 const isoDay = (date: Date) => date.toISOString().slice(0, 10);
@@ -546,35 +547,25 @@ export function createManagerRoutes(container: Container) {
       if (!team.length) return c.json({ items: [] });
       const since = new Date(Date.now() - 30 * DAY);
       const threshold = workspaceSettings(db, actor.workspaceId).policies.askKAnonymityThreshold;
-      const gaps = new Map<
-        string,
-        {
-          question: string;
-          askers: Set<string>;
-          asks: number;
-          projects: Set<string>;
-          reported: boolean;
-        }
-      >();
+      // Wordings that mean the same thing ("reset my password?", "how to reset password") are one gap.
+      const gaps = createGapGroups((question) => ({
+        question: question.trim(),
+        askers: new Set<string>(),
+        asks: 0,
+        projects: new Set<string>(),
+        reported: false,
+      }));
       const add = (
         question: string,
         askerId: string,
         project: string | null,
         reported: boolean,
       ) => {
-        const key = question.trim().toLocaleLowerCase();
-        const entry = gaps.get(key) ?? {
-          question: question.trim(),
-          askers: new Set<string>(),
-          asks: 0,
-          projects: new Set<string>(),
-          reported: false,
-        };
+        const entry = gaps.add(question);
         entry.askers.add(askerId);
         entry.asks += 1;
         if (project) entry.projects.add(project);
         entry.reported ||= reported;
-        gaps.set(key, entry);
       };
       // Unanswered Ask questions from the team: Ask history is private, so a question only surfaces
       // once enough different people on the team asked it.

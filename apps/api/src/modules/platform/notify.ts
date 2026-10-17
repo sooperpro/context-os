@@ -72,6 +72,13 @@ export function createNotifier(db: Db) {
   };
 
   return {
+    /** A person's name for a notification title; never their id. */
+    nameOf(userId: string) {
+      return (
+        db.select({ name: users.name }).from(users).where(eq(users.id, userId)).get()?.name ??
+        "Someone"
+      );
+    },
     notify(
       workspaceId: string,
       userId: string,

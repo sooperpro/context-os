@@ -45,6 +45,19 @@ function mockApi(role = "member") {
       return Promise.resolve(jsonResponse(prefs));
     }
     if (url.endsWith("/v1/notifications/preferences")) return Promise.resolve(jsonResponse(prefs));
+    if (url.includes("/v1/skills/suggest"))
+      return Promise.resolve(
+        jsonResponse({
+          items: [
+            { label: "Python", id: null, source: "workspace" },
+            {
+              label: "Python (computer programming)",
+              id: "http://data.europa.eu/esco/skill/ccd0a1d9",
+              source: "esco",
+            },
+          ],
+        }),
+      );
     return Promise.resolve(
       jsonResponse({ error: { code: "NOT_FOUND", message: url } }, { status: 404 }),
     );
@@ -111,6 +124,55 @@ describe("SettingsPage", () => {
         skills: ["Kafka", "Go"],
         avatarShape: "sunny",
       }),
+    );
+  });
+
+  it("suggests skills as you type, and saves the ESCO id of one picked from the list (N-10)", async () => {
+    const calls = mockApi();
+    const user = userEvent.setup();
+    render();
+    const input = await screen.findByLabelText("Skills");
+    await user.type(input, "pyth");
+    const list = document.getElementById(input.getAttribute("list") ?? "");
+    await waitFor(() =>
+      expect([...(list?.querySelectorAll("option") ?? [])].map((option) => option.value)).toEqual([
+        "Python",
+        "Python (computer programming)",
+      ]),
+    );
+    expect(calls.some((call) => call.url.includes("/v1/skills/suggest?q=pyth"))).toBe(true);
+    // Picking it fills the field; it's added with ESCO's spelling and id.
+    await user.clear(input);
+    await user.type(input, "python (computer programming){Enter}");
+    expect(
+      screen.getByRole("button", { name: "Remove Python (computer programming)" }),
+    ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(
+        calls.find((call) => call.method === "PATCH" && call.url.endsWith("/v1/users/me"))?.body,
+      ).toMatchObject({
+        skills: ["Billing", "Python (computer programming)"],
+        skillIds: { "Python (computer programming)": "http://data.europa.eu/esco/skill/ccd0a1d9" },
+      }),
+    );
+  });
+
+  it("keeps an https booking link for Book time on the profile (ALL-3)", async () => {
+    const calls = mockApi();
+    const user = userEvent.setup();
+    render();
+    const link = await screen.findByLabelText("Booking link");
+    await user.type(link, "http://cal.example.test/maya");
+    expect(screen.getByText("Use a link that starts with https://")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    await user.clear(link);
+    await user.type(link, "https://cal.example.test/maya");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(
+        calls.find((call) => call.method === "PATCH" && call.url.endsWith("/v1/users/me"))?.body,
+      ).toMatchObject({ bookingUrl: "https://cal.example.test/maya" }),
     );
   });
 

@@ -5,6 +5,7 @@ import {
   InviteResultSchema,
   MembershipUpdateResultSchema,
   TeamListSchema,
+  TeamMembersResultSchema,
   TeamSchema,
   WorkspaceMemberListSchema,
   type Department,
@@ -13,6 +14,7 @@ import {
   type OrgNameInput,
   type Team,
   type TeamInput,
+  type TeamMembersInput,
   type TeamUpdateInput,
   type UserUpdate,
   type WorkspaceMember,
@@ -181,4 +183,55 @@ export function updateTeam(id: string, input: TeamUpdateInput): Promise<Team> {
 
 export function deleteTeam(id: string): Promise<void> {
   return apiRequest(`/v1/org/teams/${id}`, { method: "DELETE", schema: z.undefined() });
+}
+
+const OrgPersonListSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      status: z.string(),
+      organization: z
+        .object({ teamId: z.string().nullable().optional() })
+        .passthrough()
+        .default({}),
+    }),
+  ),
+});
+export interface OrgPerson {
+  id: string;
+  name: string;
+  teamId: string | null;
+}
+
+/** Active members with the team they're on, for Departments and teams. */
+export async function listOrgPeople(signal?: AbortSignal): Promise<OrgPerson[]> {
+  const result = await apiRequest("/v1/users", {
+    query: { limit: 100, offset: 0 },
+    schema: OrgPersonListSchema,
+    signal,
+  });
+  return result.items
+    .filter((member) => member.status === "active")
+    .map((member) => ({
+      id: member.id,
+      name: member.name,
+      teamId: member.organization.teamId ?? null,
+    }));
+}
+
+/** Puts people on a team (and in its department); returns who was added. */
+export function addTeamMembers(teamId: string, input: TeamMembersInput) {
+  return apiRequest(`/v1/org/teams/${teamId}/members`, {
+    method: "POST",
+    body: input,
+    schema: TeamMembersResultSchema,
+  });
+}
+
+export function removeTeamMember(teamId: string, userId: string): Promise<void> {
+  return apiRequest(`/v1/org/teams/${teamId}/members/${encodeURIComponent(userId)}`, {
+    method: "DELETE",
+    schema: z.undefined(),
+  });
 }

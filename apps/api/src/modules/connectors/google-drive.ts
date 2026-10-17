@@ -438,7 +438,7 @@ export function createGoogleDriveService(container: Container) {
       type: "connector.needs_reauth",
       category: "system",
       title: "A Google Drive connection needs re-authorisation",
-      link: "/admin/integrations",
+      link: "/connectors",
       batchKey: `connector:${connection.id}`,
       data: { connectionId: connection.id },
     });
