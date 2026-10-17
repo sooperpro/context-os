@@ -158,6 +158,24 @@ describe("SettingsPage", () => {
     );
   });
 
+  it("keeps an https booking link for Book time on the profile (ALL-3)", async () => {
+    const calls = mockApi();
+    const user = userEvent.setup();
+    render();
+    const link = await screen.findByLabelText("Booking link");
+    await user.type(link, "http://cal.example.test/maya");
+    expect(screen.getByText("Use a link that starts with https://")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    await user.clear(link);
+    await user.type(link, "https://cal.example.test/maya");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(
+        calls.find((call) => call.method === "PATCH" && call.url.endsWith("/v1/users/me"))?.body,
+      ).toMatchObject({ bookingUrl: "https://cal.example.test/maya" }),
+    );
+  });
+
   it("saves notification channels as the whole preference object", async () => {
     const calls = mockApi();
     const user = userEvent.setup();

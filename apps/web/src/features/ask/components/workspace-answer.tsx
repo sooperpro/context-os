@@ -32,9 +32,9 @@ import {
 import { StatusChip } from "@/components/ui/status-chip";
 import { useAnswerFeedback, useReportKnowledgeGap } from "@/features/ask/api/assistant.queries";
 import { CiteButton } from "@/features/ask/components/cite-button";
-import { comingSoon } from "@/lib/coming-soon";
 import { HIDDEN } from "@/lib/hidden";
 import { stripCitations } from "@/lib/citations";
+import { useMessageDialog } from "@/features/messages/hooks/use-message-dialog";
 
 const REASONS: Array<[NonNullable<AssistantFeedbackInput["reason"]>, string]> = [
   ["incorrect", "Incorrect"],
@@ -85,6 +85,7 @@ function RichText({
 }
 
 function PersonRow({ person, why }: AssistantAnswer["people"][number]) {
+  const { message, dialog } = useMessageDialog();
   return (
     <div className="flex items-center gap-3 rounded-lg bg-pane px-3 py-2.5">
       <PersonAvatar person={person} size="sm" />
@@ -104,10 +105,11 @@ function PersonRow({ person, why }: AssistantAnswer["people"][number]) {
         size="icon-xs"
         variant="secondary"
         aria-label={`Message ${person.name}`}
-        onClick={() => comingSoon("Messages")}
+        onClick={() => message(person)}
       >
         <ChatIcon aria-hidden />
       </Button>
+      {dialog}
     </div>
   );
 }

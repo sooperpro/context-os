@@ -403,6 +403,7 @@ export async function fetchPerson(id: string, signal?: AbortSignal): Promise<Per
     bio: (profile.profile?.bio ?? "") || null,
     pronouns: (profile.profile?.pronouns ?? "") || null,
     avatarShape: profile.profile?.avatarShape ?? null,
+    bookingUrl: (profile.profile?.bookingUrl ?? "") || null,
     manager: manager ? personRef(manager) : null,
     reports: members.items.filter((entry) => entry.managerId === member.id).map(personRef),
     owns,

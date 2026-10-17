@@ -58,6 +58,16 @@ export const ProfileUpdateSchema = z
       .optional(),
     /** Null goes back to the shape picked from their id. */
     avatarShape: AvatarShapeSchema.nullable().optional(),
+    /** Their booking page for Book time (ALL-3); an empty string clears it. */
+    bookingUrl: z
+      .string()
+      .trim()
+      .max(PROFILE_LIMITS.bookingUrl)
+      .refine(
+        (url) => url === "" || /^https:\/\/[^\s]+$/.test(url),
+        "Use a link that starts with https://",
+      )
+      .optional(),
   })
   .strict();
 export const UserUpdateSchema = z

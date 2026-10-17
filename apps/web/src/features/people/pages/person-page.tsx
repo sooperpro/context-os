@@ -49,10 +49,10 @@ import { meQuery } from "@/features/account/api/account.queries";
 import { personOnboardingQuery } from "@/features/people-ops/api/people-ops.queries";
 import { PersonDetailsDialog } from "@/features/people-ops/components/person-details-dialog";
 import { onboardingPath } from "@/features/people-ops/people-ops-meta";
+import { useMessageDialog } from "@/features/messages/hooks/use-message-dialog";
 import { MemberOnboardingTab } from "@/features/team/pages/member-page";
 import { memberPath } from "@/features/team/team-meta";
 import { useViewer } from "@/features/workspace/hooks/use-viewer";
-import { comingSoon } from "@/lib/coming-soon";
 import { firstName, formatJoined, formatTimeZone } from "@/lib/format";
 import { SECTION_LABEL } from "@/lib/labels";
 
@@ -93,7 +93,9 @@ export function PersonPage() {
 
 function Profile({ person }: { person: PersonProfile }) {
   const { openAssistant } = useAssistant();
+  const { message, dialog } = useMessageDialog();
   const first = firstName(person.name);
+  const self = person.relations.includes("you");
   // HR sees the onboarding card for everyone onboarding, with a link to their record (spec §4.5).
   // Owners see everything, so they get HR's view too.
   const { persona, seesEverything } = useViewer();
@@ -163,12 +165,28 @@ function Profile({ person }: { person: PersonProfile }) {
                 <ForumIcon aria-hidden /> Read conversations
               </Button>
             ) : null}
-            <Button onClick={() => comingSoon("Messages")}>
-              <ChatIcon aria-hidden /> Message
-            </Button>
-            <Button variant="outline" onClick={() => comingSoon("Booking time")}>
-              <EventIcon aria-hidden /> Book time
-            </Button>
+            {self ? null : (
+              <Button onClick={() => message(person)}>
+                <ChatIcon aria-hidden /> Message
+              </Button>
+            )}
+            {person.bookingUrl ? (
+              <Button
+                variant="outline"
+                nativeButton={false}
+                render={<a href={person.bookingUrl} target="_blank" rel="noopener noreferrer" />}
+              >
+                <EventIcon aria-hidden /> Book time
+              </Button>
+            ) : self ? (
+              <Button variant="outline" nativeButton={false} render={<Link to="/settings" />}>
+                <EventIcon aria-hidden /> Add a booking link
+              </Button>
+            ) : (
+              <Button variant="outline" disabled title={`${first} hasn’t added a booking link yet`}>
+                <EventIcon aria-hidden /> Book time
+              </Button>
+            )}
             <Button variant="ai-tonal" onClick={() => openAssistant(`What does ${first} work on?`)}>
               <SmartToyIcon aria-hidden /> What does {first} work on?
             </Button>
@@ -326,6 +344,7 @@ function Profile({ person }: { person: PersonProfile }) {
       {canEdit ? (
         <PersonDetailsDialog personId={person.id} open={editing} onOpenChange={setEditing} />
       ) : null}
+      {dialog}
     </div>
   );
 }

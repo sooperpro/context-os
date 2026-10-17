@@ -40,7 +40,6 @@ import { itemPath, projectPath } from "@/features/hub/hub-paths";
 import { categoryForKind } from "@/features/knowledge/categories";
 import { savedQuery, useSetSaved } from "@/features/knowledge/api/saved.queries";
 import { SourceDrawerProvider } from "@/features/sources/components/source-drawer";
-import { comingSoon } from "@/lib/coming-soon";
 import { formatDate } from "@/lib/format";
 import {
   CONFIDENCE_LABEL,
@@ -49,6 +48,7 @@ import {
   STATE_LABEL,
   VERIFICATION_LABEL,
 } from "@/lib/labels";
+import { useMessageDialog } from "@/features/messages/hooks/use-message-dialog";
 
 /**
  * One knowledge item (prototype `#kb-<id>`): what it says, the facts behind it, where it comes from,
@@ -214,6 +214,7 @@ function facts(item: ContextItem, hub: Hub): Array<[string, string]> {
 }
 
 function ItemView({ item, hub, all }: { item: ContextItem; hub: Hub; all: ContextItem[] }) {
+  const { message, dialog } = useMessageDialog();
   const { openAssistant } = useAssistant();
   const saved = useQuery(savedQuery());
   const setSaved = useSetSaved();
@@ -418,7 +419,15 @@ function ItemView({ item, hub, all }: { item: ContextItem; hub: Hub; all: Contex
                       variant="ghost"
                       size="icon-sm"
                       aria-label={`Message ${person.name}`}
-                      onClick={() => comingSoon("Messages")}
+                      onClick={() =>
+                        message(
+                          { name: person.name },
+                          {
+                            title: item.title,
+                            link: `/projects/${item.projectId}/items/${item.id}`,
+                          },
+                        )
+                      }
                     >
                       <ChatIcon aria-hidden />
                     </Button>
@@ -444,6 +453,7 @@ function ItemView({ item, hub, all }: { item: ContextItem; hub: Hub; all: Contex
           />
         </PageSide>
       </PageColumns>
+      {dialog}
     </div>
   );
 }

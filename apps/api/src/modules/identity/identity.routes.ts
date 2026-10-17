@@ -223,8 +223,17 @@ export function createIdentityRoutes(container: Container) {
     })
     .patch("/users/me", zValidator("json", ProfileUpdateSchema, validationHook), (c) => {
       const actor = c.get("actor");
-      const { name, pronouns, location, bio, skills, skillIds, avatarShape, ...settings } =
-        c.req.valid("json");
+      const {
+        name,
+        pronouns,
+        location,
+        bio,
+        skills,
+        skillIds,
+        bookingUrl,
+        avatarShape,
+        ...settings
+      } = c.req.valid("json");
       const row = db.select().from(users).where(eq(users.id, actor.id)).get();
       if (!row) throw new NotFoundError("User");
       const membership = identity.requireMember(actor.workspaceId, actor.id);
@@ -248,6 +257,7 @@ export function createIdentityRoutes(container: Container) {
           pronouns,
           location,
           bio,
+          bookingUrl,
           skills: kept,
           skillIds: kept
             ? Object.fromEntries(

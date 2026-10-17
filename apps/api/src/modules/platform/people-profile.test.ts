@@ -87,6 +87,8 @@ describe("Settings › Profile fields", () => {
       bio: "I look after billing.",
       skills: ["Kafka", "Go"],
       avatarShape: "flower",
+      // No booking page set (ALL-3).
+      bookingUrl: "",
     };
     expect(((await saved.json()) as { profile: unknown }).profile).toEqual(expected);
     const read = MeSchema.parse(await (await t.app.request("/api/v1/users/me")).json());

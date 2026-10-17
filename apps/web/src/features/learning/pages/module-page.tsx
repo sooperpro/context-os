@@ -68,9 +68,9 @@ import {
   modulePath,
   moduleTime,
 } from "@/features/learning/learning-meta";
-import { comingSoon } from "@/lib/coming-soon";
 import { formatShortDate } from "@/lib/format";
 import { KNOWLEDGE_ORIGIN_LABEL } from "@/lib/labels";
+import { useMessageDialog } from "@/features/messages/hooks/use-message-dialog";
 
 const lessonTarget = (lesson: ModuleDetail["lessons"][number]) => ({
   kind: lesson.type === "check" ? ("check" as const) : ("lesson" as const),
@@ -104,6 +104,7 @@ export function ModulePage() {
 }
 
 function ModuleView({ module }: { module: ModuleDetail }) {
+  const { message, dialog } = useMessageDialog();
   useBotContext(
     {
       chips: [
@@ -513,7 +514,12 @@ function ModuleView({ module }: { module: ModuleDetail }) {
                       variant="ghost"
                       size="icon-sm"
                       aria-label={`Message ${entry.person.name}`}
-                      onClick={() => comingSoon("Messages")}
+                      onClick={() =>
+                        message(entry.person, {
+                          title: module.title,
+                          link: `/roadmap/modules/${encodeURIComponent(module.id)}`,
+                        })
+                      }
                     >
                       <ChatIcon />
                     </Button>
@@ -549,6 +555,7 @@ function ModuleView({ module }: { module: ModuleDetail }) {
             })),
         ]}
       />
+      {dialog}
     </div>
   );
 }

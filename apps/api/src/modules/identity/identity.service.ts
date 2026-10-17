@@ -191,6 +191,10 @@ export function personalProfileOf(
       .filter(Boolean)
       .slice(0, PROFILE_LIMITS.skills),
     avatarShape: AvatarShapeSchema.safeParse(preferences.avatarShape).data ?? null,
+    // Only an https booking page is ever shown as a link (ALL-3).
+    bookingUrl: /^https:\/\/\S+$/.test(text(stored.bookingUrl, PROFILE_LIMITS.bookingUrl))
+      ? text(stored.bookingUrl, PROFILE_LIMITS.bookingUrl)
+      : "",
   };
 }
 

@@ -413,10 +413,46 @@ describe("People", () => {
       expect(
         await screen.findByRole("heading", { level: 1, name: "Sana Iqbal" }),
       ).toBeInTheDocument();
+      // Their own profile: no Message to themselves, a way to add a booking link instead.
       await waitFor(() =>
-        expect(screen.getByRole("button", { name: "Message" })).toBeInTheDocument(),
+        expect(screen.getByRole("button", { name: "Add a booking link" })).toHaveAttribute(
+          "href",
+          "/settings",
+        ),
       );
+      expect(screen.queryByRole("button", { name: "Message" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Edit details" })).not.toBeInTheDocument();
     });
+  });
+
+  it("messages someone from their profile, with an email copy (ALL-3)", async () => {
+    const sent: unknown[] = [];
+    mockServer.use(
+      http.post(buildApiUrl("/v1/people/:id/messages"), async ({ request, params }) => {
+        sent.push({ to: params.id, body: await request.json() });
+        return HttpResponse.json({ inApp: true, emailed: true });
+      }),
+    );
+    const user = userEvent.setup();
+    renderAt("/people/p-sana", "p-maya");
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Sana Iqbal" }),
+    ).toBeInTheDocument();
+    // No booking link yet: Book time says so.
+    expect(screen.getByRole("button", { name: "Book time" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Message" }));
+    const dialog = await screen.findByRole("dialog", { name: "Message Sana Iqbal" });
+    await user.type(
+      within(dialog).getByLabelText("Message"),
+      "Can you walk me through the ingest gateway?",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "Send" }));
+    await waitFor(() =>
+      expect(sent).toEqual([
+        { to: "p-sana", body: { text: "Can you walk me through the ingest gateway?" } },
+      ]),
+    );
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 });

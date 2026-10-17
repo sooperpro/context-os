@@ -210,6 +210,7 @@ interface ProfileDraft {
   bio: string;
   skills: string[];
   avatarShape: AvatarShape | null;
+  bookingUrl: string;
 }
 
 const shapeLabel = (shape: AvatarShape) =>
@@ -260,6 +261,7 @@ function ProfileTab() {
     bio: me.data.profile?.bio ?? "",
     skills: me.data.profile?.skills ?? [],
     avatarShape: me.data.profile?.avatarShape ?? null,
+    bookingUrl: me.data.profile?.bookingUrl ?? "",
   };
   const current: ProfileDraft = { ...saved, ...draft };
   const set = <K extends keyof ProfileDraft>(key: K, value: ProfileDraft[K]) =>
@@ -267,6 +269,9 @@ function ProfileTab() {
   const changed = (key: keyof ProfileDraft) => !sameValue(current[key], saved[key]);
   const dirty = (Object.keys(saved) as Array<keyof ProfileDraft>).some(changed);
   const nameValid = current.name.trim().length > 0;
+  // A booking page for Book time on their profile (ALL-3): an https link, or nothing.
+  const bookingValid =
+    current.bookingUrl.trim() === "" || /^https:\/\/\S+$/.test(current.bookingUrl.trim());
   const shape = avatarShapeFor(me.data.id, current.avatarShape);
   const tone = avatarToneFor(me.data.id);
   const initials = initialsOf(current.name) || "?";
@@ -312,6 +317,7 @@ function ProfileTab() {
             }
           : {}),
         ...(changed("avatarShape") ? { avatarShape: current.avatarShape } : {}),
+        ...(changed("bookingUrl") ? { bookingUrl: current.bookingUrl.trim() } : {}),
       },
       {
         onSuccess: () => {
@@ -487,6 +493,28 @@ function ProfileTab() {
               skills and ESCO, the European skills list; any other skill works too.
             </p>
           </div>
+          <div className="space-y-1.5 @xl:col-span-2">
+            <Label htmlFor="settings-booking">Booking link</Label>
+            <Input
+              id="settings-booking"
+              type="url"
+              inputMode="url"
+              value={current.bookingUrl}
+              maxLength={PROFILE_LIMITS.bookingUrl}
+              placeholder="https://calendly.com/your-name"
+              aria-invalid={!bookingValid}
+              onChange={(event) => set("bookingUrl", event.target.value)}
+            />
+            <p
+              className={
+                bookingValid ? "px-4 text-xs text-on-surface-variant" : "px-4 text-xs text-error"
+              }
+            >
+              {bookingValid
+                ? "Your Calendly, Google Calendar or Outlook booking page. Book time on your profile opens it."
+                : "Use a link that starts with https://"}
+            </p>
+          </div>
         </div>
         {jobTitle || teamName ? (
           <dl className="grid gap-4 rounded-lg bg-pane p-4 text-sm @xl:grid-cols-2">
@@ -511,7 +539,10 @@ function ProfileTab() {
           <Button variant="ghost" disabled={!dirty || update.isPending} onClick={reset}>
             Cancel
           </Button>
-          <Button disabled={!dirty || !nameValid || update.isPending} onClick={save}>
+          <Button
+            disabled={!dirty || !nameValid || !bookingValid || update.isPending}
+            onClick={save}
+          >
             {update.isPending ? <Spinner /> : <CheckIcon aria-hidden />}
             Save
           </Button>

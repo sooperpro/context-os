@@ -46,7 +46,14 @@ export type AvatarShapeChoice = z.infer<typeof AvatarShapeSchema>;
 
 /** Longest values for the fields people write about themselves. */
 /** A skill fits ESCO's longer names, like "negotiate with employment agencies" (N-10). */
-export const PROFILE_LIMITS = { pronouns: 40, location: 100, bio: 600, skill: 80, skills: 20 };
+export const PROFILE_LIMITS = {
+  pronouns: 40,
+  location: 100,
+  bio: 600,
+  skill: 80,
+  skills: 20,
+  bookingUrl: 300,
+};
 
 /**
  * What a person says about themselves (role access spec §4.9, Settings › Profile), on
@@ -59,6 +66,8 @@ export const PersonalProfileSchema = z.object({
   bio: z.string(),
   skills: z.array(z.string()),
   avatarShape: AvatarShapeSchema.nullable(),
+  /** Where to book time with them (ALL-3): a Calendly or calendar booking page; empty if none. */
+  bookingUrl: z.string().default(""),
 });
 export type PersonalProfile = z.infer<typeof PersonalProfileSchema>;
 
@@ -129,6 +138,8 @@ export type TeamDirectory = z.infer<typeof TeamDirectorySchema>;
 /** `GET /v1/people/:id`: a profile. */
 export const PersonProfileSchema = DirectoryPersonSchema.extend({
   bio: z.string().nullable(),
+  /** Their booking page for Book time (ALL-3), or null. */
+  bookingUrl: z.string().nullable().default(null),
   pronouns: z.string().nullable().default(null),
   /** The avatar shape they picked; null for the one picked from their id. */
   avatarShape: AvatarShapeSchema.nullable().default(null),
@@ -160,3 +171,30 @@ export const SkillSuggestionSchema = z.object({
 });
 export type SkillSuggestion = z.infer<typeof SkillSuggestionSchema>;
 export const SkillSuggestionListSchema = z.object({ items: z.array(SkillSuggestionSchema) });
+
+/** `POST /people/:id/messages`: a note to a colleague, in the app and by email (ALL-3). */
+export const DirectMessageInputSchema = z
+  .object({
+    text: z.string().trim().min(1, "Write a message.").max(1000),
+    /** What it's about, linked from the message: a Hub item, a module, an answer. */
+    about: z
+      .object({
+        title: z.string().trim().min(1).max(200),
+        /** A page in the app, such as "/projects/p1/items/i1". */
+        link: z
+          .string()
+          .max(300)
+          .regex(/^\/(?!\/)/, "A page in ContextOS"),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
+export type DirectMessageInput = z.infer<typeof DirectMessageInputSchema>;
+export const DirectMessageResultSchema = z.object({
+  /** In their notifications (false when they turned those off). */
+  inApp: z.boolean(),
+  /** An email copy went to their address. */
+  emailed: z.boolean(),
+});
+export type DirectMessageResult = z.infer<typeof DirectMessageResultSchema>;
