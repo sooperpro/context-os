@@ -58,6 +58,22 @@ export const SessionStateSchema = z.object({
 });
 export type SessionState = z.infer<typeof SessionStateSchema>;
 
+/**
+ * `POST /session/password` (N-17): change the password (with the current one), or add one when the
+ * account has none yet (Google, Microsoft or an email link). Either way a security email goes out.
+ */
+export const PasswordInputSchema = z
+  .object({
+    currentPassword: z.string().min(1).max(128).optional(),
+    newPassword: z.string().min(8, "Use at least 8 characters.").max(128),
+    /** Sign out on every other device (this one stays signed in). */
+    signOutOtherDevices: z.boolean().optional(),
+  })
+  .strict();
+export type PasswordInput = z.infer<typeof PasswordInputSchema>;
+export const PasswordResultSchema = z.object({ password: z.enum(["changed", "added"]) });
+export type PasswordResult = z.infer<typeof PasswordResultSchema>;
+
 /** `PUT /session/workspace`. */
 export const SelectWorkspaceSchema = z.object({ workspaceId: z.string().min(1).max(200) }).strict();
 

@@ -76,9 +76,9 @@ import {
 import { useTheme } from "@/hooks/use-theme";
 import { formatRelativeTime, initialsOf } from "@/lib/format";
 import { ROLE_LABEL } from "@/lib/labels";
-import { RoleRequestCard } from "@/features/settings/components/role-request-card";
 import { teamsQuery } from "@/features/members/api/members.queries";
 import { useViewer } from "@/features/workspace/hooks/use-viewer";
+import { PasswordCard } from "@/features/settings/components/password-card";
 
 /*
  * Personal settings (prototype `#settings`): profile name and time zone, notification channels and
@@ -142,7 +142,6 @@ export function SettingsPage() {
           {tab === "security" ? <SecurityTab /> : null}
         </div>
         <aside className="space-y-4">
-          {viewer.role && viewer.role !== "guest" ? <RoleRequestCard role={viewer.role} /> : null}
           {viewer.role === "owner" || viewer.role === "admin" ? (
             <Card>
               <CardHeader>
@@ -748,6 +747,7 @@ function SecurityTab() {
   return (
     <>
       <SignInCard />
+      <PasswordCard />
       <SessionsCard />
       <ConnectedAppsCard />
       <YourDataCard />

@@ -9,6 +9,7 @@ import {
   type TestApp,
 } from "../../test/helpers.js";
 import type { Actor } from "../../types.js";
+import { createPlatformStore } from "./store.js";
 
 interface PolicyList {
   total: number;
@@ -210,55 +211,46 @@ describe("Admin governance: access policies, role requests, members", () => {
     ]);
   });
 
-  it("lets members request a role and admins decide, never on their own request", async () => {
+  it("takes no new role requests, and lets admins close the ones still open (N-11)", async () => {
     t = createTestApp();
     const admin = owner();
     member("maya", "member");
-
+    member("sam", "admin");
     as({ id: "maya", role: "member" });
     expect(
       (
         await t.app.request(
           "/api/v1/role-requests",
-          jsonRequest({ role: "member", reason: "Same role" }),
+          jsonRequest({ role: "manager", reason: "Leading the Billing team" }),
         )
       ).status,
-    ).toBe(400);
-    const requested = await t.app.request(
-      "/api/v1/role-requests",
-      jsonRequest({ role: "manager", reason: "Leading the Billing team" }),
-    );
-    expect(requested.status).toBe(201);
-    const request = await json<{ id: string; status: string }>(requested);
-    expect(request.status).toBe("open");
-    expect(
-      (
-        await t.app.request(
-          "/api/v1/role-requests",
-          jsonRequest({ role: "admin", reason: "Again" }),
-        )
-      ).status,
-    ).toBe(409);
+    ).toBe(404);
+    expect((await t.app.request("/api/v1/role-requests/mine")).status).toBe(404);
     expect((await t.app.request("/api/v1/admin/role-requests")).status).toBe(403);
 
+    // Requests made before they were removed can still be decided by an admin.
+    const store = createPlatformStore(t.container.db);
+    const open = (ownerId: string) =>
+      store.insert({
+        workspaceId: t.container.workspace.id,
+        ownerId,
+        kind: "role_request",
+        status: "open",
+        data: { role: "manager", reason: "From before", from: "member" },
+      });
+    const request = open("maya");
+    const own = open("sam");
     Object.assign(t.container.devActor, admin);
-    const open = await json<{ items: Array<{ id: string; role: string; person: { id: string } }> }>(
+    const listed = await json<{ items: Array<{ id: string; role: string }> }>(
       await t.app.request("/api/v1/admin/role-requests"),
     );
-    expect(open.items).toEqual([
-      expect.objectContaining({
-        id: request.id,
-        role: "manager",
-        person: expect.objectContaining({ id: "maya" }) as object,
-      }),
-    ]);
+    expect(listed.items.map((item) => item.id).sort()).toEqual([request.id, own.id].sort());
     const security = await json<{ items: Array<{ id: string; value: string }> }>(
       await t.app.request("/api/v1/admin/security"),
     );
     expect(security.items.find((item) => item.id === "role_requests")?.value).toBe(
-      "Manager · 1 pending",
+      "Manager · 2 pending",
     );
-
     expect(
       (
         await t.app.request(
@@ -270,29 +262,8 @@ describe("Admin governance: access policies, role requests, members", () => {
     expect(t.container.identity.requireMember(t.container.workspace.id, "maya").role).toBe(
       "manager",
     );
-    expect(
-      (
-        await t.app.request(
-          `/api/v1/admin/role-requests/${request.id}/decision`,
-          jsonRequest({ decision: "decline" }),
-        )
-      ).status,
-    ).toBe(409);
-    as({ id: "maya", role: "manager" });
-    const mine = await json<{ items: Array<{ status: string }> }>(
-      await t.app.request("/api/v1/role-requests/mine"),
-    );
-    expect(mine.items[0]?.status).toBe("approved");
-
-    // An admin can't approve their own request.
-    member("sam", "admin");
+    // An admin can't decide their own.
     as({ id: "sam", role: "admin" });
-    const own = await json<{ id: string }>(
-      await t.app.request(
-        "/api/v1/role-requests",
-        jsonRequest({ role: "manager", reason: "Trying my own" }),
-      ),
-    );
     expect(
       (
         await t.app.request(

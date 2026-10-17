@@ -1,8 +1,6 @@
 import {
   RoleRequestDecisionInputSchema,
-  RoleRequestInputSchema,
   type MembersOverview,
-  type MyRoleRequest,
   type RoleRequest,
   type SystemRole,
 } from "@contextos/shared";
@@ -11,13 +9,13 @@ import { and, count, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import type { Container } from "../../container.js";
 import { memberships, users } from "../../db/schema.js";
-import { AppError, BadRequestError, NotFoundError } from "../../lib/errors.js";
+import { AppError, NotFoundError } from "../../lib/errors.js";
 import type { Logger } from "../../lib/logger.js";
 import { validationHook } from "../../middleware/validation.js";
 import type { Actor, AppEnv } from "../../types.js";
 import { requireRole } from "../identity/identity.service.js";
 import { createNotifier } from "./notify.js";
-import { createPlatformStore, type PlatformRecord } from "./store.js";
+import { createPlatformStore } from "./store.js";
 
 const REQUEST = "role_request";
 const SYNC_RUN = "directory_sync";
@@ -29,9 +27,11 @@ const ROLE_NAME: Record<SystemRole, string> = {
   admin: "Admin",
   manager: "Manager",
   hr: "HR",
-  member: "Member",
+  member: "Employee",
   guest: "Guest",
 };
+/** "an Admin", "an HR", "an Employee", "a Manager". */
+const article = (role: SystemRole) => (/^[AEIOU]|^HR/.test(ROLE_NAME[role]) ? "an" : "a");
 
 /** Directory sync runs, newest first (also shown in the admin's sync activity). */
 export function directorySyncRuns(container: Container, workspaceId: string, limit = 20) {
@@ -63,15 +63,6 @@ export function createMemberAdminRoutes(container: Container) {
       title: typeof title === "string" ? title : null,
     };
   };
-
-  const myRequest = (row: PlatformRecord): MyRoleRequest => ({
-    id: row.id,
-    role: row.data.role as SystemRole,
-    reason: typeof row.data.reason === "string" ? row.data.reason : "",
-    status: row.status === "approved" || row.status === "declined" ? row.status : "open",
-    requestedAt: row.createdAt.toISOString(),
-    decidedAt: typeof row.data.decidedAt === "string" ? row.data.decidedAt : null,
-  });
 
   const activeOwners = (workspaceId: string) =>
     db
@@ -221,41 +212,6 @@ export function createMemberAdminRoutes(container: Container) {
       });
       return c.json({ ranAt: run.createdAt.toISOString(), created, updated, deactivated });
     })
-    .post("/role-requests", zValidator("json", RoleRequestInputSchema, validationHook), (c) => {
-      const actor = c.get("actor");
-      if (actor.role === "guest")
-        throw new AppError(403, "FORBIDDEN", "Guests can't request a workspace role");
-      const input = c.req.valid("json");
-      if (input.role === actor.role) throw new BadRequestError("You already have this role");
-      if (store.listOwned(actor, REQUEST, actor.id, 50).some((row) => row.status === "open"))
-        throw new AppError(409, "CONFLICT", "You already have a role request waiting");
-      const row = store.create(
-        actor,
-        REQUEST,
-        { role: input.role, reason: input.reason, from: actor.role },
-        { status: "open" },
-      );
-      notifier.notifyAdmins(actor.workspaceId, {
-        type: "role.requested",
-        category: "system",
-        title: `${actor.name} asked to become ${input.role === "admin" || input.role === "hr" ? "an" : "a"} ${ROLE_NAME[input.role]}`,
-        body: input.reason,
-        link: "/members",
-        data: { requestId: row.id },
-      });
-      audit.record({
-        actor,
-        action: "role.request",
-        targetType: "role_request",
-        targetId: row.id,
-        metadata: { role: input.role, from: actor.role },
-      });
-      return c.json(myRequest(row), 201);
-    })
-    .get("/role-requests/mine", (c) => {
-      const actor = c.get("actor");
-      return c.json({ items: store.listOwned(actor, REQUEST, actor.id, 20).map(myRequest) });
-    })
     .get("/admin/role-requests", (c) => {
       const actor = c.get("actor");
       admin(actor);
@@ -326,8 +282,8 @@ export function createMemberAdminRoutes(container: Container) {
           category: "system",
           title:
             decision === "approve"
-              ? `You are now ${role === "admin" || role === "hr" ? "an" : "a"} ${ROLE_NAME[role]}`
-              : `Your request to become ${role === "admin" || role === "hr" ? "an" : "a"} ${ROLE_NAME[role]} was declined`,
+              ? `You are now ${article(role)} ${ROLE_NAME[role]}`
+              : `Your request to become ${article(role)} ${ROLE_NAME[role]} was declined`,
           link: "/settings",
         });
         return c.json({ id: row.id, decision });

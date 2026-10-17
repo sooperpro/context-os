@@ -3,7 +3,6 @@ import type {
   AiSettingsInput,
   ConnectInput,
   ConnectorRequestInput,
-  RoleRequestInput,
 } from "@contextos/shared";
 import { keepPreviousData, queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { homeKeys } from "@/features/home/api/home.queries";
@@ -19,7 +18,6 @@ import {
   fetchAiSettings,
   fetchAudit,
   fetchConnectorScopes,
-  fetchMyRoleRequests,
   fetchMembersOverview,
   fetchOwnConnections,
   fetchPolicies,
@@ -27,7 +25,6 @@ import {
   reconnectConnector,
   removeConnectorScope,
   requestConnector,
-  requestRole,
   resolveConflict,
   runDirectorySync,
   syncConnector,
@@ -45,7 +42,6 @@ export const adminKeys = {
   aiSettings: () => [...adminKeys.all, "ai-settings"] as const,
   audit: (days: number) => [...adminKeys.all, "audit", days] as const,
   connectorScopes: (id: string) => [...adminKeys.all, "connector-scopes", id] as const,
-  myRoleRequests: () => [...workspaceKeys.all, "my-role-requests"] as const,
 };
 
 export const membersOverviewQuery = () =>
@@ -103,21 +99,6 @@ export const connectorScopesQuery = (id: string) =>
     queryKey: adminKeys.connectorScopes(id),
     queryFn: ({ signal }) => fetchConnectorScopes(id, signal),
   });
-
-/** The signed-in person's own role requests (any role). */
-export const myRoleRequestsQuery = () =>
-  queryOptions({
-    queryKey: adminKeys.myRoleRequests(),
-    queryFn: ({ signal }) => fetchMyRoleRequests(signal),
-  });
-
-export function useRequestRole() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (input: RoleRequestInput) => requestRole(input),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: adminKeys.myRoleRequests() }),
-  });
-}
 
 export function useSyncConnector() {
   const refresh = useRefresh();

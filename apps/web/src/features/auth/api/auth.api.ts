@@ -1,8 +1,10 @@
 import {
   AuthOptionsSchema,
+  PasswordResultSchema,
   SessionDeviceListSchema,
   SessionStateSchema,
   type AuthOptions,
+  type PasswordInput,
   type SessionDevice,
   type SessionState,
 } from "@contextos/shared";
@@ -16,6 +18,14 @@ export const fetchAuthOptions = (signal?: AbortSignal): Promise<AuthOptions> =>
 /** Who is signed in and the workspaces they can open; 401 when signed out. */
 export const fetchSession = (signal?: AbortSignal): Promise<SessionState> =>
   apiRequest("/v1/session", { schema: SessionStateSchema, signal });
+
+/** Change the password (with the current one), or add one to an account that has none (N-17). */
+export const savePassword = (input: PasswordInput) =>
+  apiRequest("/v1/session/password", {
+    method: "POST",
+    body: input,
+    schema: PasswordResultSchema,
+  });
 
 export const selectWorkspace = (workspaceId: string): Promise<SessionState> =>
   apiRequest("/v1/session/workspace", {

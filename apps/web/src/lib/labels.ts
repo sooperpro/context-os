@@ -100,7 +100,8 @@ export const ROLE_LABEL: Record<SystemRole, string> = {
   admin: "Admin",
   manager: "Manager",
   hr: "HR",
-  member: "Member",
+  // The base role is called Employee in the app; the stored value stays `member` (N-15).
+  member: "Employee",
   guest: "Guest",
 };
 

@@ -120,7 +120,7 @@ describe("MembersPage", () => {
     expect(within(table).getByText("maya@tessellate.io")).toBeInTheDocument();
     expect(within(table).getByText("Platform")).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Members by role" })).toHaveTextContent(
-      "Members1Managers1Owners1",
+      "Employees1Managers1Owners1",
     );
     // Nobody changes their own role.
     expect(

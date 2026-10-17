@@ -39,7 +39,7 @@ import {
 const ROLES: Array<{ value: InviteForm["role"]; title: string; description: string }> = [
   {
     value: "member",
-    title: "Member",
+    title: "Employee",
     description: "Reads the hub, asks questions, contributes knowledge",
   },
   {

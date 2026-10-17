@@ -233,6 +233,50 @@ describe("Sign-in with our own accounts (AUTH_MODE=accounts)", () => {
     expect((await session(sessionCookie(again)!)).user.id).toBe("user_2clerkMaya");
   });
 
+  it("adds a password for an email-link user, and changes it with the current one (N-17)", async () => {
+    start();
+    const cookie = await signIn("lee@example.com");
+    const password = (body: object, from = cookie) =>
+      call(from, "/api/v1/session/password", { method: "POST", body: JSON.stringify(body) });
+
+    // No password yet: changing needs one, adding works and sends a security email.
+    expect((await password({ currentPassword: "x", newPassword: "first password 1" })).status).toBe(
+      409,
+    );
+    expect((await password({ newPassword: "short" })).status).toBe(400);
+    const added = await password({ newPassword: "first password 1" });
+    expect(added.status).toBe(200);
+    expect(await added.json()).toEqual({ password: "added" });
+    expect(outbox.findLast((mail) => mail.to === "lee@example.com")?.subject).toBe(
+      "A password was added to your ContextOS account",
+    );
+    expect((await session(cookie)).linkedMethods).toContain("password");
+    expect((await passwordSignIn("lee@example.com", "first password 1")).status).toBe(200);
+    expect((await password({ newPassword: "another one 22" })).status).toBe(409);
+
+    // Changing: the wrong current password is refused; the right one works, the old one stops.
+    const other = await signIn("lee@example.com");
+    expect(
+      (await password({ currentPassword: "wrong password", newPassword: "second password 2" }))
+        .status,
+    ).toBe(400);
+    const changed = await password({
+      currentPassword: "first password 1",
+      newPassword: "second password 2",
+      signOutOtherDevices: true,
+    });
+    expect(changed.status).toBe(200);
+    expect(await changed.json()).toEqual({ password: "changed" });
+    expect(outbox.findLast((mail) => mail.to === "lee@example.com")?.subject).toBe(
+      "Your ContextOS password was changed",
+    );
+    expect((await passwordSignIn("lee@example.com", "first password 1")).status).toBe(401);
+    expect((await passwordSignIn("lee@example.com", "second password 2")).status).toBe(200);
+    // This device stays signed in; the other one is signed out.
+    expect((await call(cookie, "/api/v1/session")).status).toBe(200);
+    expect((await call(other, "/api/v1/session")).status).toBe(401);
+  });
+
   it("resets a forgotten password, also for members who never signed in", async () => {
     start();
     t.container.db
