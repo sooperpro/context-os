@@ -22,7 +22,9 @@ import {
 } from "./onboarding-records.js";
 import {
   checkPlan,
+  newModulesFor,
   planKnowledgeCheck,
+  usableCount,
   planPrompt,
   ROADMAP_PROMPT_VERSION,
   ROADMAP_SYSTEM_INSTRUCTION,
@@ -51,15 +53,34 @@ export function createRoadmapGeneration(
   const { store, templateData, templateDetail, teamName } = records;
   const { runs } = tutorials;
 
-  /** The team a template is for: a manager only drafts for their own team. */
-  const teamFor = (actor: Actor, asked: string | null) => {
+  /**
+   * The team and department a template is for. A manager only drafts for their own team: one who
+   * has none yet can't draft until an admin sets it.
+   */
+  const placeFor = (actor: Actor, asked: { team: string | null; departmentId: string | null }) => {
     if (isReviewer(actor) || actor.role !== "manager") return asked;
     const member = identity.requireMember(actor.workspaceId, actor.id);
     const own = teamName(actor.workspaceId, member.organization);
-    if (own === "Unassigned") return asked;
-    if (asked && asked.toLowerCase() !== own.toLowerCase())
+    if (own === "Unassigned")
+      throw new AppError(
+        403,
+        "FORBIDDEN",
+        "Managers draft templates for their own team. Ask an admin to set your team first.",
+      );
+    const ownDepartment = records.departmentFor(actor.workspaceId, {
+      teamId: typeof member.organization.teamId === "string" ? member.organization.teamId : null,
+      departmentId:
+        typeof member.organization.departmentId === "string"
+          ? member.organization.departmentId
+          : null,
+      team: own,
+    });
+    if (
+      (asked.team && asked.team.toLowerCase() !== own.toLowerCase()) ||
+      (asked.departmentId && ownDepartment && asked.departmentId !== ownDepartment)
+    )
       throw new AppError(403, "FORBIDDEN", `Managers draft templates for their own team (${own})`);
-    return own;
+    return { team: own, departmentId: ownDepartment };
   };
 
   const departmentName = (workspaceId: string, id: string | null) =>
@@ -179,10 +200,13 @@ export function createRoadmapGeneration(
       if (!isReviewer(actor) && actor.role !== "manager" && !identity.curatesAny(actor))
         throw new AppError(403, "FORBIDDEN", "Templates are managed by People Ops");
       const input = c.req.valid("json");
+      const place = placeFor(actor, {
+        team: input.team?.length ? input.team : null,
+        departmentId: input.departmentId ?? null,
+      });
       const row = start(actor, {
         jobTitle: input.jobTitle,
-        team: teamFor(actor, input.team?.length ? input.team : null),
-        departmentId: input.departmentId ?? null,
+        ...place,
         seniority: input.seniority?.length ? input.seniority : null,
       });
       return c.json(templateDetail(row, actor), 202);
@@ -285,6 +309,7 @@ export function createRoadmapGeneration(
           onUsage: runs.usageRecorder(ws, runId),
         }),
         new Set(tutorialList.map((tutorial) => tutorial.id)),
+        { maxNew: newModulesFor(usableCount(items)) },
       );
       if (!plan.stages.length)
         return fail(`The plan for ${jobTitle} came back without modules the Hub supports.`);

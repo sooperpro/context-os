@@ -14,7 +14,7 @@ import { validationHook } from "../../middleware/validation.js";
 import type { Actor, AppEnv } from "../../types.js";
 import { requireRole } from "../identity/identity.service.js";
 import { createGenerationRuns } from "../learning/generation-runs.js";
-import { createOnboardingRecords, ONBOARDING, roleKey } from "./onboarding-records.js";
+import { createOnboardingRecords, ONBOARDING, roleKey, TEMPLATE } from "./onboarding-records.js";
 
 /** The roles added in workspace setup before anyone is hired into them (one record). */
 const SETUP_ROLES = "setup_roles";
@@ -97,6 +97,16 @@ export function createSetupTemplates(container: Container) {
       add(invitation.data.jobTitle, invitation.data);
     for (const record of store.listWhere(ws, ONBOARDING, { status: "active" }, 1000))
       if (!record.data.personId) add(record.data.title, record.data);
+    // Roles that only have a template so far (generated or made in Templates).
+    for (const template of store.listWhere(ws, TEMPLATE, {}, 500))
+      if (records.isCandidate(template)) {
+        const data = records.templateData(template);
+        add(
+          data.roles[0],
+          { departmentId: records.templateDepartment(template), team: data.teams[0] ?? null },
+          { people: 0 },
+        );
+      }
     return [...found.values()]
       .map((role) => {
         const template = records.bestTemplate(ws, {

@@ -178,7 +178,9 @@ export function SetupTemplatesStep() {
                     role.teamName,
                     role.planned
                       ? "added here"
-                      : `${role.people} ${role.people === 1 ? "person" : "people"}`,
+                      : role.people
+                        ? `${role.people} ${role.people === 1 ? "person" : "people"}`
+                        : "no one in it yet",
                   ]
                     .filter(Boolean)
                     .join(" · ")}
