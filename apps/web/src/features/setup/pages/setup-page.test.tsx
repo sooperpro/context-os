@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SetupPage } from "@/features/setup/pages/setup-page";
@@ -14,6 +14,8 @@ const setupResponse = {
   ...setupRecord,
   evidence: {
     completed: {
+      company_profile: false,
+      org_structure: false,
       connect_source: false,
       select_scopes: false,
       create_project: true,
@@ -67,6 +69,10 @@ function mockApi() {
     if (url.endsWith("/v1/workspaces/current/setup") && method === "PATCH")
       return Promise.resolve(jsonResponse(setupRecord));
     if (url.endsWith("/v1/connectors")) return Promise.resolve(jsonResponse({ items: [] }));
+    if (url.endsWith("/v1/workspaces/current/company"))
+      return Promise.resolve(
+        jsonResponse(method === "PUT" ? body : { description: "", products: "", workingHours: "" }),
+      );
     if (url.endsWith("/v1/workspaces/current/setup/roles/generate")) {
       generated = true;
       return Promise.resolve(
@@ -94,7 +100,7 @@ describe("SetupPage", () => {
     const current = screen
       .getAllByRole("listitem")
       .find((li) => li.getAttribute("aria-current") === "step");
-    expect(current).toHaveTextContent("Connect");
+    expect(current).toHaveTextContent("Company");
     expect(screen.getByRole("button", { name: "Mark completed" })).toBeDisabled();
   });
 
@@ -106,7 +112,7 @@ describe("SetupPage", () => {
     await waitFor(() =>
       expect(calls.find((call) => call.method === "PATCH")?.body).toEqual({
         version: 1,
-        step: "connect_source",
+        step: "company_profile",
         status: "skipped",
       }),
     );
@@ -130,6 +136,32 @@ describe("SetupPage", () => {
       }),
     );
     expect(await screen.findByText("Drafting…")).toBeInTheDocument();
+  });
+
+  it("saves the company profile first, and invites People Ops and managers with their role (N-7)", async () => {
+    const calls = mockApi();
+    const user = userEvent.setup();
+    renderWithProviders(<SetupPage />);
+    await user.type(
+      await screen.findByLabelText("What the company does"),
+      "Fleet telematics for logistics companies.",
+    );
+    await user.type(screen.getByLabelText("Working hours"), "Mon–Fri 9–17:30");
+    await user.click(screen.getByRole("button", { name: "Save profile" }));
+    await waitFor(() =>
+      expect(
+        calls.find((call) => call.method === "PUT" && call.url.endsWith("/current/company"))?.body,
+      ).toEqual({
+        description: "Fleet telematics for logistics companies.",
+        products: "",
+        workingHours: "Mon–Fri 9–17:30",
+      }),
+    );
+
+    await user.click(screen.getByRole("button", { name: /Invite People Ops and managers/ }));
+    await user.click(screen.getByRole("button", { name: "Invite People Ops" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("combobox", { name: "Role" })).toHaveTextContent("HR");
   });
 
   it("enables completion for a step the backend has evidence for", async () => {

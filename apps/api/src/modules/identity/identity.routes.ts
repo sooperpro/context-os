@@ -223,23 +223,40 @@ export function createIdentityRoutes(container: Container) {
     })
     .patch("/users/me", zValidator("json", ProfileUpdateSchema, validationHook), (c) => {
       const actor = c.get("actor");
-      const { name, pronouns, location, bio, skills, avatarShape, ...settings } =
+      const { name, pronouns, location, bio, skills, skillIds, avatarShape, ...settings } =
         c.req.valid("json");
       const row = db.select().from(users).where(eq(users.id, actor.id)).get();
       if (!row) throw new NotFoundError("User");
       const membership = identity.requireMember(actor.workspaceId, actor.id);
       // Profile fields join what the first-day welcome stored (preferred name, known topics).
+      const kept = skills?.filter(
+        (skill, index) =>
+          skills.findIndex((other) => other.toLocaleLowerCase() === skill.toLocaleLowerCase()) ===
+          index,
+      );
+      // ESCO ids follow the skills they belong to: new ones from this save, else the stored one.
+      const storedProfile =
+        typeof row.preferences.profile === "object" && row.preferences.profile !== null
+          ? (row.preferences.profile as Record<string, unknown>)
+          : {};
+      const storedIds =
+        typeof storedProfile.skillIds === "object" && storedProfile.skillIds !== null
+          ? (storedProfile.skillIds as Record<string, unknown>)
+          : {};
       const own = Object.fromEntries(
         Object.entries({
           pronouns,
           location,
           bio,
-          skills: skills?.filter(
-            (skill, index) =>
-              skills.findIndex(
-                (other) => other.toLocaleLowerCase() === skill.toLocaleLowerCase(),
-              ) === index,
-          ),
+          skills: kept,
+          skillIds: kept
+            ? Object.fromEntries(
+                kept.flatMap((skill) => {
+                  const id = skillIds?.[skill] ?? storedIds[skill];
+                  return typeof id === "string" ? [[skill, id]] : [];
+                }),
+              )
+            : undefined,
         }).filter(([, value]) => value !== undefined),
       );
       const { avatarShape: _previousShape, ...withoutShape } = row.preferences;

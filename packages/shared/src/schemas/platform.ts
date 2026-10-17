@@ -51,6 +51,11 @@ export const ProfileUpdateSchema = z
       .array(z.string().trim().min(1).max(PROFILE_LIMITS.skill))
       .max(PROFILE_LIMITS.skills)
       .optional(),
+    /** ESCO ids of skills picked from the suggestions, by label (N-10); others have none. */
+    skillIds: z
+      .record(z.string().max(PROFILE_LIMITS.skill), z.string().max(300))
+      .refine((ids) => Object.keys(ids).length <= PROFILE_LIMITS.skills, "Too many skill ids")
+      .optional(),
     /** Null goes back to the shape picked from their id. */
     avatarShape: AvatarShapeSchema.nullable().optional(),
   })
@@ -244,6 +249,33 @@ export const AiPolicySettingsSchema = z.object({
   weeklyDigest: z.boolean().default(true),
 });
 export type AiPolicySettings = z.infer<typeof AiPolicySettingsSchema>;
+/**
+ * What the company says about itself (N-7): set in setup's first step or on the Workspace page, and
+ * given to the AI as context when it drafts templates and modules. Anything unreadable reads empty.
+ */
+export const CompanyProfileSchema = z.object({
+  /** What the company does and for whom. */
+  description: z.string().max(1000).catch(""),
+  /** Its products or services, in its own words. */
+  products: z.string().max(1000).catch(""),
+  /** When people work: "Mon–Fri, 9:00–17:30 UK time, hybrid". */
+  workingHours: z.string().max(200).catch(""),
+});
+export type CompanyProfile = z.infer<typeof CompanyProfileSchema>;
+export const EMPTY_COMPANY_PROFILE: CompanyProfile = {
+  description: "",
+  products: "",
+  workingHours: "",
+};
+/** `PUT /workspaces/current/company`: the whole profile; an empty string clears a field. */
+export const CompanyProfileInputSchema = z
+  .object({
+    description: z.string().trim().max(1000),
+    products: z.string().trim().max(1000),
+    workingHours: z.string().trim().max(200),
+  })
+  .strict();
+export type CompanyProfileInput = z.infer<typeof CompanyProfileInputSchema>;
 /** Resolved workspace settings with every default applied. */
 export const WorkspaceSettingsStateSchema = z.object({
   timezone: TimezoneSchema.optional(),
@@ -255,6 +287,7 @@ export const WorkspaceSettingsStateSchema = z.object({
   authority: AuthorityRulesSchema.default(DEFAULT_AUTHORITY_RULES),
   deletion: WorkspaceDeletionSchema.nullable().default(null),
   ai: AiPolicySettingsSchema.prefault({}),
+  company: CompanyProfileSchema.default(EMPTY_COMPANY_PROFILE).catch(EMPTY_COMPANY_PROFILE),
 });
 export type WorkspaceSettingsState = z.infer<typeof WorkspaceSettingsStateSchema>;
 /** PATCH body: every section is a partial merge; `version` is the optimistic lock. */
@@ -392,6 +425,8 @@ export const CurrentWorkspaceSchema = z.object({
         .object({ scheduledAt: z.string(), requestedBy: z.string(), requestedAt: z.string() })
         .nullable()
         .optional(),
+      /** The company profile (N-7); never blocks loading the workspace. */
+      company: CompanyProfileSchema.optional().catch(undefined),
     })
     .optional(),
 });
@@ -400,6 +435,9 @@ export type CurrentWorkspace = z.infer<typeof CurrentWorkspaceSchema>;
 /* ---- Workspace setup wizard (`GET/PATCH /workspaces/current/setup`) ---------------------- */
 
 export const SetupStepSchema = z.enum([
+  // N-7: who the company is and how it's organised come first.
+  "company_profile",
+  "org_structure",
   "connect_source",
   "select_scopes",
   "create_project",
@@ -503,7 +541,8 @@ export type SetupRecord = z.infer<typeof SetupRecordSchema>;
 /** GET also reports what the backend can prove, so steps complete on evidence rather than on a click. */
 export const WorkspaceSetupSchema = SetupRecordSchema.extend({
   evidence: z.object({
-    completed: z.record(SetupStepSchema, z.boolean()),
+    // A step the API doesn't report yet (an older deploy) reads as not done.
+    completed: z.partialRecord(SetupStepSchema, z.boolean()),
     sync: z.object({
       sources: z.number().int().nonnegative(),
       ready: z.number().int().nonnegative(),

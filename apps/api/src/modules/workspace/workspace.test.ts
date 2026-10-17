@@ -293,6 +293,51 @@ describe("Phase 1 workspace and organization", () => {
     expect((await setLead(null)).status).toBe(403);
   });
 
+  it("keeps the company profile and confirms the first setup steps from what exists (N-7)", async () => {
+    t = createTestApp();
+    const evidence = async () =>
+      (
+        (await (await t.app.request("/api/v1/workspaces/current/setup")).json()) as {
+          evidence: { completed: Record<string, boolean> };
+        }
+      ).evidence.completed;
+    expect(await evidence()).toMatchObject({ company_profile: false, org_structure: false });
+
+    const profile = {
+      description: "Fleet telematics for logistics companies.",
+      products: "Tracker, Route planner",
+      workingHours: "Mon–Fri 9–17:30 UK, hybrid",
+    };
+    const saved = await t.app.request(
+      "/api/v1/workspaces/current/company",
+      jsonRequest(profile, "PUT"),
+    );
+    expect(saved.status).toBe(200);
+    expect(await saved.json()).toEqual(profile);
+    const current = (await (await t.app.request("/api/v1/workspaces/current")).json()) as {
+      settings: { company: unknown };
+    };
+    expect(current.settings.company).toEqual(profile);
+    const department = await createDepartment();
+    expect(await evidence()).toMatchObject({ company_profile: true, org_structure: false });
+    await createTeam(department.id, "Platform");
+    expect(await evidence()).toMatchObject({ company_profile: true, org_structure: true });
+
+    // Everyone can read it; only owners and admins change it.
+    Object.assign(t.container.devActor, seedMember("mia", "member"));
+    expect(await (await t.app.request("/api/v1/workspaces/current/company")).json()).toEqual(
+      profile,
+    );
+    expect(
+      (
+        await t.app.request(
+          "/api/v1/workspaces/current/company",
+          jsonRequest({ ...profile, description: "" }, "PUT"),
+        )
+      ).status,
+    ).toBe(403);
+  });
+
   it("rejects reporting cycles, last-owner removal and guest expiry removal", async () => {
     t = createTestApp();
     const first = seedMember("first");

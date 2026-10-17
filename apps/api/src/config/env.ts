@@ -40,6 +40,8 @@ const EnvSchema = z
     GEMINI_API_KEY: z.string().min(1, "GEMINI_API_KEY is required"),
     /** Model for extraction, synthesis and answers. */
     GEMINI_MODEL: z.string().min(1).default("gemini-3.8-flash"),
+    /** ESCO's public API for skill suggestions (N-10); empty turns ESCO off. */
+    ESCO_API_URL: z.string().default("https://ec.europa.eu/esco/api"),
     /** Model for retrieval embeddings. */
     GEMINI_EMBEDDING_MODEL: z.string().min(1).default("gemini-embedding-001"),
     GEMINI_EMBEDDING_DIMENSIONS: z.coerce.number().int().positive().default(768),

@@ -48,17 +48,18 @@ import {
   SkipNextIcon,
   WarningIcon,
 } from "@/components/ui/icons";
-import {
-  connectorsQuery,
-  useAuthorizeGoogleDrive,
-} from "@/features/connectors/api/connectors.queries";
+import { adminConnectorsQuery } from "@/features/admin/api/admin.queries";
+import { ConnectWizard } from "@/features/admin/components/connector-dialogs";
+import { connectorsQuery } from "@/features/connectors/api/connectors.queries";
 import { InviteMemberDialog } from "@/features/members/components/invite-member-dialog";
+import { OrgStructure } from "@/features/members/components/org-structure";
 import { projectsQuery } from "@/features/projects/api/projects.queries";
 import { CreateProjectDialog } from "@/features/projects/components/create-project-dialog";
 import { DriveScopePicker } from "@/features/sources/components/drive-sync-dialog";
 import { setupQuery, useUpdateSetupStep } from "@/features/setup/api/setup.queries";
 import { STEP_COPY } from "@/features/setup/components/setup-steps";
 import { SetupTemplatesStep } from "@/features/setup/components/setup-templates-step";
+import { CompanyProfileForm } from "@/features/workspace/components/company-profile-form";
 import { ApiClientError } from "@/lib/api-client";
 
 /*
@@ -112,10 +113,13 @@ export function SetupPage() {
   const setup = useQuery(setupQuery());
   const connectors = useQuery(connectorsQuery());
   const update = useUpdateSetupStep();
-  const authorize = useAuthorizeGoogleDrive();
+  // Drive connects through the admin wizard: it defaults to auto-organise (N-7).
+  const catalog = useQuery(adminConnectorsQuery());
+  const drive = catalog.data?.items.find((item) => item.id === "google-drive") ?? null;
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [selected, setSelected] = useState<SetupStep | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteRole, setInviteRole] = useState<"hr" | "manager" | "member" | null>(null);
 
   if (setup.isPending) {
     return (
@@ -157,9 +161,18 @@ export function SetupPage() {
     Promise.all([
       queryClient.invalidateQueries({ queryKey: setupQuery().queryKey }),
       queryClient.invalidateQueries({ queryKey: connectorsQuery().queryKey }),
+      queryClient.invalidateQueries({ queryKey: adminConnectorsQuery().queryKey }),
     ]);
+  const openDrive = (
+    <Button onClick={() => setWizardOpen(true)} disabled={!drive}>
+      <OpenInNewIcon aria-hidden />
+      {drive && drive.state !== "available" ? "Choose Drive folders" : "Connect Google Drive"}
+    </Button>
+  );
 
   const stepAction: Record<SetupStep, ReactNode> = {
+    company_profile: <CompanyProfileForm onSaved={() => void refresh()} />,
+    org_structure: <OrgStructure canManage />,
     connect_source: (
       <div className="space-y-3">
         {connectors.data && connectors.data.length > 0 ? (
@@ -177,38 +190,25 @@ export function SetupPage() {
             ))}
           </ul>
         ) : null}
-        {authorize.isError ? (
-          <Banner
-            tone="error"
-            icon={<WarningIcon />}
-            title="Google Drive is not available"
-            description={authorize.error.message}
-          />
-        ) : null}
         <div className="flex flex-wrap gap-2">
-          <Button
-            onClick={() =>
-              authorize.mutate(undefined, {
-                onSuccess: (url) => window.open(url, "_blank", "noopener,noreferrer"),
-              })
-            }
-            disabled={authorize.isPending}
-          >
-            <OpenInNewIcon aria-hidden />
-            Connect Google Drive
-          </Button>
+          {openDrive}
           <Button variant="outline" onClick={() => void refresh()}>
             <RefreshIcon aria-hidden />
             Check again
           </Button>
         </div>
         <p className="text-xs text-on-surface-variant">
-          Consent opens in a new tab with read-only Drive scope. After approval, Google returns that
-          tab to this Setup page and shows the connection status.
+          Consent opens in a new tab with read-only Drive access. Then choose folders and how often
+          they sync; leaving the project as Company knowledge auto-organises them.
         </p>
       </div>
     ),
-    select_scopes: <SetupScopesStep />,
+    select_scopes: (
+      <div className="space-y-4">
+        <div className="flex flex-wrap gap-2">{openDrive}</div>
+        <SetupScopesStep />
+      </div>
+    ),
     create_project: (
       <Button onClick={() => setCreateOpen(true)}>
         <AddIcon aria-hidden />
@@ -217,10 +217,19 @@ export function SetupPage() {
     ),
     onboarding_templates: <SetupTemplatesStep />,
     invite_team: (
-      <Button onClick={() => setInviteOpen(true)}>
-        <PersonAddIcon aria-hidden />
-        Invite a teammate
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button onClick={() => setInviteRole("hr")}>
+          <PersonAddIcon aria-hidden />
+          Invite People Ops
+        </Button>
+        <Button variant="outline" onClick={() => setInviteRole("manager")}>
+          <PersonAddIcon aria-hidden />
+          Invite a manager
+        </Button>
+        <Button variant="ghost" onClick={() => setInviteRole("member")}>
+          Invite someone else
+        </Button>
+      </div>
     ),
     assign_new_hire: (
       <div className="flex flex-col gap-3">
@@ -229,7 +238,7 @@ export function SetupPage() {
           that role yet, invite them as HR.
         </p>
         <div>
-          <Button onClick={() => setInviteOpen(true)}>
+          <Button onClick={() => setInviteRole("hr")}>
             <PersonAddIcon aria-hidden />
             Invite People Ops
           </Button>
@@ -242,7 +251,7 @@ export function SetupPage() {
     <div className="space-y-8">
       <PageHeader
         title="Set up your workspace"
-        description="Six steps, each confirmed by what actually happened rather than by a checkbox. Skip anything and come back later."
+        description={`${SETUP_STEPS.length} steps, each confirmed by what actually happened rather than by a checkbox. Skip anything and come back later.`}
       />
 
       {setup.data.status === "completed" ? (
@@ -368,7 +377,25 @@ export function SetupPage() {
       </div>
 
       <CreateProjectDialog open={createOpen} onOpenChange={setCreateOpen} />
-      <InviteMemberDialog open={inviteOpen} onOpenChange={setInviteOpen} />
+      <InviteMemberDialog
+        open={inviteRole !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setInviteRole(null);
+            void refresh();
+          }
+        }}
+        defaultRole={inviteRole ?? "member"}
+      />
+      <ConnectWizard
+        connector={wizardOpen ? drive : null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setWizardOpen(false);
+            void refresh();
+          }
+        }}
+      />
     </div>
   );
 }
@@ -393,12 +420,12 @@ function SetupScopesStep() {
   if (items.length === 0)
     return (
       <p className="text-sm text-on-surface-variant">
-        Create a project first (the next step), then come back here to choose which Drive folders
-        feed it.
+        To feed one project instead, create it in the next step and come back here.
       </p>
     );
   return (
     <div className="space-y-3">
+      <p className="text-sm font-medium">Or feed one project</p>
       <div className="space-y-1.5">
         <Label htmlFor="setup-scopes-project">Project</Label>
         <Select value={selected} onValueChange={(value) => setProjectId(String(value))}>

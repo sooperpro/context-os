@@ -37,6 +37,7 @@ import {
   type RoadmapModule,
 } from "../platform/onboarding-roadmap.js";
 import { isReviewer, REVIEWERS, reviewView, type ReviewData } from "../platform/review.js";
+import { workspaceSettings } from "../platform/settings.js";
 import type { PlatformRecord } from "../platform/store.js";
 import {
   createLearningContent,
@@ -905,6 +906,7 @@ export function createTutorialRoutes(container: Container) {
             content: passage.content,
           })),
           update,
+          company: workspaceSettings(db, found.workspaceId).company,
         },
         runs.usageRecorder(found.workspaceId, runId),
       );

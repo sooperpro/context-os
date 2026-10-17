@@ -1,9 +1,10 @@
-import type {
-  AdminConnector,
-  AuditEntry,
-  SecurityCheck,
-  SystemRole,
-  WorkspaceMember,
+import {
+  SETUP_STEPS,
+  type AdminConnector,
+  type AuditEntry,
+  type SecurityCheck,
+  type SystemRole,
+  type WorkspaceMember,
 } from "@contextos/shared";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import type { ReactNode } from "react";
@@ -24,6 +25,7 @@ import {
   KeyIcon,
   PersonAddIcon,
   PolicyIcon,
+  RocketLaunchIcon,
   SyncAltIcon,
   SyncProblemIcon,
   TuneIcon,
@@ -61,6 +63,8 @@ import { HOME_ENDPOINTS as E } from "@/features/home/api/home.api";
 import { homeQuery } from "@/features/home/api/home.queries";
 import { gapsQuery } from "@/features/knowledge-gaps/api/gaps.api";
 import { membersQuery } from "@/features/members/api/members.queries";
+import { setupQuery } from "@/features/setup/api/setup.queries";
+import { STEP_COPY } from "@/features/setup/components/setup-steps";
 import { currentWorkspaceQuery } from "@/features/workspace/api/workspace.queries";
 import {
   formatCount,
@@ -107,6 +111,7 @@ export function AdminHome() {
           </>
         }
       />
+      <SetupBanner />
       {broken.length ? (
         <Banner
           tone="error"
@@ -143,6 +148,32 @@ export function AdminHome() {
         <KnowledgeGapsCard />
       </DashboardGrid>
     </div>
+  );
+}
+
+/* ---- Company setup (N-7) ------------------------------------------------------------------ */
+
+/** Until every setup step is done or skipped: how far along it is, and the way back in. */
+function SetupBanner() {
+  const setup = useQuery(setupQuery());
+  if (!setup.data) return null;
+  const steps = SETUP_STEPS.map((step) => ({ step, status: setup.data.data.steps[step] }));
+  const done = steps.filter((entry) => entry.status === "completed").length;
+  const next = steps.find((entry) => !entry.status || entry.status === "pending");
+  if (!next) return null;
+  return (
+    <Banner
+      tone="info"
+      className="mb-3 medium:mb-4"
+      icon={<RocketLaunchIcon aria-hidden />}
+      title={done ? "Finish setting up your company" : "Set up your company"}
+      description={`${done} of ${steps.length} steps done. Next: ${STEP_COPY[next.step].title}.`}
+      actions={
+        <Button nativeButton={false} render={<Link to="/setup" />}>
+          {done ? "Resume setup" : "Start setup"}
+        </Button>
+      }
+    />
   );
 }
 

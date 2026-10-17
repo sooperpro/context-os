@@ -4,6 +4,7 @@ import {
   PeopleDirectorySchema,
   PersonalProfileSchema,
   PersonProfileSchema,
+  SkillSuggestionListSchema,
   TeamDirectorySchema,
   type DirectoryPerson,
   type ExpertList,
@@ -407,4 +408,14 @@ export async function fetchPerson(id: string, signal?: AbortSignal): Promise<Per
     owns,
     onboarding: profile.onboarding,
   });
+}
+
+/** Skills to offer as someone types: people here first, then ESCO's list (N-10). */
+export async function fetchSkillSuggestions(q: string, signal?: AbortSignal) {
+  const result = await apiRequest("/v1/skills/suggest", {
+    query: { q },
+    schema: SkillSuggestionListSchema,
+    signal,
+  });
+  return result.items;
 }

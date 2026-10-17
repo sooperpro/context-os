@@ -5,7 +5,7 @@ import {
 } from "@contextos/shared";
 import { useBotContext } from "@/components/layout/bot-context";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { ConnectorLogo } from "@/components/connector-logo";
@@ -79,6 +79,8 @@ import { ROLE_LABEL } from "@/lib/labels";
 import { teamsQuery } from "@/features/members/api/members.queries";
 import { useViewer } from "@/features/workspace/hooks/use-viewer";
 import { PasswordCard } from "@/features/settings/components/password-card";
+import { skillSuggestionsQuery } from "@/features/people/api/people.queries";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 /*
  * Personal settings (prototype `#settings`): profile name and time zone, notification channels and
@@ -227,6 +229,11 @@ function ProfileTab() {
   const update = useUpdateMe();
   const [draft, setDraft] = useState<Partial<ProfileDraft>>({});
   const [newSkill, setNewSkill] = useState("");
+  // ESCO ids of skills picked from the suggestions since the last save (N-10).
+  const [skillIds, setSkillIds] = useState<Record<string, string>>({});
+  const skillListId = useId();
+  const skillText = useDebouncedValue(newSkill.trim(), 250);
+  const suggestions = useQuery(skillSuggestionsQuery(skillText));
   const organization = me.data?.organization ?? {};
   const jobTitle = typeof organization.jobTitle === "string" ? organization.jobTitle : null;
   const teamId = typeof organization.teamId === "string" ? organization.teamId : null;
@@ -264,7 +271,12 @@ function ProfileTab() {
   const tone = avatarToneFor(me.data.id);
   const initials = initialsOf(current.name) || "?";
 
-  const skillToAdd = newSkill.trim().slice(0, PROFILE_LIMITS.skill);
+  const typed = newSkill.trim().slice(0, PROFILE_LIMITS.skill);
+  // A suggestion picked from the list (or typed exactly) keeps its own spelling and ESCO id.
+  const picked = suggestions.data?.find(
+    (item) => item.label.toLocaleLowerCase() === typed.toLocaleLowerCase(),
+  );
+  const skillToAdd = picked?.label ?? typed;
   const canAddSkill =
     skillToAdd.length > 0 &&
     current.skills.length < PROFILE_LIMITS.skills &&
@@ -272,12 +284,17 @@ function ProfileTab() {
   const addSkill = () => {
     if (!canAddSkill) return;
     set("skills", [...current.skills, skillToAdd]);
+    if (picked?.id) setSkillIds((ids) => ({ ...ids, [skillToAdd]: picked.id! }));
     setNewSkill("");
   };
+  const newIds = Object.fromEntries(
+    Object.entries(skillIds).filter(([skill]) => current.skills.includes(skill)),
+  );
 
   const reset = () => {
     setDraft({});
     setNewSkill("");
+    setSkillIds({});
   };
   const save = () =>
     update.mutate(
@@ -288,7 +305,12 @@ function ProfileTab() {
         ...(changed("pronouns") ? { pronouns: current.pronouns.trim() } : {}),
         ...(changed("location") ? { location: current.location.trim() } : {}),
         ...(changed("bio") ? { bio: current.bio.trim() } : {}),
-        ...(changed("skills") ? { skills: current.skills } : {}),
+        ...(changed("skills")
+          ? {
+              skills: current.skills,
+              ...(Object.keys(newIds).length ? { skillIds: newIds } : {}),
+            }
+          : {}),
         ...(changed("avatarShape") ? { avatarShape: current.avatarShape } : {}),
       },
       {
@@ -434,6 +456,8 @@ function ProfileTab() {
                 id="settings-skill"
                 value={newSkill}
                 maxLength={PROFILE_LIMITS.skill}
+                list={skillListId}
+                autoComplete="off"
                 placeholder={
                   current.skills.length >= PROFILE_LIMITS.skills
                     ? `Up to ${PROFILE_LIMITS.skills} skills`
@@ -448,13 +472,19 @@ function ProfileTab() {
                   }
                 }}
               />
+              <datalist id={skillListId}>
+                {(skillText.length >= 2 ? (suggestions.data ?? []) : []).map((item) => (
+                  <option key={item.label} value={item.label} />
+                ))}
+              </datalist>
               <Button variant="outline" disabled={!canAddSkill} onClick={addSkill}>
                 <AddIcon aria-hidden />
                 Add
               </Button>
             </div>
             <p className="px-4 text-xs text-on-surface-variant">
-              People find you by these in the directory.
+              People find you by these in the directory. Suggestions come from your colleagues'
+              skills and ESCO, the European skills list; any other skill works too.
             </p>
           </div>
         </div>

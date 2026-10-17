@@ -5,6 +5,7 @@ import {
   fetchExperts,
   fetchOwnership,
   fetchPerson,
+  fetchSkillSuggestions,
   fetchTeams,
 } from "./people.api";
 
@@ -15,7 +16,18 @@ export const peopleKeys = {
   experts: () => [...peopleKeys.all, "experts"] as const,
   teams: () => [...peopleKeys.all, "teams"] as const,
   person: (id: string) => [...peopleKeys.all, "person", id] as const,
+  skills: (q: string) => [...peopleKeys.all, "skills", q.toLocaleLowerCase()] as const,
 };
+
+/** Suggestions once two letters are typed; the same text is not asked for again for an hour. */
+export const skillSuggestionsQuery = (q: string) =>
+  queryOptions({
+    queryKey: peopleKeys.skills(q),
+    queryFn: ({ signal }) => fetchSkillSuggestions(q, signal),
+    enabled: q.length >= 2,
+    placeholderData: keepPreviousData,
+    staleTime: 60 * 60_000,
+  });
 
 /** Searching keeps the last results on screen while the next ones load. */
 export const directoryQuery = (q: string, filter: PeopleFilter) =>

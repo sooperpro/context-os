@@ -33,6 +33,7 @@ import type { Actor } from "./types.js";
 import { createCheckPause } from "./modules/learning/check-pause.js";
 import { createAnswerPolicy, domainOwnersOf } from "./modules/ask/answer-policy.js";
 import { createEmailDelivery } from "./modules/platform/email-delivery.js";
+import { createEscoSkills } from "./modules/identity/skills.js";
 
 export interface ContainerDeps {
   env: Env;
@@ -225,6 +226,7 @@ export function createContainer({ env, db, gemini, logger, mailer: mailerDep }: 
     store,
     notifier,
     repos,
+    skills: createEscoSkills({ baseUrl: env.ESCO_API_URL, logger }),
     services: { projects, sources, context, hub, ask, feedback, bounties, conflicts },
   };
 }

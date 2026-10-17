@@ -45,7 +45,8 @@ export const AvatarShapeSchema = z.enum([
 export type AvatarShapeChoice = z.infer<typeof AvatarShapeSchema>;
 
 /** Longest values for the fields people write about themselves. */
-export const PROFILE_LIMITS = { pronouns: 40, location: 100, bio: 600, skill: 40, skills: 20 };
+/** A skill fits ESCO's longer names, like "negotiate with employment agencies" (N-10). */
+export const PROFILE_LIMITS = { pronouns: 40, location: 100, bio: 600, skill: 80, skills: 20 };
 
 /**
  * What a person says about themselves (role access spec §4.9, Settings › Profile), on
@@ -147,3 +148,15 @@ export const PersonProfileSchema = DirectoryPersonSchema.extend({
   onboarding: z.object({ startedOn: DateOnly, status: OnboardingStatusSchema }).nullable(),
 });
 export type PersonProfile = z.infer<typeof PersonProfileSchema>;
+
+/** `GET /skills/suggest?q=`: skills to offer as someone types (N-10). */
+export const SkillSuggestQuerySchema = z.object({ q: z.string().trim().min(1).max(80) });
+export const SkillSuggestionSchema = z.object({
+  label: z.string(),
+  /** The ESCO skill's URI when it is one; null for a skill only this workspace uses. */
+  id: z.string().nullable(),
+  /** Already used by people here, or from ESCO, the European Commission's skills list. */
+  source: z.enum(["workspace", "esco"]),
+});
+export type SkillSuggestion = z.infer<typeof SkillSuggestionSchema>;
+export const SkillSuggestionListSchema = z.object({ items: z.array(SkillSuggestionSchema) });

@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 import {
+  CompanyProfileInputSchema,
   MemberOrganizationSchema,
   PageQuerySchema,
+  SetupStepSchema,
   TeamMembersInputSchema,
   WorkspaceCreateSchema,
   WorkspaceSettingsSchema,
@@ -27,7 +29,7 @@ import { validationHook } from "../../middleware/validation.js";
 import type { Actor, AppEnv } from "../../types.js";
 import { requireRole } from "../identity/identity.service.js";
 import { createNotifier } from "../platform/notify.js";
-import { mergeSettings, resolveSettings } from "../platform/settings.js";
+import { mergeSettings, resolveSettings, workspaceSettings } from "../platform/settings.js";
 import { createSetupTemplates } from "../platform/setup-templates.js";
 import { createPlatformStore } from "../platform/store.js";
 
@@ -41,18 +43,10 @@ const TeamSchema = NameSchema.extend({
 const TeamUpdateSchema = NameSchema.partial()
   .extend({ parentId: z.uuid().nullable().optional(), leadId: LeadSchema.optional() })
   .strict();
-const SetupStep = z.enum([
-  "connect_source",
-  "select_scopes",
-  "create_project",
-  "onboarding_templates",
-  "invite_team",
-  "assign_new_hire",
-]);
 const SetupUpdate = z
   .object({
     version: z.number().int().positive(),
-    step: SetupStep,
+    step: SetupStepSchema,
     status: z.enum(["pending", "completed", "skipped"]),
   })
   .strict();
@@ -220,8 +214,18 @@ export function createWorkspaceRoutes(container: Container) {
       )
       .limit(1)
       .get();
+    const company = workspaceSettings(db, actor.workspaceId).company;
+    const orgCount = (table: typeof departments | typeof teams) =>
+      db
+        .select({ total: count() })
+        .from(table)
+        .where(eq(table.workspaceId, actor.workspaceId))
+        .get()!.total;
     return {
       completed: {
+        // N-7: a description of the company, and at least one department with a team.
+        company_profile: company.description.trim().length > 0,
+        org_structure: orgCount(departments) > 0 && orgCount(teams) > 0,
         connect_source: connected > 0,
         select_scopes: sourceRows.some((row) => !!row.connectionId),
         create_project: projectRows.length > 0,
@@ -369,6 +373,40 @@ export function createWorkspaceRoutes(container: Container) {
         });
         return c.body(null, 204);
       })
+      .get("/workspaces/current/company", (c) => {
+        const actor = c.get("actor");
+        requireRole(actor, "owner", "admin", "manager", "hr", "member");
+        return c.json(workspaceSettings(db, actor.workspaceId).company);
+      })
+      .put(
+        "/workspaces/current/company",
+        zValidator("json", CompanyProfileInputSchema, validationHook),
+        (c) => {
+          const actor = c.get("actor");
+          admin(actor);
+          const company = c.req.valid("json");
+          db.transaction(() => {
+            const row = db
+              .select()
+              .from(workspaces)
+              .where(eq(workspaces.id, actor.workspaceId))
+              .get();
+            if (!row) throw new NotFoundError("Workspace");
+            db.update(workspaces)
+              // A new version, so a settings form opened before this save doesn't overwrite it.
+              .set({ settings: { ...row.settings, company }, version: row.version + 1 })
+              .where(eq(workspaces.id, row.id))
+              .run();
+            audit.record({
+              actor,
+              action: "workspace.company.update",
+              targetType: "workspace",
+              targetId: row.id,
+            });
+          });
+          return c.json(workspaceSettings(db, actor.workspaceId).company);
+        },
+      )
       .get("/workspaces/current/setup", (c) => {
         const actor = c.get("actor");
         admin(actor);
@@ -390,7 +428,7 @@ export function createWorkspaceRoutes(container: Container) {
           db.transaction(() => {
             const updated = store.update(actor, row, input.version, {
               data: { steps },
-              status: SetupStep.options.every(
+              status: SetupStepSchema.options.every(
                 (step) => steps[step] === "completed" || steps[step] === "skipped",
               )
                 ? "completed"
