@@ -471,24 +471,25 @@ describe("People Ops", () => {
       ),
     );
     expect(created).toMatchObject({ status: "draft", publishedVersion: null });
-    // A draft template cannot be assigned.
+    // A draft can be chosen: they wait for it, and get it once it's published.
     member("dana", "manager");
-    expect(
-      (
-        await t.app.request(
-          "/api/v1/people-ops/onboardings",
-          jsonRequest({
-            name: "Lee Park",
-            title: "Engineer",
-            team: "Platform",
-            startDate: dayFromToday(5),
-            managerId: "dana",
-            buddyId: null,
-            templateId: created.id,
-          }),
-        )
-      ).status,
-    ).toBe(409);
+    const waiting = await t.app.request(
+      "/api/v1/people-ops/onboardings",
+      jsonRequest({
+        name: "Lee Park",
+        title: "Engineer",
+        team: "Platform",
+        startDate: dayFromToday(5),
+        managerId: "dana",
+        buddyId: null,
+        templateId: created.id,
+      }),
+    );
+    expect(waiting.status).toBe(201);
+    expect(await waiting.json()).toMatchObject({
+      template: null,
+      templateDraft: { id: created.id, state: "draft" },
+    });
     const stages = created.stages.map((stage) => ({
       id: stage.id,
       moduleIds: stage.modules.map((entry) => entry.id),

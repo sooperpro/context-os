@@ -24,6 +24,7 @@ import {
   TemplateDraftInputSchema,
   TemplateLibrarySchema,
   TemplatePublishInputSchema,
+  TemplateSuggestionSchema,
   TemplateVersionSchema,
   type NewOnboardingInput,
   type NewTemplateInput,
@@ -140,6 +141,11 @@ export const PEOPLE_OPS_ENDPOINTS = {
     input: NewTemplateInputSchema,
   },
   library: { path: "/v1/people-ops/template-library", schema: TemplateLibrarySchema },
+  /** The template for someone joining, from their job title, team and department. */
+  templateSuggestion: {
+    path: "/v1/people-ops/template-suggestion",
+    schema: TemplateSuggestionSchema,
+  },
   /** Draft a template for a job title from the Knowledge Hub, in the background. */
   generateTemplate: {
     path: "/v1/roadmaps/generate",
@@ -277,6 +283,25 @@ export const generateTemplate = (input: RoadmapGenerateInput) =>
     method: "POST",
     body: input,
     schema: E.generateTemplate.schema,
+  });
+
+export interface RoleLookup {
+  title: string;
+  team?: string | null;
+  teamId?: string | null;
+  departmentId?: string | null;
+}
+
+export const fetchTemplateSuggestion = (role: RoleLookup, signal?: AbortSignal) =>
+  apiRequest(E.templateSuggestion.path, {
+    query: {
+      title: role.title,
+      team: role.team ?? undefined,
+      teamId: role.teamId ?? undefined,
+      departmentId: role.departmentId ?? undefined,
+    },
+    schema: E.templateSuggestion.schema,
+    signal,
   });
 
 export const fetchTemplateLibrary = (signal?: AbortSignal) =>

@@ -138,6 +138,9 @@ export const SetupStepInputSchema = z.object({}).strict();
 /** `GET /v1/people-ops/onboarding-options`: who and what can be assigned. */
 export const OnboardingOptionsSchema = z.object({
   teams: z.array(z.string()),
+  departments: z.array(z.object({ id: z.string(), name: z.string() })),
+  /** The department each team belongs to, by team name. */
+  teamDepartments: z.record(z.string(), z.string()),
   managers: z.array(PersonRefSchema),
   buddies: z.array(PersonRefSchema),
   /** Everyone with the HR role. */
@@ -158,12 +161,45 @@ export const NewOnboardingInputSchema = z
     email: z.email("Add a valid work email.").max(320).nullable().optional(),
     team: z.string().min(1),
     startDate: DateOnly,
+    /** Their department; worked out from the team when left out. */
+    departmentId: z.uuid().nullable().optional(),
     managerId: z.string(),
     buddyId: z.string().nullable(),
+    /**
+     * A published template, or a draft waiting for review: they get the draft once it is
+     * published. Null is "choose later". Templates are made in Templates (or workspace setup).
+     */
     templateId: z.string().nullable(),
   })
   .strict();
 export type NewOnboardingInput = z.infer<typeof NewOnboardingInputSchema>;
+
+/** A template offered for someone joining: published, or a draft waiting for review. */
+export const TemplateChoiceSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  status: z.enum(["published", "draft"]),
+  /** Still being drafted from the Hub. */
+  generating: z.boolean(),
+  /** Made for this role (job title, seniority aside, and department) or their team. */
+  fits: z.boolean(),
+  /** Why it fits: the role, or only their team. */
+  fitsBy: z.enum(["role", "team"]).nullable(),
+});
+export type TemplateChoice = z.infer<typeof TemplateChoiceSchema>;
+
+/**
+ * `GET /v1/people-ops/template-suggestion?title=&team=&teamId=&departmentId=`: the template for
+ * someone joining. `suggested` is the best fit, published first; null means none exists yet (HR
+ * makes one in Templates).
+ */
+export const TemplateSuggestionSchema = z.object({
+  department: z.object({ id: z.string(), name: z.string() }).nullable(),
+  suggested: TemplateChoiceSchema.nullable(),
+  /** Every template that can be chosen: the ones that fit first. */
+  options: z.array(TemplateChoiceSchema),
+});
+export type TemplateSuggestion = z.infer<typeof TemplateSuggestionSchema>;
 
 /* ---- Probation reviews --------------------------------------------------------------------- */
 
@@ -478,6 +514,8 @@ export const RoadmapGenerateInputSchema = z
   .object({
     jobTitle: z.string().trim().min(1).max(100),
     team: z.string().trim().max(100).optional(),
+    /** With the job title, what makes two new hires the same role. */
+    departmentId: z.uuid().nullable().optional(),
     seniority: z.string().trim().max(60).optional(),
   })
   .strict();

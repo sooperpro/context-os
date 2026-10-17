@@ -25,8 +25,20 @@ export interface ConnectorSyncRegistry {
   refreshAccess?: (job: JobRow) => Promise<void>;
   generateTutorial?: (job: JobRow) => Promise<void>;
   generateTemplate?: (job: JobRow) => Promise<void>;
-  /** A new hire's onboarding was made and no template fits them: draft one (N-18). */
-  newHireWithoutTemplate?: (actor: Actor, record: PlatformRecord) => void;
+  /**
+   * The template for a role (N-18): the one that fits, published or a draft waiting for review, or
+   * a new draft started now as `actor` (workspace setup drafts every role's).
+   */
+  templateForRole?: (
+    actor: Actor,
+    person: {
+      title: string;
+      team?: string | null;
+      teamId?: string | null;
+      departmentId?: string | null;
+    },
+    options?: { setup?: boolean },
+  ) => { template: PlatformRecord; started: boolean };
   /** A project's Hub was refreshed after a sync: draft updates of modules built on it (N-18). */
   hubChanged?: (projectId: string) => void;
 }

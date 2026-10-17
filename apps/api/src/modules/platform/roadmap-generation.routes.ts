@@ -1,10 +1,9 @@
 import { RoadmapGenerateInputSchema, type ContextItem } from "@contextos/shared";
 import { zValidator } from "@hono/zod-validator";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import type { Container } from "../../container.js";
-import { users, type JobRow } from "../../db/schema.js";
-import type { PlatformRecord } from "./store.js";
+import { departments, users, type JobRow } from "../../db/schema.js";
 import { AppError, BadRequestError, UpstreamServiceError } from "../../lib/errors.js";
 import { validationHook } from "../../middleware/validation.js";
 import type { Actor, AppEnv } from "../../types.js";
@@ -16,6 +15,7 @@ import {
   createOnboardingRecords,
   familyOf,
   TEMPLATE,
+  type RoleQuery,
   topicsFor,
   type TemplateData,
   type TemplateStage,
@@ -62,31 +62,50 @@ export function createRoadmapGeneration(
     return own;
   };
 
+  const departmentName = (workspaceId: string, id: string | null) =>
+    id
+      ? (db
+          .select({ name: departments.name })
+          .from(departments)
+          .where(and(eq(departments.workspaceId, workspaceId), eq(departments.id, id)))
+          .get()?.name ?? null)
+      : null;
+
   /**
-   * Start drafting a template for a job title and team, as `actor`: a click in Templates, or
-   * (`automatic`) a new hire no template fits.
+   * Start drafting a template for a job title, team and department, as `actor`: a click in
+   * Templates, or workspace setup (`setup`: the one-time allowance, one plan at a time so each one
+   * can reuse the company modules the previous ones drafted).
    */
   const start = (
     actor: Actor,
-    input: { jobTitle: string; team: string | null; seniority: string | null },
-    { automatic = false }: { automatic?: boolean } = {},
+    input: {
+      jobTitle: string;
+      team: string | null;
+      departmentId?: string | null;
+      seniority: string | null;
+    },
+    { setup = false }: { setup?: boolean } = {},
   ) => {
     // Jobs belong to a project: the plan runs under any project the person can read.
     const host = learning.readableProjects(actor)[0];
     if (!host) throw new BadRequestError(NO_KNOWLEDGE);
-    runs.ensureAvailable(actor.workspaceId, "template");
+    const ws = actor.workspaceId;
+    runs.ensureFor(ws, "template", setup);
     const { jobTitle, team } = input;
+    const departmentId = input.departmentId ?? records.departmentFor(ws, { team });
+    const place = team ?? departmentName(ws, departmentId);
     const row = store.create(
       actor,
       TEMPLATE,
       {
-        name: team ? `${jobTitle} · ${team}` : jobTitle,
+        name: place ? `${jobTitle} · ${place}` : jobTitle,
         family: familyOf(`${jobTitle} ${team ?? ""}`),
         version: 1,
         status: "draft",
         publishedVersion: null,
         roles: [jobTitle],
         teams: team ? [team] : [],
+        departmentId,
         weeks: 12,
         passMark: 4,
         stages: [],
@@ -102,7 +121,7 @@ export function createRoadmapGeneration(
       promptVersion: ROADMAP_PROMPT_VERSION,
       targetType: "onboarding_template",
       targetId: row.id,
-      automatic,
+      setup,
     });
     queue.enqueue({
       projectId: host.id,
@@ -112,12 +131,12 @@ export function createRoadmapGeneration(
         requestedBy: actor.id,
         runId: run.id,
         seniority: input.seniority,
-        automatic,
+        setup,
       },
       subject: `Roadmap: ${jobTitle}`,
-      dedupe: true,
+      dedupe: !setup,
       priority: JOB_PRIORITY.interactive,
-      concurrencyKey: `template:${row.id}`,
+      concurrencyKey: setup ? `template-setup:${ws}` : `template:${row.id}`,
       maxAttempts: 2,
     });
     audit.record({
@@ -125,54 +144,31 @@ export function createRoadmapGeneration(
       action: "template.generate",
       targetType: "onboarding_template",
       targetId: row.id,
-      metadata: { jobTitle, team, automatic },
+      metadata: { jobTitle, team, departmentId, setup },
     });
     return row;
   };
 
   /**
-   * A new hire's onboarding was made and no published template fits their job title or team: a
-   * template is drafted for them, as the person who made the record. One draft per title and team;
-   * later new hires with the same job wait for the same one.
+   * The template for a role: the one that already fits (published, or a draft waiting for review),
+   * or a new draft started now. Same role means the same job title, seniority aside, in the same
+   * department. Workspace setup drafts every role's this way.
    */
-  const forNewHire = (actor: Actor, record: PlatformRecord) => {
-    const data = records.recordData(record);
-    const jobTitle = data.title.trim();
-    if (!jobTitle || data.templateId || data.pendingTemplateId) return;
-    const ws = record.workspaceId;
-    if (records.fittingTemplate(ws, jobTitle, data.team)) return;
-    const team = data.team && data.team !== "Unassigned" ? data.team : null;
-    const same = (value: string | undefined, other: string | null) =>
-      (value ?? "").toLowerCase() === (other ?? "").toLowerCase();
-    let draft = store.listWhere(ws, TEMPLATE, {}, 500).find((row) => {
-      const template = templateData(row);
-      return (
-        template.publishedVersion === null &&
-        !template.archivedAt &&
-        template.generation !== undefined &&
-        template.generation.state !== "failed" &&
-        same(template.roles[0], jobTitle) &&
-        same(template.teams[0], team)
-      );
-    });
-    let note: string;
-    if (draft) note = `Waiting for the ${templateData(draft).name} template draft`;
-    else
-      try {
-        draft = start(actor, { jobTitle, team, seniority: null }, { automatic: true });
-        note = `No template fits ${jobTitle}: one is being drafted from company knowledge`;
-      } catch (error) {
-        if (!(error instanceof AppError)) throw error;
-        note = `No template fits ${jobTitle}, and one couldn't be drafted: ${error.message}`;
-      }
-    const latest = store.find(ws, record.kind, record.id) ?? record;
-    store.patch(latest, {
-      data: {
-        ...latest.data,
-        pendingTemplateId: draft?.id ?? null,
-        activity: [records.activity(note, "started"), ...records.recordData(latest).activity],
+  const templateFor = (actor: Actor, person: RoleQuery, options: { setup?: boolean } = {}) => {
+    const existing = records.bestTemplate(actor.workspaceId, person);
+    if (existing) return { template: existing, started: false };
+    const team = person.team && person.team !== "Unassigned" ? person.team : null;
+    const template = start(
+      actor,
+      {
+        jobTitle: person.title.trim(),
+        team,
+        departmentId: records.departmentFor(actor.workspaceId, person),
+        seniority: null,
       },
-    });
+      options,
+    );
+    return { template, started: true };
   };
 
   const routes = new Hono<AppEnv>().post(
@@ -186,6 +182,7 @@ export function createRoadmapGeneration(
       const row = start(actor, {
         jobTitle: input.jobTitle,
         team: teamFor(actor, input.team?.length ? input.team : null),
+        departmentId: input.departmentId ?? null,
         seniority: input.seniority?.length ? input.seniority : null,
       });
       return c.json(templateDetail(row, actor), 202);
@@ -211,7 +208,7 @@ export function createRoadmapGeneration(
     };
     const runId = typeof job.payload.runId === "string" ? job.payload.runId : null;
     const seniority = typeof job.payload.seniority === "string" ? job.payload.seniority : null;
-    const automatic = job.payload.automatic === true;
+    const setup = job.payload.setup === true;
     const data = templateData(row);
     const jobTitle = data.roles[0] ?? data.name;
     const team = data.teams[0] ?? null;
@@ -219,23 +216,24 @@ export function createRoadmapGeneration(
       const latest = store.find(ws, TEMPLATE, id);
       if (latest) store.patch(latest, { data: { ...latest.data, ...patch } });
     };
-    // A draft made for a new hire is for every reviewer; a click is for whoever clicked.
+    // Setup's drafts are for every reviewer; a click is for whoever clicked.
     const tell = (title: string) => {
       const input = {
         type: "template.ready",
         category: "system" as const,
         title,
         link: `/templates/${id}`,
+        ...(setup ? { batchKey: "template.setup" } : {}),
       };
-      if (automatic) notifier.notifyRoles(ws, REVIEWERS, input);
+      if (setup) notifier.notifyRoles(ws, REVIEWERS, input);
       else notifier.notify(ws, requesterId, input);
     };
     const fail = (error: string, skipped = false) => {
       runs.finish(ws, runId, error, skipped);
       save({ generation: { state: "failed", error, at: new Date().toISOString() } });
       tell(
-        automatic
-          ? `A template for ${jobTitle} couldn't be drafted for a new hire`
+        setup
+          ? `A template for ${jobTitle} couldn't be drafted`
           : `The ${jobTitle} roadmap couldn't be drafted`,
       );
     };
@@ -252,8 +250,20 @@ export function createRoadmapGeneration(
       }
       const thin = planKnowledgeCheck({ items, jobTitle });
       if (thin) return fail(thin, true);
-      const tutorialList = [...records.catalog(ws).values()]
-        .filter((entry) => entry.id.startsWith("tutorial-"))
+      // Published tutorials, and company-wide module drafts other templates already planned, so
+      // roles share one "Information security" instead of each drafting their own.
+      const failed = new Set(
+        store
+          .listWhere(ws, "tutorial", { status: "draft" }, 1000)
+          .filter(
+            (tutorial) =>
+              (tutorial.data.generation as { state?: string } | undefined)?.state === "failed" ||
+              tutorial.projectId !== null,
+          )
+          .map((tutorial) => `tutorial-${tutorial.id}`),
+      );
+      const tutorialList = [...records.catalog(ws, true).values()]
+        .filter((entry) => entry.id.startsWith("tutorial-") && !failed.has(entry.id))
         .map((entry) => ({ id: entry.id.slice("tutorial-".length), title: entry.title }));
       const { prompt } = planPrompt({
         jobTitle,
@@ -300,7 +310,7 @@ export function createRoadmapGeneration(
                     plannedTitle: module.title,
                     plannedKind: module.kind,
                   },
-                  { generated: true, automatic },
+                  { generated: true, setup },
                 );
                 moduleId = `tutorial-${draft.id}`;
               } catch (error) {
@@ -323,7 +333,7 @@ export function createRoadmapGeneration(
       });
       runs.finish(ws, runId);
       tell(
-        automatic
+        setup
           ? `A template for ${jobTitle} is ready for review`
           : `Your ${jobTitle} roadmap draft is ready to review`,
       );
@@ -334,5 +344,5 @@ export function createRoadmapGeneration(
     }
   }
 
-  return { routes, generate, forNewHire };
+  return { routes, generate, templateFor };
 }

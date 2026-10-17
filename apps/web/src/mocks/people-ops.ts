@@ -1432,7 +1432,38 @@ export const peopleOpsPageMocks = [
     templates: templates
       .filter((entry) => entry.publishedVersion !== null)
       .flatMap((entry) => templateRef(entry.id) ?? []),
+    departments: [],
+    teamDepartments: {},
   })),
+  // As the API, simplified: a template fits when one of its roles is in the job title, or its teams
+  // include the team; published templates come first.
+  mockGet(E.templateSuggestion)(({ request }) => {
+    const url = new URL(request.url);
+    const title = (url.searchParams.get("title") ?? "").toLowerCase();
+    const team = (url.searchParams.get("team") ?? "").toLowerCase();
+    const live = templates.filter((entry) => !entry.archived);
+    const fits = (entry: MockTemplate) =>
+      (title.length > 1 && entry.roles.some((role) => title.includes(role.toLowerCase()))) ||
+      (team !== "" && entry.teams.some((name) => name.toLowerCase() === team));
+    const choice = (entry: MockTemplate) => ({
+      id: entry.id,
+      name: entry.name,
+      status: entry.publishedVersion === null ? ("draft" as const) : ("published" as const),
+      generating: false,
+      fits: fits(entry),
+      fitsBy: fits(entry)
+        ? title.length > 1 && entry.roles.some((role) => title.includes(role.toLowerCase()))
+          ? ("role" as const)
+          : ("team" as const)
+        : null,
+    });
+    const ordered = [...live.filter(fits), ...live.filter((entry) => !fits(entry))].map(choice);
+    return {
+      department: null,
+      suggested: ordered.find((entry) => entry.fits) ?? null,
+      options: ordered,
+    };
+  }),
   mockPost(E.createOnboarding)((input) => {
     createdRecords += 1;
     const startsIn = Math.round(

@@ -25,6 +25,8 @@ export interface GenerationRunData {
   targetType: string;
   targetId: string | null;
   automatic: boolean;
+  /** Paid for by the workspace's one-time setup allowance, not the daily limit. */
+  setup?: boolean;
   model: string | null;
   inputTokens: number;
   outputTokens: number;
@@ -58,6 +60,8 @@ export function createGenerationRuns(container: Container) {
           // Skipped runs (too little knowledge) never reached the model.
           ne(platformRecords.status, "skipped"),
           sql`json_extract(${platformRecords.data}, '$.kind') = ${kind}`,
+          // Setup runs come out of the one-time allowance.
+          sql`coalesce(json_extract(${platformRecords.data}, '$.setup'), 0) = 0`,
           automaticUpdates
             ? and(
                 sql`json_extract(${platformRecords.data}, '$.automatic') = 1`,
@@ -67,6 +71,28 @@ export function createGenerationRuns(container: Container) {
         ),
       )
       .get()?.n ?? 0;
+
+  /** The one-time allowance a workspace's setup may use to draft every role's template at once. */
+  const setupAllowance = (kind: GenerationKind) =>
+    kind === "template" ? env.AI_SETUP_TEMPLATE_ALLOWANCE : env.AI_SETUP_MODULE_ALLOWANCE;
+  /** Setup runs ever made (all time: the allowance is used once, never renewed). */
+  const setupUsed = (workspaceId: string, kind: GenerationKind) =>
+    db
+      .select({ n: count() })
+      .from(platformRecords)
+      .where(
+        and(
+          eq(platformRecords.workspaceId, workspaceId),
+          eq(platformRecords.kind, GENERATION_RUN),
+          ne(platformRecords.status, "skipped"),
+          sql`json_extract(${platformRecords.data}, '$.kind') = ${kind}`,
+          sql`json_extract(${platformRecords.data}, '$.setup') = 1`,
+        ),
+      )
+      .get()?.n ?? 0;
+  /** Whether a setup run would still come out of the allowance. */
+  const setupLeft = (workspaceId: string, kind: GenerationKind) =>
+    setupUsed(workspaceId, kind) < setupAllowance(kind);
 
   /**
    * Refuses with 429 when today's limit is used up. Module updates that start on their own also
@@ -87,24 +113,45 @@ export function createGenerationRuns(container: Container) {
       );
   };
 
+  /** Today's limit, or (setup) the one-time allowance while it lasts. */
+  const ensureFor = (workspaceId: string, kind: GenerationKind, setup = false) => {
+    if (setup && setupLeft(workspaceId, kind)) return;
+    ensureAvailable(workspaceId, kind);
+  };
+
   return {
     limitOf,
     usedToday,
     ensureAvailable,
+    ensureFor,
+    /** What is left of the one-time setup allowance. */
+    allowance(workspaceId: string) {
+      const of = (kind: GenerationKind) => ({
+        used: Math.min(setupUsed(workspaceId, kind), setupAllowance(kind)),
+        total: setupAllowance(kind),
+      });
+      return { templates: of("template"), modules: of("module") };
+    },
 
-    /** Count a generation against today's limit and log it; the job finishes the record. */
+    /**
+     * Count a generation against today's limit (or, for workspace setup, the one-time allowance
+     * while it lasts) and log it; the job finishes the record.
+     */
     start(
       actor: Actor,
       input: Pick<GenerationRunData, "kind" | "purpose" | "promptVersion" | "targetType"> & {
         targetId?: string | null;
         automatic?: boolean;
+        setup?: boolean;
       },
     ): PlatformRecord {
-      ensureAvailable(
-        actor.workspaceId,
-        input.kind,
-        input.automatic === true && input.purpose === AUTOMATIC_UPDATE,
-      );
+      const setup = input.setup === true && setupLeft(actor.workspaceId, input.kind);
+      if (!setup)
+        ensureAvailable(
+          actor.workspaceId,
+          input.kind,
+          input.automatic === true && input.purpose === AUTOMATIC_UPDATE,
+        );
       return store.create(
         actor,
         GENERATION_RUN,
@@ -115,6 +162,7 @@ export function createGenerationRuns(container: Container) {
           targetType: input.targetType,
           targetId: input.targetId ?? null,
           automatic: input.automatic ?? false,
+          setup,
           model: null,
           inputTokens: 0,
           outputTokens: 0,

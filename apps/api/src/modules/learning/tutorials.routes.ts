@@ -268,7 +268,11 @@ export function createTutorialRoutes(container: Container) {
     row: PlatformRecord,
     focus: string | null,
     actor: Actor,
-    { automatic = false, update = false }: { automatic?: boolean; update?: boolean } = {},
+    {
+      automatic = false,
+      update = false,
+      setup = false,
+    }: { automatic?: boolean; update?: boolean; setup?: boolean } = {},
   ) => {
     // Jobs belong to a project: a company-wide draft runs under any project the curator can read.
     const host = row.projectId ?? learning.readableProjects(actor)[0]?.id;
@@ -280,6 +284,7 @@ export function createTutorialRoutes(container: Container) {
       targetType: "tutorial",
       targetId: row.id,
       automatic,
+      setup,
     });
     return queue.enqueue({
       projectId: host,
@@ -308,7 +313,11 @@ export function createTutorialRoutes(container: Container) {
       plannedTitle?: string;
       plannedKind?: ModuleKind;
     },
-    { generated = false, automatic = false }: { generated?: boolean; automatic?: boolean } = {},
+    {
+      generated = false,
+      automatic = false,
+      setup = false,
+    }: { generated?: boolean; automatic?: boolean; setup?: boolean } = {},
   ) => {
     const project = generated
       ? input.projectId
@@ -317,7 +326,7 @@ export function createTutorialRoutes(container: Container) {
       : requireCurator(actor, input.projectId);
     if (!project && !learning.readableProjects(actor).length)
       throw new BadRequestError(NO_KNOWLEDGE);
-    runs.ensureAvailable(actor.workspaceId, "module");
+    runs.ensureFor(actor.workspaceId, "module", setup);
     const row = store.create(
       actor,
       TUTORIAL,
@@ -340,7 +349,7 @@ export function createTutorialRoutes(container: Container) {
       } satisfies TutorialData,
       { projectId: project?.id, status: "draft" },
     );
-    queueGeneration(row, input.focus, actor, { automatic });
+    queueGeneration(row, input.focus, actor, { automatic, setup });
     audit.record({
       actor,
       projectId: project?.id ?? null,

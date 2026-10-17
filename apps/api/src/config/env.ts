@@ -49,6 +49,12 @@ const EnvSchema = z
     AI_DAILY_MODULE_LIMIT: z.coerce.number().int().min(0).default(60),
     /** Of those, most module updates that start on their own after the Hub changes. */
     AI_DAILY_AUTOMATIC_LIMIT: z.coerce.number().int().min(0).default(20),
+    /**
+     * One-time allowance for workspace setup, which drafts a template for every role at once.
+     * Used once per workspace; after it, the daily limits apply.
+     */
+    AI_SETUP_TEMPLATE_ALLOWANCE: z.coerce.number().int().min(0).default(30),
+    AI_SETUP_MODULE_ALLOWANCE: z.coerce.number().int().min(0).default(300),
 
     /** Run the background job worker inside this process. */
     WORKER_ENABLED: booleanString.default(true),

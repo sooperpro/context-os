@@ -51,6 +51,7 @@ import { createLearningRoutes } from "./modules/platform/learning.routes.js";
 import { createMemberAdminRoutes } from "./modules/platform/members-admin.routes.js";
 import { createPeopleOpsRoutes } from "./modules/platform/people-ops.routes.js";
 import { createRoadmapGeneration } from "./modules/platform/roadmap-generation.routes.js";
+import { createSetupTemplates } from "./modules/platform/setup-templates.js";
 import { createLearnerRoutes } from "./modules/learning/learner.routes.js";
 import { createTutorialRoutes } from "./modules/learning/tutorials.routes.js";
 import { createManagerRoutes } from "./modules/platform/manager.routes.js";
@@ -113,8 +114,8 @@ export function createApp({ env, container, version = "0.1.0" }: AppDeps) {
   container.connectors.generateTutorial = (job) => tutorials.generate(job);
   const roadmaps = createRoadmapGeneration(container, tutorials);
   container.connectors.generateTemplate = (job) => roadmaps.generate(job);
-  container.connectors.newHireWithoutTemplate = (actor, record) =>
-    roadmaps.forNewHire(actor, record);
+  container.connectors.templateForRole = (actor, person, options) =>
+    roadmaps.templateFor(actor, person, options);
   container.connectors.hubChanged = (projectId) => tutorials.hubChanged(projectId);
 
   // ----- global middleware -----
@@ -253,6 +254,7 @@ export function createApp({ env, container, version = "0.1.0" }: AppDeps) {
     .route("/api/v1", createEmployeeRoutes(container))
     .route("/api/v1", tutorials.routes)
     .route("/api/v1", roadmaps.routes)
+    .route("/api/v1", createSetupTemplates(container).routes)
     .route("/api/v1", createLearnerRoutes(container))
     .route("/api/v1/health", createHealthRoutes({ db: container.db, version }))
     .route("/api/v1/projects", createProjectsRoutes(services.projects))

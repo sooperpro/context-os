@@ -58,6 +58,7 @@ import { CreateProjectDialog } from "@/features/projects/components/create-proje
 import { DriveScopePicker } from "@/features/sources/components/drive-sync-dialog";
 import { setupQuery, useUpdateSetupStep } from "@/features/setup/api/setup.queries";
 import { STEP_COPY } from "@/features/setup/components/setup-steps";
+import { SetupTemplatesStep } from "@/features/setup/components/setup-templates-step";
 import { ApiClientError } from "@/lib/api-client";
 
 /*
@@ -214,6 +215,7 @@ export function SetupPage() {
         New project
       </Button>
     ),
+    onboarding_templates: <SetupTemplatesStep />,
     invite_team: (
       <Button onClick={() => setInviteOpen(true)}>
         <PersonAddIcon aria-hidden />
@@ -240,7 +242,7 @@ export function SetupPage() {
     <div className="space-y-8">
       <PageHeader
         title="Set up your workspace"
-        description="Five steps, each confirmed by what actually happened rather than by a checkbox. Skip anything and come back later."
+        description="Six steps, each confirmed by what actually happened rather than by a checkbox. Skip anything and come back later."
       />
 
       {setup.data.status === "completed" ? (

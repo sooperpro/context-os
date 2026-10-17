@@ -127,7 +127,7 @@ describe("Roadmap generation: a template drafted from the Hub, reviewed by Peopl
     Object.assign(t.container.devActor, owner);
   });
 
-  it("drafts one template for new hires no template fits, and gives it to them once published", async () => {
+  it("lets new hires wait for a template draft HR made, and gives it to them once published", async () => {
     t = createTestApp({ gemini: createFakeGemini(), starterTemplates: false });
     const owner = { ...t.container.devActor };
     const project = await createProject(t.app);
@@ -152,7 +152,7 @@ describe("Roadmap generation: a template drafted from the Hub, reviewed by Peopl
         .where(and(eq(platformRecords.kind, "notification"), eq(platformRecords.ownerId, userId)))
         .all()
         .map((row) => String(row.data.title));
-    const onboard = async (id: string) => {
+    const onboard = async (id: string, templateId: string) => {
       const response = await t.app.request(
         "/api/v1/people-ops/onboardings",
         jsonRequest({
@@ -163,7 +163,7 @@ describe("Roadmap generation: a template drafted from the Hub, reviewed by Peopl
           startDate: new Date().toISOString().slice(0, 10),
           managerId: "dana",
           buddyId: null,
-          templateId: null,
+          templateId,
         }),
       );
       expect(response.status).toBe(201);
@@ -174,27 +174,20 @@ describe("Roadmap generation: a template drafted from the Hub, reviewed by Peopl
         await (await t.app.request(`/api/v1/people-ops/onboardings/${id}`)).json(),
       );
 
+    // HR makes the template in Templates, then starts two onboardings on the draft.
     as("hr1", "hr");
-    const first = await onboard("sam");
-    expect(first.templateDraft).toMatchObject({
-      name: "Sales executive · Sales",
-      state: "generating",
+    const generated = await generate({ jobTitle: "Sales executive", team: "Sales" });
+    const { id: draftId } = (await generated.json()) as { id: string };
+    const first = await onboard("sam", draftId);
+    expect(first).toMatchObject({
+      template: null,
+      templateDraft: { id: draftId, name: "Sales executive · Sales", state: "generating" },
     });
-    // A second new hire with the same job waits for the same draft.
-    const second = await onboard("sky");
-    expect(second.templateDraft?.id).toBe(first.templateDraft?.id);
+    const second = await onboard("sky", draftId);
+    expect(second.templateDraft?.id).toBe(draftId);
     await t.drain();
     expect((await recordOf(first.id)).templateDraft).toMatchObject({ state: "draft" });
-    const runs = t.container.db
-      .select()
-      .from(platformRecords)
-      .where(eq(platformRecords.kind, "generation_run"))
-      .all()
-      .filter((row) => row.data.kind === "template");
-    expect(runs).toHaveLength(1);
-    expect(runs[0]).toMatchObject({ data: { automatic: true } });
-    for (const reviewer of ["hr1", "admin1", owner.id])
-      expect(notes(reviewer)).toContain("A template for Sales executive is ready for review");
+    expect(notes("hr1")).toContain("Your Sales executive roadmap draft is ready to review");
 
     // The new hire hears their roadmap is being prepared.
     as("sam", "member");

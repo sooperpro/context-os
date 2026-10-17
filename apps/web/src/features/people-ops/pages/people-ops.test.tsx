@@ -179,6 +179,8 @@ describe("Onboarding records", () => {
               buddies: [],
               peoplePartners: [],
               templates: [],
+              departments: [],
+              teamDepartments: {},
             }),
       ),
     );
@@ -196,6 +198,32 @@ describe("Onboarding records", () => {
     await user.click(within(dialog).getByRole("button", { name: "Try again" }));
     expect(await within(dialog).findByRole("textbox", { name: "Full name" })).toBeInTheDocument();
     expect(within(dialog).queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("suggests the template for the role, and says when there isn't one yet", async () => {
+    const user = userEvent.setup();
+    renderAt("/onboarding");
+    await user.click(await screen.findByRole("button", { name: "New onboarding" }));
+    const dialog = await screen.findByRole("dialog", { name: "New onboarding" });
+    await user.type(
+      await within(dialog).findByRole("textbox", { name: "Job title" }),
+      "Backend Engineer",
+    );
+    // No template for the job, so the Platform team's template is chosen for them, and it says why.
+    const template = within(dialog).getByRole("combobox", { name: "Template" });
+    await waitFor(() =>
+      expect(template).toHaveTextContent("Engineering · Individual contributor · Suggested"),
+    );
+    expect(within(dialog).getByText(/Suggested for the Platform team/)).toBeInTheDocument();
+
+    // Billing has no template: nothing is chosen, and HR is pointed to Templates. Nothing is drafted.
+    await user.click(within(dialog).getByRole("combobox", { name: "Team" }));
+    await user.click(await screen.findByRole("option", { name: "Billing" }));
+    await waitFor(() => expect(template).toHaveTextContent("Choose later"));
+    expect(
+      within(dialog).getByText(/No template for Backend Engineer in Billing yet/),
+    ).toBeInTheDocument();
+    expect(within(dialog).queryByText(/Generate a template/)).not.toBeInTheDocument();
   });
 
   it("starts a new onboarding and opens its record", async () => {

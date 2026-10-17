@@ -552,6 +552,28 @@ export function createIdentityRoutes(container: Container) {
           if (invitation.departmentId && team.departmentId !== invitation.departmentId)
             throw new BadRequestError("That team is not in the chosen department");
         }
+        if (invitation.templateId && !invitation.isNewHire)
+          throw new BadRequestError("Only a new hire gets an onboarding template");
+        if (invitation.templateId) {
+          const template = store.find(
+            actor.workspaceId,
+            "onboarding_template",
+            invitation.templateId,
+          );
+          const data = template?.data as
+            | {
+                archivedAt?: string | null;
+                publishedVersion: number | null;
+                generation?: { state: string };
+              }
+            | undefined;
+          if (
+            !data ||
+            data.archivedAt ||
+            (data.publishedVersion === null && data.generation?.state === "failed")
+          )
+            throw new BadRequestError("Choose a published template or one waiting for review");
+        }
       }
       const results: Array<Record<string, unknown>> = [];
       for (const invitation of invitations) {

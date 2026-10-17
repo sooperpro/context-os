@@ -35,7 +35,9 @@ import {
   fetchProbation,
   fetchTemplate,
   fetchTemplateLibrary,
+  fetchTemplateSuggestion,
   fetchTemplateVersion,
+  type RoleLookup,
   messageOnboarding,
   publishTemplate,
   remindManagers,
@@ -74,6 +76,15 @@ export const onboardingQuery = (id: string) =>
   queryOptions({
     queryKey: peopleOpsKeys.onboarding(id),
     queryFn: ({ signal }) => fetchOnboarding(id, signal),
+  });
+
+/** The template to suggest for someone joining; the previous answer stays while typing. */
+export const templateSuggestionQuery = (role: RoleLookup) =>
+  queryOptions({
+    queryKey: [...peopleOpsKeys.all, "template-suggestion", role] as const,
+    queryFn: ({ signal }) => fetchTemplateSuggestion(role, signal),
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
   });
 
 export const onboardingOptionsQuery = () =>

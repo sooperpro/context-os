@@ -27,16 +27,23 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
   onboardingOptionsQuery,
+  templateSuggestionQuery,
   useCreateOnboarding,
   useMessageOnboarding,
   useUpdateOnboarding,
 } from "@/features/people-ops/api/people-ops.queries";
+import {
+  TemplatePicker,
+  type TemplatePick,
+} from "@/features/people-ops/components/template-picker";
 import { onboardingPath } from "@/features/people-ops/people-ops-meta";
 import { ApiClientError } from "@/lib/api-client";
 import { firstName } from "@/lib/format";
 
 /** "Later" in the optional selects; the API takes null. */
 const LATER = "later";
+/** No department chosen. */
+const NONE = "none";
 
 function Field({ id, label, children }: { id: string; label: string; children: React.ReactNode }) {
   return (
@@ -135,6 +142,7 @@ function NewOnboardingForm({ close }: { close: () => void }) {
     title: useId(),
     email: useId(),
     team: useId(),
+    department: useId(),
     start: useId(),
     manager: useId(),
     buddy: useId(),
@@ -147,10 +155,13 @@ function NewOnboardingForm({ close }: { close: () => void }) {
   const [start, setStart] = useState(defaultStart);
   const [manager, setManager] = useState<string | null>(null);
   const [buddy, setBuddy] = useState(LATER);
-  const [template, setTemplate] = useState(LATER);
+  const [department, setDepartment] = useState<string | null>(null);
+  const [template, setTemplate] = useState<TemplatePick>(null);
   const data = options.data;
   const chosenTeam = team ?? data?.teams[0] ?? "";
   const chosenManager = manager ?? data?.managers[0]?.id ?? "";
+  // The team's department unless People Ops pick another; with the job title it picks the template.
+  const chosenDepartment = department ?? data?.teamDepartments[chosenTeam] ?? NONE;
 
   return (
     <form
@@ -167,10 +178,11 @@ function NewOnboardingForm({ close }: { close: () => void }) {
             title: title.trim(),
             email: email.trim() || null,
             team: chosenTeam,
+            departmentId: chosenDepartment === NONE ? null : chosenDepartment,
             startDate: start,
             managerId: chosenManager,
             buddyId: buddy === LATER ? null : buddy,
-            templateId: template === LATER ? null : template,
+            templateId: template,
           },
           {
             onSuccess: (record) => {
@@ -243,10 +255,26 @@ function NewOnboardingForm({ close }: { close: () => void }) {
               <OptionSelect
                 id={ids.team}
                 value={chosenTeam}
-                onChange={setTeam}
+                onChange={(next) => {
+                  setTeam(next);
+                  setDepartment(null);
+                }}
                 options={data.teams.map((entry) => ({ value: entry, label: entry }))}
               />
             </Field>
+            {data.departments.length ? (
+              <Field id={ids.department} label="Department">
+                <OptionSelect
+                  id={ids.department}
+                  value={chosenDepartment}
+                  onChange={setDepartment}
+                  options={[
+                    { value: NONE, label: "Not set" },
+                    ...data.departments.map((entry) => ({ value: entry.id, label: entry.name })),
+                  ]}
+                />
+              </Field>
+            ) : null}
             <Field id={ids.start} label="Start date">
               <Input
                 id={ids.start}
@@ -277,14 +305,15 @@ function NewOnboardingForm({ close }: { close: () => void }) {
             </Field>
           </div>
           <Field id={ids.template} label="Template">
-            <OptionSelect
+            <TemplatePicker
               id={ids.template}
+              role={{
+                title,
+                team: chosenTeam,
+                departmentId: chosenDepartment === NONE ? null : chosenDepartment,
+              }}
               value={template}
               onChange={setTemplate}
-              options={[
-                { value: LATER, label: "Choose later" },
-                ...data.templates.map((entry) => ({ value: entry.id, label: entry.name })),
-              ]}
             />
           </Field>
           <Note icon={<SyncAltIcon aria-hidden />}>
@@ -368,13 +397,27 @@ function AssignmentForm({
     partner: options.data?.peoplePartners ?? [],
     template: [],
   }[kind];
+  // Templates: the one for their role first, marked "Suggested", and chosen when none is set yet.
+  const suggestion = useQuery({
+    ...templateSuggestionQuery({ title: record.person.title ?? "", team: record.team }),
+    enabled: kind === "template",
+  });
+  const published = suggestion.data?.options.filter((entry) => entry.status === "published");
+  const suggested = published?.find((entry) => entry.fits)?.id;
   const list =
     kind === "template"
-      ? (options.data?.templates ?? []).map((entry) => ({ value: entry.id, label: entry.name }))
+      ? published
+        ? published.map((entry) => ({
+            value: entry.id,
+            label: `${entry.name}${entry.id === suggested ? " · Suggested" : ""}`,
+          }))
+        : (options.data?.templates ?? []).map((entry) => ({ value: entry.id, label: entry.name }))
       : people.map((entry) => ({ value: entry.id, label: entry.name }));
   const [value, setValue] = useState<string | null>(null);
   const chosen =
-    value ?? (list.some((entry) => entry.value === current) ? current : list[0]?.value) ?? "";
+    value ??
+    (list.some((entry) => entry.value === current) ? current : (suggested ?? list[0]?.value)) ??
+    "";
   const first = firstName(record.person.name);
   const assigning = !current;
 

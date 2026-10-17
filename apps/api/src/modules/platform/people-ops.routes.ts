@@ -69,6 +69,11 @@ export function createPeopleOpsRoutes(container: Container) {
     teamName,
     templateRows,
     isArchived,
+    isAssignable,
+    isCandidate,
+    findTemplate,
+    departmentFor,
+    suggestTemplates,
     deleteBlocker,
     templateVersion,
     templateData,
@@ -101,7 +106,7 @@ export function createPeopleOpsRoutes(container: Container) {
 
   /** Template routes check their own access: see `templateViewer`. */
   const templateRoute = (path: string) =>
-    /\/people-ops\/(templates|template-library)(\/|$)/.test(path);
+    /\/people-ops\/(templates|template-library|template-suggestion)(\/|$)/.test(path);
   /** People Ops, admins and owners; managers and path curators for their own drafts. */
   const templateViewer = (actor: Actor) => {
     if (isReviewer(actor) || actor.role === "manager" || identity.curatesAny(actor)) return;
@@ -562,7 +567,6 @@ export function createPeopleOpsRoutes(container: Container) {
           requirePerson(actor.workspaceId, input.managerId, "The manager");
           checkManager(actor, input.managerId, null);
           if (input.buddyId) requirePerson(actor.workspaceId, input.buddyId, "The buddy");
-          if (input.templateId) requirePublishedTemplate(actor, input.templateId);
           const email = input.email?.toLowerCase() ?? null;
           sync(actor);
           const existing = store.listWhere(
@@ -582,6 +586,29 @@ export function createPeopleOpsRoutes(container: Container) {
             )
           )
             throw new AppError(409, "CONFLICT", "This person already has an onboarding record");
+          // Their template: the one chosen; a draft waiting for review makes them wait for it.
+          const departmentId =
+            input.departmentId ?? departmentFor(actor.workspaceId, { team: input.team });
+          const picked = input.templateId
+            ? findTemplate(actor.workspaceId, input.templateId)
+            : undefined;
+          if (input.templateId) {
+            if (!picked) throw new NotFoundError("Template");
+            if (isArchived(picked))
+              throw new AppError(
+                409,
+                "CONFLICT",
+                "This template is archived. Restore it to assign it",
+              );
+            if (!isCandidate(picked))
+              throw new AppError(
+                409,
+                "CONFLICT",
+                "This template's draft failed. Generate it again or choose another",
+              );
+          }
+          const templateId = picked && isAssignable(picked) ? picked.id : null;
+          const pendingTemplateId = picked && !isAssignable(picked) ? picked.id : null;
           const invitationId =
             email && !member
               ? await sendInvitation(actor, email, {
@@ -599,15 +626,17 @@ export function createPeopleOpsRoutes(container: Container) {
               title: input.title,
               email,
               team: input.team,
+              departmentId,
               managerId: input.managerId,
               buddyId: input.buddyId,
-              templateId: input.templateId,
+              templateId,
+              pendingTemplateId,
               peoplePartnerId: actor.id,
               startDate: input.startDate,
               invitationId,
               setup: {
                 ...(member ? { account: { at, by: "Existing account" } } : {}),
-                ...(input.templateId ? { roadmap: { at, by: null } } : {}),
+                ...(templateId ? { roadmap: { at, by: null } } : {}),
                 ...(input.buddyId ? { buddy: { at, by: null } } : {}),
               },
             }) as unknown as Record<string, unknown>,
@@ -621,7 +650,8 @@ export function createPeopleOpsRoutes(container: Container) {
             metadata: {
               team: input.team,
               startDate: input.startDate,
-              templateId: input.templateId,
+              templateId,
+              pendingTemplateId,
             },
           });
           notifyPerson(
@@ -639,8 +669,19 @@ export function createPeopleOpsRoutes(container: Container) {
               `/people`,
               "onboarding.buddy_assigned",
             );
-          // No template chosen and none fits their job: one is drafted for them (N-18).
-          if (!input.templateId) container.connectors.newHireWithoutTemplate?.(actor, row);
+          if (pendingTemplateId)
+            store.patch(row, {
+              data: {
+                ...row.data,
+                activity: [
+                  activity(
+                    `Waiting for the ${templateData(picked!).name} template: they get it once it's published`,
+                    "started",
+                  ),
+                  ...recordData(row).activity,
+                ],
+              },
+            });
           return c.json(recordDetail(recordById(actor, row.id)), 201);
         },
       )
@@ -1007,6 +1048,33 @@ export function createPeopleOpsRoutes(container: Container) {
       )
 
       /* ---- Templates ---------------------------------------------------------------------- */
+
+      .get(
+        "/people-ops/template-suggestion",
+        zValidator(
+          "query",
+          z.object({
+            title: z.string().trim().max(200).default(""),
+            team: z.string().trim().max(200).optional(),
+            teamId: z.string().max(200).optional(),
+            departmentId: z.string().max(200).optional(),
+          }),
+          validationHook,
+        ),
+        (c) => {
+          const actor = c.get("actor");
+          templateViewer(actor);
+          const query = c.req.valid("query");
+          return c.json(
+            suggestTemplates(actor.workspaceId, {
+              title: query.title,
+              team: query.team ?? null,
+              teamId: query.teamId ?? null,
+              departmentId: query.departmentId ?? null,
+            }),
+          );
+        },
+      )
 
       .get("/people-ops/templates/:id", (c) => {
         const actor = c.get("actor");
