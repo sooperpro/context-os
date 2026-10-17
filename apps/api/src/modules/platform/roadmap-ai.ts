@@ -119,6 +119,8 @@ export interface PlanInput {
   tutorials: Array<{ id: string; title: string }>;
 }
 
+/** Hub items that may be taught. */
+export const usableCount = (items: ContextItem[]) => usable(items).length;
 const usable = (items: ContextItem[]) =>
   items.filter((item) => !["disputed", "superseded", "stale"].includes(item.verification));
 
@@ -197,10 +199,24 @@ export interface CheckedPlan {
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, Math.round(value)));
 
-/** Checks with no AI: known tutorial ids, sane weeks and days, no repeats, at most 20 modules. */
-export function checkPlan(plan: RoadmapPlan, tutorialIds: Set<string>): CheckedPlan {
+/** New modules a plan may draft: about one per 4 usable Hub items, so thin knowledge isn't padded. */
+export const newModulesFor = (usableItems: number) =>
+  Math.min(MAX_MODULES, Math.max(1, Math.ceil(usableItems / 4)));
+
+/**
+ * Checks with no AI: known tutorial ids, sane weeks and days, no repeats, at most 20 modules, and
+ * at most `maxNew` new ones (the rest become gaps). Stages left without modules are dropped, and the
+ * policy note says so.
+ */
+export function checkPlan(
+  plan: RoadmapPlan,
+  tutorialIds: Set<string>,
+  { maxNew = MAX_MODULES }: { maxNew?: number } = {},
+): CheckedPlan {
   const seen = new Set<string>();
   let total = 0;
+  let added = 0;
+  const thin: string[] = [];
   const stages = plan.stages
     .slice(0, MAX_STAGES)
     .map((stage) => {
@@ -212,8 +228,14 @@ export function checkPlan(plan: RoadmapPlan, tutorialIds: Set<string>): CheckedP
             ? module.tutorialId
             : title.toLowerCase();
         if (!title || seen.has(key) || total >= MAX_MODULES) return [];
+        const known = Boolean(module.tutorialId && tutorialIds.has(module.tutorialId));
+        if (!known && added >= maxNew) {
+          thin.push(`${title} (not enough company knowledge yet)`);
+          return [];
+        }
         seen.add(key);
         total += 1;
+        if (!known) added += 1;
         return [
           {
             ...module,
@@ -234,6 +256,8 @@ export function checkPlan(plan: RoadmapPlan, tutorialIds: Set<string>): CheckedP
     })
     .filter((stage) => stage.modules.length)
     .sort((a, b) => a.weekStart - b.weekStart);
+  const dropped = Math.min(plan.stages.length, MAX_STAGES) - stages.length;
+  const weeks = stages.length ? Math.max(...stages.map((stage) => stage.weekEnd)) : 0;
   const probationDays = plan.probationDays === null ? null : clamp(plan.probationDays, 1, 730);
   return {
     stages,
@@ -254,11 +278,18 @@ export function checkPlan(plan: RoadmapPlan, tutorialIds: Set<string>): CheckedP
         day: Math.round(checkin.day),
       }))
       .sort((a, b) => a.day - b.day),
-    policyNote: plan.policyNote.trim().slice(0, 1000),
-    gaps: plan.gaps
-      .map((gap) => gap.trim().slice(0, 200))
+    policyNote: [
+      plan.policyNote.trim().slice(0, 1000),
+      dropped > 0
+        ? `${dropped} planned stage${dropped === 1 ? " had" : "s had"} no modules the knowledge supports and ${dropped === 1 ? "was" : "were"} left out, so the roadmap runs ${weeks} week${weeks === 1 ? "" : "s"}.`
+        : "",
+    ]
       .filter(Boolean)
-      .slice(0, 20),
+      .join(" "),
+    gaps: [...plan.gaps.map((gap) => gap.trim().slice(0, 200)).filter(Boolean), ...thin].slice(
+      0,
+      20,
+    ),
   };
 }
 

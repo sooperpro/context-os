@@ -21,6 +21,8 @@ import {
 } from "../../test/helpers.js";
 import type { Actor } from "../../types.js";
 
+const OTHER_DEPARTMENT = "44444444-4444-4444-8444-444444444444";
+
 describe("Roadmap generation: a template drafted from the Hub, reviewed by People Ops", () => {
   let t: TestApp;
   afterEach(() => t?.close());
@@ -269,9 +271,21 @@ describe("Roadmap generation: a template drafted from the Hub, reviewed by Peopl
         moduleIds: stage.modules.map((module) => module.id),
       }));
 
-    // A manager drafts for their own team only.
+    // A manager drafts for their own team only, and not at all before they have one.
+    member("noteam", "manager");
+    as("noteam", "manager");
+    const unplaced = await generate({ jobTitle: "Account executive" });
+    expect(unplaced.status).toBe(403);
+    expect(await unplaced.text()).toContain("Ask an admin to set your team first");
     as("dana", "manager");
     expect((await generate({ jobTitle: "Account executive", team: "Support" })).status).toBe(403);
+    t.container.db
+      .insert(departments)
+      .values({ id: OTHER_DEPARTMENT, workspaceId: ws, name: "Partnerships" })
+      .run();
+    expect(
+      (await generate({ jobTitle: "Account executive", departmentId: OTHER_DEPARTMENT })).status,
+    ).toBe(403);
     const started = await generate({ jobTitle: "Account executive" });
     expect(started.status).toBe(202);
     const { id } = (await started.json()) as { id: string };

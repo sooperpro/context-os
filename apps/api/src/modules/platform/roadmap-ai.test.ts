@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkPlan, planKnowledgeCheck, type RoadmapPlan } from "./roadmap-ai.js";
+import { checkPlan, newModulesFor, planKnowledgeCheck, type RoadmapPlan } from "./roadmap-ai.js";
 
 /** The checks a planned roadmap goes through before anything is saved (N-18, no AI). */
 describe("Roadmap plan checks", () => {
@@ -105,6 +105,55 @@ describe("Roadmap plan checks", () => {
       new Set(),
     );
     expect(checked.stages.map((stage) => stage.name)).toEqual(["First", "Later"]);
+  });
+
+  it("drafts only as many new modules as the knowledge supports; the rest become gaps", () => {
+    expect(newModulesFor(5)).toBe(2);
+    expect(newModulesFor(33)).toBe(9);
+    const checked = checkPlan(
+      plan({
+        stages: [
+          {
+            name: "Induction",
+            weekStart: 1,
+            weekEnd: 2,
+            modules: [
+              module("Our pricing", "t-pricing"),
+              module("Our founding"),
+              module("Our product"),
+              module("Our customers"),
+            ],
+          },
+        ],
+        gaps: [],
+      }),
+      new Set(["t-pricing"]),
+      { maxNew: newModulesFor(5) },
+    );
+    // Existing tutorials don't count against the cap.
+    expect(checked.stages[0]!.modules.map((entry) => entry.title)).toEqual([
+      "Our pricing",
+      "Our founding",
+      "Our product",
+    ]);
+    expect(checked.gaps).toEqual(["Our customers (not enough company knowledge yet)"]);
+  });
+
+  it("says so in the policy note when planned stages are left out", () => {
+    const checked = checkPlan(
+      plan({
+        policyNote: "Defaults used: 12 weeks in 3 stages.",
+        stages: [
+          { name: "Induction", weekStart: 1, weekEnd: 2, modules: [module("Basics")] },
+          { name: "Core", weekStart: 3, weekEnd: 6, modules: [] },
+          { name: "Ownership", weekStart: 7, weekEnd: 12, modules: [] },
+        ],
+      }),
+      new Set(),
+    );
+    expect(checked.policyNote).toBe(
+      "Defaults used: 12 weeks in 3 stages. 2 planned stages had no modules the knowledge supports and were left out, so the roadmap runs 2 weeks.",
+    );
   });
 
   it("needs a few usable Hub items before planning", () => {
