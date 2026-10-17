@@ -78,12 +78,18 @@ export const checkQuery = (id: string) =>
     staleTime: Infinity,
   });
 
-/** Progress changes ripple to the roadmap, the module and Home (next up, onboarding, tasks). */
+/**
+ * Progress changes ripple to the roadmap, the module and Home (next up, onboarding, tasks). A
+ * check's questions don't change, and fetching one again would pause Context Bot again.
+ */
 function useRefreshProgress() {
   const queryClient = useQueryClient();
   return () =>
     Promise.all([
-      queryClient.invalidateQueries({ queryKey: learningKeys.all }),
+      queryClient.invalidateQueries({
+        queryKey: learningKeys.all,
+        predicate: (query) => query.queryKey[1] !== "check",
+      }),
       queryClient.invalidateQueries({ queryKey: homeKeys.all }),
     ]);
 }

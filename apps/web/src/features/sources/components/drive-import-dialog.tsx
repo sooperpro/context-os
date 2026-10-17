@@ -356,20 +356,21 @@ export function SharingSwitch({
   id,
   checked,
   onCheckedChange,
+  shared = "Every member can read these documents in this project.",
+  restricted = "Only people whose own Google account can open them in Drive, after they connect it.",
 }: {
   id: string;
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
+  /** Who can read it, said for each position. */
+  shared?: string;
+  restricted?: string;
 }) {
   return (
     <div className="flex items-start justify-between gap-4 rounded-md bg-pane px-3 py-2">
       <label htmlFor={id} className="flex min-w-0 flex-col gap-0.5">
         <span className="text-sm font-medium">Share with everyone in the workspace</span>
-        <span className="text-xs text-on-surface-variant">
-          {checked
-            ? "Every member can read these documents in this project."
-            : "Only people whose own Google account can open them in Drive, after they connect it."}
-        </span>
+        <span className="text-xs text-on-surface-variant">{checked ? shared : restricted}</span>
       </label>
       <Switch id={id} size="sm" checked={checked} onCheckedChange={onCheckedChange} />
     </div>

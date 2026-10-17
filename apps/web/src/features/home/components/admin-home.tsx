@@ -63,6 +63,7 @@ import { HOME_ENDPOINTS as E } from "@/features/home/api/home.api";
 import { homeQuery } from "@/features/home/api/home.queries";
 import { gapsQuery } from "@/features/knowledge-gaps/api/gaps.api";
 import { membersQuery } from "@/features/members/api/members.queries";
+import { projectsQuery } from "@/features/projects/api/projects.queries";
 import { setupQuery } from "@/features/setup/api/setup.queries";
 import { STEP_COPY } from "@/features/setup/components/setup-steps";
 import { currentWorkspaceQuery } from "@/features/workspace/api/workspace.queries";
@@ -87,8 +88,11 @@ export function AdminHome() {
   // The workspace's connectors (every member's connections), as on the Connectors page.
   const connectors = useQuery(adminConnectorsQuery());
   const members = useQuery(membersQuery());
+  // Every source in the workspace's projects, uploaded or synced (connectors are counted apart).
+  const projects = useQuery(projectsQuery());
   const connected = (connectors.data?.items ?? []).filter((item) => item.state !== "available");
   const broken = connected.filter((item) => item.state === "error");
+  const sources = projects.data?.items.reduce((sum, project) => sum + project.stats.sources, 0);
 
   return (
     <div className="mx-auto flex max-w-360 flex-col">
@@ -97,7 +101,13 @@ export function AdminHome() {
         title="Workspace overview"
         description={
           members.data && connectors.data
-            ? `${formatCount(members.data.length, "member")} · ${formatCount(connected.length, "knowledge source")} connected`
+            ? [
+                formatCount(members.data.length, "member"),
+                sources === undefined ? null : formatCount(sources, "knowledge source"),
+                connected.length ? formatCount(connected.length, "connector") : "no connectors yet",
+              ]
+                .filter(Boolean)
+                .join(" · ")
             : undefined
         }
         actions={
@@ -239,7 +249,7 @@ function SourcesCard({
     <SectionCard
       className={span(8)}
       title="Knowledge sources"
-      count={query.data ? `${items.length} connected` : undefined}
+      count={query.data ? formatCount(items.length, "connector") : undefined}
       status={query}
       action={
         <Button variant="ghost" nativeButton={false} render={<Link to={CONNECTORS_PATH} />}>

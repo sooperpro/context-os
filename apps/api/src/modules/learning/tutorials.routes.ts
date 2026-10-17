@@ -41,6 +41,8 @@ import { isReviewer, REVIEWERS, reviewView, type ReviewData } from "../platform/
 import { workspaceSettings } from "../platform/settings.js";
 import type { PlatformRecord } from "../platform/store.js";
 import {
+  citedSourceIds,
+  citedSources,
   createLearningContent,
   PROGRESS,
   TUTORIAL,
@@ -76,7 +78,10 @@ interface TutorialData {
   plannedTitle?: string | null;
   plannedKind?: ModuleKind | null;
   content: TutorialContent | null;
-  /** Sources the draft was built from, with their content hash then (for "Needs update"). */
+  /**
+   * Sources the draft cites, with their content hash then (for "Needs update"). Drafts written
+   * before only citations were kept recorded every source the generator read: `citedSources`.
+   */
   sources: Array<{ id: string; title: string; hash: string }>;
   generation: { state: "running" | "failed" | "done"; error: string | null; at: string };
   generatedAt: string | null;
@@ -141,15 +146,18 @@ export function createTutorialRoutes(container: Container) {
       throw new AppError(403, "FORBIDDEN", "Tutorials are managed by admins and People Ops");
     return row;
   };
-  /** Sources behind the tutorial the viewer can open; all of them, or the content stays hidden. */
+  /**
+   * Sources the tutorial cites that the viewer can open; all of them, or the content stays hidden.
+   * A deleted source hides nothing: it shows as removed, so curators can regenerate.
+   */
   const openSources = (actor: Actor, row: PlatformRecord) => {
-    const visible = learning.visibleOf(
+    const { visible, locked } = learning.sourceAccessOf(
       actor,
-      dataOf(row).sources.map((source) => source.id),
+      citedSources(dataOf(row)).map((source) => source.id),
     );
-    return { visible, all: dataOf(row).sources.every((source) => visible.has(source.id)) };
+    return { visible, all: locked.size === 0 };
   };
-  /** A tutorial the curator may change: they must be able to read everything it's built from. */
+  /** A tutorial the curator may change: they must be able to read everything it cites. */
   const editable = (actor: Actor, id: string) => {
     const row = tutorial(actor, id);
     if (!openSources(actor, row).all)
@@ -157,9 +165,10 @@ export function createTutorialRoutes(container: Container) {
     return row;
   };
 
-  /** Sources changed or gone since generation (compared by content hash). */
+  /** Cited sources changed or gone since generation (compared by content hash). */
   const sourceStates = (data: TutorialData) => {
-    const ids = data.sources.map((source) => source.id);
+    const sources = citedSources(data);
+    const ids = sources.map((source) => source.id);
     const current = new Map(
       (ids.length
         ? db
@@ -174,7 +183,7 @@ export function createTutorialRoutes(container: Container) {
         : []
       ).map((row) => [row.id, row]),
     );
-    return data.sources.map((source) => ({
+    return sources.map((source) => ({
       id: source.id,
       title: source.title,
       state: !current.has(source.id)
@@ -248,7 +257,9 @@ export function createTutorialRoutes(container: Container) {
       focus: data.focus,
       coversModule: data.coversModule,
       content: access.all ? data.content : null,
-      sources: sourceStates(data).filter((source) => access.visible.has(source.id)),
+      sources: sourceStates(data).filter(
+        (source) => source.state === "removed" || access.visible.has(source.id),
+      ),
       generatedAt: data.generatedAt,
       publishedAt: data.publishedAt,
       publishedBy: person(row.workspaceId, data.publishedBy),
@@ -419,7 +430,7 @@ export function createTutorialRoutes(container: Container) {
         data: {
           version,
           content,
-          sources: data.sources,
+          sources: citedSources(data),
           publishedAt: now,
           publishedBy: actor.id,
         },
@@ -906,7 +917,7 @@ export function createTutorialRoutes(container: Container) {
       )
         .flat()
         .slice(0, 12);
-      const { content, usedSourceIds } = await generateDraft(
+      const { content } = await generateDraft(
         gemini,
         {
           projectName: found.projectId ? project.name : null,
@@ -926,8 +937,10 @@ export function createTutorialRoutes(container: Container) {
         runs.usageRecorder(found.workspaceId, runId),
       );
       if (!content.lessons.length) throw new Error("The draft came back without lessons");
-      // Every source the draft was built from: who may read it, and what "Needs update" watches.
-      const used = usedSourceIds.length
+      // The sources its lessons and questions cite: who may read it, and what "Needs update"
+      // watches. Not every passage it read: a company-wide module reads far more than it teaches.
+      const cited = citedSourceIds(content);
+      const used = cited.length
         ? db
             .select({
               id: sourceObjects.id,
@@ -937,7 +950,7 @@ export function createTutorialRoutes(container: Container) {
             .from(sourceObjects)
             .where(
               and(
-                inArray(sourceObjects.id, usedSourceIds),
+                inArray(sourceObjects.id, cited),
                 found.projectId ? eq(sourceObjects.projectId, project.id) : undefined,
               ),
             )

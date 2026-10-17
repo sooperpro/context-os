@@ -54,7 +54,7 @@ import { SourceDrawerProvider } from "@/features/sources/components/source-drawe
 import { currentWorkspaceQuery } from "@/features/workspace/api/workspace.queries";
 import { useViewer } from "@/features/workspace/hooks/use-viewer";
 import { ApiClientError } from "@/lib/api-client";
-import { formatCount } from "@/lib/format";
+import { formatCount, formatTime } from "@/lib/format";
 import { stripCitations } from "@/lib/citations";
 
 /*
@@ -77,6 +77,22 @@ const PROMPTS = (project: string) => [
 interface Failure {
   question: string;
   message: string;
+  /** Context Bot is paused for a knowledge check until then (the API's 409), not broken. */
+  pausedUntil?: string;
+}
+
+/** Server messages are written for people; anything else (network, an unreadable response) is not. */
+function failureOf(question: string, error: unknown): Failure {
+  if (!(error instanceof ApiClientError))
+    return { question, message: "The answer could not be read. Please try again." };
+  const details = error.details as { pausedUntil?: unknown } | undefined;
+  return {
+    question,
+    message: error.message,
+    ...(error.status === 409 && typeof details?.pausedUntil === "string"
+      ? { pausedUntil: details.pausedUntil }
+      : {}),
+  };
 }
 
 export function AssistantPanel() {
@@ -137,14 +153,9 @@ export function AssistantPanel() {
           setWorkspaceThread((current) => [...current, answer]);
           setAnnouncement(announceWorkspace(answer));
         } catch (error) {
-          setAnnouncement(FAILED);
-          setFailure({
-            question: text,
-            message:
-              error instanceof ApiClientError
-                ? error.message
-                : "The answer could not be read. Please try again.",
-          });
+          const failed = failureOf(text, error);
+          setAnnouncement(failed.pausedUntil ? PAUSED : FAILED);
+          setFailure(failed);
         } finally {
           setPending(null);
         }
@@ -160,15 +171,9 @@ export function AssistantPanel() {
         const answer = await send.mutateAsync({ threadId: id, question: text });
         setAnnouncement(announceProject(answer));
       } catch (error) {
-        setAnnouncement(FAILED);
-        // Server messages are written for people; anything else (network, an unreadable response) is not.
-        setFailure({
-          question: text,
-          message:
-            error instanceof ApiClientError
-              ? error.message
-              : "The answer could not be read. Please try again.",
-        });
+        const failed = failureOf(text, error);
+        setAnnouncement(failed.pausedUntil ? PAUSED : FAILED);
+        setFailure(failed);
       } finally {
         setPending(null);
       }
@@ -473,19 +478,44 @@ export function AssistantPanel() {
             <div className="flex flex-col gap-5">
               <UserBubble text={failure.question} />
               <BotMessage>
-                <div className="flex flex-col items-start gap-2.5 rounded-xl bg-card p-4">
-                  <StatusChip tone="error" icon={<CloudOffIcon />}>
-                    Couldn't get an answer
-                  </StatusChip>
-                  <p className="text-sm">
-                    Something went wrong reaching ContextOS. Your question is saved.
-                  </p>
-                  <p className="text-xs text-on-surface-variant">{failure.message}</p>
-                  <Button size="xs" variant="secondary" onClick={() => void ask(failure.question)}>
-                    <RefreshIcon aria-hidden />
-                    Try again
-                  </Button>
-                </div>
+                {failure.pausedUntil ? (
+                  <div className="flex flex-col items-start gap-2.5 rounded-xl bg-card p-4">
+                    <StatusChip tone="neutral" icon={<PauseIcon />}>
+                      Paused for your knowledge check
+                    </StatusChip>
+                    <p className="text-sm">{failure.message}</p>
+                    <p className="text-xs text-on-surface-variant">
+                      Your question is saved. I'm back by {formatTime(failure.pausedUntil)} at the
+                      latest.
+                    </p>
+                    <Button
+                      size="xs"
+                      variant="secondary"
+                      onClick={() => void ask(failure.question)}
+                    >
+                      <RefreshIcon aria-hidden />
+                      Ask again
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-start gap-2.5 rounded-xl bg-card p-4">
+                    <StatusChip tone="error" icon={<CloudOffIcon />}>
+                      Couldn't get an answer
+                    </StatusChip>
+                    <p className="text-sm">
+                      Something went wrong reaching ContextOS. Your question is saved.
+                    </p>
+                    <p className="text-xs text-on-surface-variant">{failure.message}</p>
+                    <Button
+                      size="xs"
+                      variant="secondary"
+                      onClick={() => void ask(failure.question)}
+                    >
+                      <RefreshIcon aria-hidden />
+                      Try again
+                    </Button>
+                  </div>
+                )}
               </BotMessage>
             </div>
           ) : null}
@@ -611,6 +641,7 @@ function NoAnswerCard({
 /* What the live region says once an answer lands (prototype `announce`), citations left out. */
 
 const FAILED = "Couldn’t get an answer. Use Try again.";
+const PAUSED = "Context Bot is paused while your knowledge check is open.";
 
 /** What the prototype's review states ask; "answer" and "thinking" use the first suggestion. */
 const DEMO_QUESTION = {

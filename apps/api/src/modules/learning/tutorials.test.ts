@@ -309,7 +309,10 @@ describe("Tutorials: drafted from knowledge, reviewed, published and taken", () 
     await t.drain();
     const detail = TutorialDetailSchema.parse(await get(`/tutorials/${id}`));
     expect(detail.project).toBeNull();
-    expect(new Set(detail.sources.map((source) => source.id)).size).toBe(2);
+    // It read both projects, and keeps only the source its lessons and questions cite.
+    expect(detail.sources.map((source) => source.id)).toEqual([
+      detail.content!.lessons[0]!.sourceIds[0],
+    ]);
     const prompt = gemini.calls.find((call) => call.purpose === "tutorial")?.prompt ?? "";
     expect(prompt).toContain("the company as a whole");
     expect(await lessonsOf()).toMatchObject({ lessons: "draft", tutorialId: id });
@@ -492,6 +495,231 @@ describe("Tutorials: drafted from knowledge, reviewed, published and taken", () 
     as("emp", "member");
     await get(`/me/checks/${key}~check`);
     expect((await ask()).status).toBe(201);
+  });
+
+  it("keeps Context Bot free after a passed check, even when the results page fetches it again", async () => {
+    t = createTestApp();
+    admin = owner();
+    const { project, id } = await publishedTutorial();
+    const key = `tutorial-${id}`;
+    member("emp", "member");
+    await t.app.request(
+      `/api/v1/tutorials/${id}/assign`,
+      jsonRequest({ userId: "emp", dueOn: day(7) }),
+    );
+    as("emp", "member");
+    const ask = () =>
+      t.app.request(
+        `/api/v1/projects/${project.id}/ask`,
+        jsonRequest({ question: "Why did billing change?" }),
+      );
+    const check = KnowledgeCheckSchema.parse(await get(`/me/checks/${key}~check`));
+    expect((await ask()).status).toBe(409);
+    const correct = new Map(
+      SAMPLE_TUTORIAL.questions.map((question) => [
+        question.prompt,
+        "abcdef"[question.correctIndex]!,
+      ]),
+    );
+    const result = CheckResultSchema.parse(
+      await json(
+        await t.app.request(
+          `/api/v1/me/checks/${key}~check/attempts`,
+          jsonRequest({
+            answers: check.questions.map((question) => ({
+              questionId: question.id,
+              optionId: correct.get(question.prompt)!,
+            })),
+          }),
+        ),
+      ),
+    );
+    expect(result.passed).toBe(true);
+    // The results page reloads the check after a pass: that is not a new attempt.
+    await get(`/me/checks/${key}~check`);
+    expect((await ask()).status).toBe(201);
+  });
+
+  it("decides access by the sources a tutorial cites, not every source it read", async () => {
+    t = createTestApp();
+    admin = owner();
+    const atlas = await createProject(t.app, "Atlas");
+    const nova = await createProject(t.app, "Nova");
+    await addSource(t.app, atlas.id);
+    await addSource(t.app, nova.id);
+    await t.drain();
+    t.container.db.update(sourceObjects).set({ visibility: "workspace" }).run();
+    const { id } = await json<{ id: string }>(
+      await t.app.request(
+        "/api/v1/tutorials",
+        jsonRequest({ audience: "New hires", coversModule: "mod-customers" }),
+      ),
+    );
+    await t.drain();
+    const draft = TutorialDetailSchema.parse(await get(`/tutorials/${id}`));
+    const cited = draft.content!.lessons[0]!.sourceIds[0]!;
+    expect(draft.sources.map((source) => source.id)).toEqual([cited]);
+    const all = t.container.db.select().from(sourceObjects).all();
+    const uncited = all.find((source) => source.id !== cited)!;
+
+    // Drafts written before kept every source they read: they're read the same way.
+    const row = t.container.db
+      .select()
+      .from(platformRecords)
+      .where(eq(platformRecords.id, id))
+      .get()!;
+    const everything = all.map((source) => ({
+      id: source.id,
+      title: source.title,
+      hash: source.contentHash,
+    }));
+    t.container.db
+      .update(platformRecords)
+      .set({ data: { ...row.data, sources: everything } })
+      .where(eq(platformRecords.id, id))
+      .run();
+
+    // An access policy keeps the uncited source from an admin: they still edit and publish it.
+    t.container.db
+      .update(sourceObjects)
+      .set({ visibility: "restricted" })
+      .where(eq(sourceObjects.id, uncited.id))
+      .run();
+    member("adm", "admin");
+    as("adm", "admin");
+    const seen = TutorialDetailSchema.parse(await get(`/tutorials/${id}`));
+    expect(seen).toMatchObject({ restrictedForYou: false, staleSources: 0 });
+    expect(seen.content).not.toBeNull();
+    expect(
+      (
+        await t.app.request(
+          `/api/v1/tutorials/${id}`,
+          jsonRequest({ content: seen.content }, "PATCH"),
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await t.app.request(
+          `/api/v1/tutorials/${id}/publish`,
+          jsonRequest({ updateLearners: false }),
+        )
+      ).status,
+    ).toBe(200);
+
+    // A learner who can't open the uncited source reads every lesson and the check.
+    const version = t.container.db
+      .select()
+      .from(platformRecords)
+      .where(eq(platformRecords.kind, "tutorial_version"))
+      .get()!;
+    t.container.db
+      .update(platformRecords)
+      .set({ data: { ...version.data, sources: everything } })
+      .where(eq(platformRecords.id, version.id))
+      .run();
+    member("emp", "member");
+    asAdmin();
+    await t.app.request(
+      `/api/v1/tutorials/${id}/assign`,
+      jsonRequest({ userId: "emp", dueOn: day(7) }),
+    );
+    as("emp", "member");
+    const module = ModuleDetailSchema.parse(await get(`/me/modules/tutorial-${id}`));
+    expect(module.lessons.some((lesson) => lesson.restricted)).toBe(false);
+    expect(module.lessons.map((lesson) => lesson.type)).toContain("check");
+  });
+
+  it("treats a deleted source as removed: nothing locks, and curators can regenerate", async () => {
+    t = createTestApp();
+    admin = owner();
+    const { project, id } = await publishedTutorial();
+    member("emp", "member");
+    await t.app.request(
+      `/api/v1/tutorials/${id}/assign`,
+      jsonRequest({ userId: "emp", dueOn: day(7) }),
+    );
+    const source = t.container.db.select().from(sourceObjects).get()!;
+    expect(
+      (
+        await t.app.request(`/api/v1/projects/${project.id}/sources/${source.id}`, {
+          method: "DELETE",
+        })
+      ).status,
+    ).toBe(204);
+
+    const detail = TutorialDetailSchema.parse(await get(`/tutorials/${id}`));
+    expect(detail).toMatchObject({ restrictedForYou: false, staleSources: 1 });
+    expect(detail.content).not.toBeNull();
+    expect(detail.sources).toEqual([expect.objectContaining({ id: source.id, state: "removed" })]);
+    expect(
+      (await t.app.request(`/api/v1/tutorials/${id}/regenerate`, jsonRequest({}))).status,
+    ).toBe(202);
+
+    // Learners keep the published version, unlocked.
+    as("emp", "member");
+    const module = ModuleDetailSchema.parse(await get(`/me/modules/tutorial-${id}`));
+    expect(module.lessons.some((lesson) => lesson.restricted)).toBe(false);
+    const lesson = LessonSchema.parse(await get(`/me/lessons/tutorial-${id}~l1`));
+    expect(lesson.blocks[0]).toMatchObject({
+      text: expect.stringContaining("too slow") as unknown,
+    });
+  });
+
+  it("never shows learners the draft's [S#] citation markers", async () => {
+    const marked = {
+      ...SAMPLE_TUTORIAL,
+      summary: "Billing moves to **Kafka** [S1].",
+      lessons: SAMPLE_TUTORIAL.lessons.map((lesson) => ({
+        ...lesson,
+        body: `${lesson.body}\n\nInvoices update in minutes [S1, S2].`,
+      })),
+    };
+    t = createTestApp({ gemini: createFakeGemini({ tutorial: marked }) });
+    admin = owner();
+    const { id } = await publishedTutorial();
+    const key = `tutorial-${id}`;
+    // New drafts drop them; a version published before kept them (one saved escaped).
+    const draft = TutorialDetailSchema.parse(await get(`/tutorials/${id}`));
+    expect(JSON.stringify(draft.content)).not.toMatch(/\[S\d/);
+    const version = t.container.db
+      .select()
+      .from(platformRecords)
+      .where(eq(platformRecords.kind, "tutorial_version"))
+      .get()!;
+    const content = version.data.content as NonNullable<TutorialDetail["content"]>;
+    t.container.db
+      .update(platformRecords)
+      .set({
+        data: {
+          ...version.data,
+          content: {
+            ...content,
+            summary: "Billing moves to **Kafka** [S1].",
+            lessons: content.lessons.map((lesson, index) => ({
+              ...lesson,
+              body: `${lesson.body}\n\nInvoices update in minutes ${index ? "\\[S12\\]" : "[S3][S4]"}.`,
+            })),
+          },
+        },
+      })
+      .where(eq(platformRecords.id, version.id))
+      .run();
+    member("emp", "member");
+    await t.app.request(
+      `/api/v1/tutorials/${id}/assign`,
+      jsonRequest({ userId: "emp", dueOn: day(7) }),
+    );
+    as("emp", "member");
+    const module = ModuleDetailSchema.parse(await get(`/me/modules/${key}`));
+    expect(module.objective).toContain("Billing moves to Kafka");
+    expect(module.objective).not.toMatch(/S\d/);
+    for (const part of ["l1", "l2"]) {
+      const lesson = LessonSchema.parse(await get(`/me/lessons/${key}~${part}`));
+      const text = lesson.blocks.map((block) => ("text" in block ? block.text : "")).join("");
+      expect(text).toContain("Invoices update in minutes.");
+      expect(text).not.toMatch(/S\d/);
+    }
   });
 
   it("assigns a tutorial to someone not onboarding; they take it in My learning", async () => {

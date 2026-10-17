@@ -443,8 +443,8 @@ export function createLearnerRoutes(container: Container) {
   ): LearningRequest => {
     if (!resolved) throw new BadRequestError("Say which module the lesson is in");
     const ids = [...new Set(resolved.content.lessons.flatMap((lesson) => lesson.sourceIds))];
-    const visible = learning.visibleOf(actor, ids);
-    const missing = ids.filter((id) => !visible.has(id));
+    // Deleted sources lock nothing, so there's nothing to ask for them.
+    const missing = [...learning.lockedOf(actor, ids)];
     if (!missing.length)
       throw new AppError(409, "CONFLICT", "You can already open everything in this module");
     const admins = db
@@ -819,7 +819,9 @@ export function createLearnerRoutes(container: Container) {
           options: question.options,
         })),
       };
-      checkPause.open(actor, body.id);
+      // Only for an attempt still to submit: once they've passed (the results page fetches the
+      // check again), Context Bot stays free to explain the answers.
+      if (!resolved.data?.passed) checkPause.open(actor, body.id);
       return c.json(body);
     })
     .post(

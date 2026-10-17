@@ -15,6 +15,7 @@ import { departments, memberships, teams, users } from "../../db/schema.js";
 import { AppError, BadRequestError, NotFoundError } from "../../lib/errors.js";
 import type { Actor } from "../../types.js";
 import { sendInvitationEmail } from "../auth/invitations.js";
+import { citedSources, type CitingData } from "../learning/content.js";
 import { lessonState, staleSourceCount, WAITING_UPDATE } from "../learning/lesson-state.js";
 import { createNotifier } from "./notify.js";
 import {
@@ -708,7 +709,7 @@ export function createOnboardingRecords(container: Container) {
     return (entry: TemplateModule): TemplateModule => {
       if (!entry.id.startsWith("tutorial-") && !entry.id.startsWith("mod-")) return entry;
       const row = tutorialFor(entry.id, tutorials);
-      const sources = (row?.data.sources ?? []) as Array<{ id: string; hash: string }>;
+      const sources = citedSources((row?.data ?? {}) as CitingData<{ id: string; hash: string }>);
       return {
         ...entry,
         lessons:
@@ -735,7 +736,7 @@ export function createOnboardingRecords(container: Container) {
         moduleIds.flatMap((moduleId) => {
           const row = tutorialFor(moduleId, tutorials);
           if (row?.status !== "published") return [];
-          const sources = (row.data.sources ?? []) as Array<{ id: string; hash: string }>;
+          const sources = citedSources(row.data as CitingData<{ id: string; hash: string }>);
           return WAITING_UPDATE.has(lessonState(row, staleSourceCount(db, sources)))
             ? [row.id]
             : [];
