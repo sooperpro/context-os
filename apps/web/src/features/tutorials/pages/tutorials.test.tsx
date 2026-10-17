@@ -284,6 +284,31 @@ describe("Tutorials", () => {
     );
   });
 
+  it("gives each lesson a drag handle, and moves one from its menu", async () => {
+    const user = userEvent.setup();
+    renderAt("/tutorials/t1", tutorial());
+    const lessons = await screen.findByRole("list", { name: "Lessons" });
+    const order = () =>
+      within(lessons)
+        .getAllByRole("button", { name: /^\d\s*/ })
+        .map((button) => button.textContent);
+    expect(order()).toEqual(["1Why we changed", "2Who owns what"]);
+    // Each row has a drag handle and its delete button, and no up and down arrows of its own.
+    expect(
+      within(lessons).getByRole("button", { name: "Reorder Why we changed" }),
+    ).toBeInTheDocument();
+    expect(
+      within(lessons).getByRole("button", { name: "Remove Why we changed" }),
+    ).toBeInTheDocument();
+    expect(within(lessons).queryByRole("button", { name: /Move .* up/ })).not.toBeInTheDocument();
+
+    // The menu moves it without dragging.
+    await user.click(within(lessons).getByRole("button", { name: "Move Who owns what" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Move up" }));
+    await waitFor(() => expect(order()).toEqual(["1Who owns what", "2Why we changed"]));
+    expect(screen.getByRole("button", { name: "Save draft" })).toBeInTheDocument();
+  });
+
   it("explains changed and restricted sources instead of rewriting on sync", async () => {
     renderAt(
       "/tutorials/t1",

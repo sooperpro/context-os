@@ -56,6 +56,7 @@ import ErrorFilledIcon from "@material-symbols/svg-400/rounded/error-fill.svg?re
 import EventIcon from "@material-symbols/svg-400/rounded/event.svg?react";
 import FlagIcon from "@material-symbols/svg-400/rounded/flag.svg?react";
 import FormatQuoteIcon from "@material-symbols/svg-400/rounded/format_quote.svg?react";
+import DragIndicatorIcon from "@material-symbols/svg-400/rounded/drag_indicator.svg?react";
 import FormatBoldIcon from "@material-symbols/svg-400/rounded/format_bold.svg?react";
 import FormatItalicIcon from "@material-symbols/svg-400/rounded/format_italic.svg?react";
 import FormatListBulletedIcon from "@material-symbols/svg-400/rounded/format_list_bulleted.svg?react";
@@ -478,4 +479,5 @@ export {
   TableRowsIcon,
   ViewColumnIcon,
   HorizontalRuleIcon,
+  DragIndicatorIcon,
 };

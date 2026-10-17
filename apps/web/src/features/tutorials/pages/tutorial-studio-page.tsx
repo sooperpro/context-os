@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/page-header";
 import { ReviewBanner, SendBackDialog } from "@/components/review-parts";
 import { SectionCard } from "@/components/section-card";
+import { DragHandle, SortableList } from "@/components/sortable-list";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,12 +27,19 @@ import {
   DescriptionIcon,
   GroupIcon,
   LockIcon,
+  MoreVertIcon,
   QuizIcon,
   RateReviewIcon,
   SendIcon,
   SmartToyIcon,
   WarningIcon,
 } from "@/components/ui/icons";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader } from "@/components/ui/loader";
@@ -426,11 +434,29 @@ function Outline({
         Overview
       </button>
       <span className="mt-2 px-3 text-xs font-medium text-on-surface-variant">Lessons</span>
-      <ol className="flex flex-col gap-0.5">
-        {content.lessons.map((lesson, index) => {
+      <SortableList
+        label="Lessons"
+        items={content.lessons}
+        getId={(lesson) => lesson.id}
+        getLabel={(lesson) => lesson.title}
+        onReorder={(lessons) => onChange({ ...content, lessons })}
+      >
+        {(lesson, index, row) => {
           const active = selection.kind === "lesson" && selection.id === lesson.id;
+          const remove = () => {
+            onChange({
+              ...content,
+              lessons: content.lessons.filter((entry) => entry.id !== lesson.id),
+            });
+            if (active) onSelect({ kind: "overview" });
+          };
           return (
-            <li key={lesson.id} className="group flex min-w-0 items-center gap-0.5">
+            <li
+              ref={row.setRow}
+              style={row.style}
+              className={cn("flex min-w-0 items-center gap-0.5 rounded-lg bg-card", row.className)}
+            >
+              <DragHandle handle={row.handle} label={`Reorder ${lesson.title}`} />
               <button
                 type="button"
                 className={item(active, { fill: true })}
@@ -441,43 +467,45 @@ function Outline({
                 <span className="text-xs text-on-surface-variant tabular-nums">{index + 1}</span>
                 <span className="min-w-0 flex-1 truncate">{lesson.title}</span>
               </button>
-              <Button
-                size="icon-sm"
-                variant="ghost"
-                aria-label={`Move ${lesson.title} up`}
-                disabled={index === 0}
-                onClick={() => move(index, -1)}
-              >
-                <ArrowUpwardIcon />
-              </Button>
-              <Button
-                size="icon-sm"
-                variant="ghost"
-                aria-label={`Move ${lesson.title} down`}
-                disabled={index === content.lessons.length - 1}
-                onClick={() => move(index, 1)}
-              >
-                <ArrowDownwardIcon />
-              </Button>
+              {/* Moving without dragging; shows with the handle. */}
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      aria-label={`Move ${lesson.title}`}
+                      className="opacity-0 transition-opacity group-focus-within/sortable:opacity-100 group-hover/sortable:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100 [@media(hover:none)]:opacity-100"
+                    />
+                  }
+                >
+                  <MoreVertIcon />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem disabled={index === 0} onClick={() => move(index, -1)}>
+                    <ArrowUpwardIcon aria-hidden /> Move up
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={index === content.lessons.length - 1}
+                    onClick={() => move(index, 1)}
+                  >
+                    <ArrowDownwardIcon aria-hidden /> Move down
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button
                 size="icon-sm"
                 variant="ghost"
                 aria-label={`Remove ${lesson.title}`}
                 disabled={content.lessons.length === 1}
-                onClick={() => {
-                  onChange({
-                    ...content,
-                    lessons: content.lessons.filter((entry) => entry.id !== lesson.id),
-                  });
-                  if (active) onSelect({ kind: "overview" });
-                }}
+                onClick={remove}
               >
                 <DeleteIcon />
               </Button>
             </li>
           );
-        })}
-      </ol>
+        }}
+      </SortableList>
       {content.check ? (
         <button
           type="button"
