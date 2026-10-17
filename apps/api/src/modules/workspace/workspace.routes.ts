@@ -27,6 +27,7 @@ import type { Actor, AppEnv } from "../../types.js";
 import { requireRole } from "../identity/identity.service.js";
 import { createNotifier } from "../platform/notify.js";
 import { mergeSettings, resolveSettings } from "../platform/settings.js";
+import { createSetupTemplates } from "../platform/setup-templates.js";
 import { createPlatformStore } from "../platform/store.js";
 
 const NameSchema = z.object({ name: z.string().trim().min(1).max(200) }).strict();
@@ -41,6 +42,7 @@ const SetupStep = z.enum([
   "connect_source",
   "select_scopes",
   "create_project",
+  "onboarding_templates",
   "invite_team",
   "assign_new_hire",
 ]);
@@ -58,12 +60,19 @@ type SettingsInput = z.infer<typeof WorkspaceSettingsSchema>;
 export function createWorkspaceRoutes(container: Container) {
   const { db, identity, audit } = container;
   const store = createPlatformStore(db);
+  const setupTemplates = createSetupTemplates(container);
   const admin = (actor: Actor) => requireRole(actor, "owner", "admin");
   const notifier = createNotifier(db);
   /** Owner/admin settings update with optimistic locking; sections merge deeply (§7.17). */
   const updateSettings = (actor: Actor, input: SettingsInput) => {
     admin(actor);
     const { version, name, ...patch } = input;
+    if (
+      actor.role !== "owner" &&
+      (patch.policies?.aiDailyTemplates !== undefined ||
+        patch.policies?.aiDailyModules !== undefined)
+    )
+      throw new AppError(403, "FORBIDDEN", "Only the workspace owner can change the AI limits");
     return db.transaction(() => {
       const row = db.select().from(workspaces).where(eq(workspaces.id, actor.workspaceId)).get();
       if (!row) throw new NotFoundError("Workspace");
@@ -194,6 +203,7 @@ export function createWorkspaceRoutes(container: Container) {
         connect_source: connected > 0,
         select_scopes: sourceRows.some((row) => !!row.connectionId),
         create_project: projectRows.length > 0,
+        onboarding_templates: setupTemplates.covered(actor),
         invite_team: memberCount > 1 || !!invite,
         assign_new_hire: !!assignment,
       },

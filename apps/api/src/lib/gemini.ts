@@ -13,6 +13,14 @@ export interface StructuredGenerationRequest<TSchema extends z.ZodType> {
   temperature?: number;
   /** Tag for logging/evaluation (e.g. "extract_context", "ask"). */
   purpose?: string;
+  /** Called with the tokens the call used, for the AI run log. */
+  onUsage?: (usage: GenerationUsage) => void;
+}
+
+export interface GenerationUsage {
+  inputTokens: number;
+  /** Answer and thinking tokens: both are billed as output. */
+  outputTokens: number;
 }
 
 export type EmbeddingTaskType = "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY";
@@ -81,6 +89,7 @@ export function createGeminiClient({
       systemInstruction,
       temperature = 0.2,
       purpose = "generate",
+      onUsage,
     }) {
       // Zod 4 emits JSON Schema directly; Gemini accepts a JSON Schema subset via
       // `responseJsonSchema`. The `$schema` keyword is dropped as it is noise for the API.
@@ -113,6 +122,12 @@ export function createGeminiClient({
           },
           "Gemini generateContent",
         );
+        onUsage?.({
+          inputTokens: response.usageMetadata?.promptTokenCount ?? 0,
+          outputTokens:
+            (response.usageMetadata?.candidatesTokenCount ?? 0) +
+            (response.usageMetadata?.thoughtsTokenCount ?? 0),
+        });
       } catch (error) {
         if (error instanceof AppError) throw error;
         throw toUpstreamError(error, `Gemini ${purpose}`);

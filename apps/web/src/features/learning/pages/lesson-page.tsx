@@ -31,6 +31,7 @@ import { lessonQuery, useCompleteLesson } from "@/features/learning/api/learning
 import { LessonBlocks } from "@/features/learning/components/lesson-blocks";
 import { LessonNumber } from "@/features/learning/components/lesson-number";
 import { RatingButtons } from "@/features/learning/components/rating-buttons";
+import { RevisitButton } from "@/features/learning/components/revisit-button";
 import { SelectionAsk } from "@/features/learning/components/selection-ask";
 import {
   LESSON_TYPE,
@@ -224,6 +225,7 @@ function LessonView({ lesson }: { lesson: Lesson }) {
                 labels={{ up: "Clear", down: "Not clear" }}
                 ownerName={null}
               />
+              <RevisitButton id={lesson.id} revisit={lesson.revisit === true} />
             </div>
             {lesson.done ? (
               nextInOutline ? (

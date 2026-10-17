@@ -20,6 +20,9 @@ import type { AnswerOutput } from "../modules/ask/answer.schema.js";
 import type { ExtractionOutput } from "../modules/context/extraction.schema.js";
 import type { OverviewOutput } from "../modules/hub/overview.js";
 import type { BragDocOutput } from "../modules/platform/brag-doc.js";
+import { starterTemplateData, TEMPLATE } from "../modules/platform/onboarding-records.js";
+import type { RoadmapPlan } from "../modules/platform/roadmap-ai.js";
+import { createPlatformStore } from "../modules/platform/store.js";
 
 export const SAMPLE_SOURCE = {
   kind: "document",
@@ -114,6 +117,10 @@ export const SAMPLE_EXTRACTION: ExtractionOutput = {
       confidence: "medium",
     },
   ],
+  companyFacts: [],
+  products: [],
+  initiatives: [],
+  processes: [],
 };
 
 export const EMPTY_EXTRACTION: ExtractionOutput = {
@@ -124,6 +131,10 @@ export const EMPTY_EXTRACTION: ExtractionOutput = {
   components: [],
   dependencies: [],
   terms: [],
+  companyFacts: [],
+  products: [],
+  initiatives: [],
+  processes: [],
 };
 
 export const SAMPLE_OVERVIEW: OverviewOutput = {
@@ -186,7 +197,52 @@ export const SAMPLE_TUTORIAL: TutorialDraft = {
       explanation: "Billing events are published to Kafka.",
       source: 1,
     },
+    {
+      prompt: "Who owns the billing service?",
+      options: ["Sales", "Legal", "The platform team", "Nobody"],
+      correctIndex: 2,
+      explanation: "The billing service belongs to the platform team.",
+      source: 1,
+    },
   ],
+};
+
+/** A roadmap plan as the model would return it: one existing-style module and one new one. */
+export const SAMPLE_ROADMAP_PLAN: RoadmapPlan = {
+  stages: [
+    {
+      name: "Induction",
+      weekStart: 1,
+      weekEnd: 2,
+      modules: [
+        {
+          tutorialId: null,
+          title: "How billing works at Atlas",
+          kind: "systems",
+          focus: "ledger service, billing events",
+          why: "Every sales conversation touches invoices.",
+        },
+      ],
+    },
+    {
+      name: "On the job",
+      weekStart: 3,
+      weekEnd: 4,
+      modules: [
+        {
+          tutorialId: null,
+          title: "Decisions behind the ledger",
+          kind: "decisions",
+          focus: "ADR-0007, dedicated ledger service",
+          why: "Customers ask why invoices changed.",
+        },
+      ],
+    },
+  ],
+  probationDays: 180,
+  checkins: [{ title: "2-week check-in", day: 14 }],
+  policyNote: "Probation of 180 days comes from the HR handbook [S1].",
+  gaps: ["Pricing and discounts"],
 };
 
 export const SAMPLE_BRAG_DOC: BragDocOutput = {
@@ -201,6 +257,7 @@ export interface FakeGeminiOptions {
   overview?: OverviewOutput;
   answer?: AnswerOutput;
   tutorial?: TutorialDraft;
+  roadmapPlan?: RoadmapPlan;
   /** When set, every generateStructured call rejects with this error. */
   failWith?: Error;
   /** When set, embed() rejects with this error (retrieval must degrade gracefully). */
@@ -254,6 +311,9 @@ export function createFakeGemini(options: FakeGeminiOptions = {}): FakeGemini {
         case "tutorial":
           output = options.tutorial ?? SAMPLE_TUTORIAL;
           break;
+        case "roadmap_plan":
+          output = options.roadmapPlan ?? SAMPLE_ROADMAP_PLAN;
+          break;
         case "brag_doc":
           output = options.bragDoc ?? SAMPLE_BRAG_DOC;
           break;
@@ -262,6 +322,7 @@ export function createFakeGemini(options: FakeGeminiOptions = {}): FakeGemini {
             new Error(`Fake Gemini: unexpected purpose ${String(request.purpose)}`),
           );
       }
+      request.onUsage?.({ inputTokens: 1000, outputTokens: 200 });
       return Promise.resolve(request.schema.parse(output));
     },
     embed(texts) {
@@ -276,7 +337,13 @@ const MIGRATIONS_DIR = fileURLToPath(new URL("../../drizzle", import.meta.url));
 
 /** Fully wired app + container on an in-memory SQLite database; worker is not started. */
 export function createTestApp<G extends GeminiClient = FakeGemini>(
-  options: { gemini?: G; env?: NodeJS.ProcessEnv; mailer?: Mailer } = {},
+  options: {
+    gemini?: G;
+    env?: NodeJS.ProcessEnv;
+    mailer?: Mailer;
+    /** Seed the six generic templates (workspaces no longer get them). Default true. */
+    starterTemplates?: boolean;
+  } = {},
 ) {
   const env = loadEnv({
     ...process.env,
@@ -303,6 +370,17 @@ export function createTestApp<G extends GeminiClient = FakeGemini>(
     mailer: options.mailer,
   });
   const app = createApp({ env, container });
+  if (options.starterTemplates !== false) {
+    const store = createPlatformStore(database.db);
+    for (const data of starterTemplateData())
+      store.insert({
+        workspaceId: container.workspace.id,
+        ownerId: "system",
+        kind: TEMPLATE,
+        data: data as unknown as Record<string, unknown>,
+        status: "published",
+      });
+  }
   return {
     app,
     container,

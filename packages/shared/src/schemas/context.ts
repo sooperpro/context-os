@@ -10,6 +10,10 @@ export const ContextItemKindSchema = z.enum([
   "component",
   "dependency",
   "term",
+  "company",
+  "product",
+  "initiative",
+  "process",
 ]);
 export type ContextItemKind = z.infer<typeof ContextItemKindSchema>;
 
@@ -86,6 +90,10 @@ export const DependencyDataSchema = z.object({
 
 export const TermDataSchema = z.object({ definition: z.string() });
 
+/** Company, product, initiative (a project as the Hub's Projects collection means it) and process
+ * items carry only their title and summary. */
+export const CollectionEntryDataSchema = z.object({});
+
 const base = {
   id: IdSchema,
   projectId: IdSchema,
@@ -114,6 +122,10 @@ export const ContextItemSchema = z.discriminatedUnion("kind", [
   z.object({ ...base, kind: z.literal("component"), data: ComponentDataSchema }),
   z.object({ ...base, kind: z.literal("dependency"), data: DependencyDataSchema }),
   z.object({ ...base, kind: z.literal("term"), data: TermDataSchema }),
+  z.object({ ...base, kind: z.literal("company"), data: CollectionEntryDataSchema }),
+  z.object({ ...base, kind: z.literal("product"), data: CollectionEntryDataSchema }),
+  z.object({ ...base, kind: z.literal("initiative"), data: CollectionEntryDataSchema }),
+  z.object({ ...base, kind: z.literal("process"), data: CollectionEntryDataSchema }),
 ]);
 export type ContextItem = z.infer<typeof ContextItemSchema>;
 export type ContextItemOfKind<K extends ContextItemKind> = Extract<ContextItem, { kind: K }>;

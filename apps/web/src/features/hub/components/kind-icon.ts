@@ -1,16 +1,20 @@
 import type { ContextItemKind, SourceKind } from "@contextos/shared";
 import {
   AccountTreeIcon,
+  ApartmentIcon,
   ArticleIcon,
   Book2Icon,
   ConfirmationNumberIcon,
+  ConversionPathIcon,
   DescriptionIcon,
   FlagIcon,
   ForumIcon,
   GavelIcon,
   LinkIcon,
+  LocalShippingIcon,
   MergeTypeIcon,
   PersonIcon,
+  RocketLaunchFilledIcon,
   SyncAltIcon,
   type MaterialIcon,
 } from "@/components/ui/icons";
@@ -24,6 +28,10 @@ export const KIND_ICON: Record<ContextItemKind, MaterialIcon> = {
   component: AccountTreeIcon,
   dependency: LinkIcon,
   term: Book2Icon,
+  company: ApartmentIcon,
+  product: LocalShippingIcon,
+  initiative: RocketLaunchFilledIcon,
+  process: ConversionPathIcon,
 };
 
 /** One icon per source kind. */

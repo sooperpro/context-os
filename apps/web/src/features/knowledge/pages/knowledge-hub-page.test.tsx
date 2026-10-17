@@ -62,7 +62,11 @@ const decision = {
 const urlOf = (input: RequestInfo | URL) =>
   typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
 
-function mockApi({ role, empty }: { role?: string; empty?: boolean } = {}) {
+function mockApi({
+  role,
+  empty,
+  collections,
+}: { role?: string; empty?: boolean; collections?: boolean } = {}) {
   return vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
     const url = urlOf(input);
     if (url.endsWith("/v1/workspaces/current") && role)
@@ -74,7 +78,13 @@ function mockApi({ role, empty }: { role?: string; empty?: boolean } = {}) {
       return Promise.resolve(
         jsonResponse({
           items: [
-            project(P1, "Kestrel", 3, "2026-10-12T00:00:00.000Z"),
+            project(
+              P1,
+              "Kestrel",
+              3,
+              "2026-10-12T00:00:00.000Z",
+              collections ? "system" : undefined,
+            ),
             project(P2, "Ledger", 1, "2026-10-13T00:00:00.000Z"),
             project(P3, "Tessellate Track", 2, null, "product"),
           ],
@@ -108,7 +118,13 @@ function mockApi({ role, empty }: { role?: string; empty?: boolean } = {}) {
         }),
       );
     if (url.includes(`/v1/projects/${P3}/context-items`))
-      return Promise.resolve(jsonResponse({ items: [] }));
+      return Promise.resolve(
+        jsonResponse({
+          items: collections
+            ? [item("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4", P3, "process", "Expense approval", {})]
+            : [],
+        }),
+      );
     if (url.includes("/v1/users?"))
       return Promise.resolve(
         jsonResponse({
@@ -214,7 +230,27 @@ describe("KnowledgeHubPage", () => {
     await user.click(screen.getByRole("button", { name: "Products" }));
     expect(await screen.findByRole("link", { name: /Tessellate Track/ })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Company" }));
-    expect(await screen.findByText("No company pages yet.")).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "Nothing here yet. Company facts appear as sources describe the company.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("lists extracted processes, and projects filed under Systems next to its items", async () => {
+    mockApi({ collections: true });
+    const user = userEvent.setup();
+    renderHub();
+    await screen.findByRole("link", { name: "Move billing to events" });
+    await user.click(screen.getByRole("button", { name: "Processes" }));
+    expect(await screen.findByRole("link", { name: /Expense approval/ })).toHaveAttribute(
+      "href",
+      `/projects/${P3}/items/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4`,
+    );
+    await user.click(screen.getByRole("button", { name: "Systems" }));
+    expect(await screen.findByText("Systems · 2")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Kestrel/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Ledger service/ })).toBeInTheDocument();
   });
 
   it.each([

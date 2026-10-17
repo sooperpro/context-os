@@ -17,6 +17,7 @@ import { KIND_ICON, SOURCE_KIND_ICON } from "@/features/hub/components/kind-icon
 import { useSourceDrawer } from "@/features/sources/hooks/use-source-drawer";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { SOURCE_KIND_LABEL } from "@/lib/labels";
+import { stripCitations } from "@/lib/citations";
 import { CiteButton } from "@/features/ask/components/cite-button";
 
 type Tone = React.ComponentProps<typeof StatusChip>["tone"];
@@ -47,7 +48,11 @@ export function AnswerCard({ answer }: AnswerCardProps) {
       <CardHeader>
         <span className="text-xs text-on-surface-variant">{formatDateTime(answer.createdAt)}</span>
         <CardTitle className="text-base leading-snug">{answer.question}</CardTitle>
-        {answer.rationale ? <CardDescription>{answer.rationale}</CardDescription> : null}
+        {answer.rationale ? (
+          <CardDescription>
+            <Markdown text={stripCitations(answer.rationale)} />
+          </CardDescription>
+        ) : null}
       </CardHeader>
       <CardContent>
         <AnswerBody answer={answer} />
@@ -73,7 +78,12 @@ export function AnswerBody({ answer }: AnswerCardProps) {
       <StatusChip tone={confidence.tone} icon={confidence.icon} className="self-start">
         {confidence.label(distinctSources)}
       </StatusChip>
-      <AnswerText text={answer.answer} citationByRef={citationByRef} onCite={openCitation} />
+      <AnswerText
+        text={answer.answer}
+        citationByRef={citationByRef}
+        onCite={openCitation}
+        className="text-[15px] leading-6"
+      />
 
       {answer.currentState ? (
         <section className="rounded-md bg-pane px-3 py-2 text-sm">
@@ -82,7 +92,11 @@ export function AnswerBody({ answer }: AnswerCardProps) {
             Current state
             {answer.currentState.asOf ? ` · as of ${formatDate(answer.currentState.asOf)}` : ""}
           </h3>
-          <p>{answer.currentState.statement}</p>
+          <AnswerText
+            text={answer.currentState.statement}
+            citationByRef={citationByRef}
+            onCite={openCitation}
+          />
         </section>
       ) : null}
 
@@ -91,7 +105,11 @@ export function AnswerBody({ answer }: AnswerCardProps) {
           <h3 className="mb-1 text-xs font-medium tracking-wide text-on-surface-variant uppercase">
             Timeline context
           </h3>
-          <p>{answer.timelineContext}</p>
+          <AnswerText
+            text={answer.timelineContext}
+            citationByRef={citationByRef}
+            onCite={openCitation}
+          />
         </section>
       ) : null}
 
@@ -102,7 +120,9 @@ export function AnswerBody({ answer }: AnswerCardProps) {
             <h3 className="mb-1 text-xs font-medium tracking-wide uppercase">Uncertainties</h3>
             <ul className="list-disc space-y-1 pl-5">
               {answer.uncertainties.map((u) => (
-                <li key={u}>{u}</li>
+                <li key={u}>
+                  <AnswerText text={u} citationByRef={citationByRef} onCite={openCitation} />
+                </li>
               ))}
             </ul>
           </div>
@@ -146,9 +166,10 @@ export function AnswerBody({ answer }: AnswerCardProps) {
                       {SOURCE_KIND_LABEL[citation.sourceKind]}
                       {citation.sourceCreatedAt ? ` · ${formatDate(citation.sourceCreatedAt)}` : ""}
                     </p>
-                    <p className="mt-1">
-                      <span className="text-on-surface-variant">Supports:</span> {citation.claim}
-                    </p>
+                    <div className="mt-1 flex gap-1">
+                      <span className="shrink-0 text-on-surface-variant">Supports:</span>
+                      <Markdown text={stripCitations(citation.claim)} />
+                    </div>
                   </div>
                   {citation.sourceUrl ? (
                     <Button
@@ -198,10 +219,12 @@ function AnswerText({
   text,
   citationByRef,
   onCite,
+  className,
 }: {
   text: string;
   citationByRef: Map<number, Citation>;
   onCite: (citation: Citation) => void;
+  className?: string;
 }) {
   const linked = text.replace(/\[(\d+)\](?!\()/g, (marker, n: string) =>
     citationByRef.has(Number(n)) ? `[${n}](#cite-${n})` : marker,
@@ -209,7 +232,7 @@ function AnswerText({
   return (
     <Markdown
       text={linked}
-      className="text-[15px] leading-6"
+      className={className}
       overrides={{
         a: ({ href, children }) => {
           const ref = href?.startsWith("#cite-") ? Number(href.slice("#cite-".length)) : null;

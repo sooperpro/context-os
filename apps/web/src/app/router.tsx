@@ -5,6 +5,7 @@ import { RouteErrorBoundary } from "@/components/route-error-boundary";
 import { AdminOnly } from "@/features/admin/components/admin-only";
 import { OwnerOnly } from "@/features/conversations/components/owner-only";
 import { HrOnly } from "@/features/people-ops/components/hr-only";
+import { TemplatesOnly } from "@/features/people-ops/components/templates-only";
 import { ManagerOnly } from "@/features/team/components/manager-only";
 import { CuratorOnly } from "@/features/tutorials/components/curator-only";
 import { HIDDEN } from "@/lib/hidden";
@@ -250,9 +251,9 @@ const appChildren = [
       const { TemplatesPage } = await import("@/features/people-ops/pages/templates-page");
       return {
         Component: () => (
-          <HrOnly>
+          <TemplatesOnly>
             <TemplatesPage />
-          </HrOnly>
+          </TemplatesOnly>
         ),
       };
     },
@@ -264,9 +265,9 @@ const appChildren = [
         await import("@/features/people-ops/pages/template-editor-page");
       return {
         Component: () => (
-          <HrOnly>
+          <TemplatesOnly>
             <TemplateEditorPage />
-          </HrOnly>
+          </TemplatesOnly>
         ),
       };
     },

@@ -195,8 +195,22 @@ const CATALOG = new Map(Object.values(M).map((entry) => [entry.id, entry]));
 
 interface MockTemplate extends Omit<
   TemplateDetail,
-  "stages" | "version" | "publishedVersion" | "history" | "deletable"
+  | "stages"
+  | "version"
+  | "publishedVersion"
+  | "history"
+  | "deletable"
+  // Set the same way for every fixture (see templateDetail).
+  | "probationDays"
+  | "checkins"
+  | "generation"
+  | "generated"
+  | "review"
+  | "createdBy"
+  | "editable"
 > {
+  /** A manager's draft waiting for People Ops, or sent back (none in the seed). */
+  review?: TemplateDetail["review"];
   /** "Engineering · IC": how onboarding records name it. */
   short: string;
   version: number;
@@ -957,6 +971,16 @@ export function resetPeopleOpsMocks(): void {
   createdTemplates = 0;
 }
 
+/** Tests: a manager submitted this template for review. */
+export function markTemplateInReview(id: string, note: string | null = null): void {
+  findTemplate(id).review = {
+    state: "in_review",
+    note,
+    by: people.daniel,
+    at: new Date().toISOString(),
+  };
+}
+
 const findTemplate = (id: string) => {
   const found = templates.find((entry) => entry.id === id);
   if (!found) throw new MockNotFoundError("Template");
@@ -1028,6 +1052,7 @@ function recordDetail(record: MockRecord): OnboardingRecord {
   });
   return {
     ...summary(record),
+    templateDraft: null,
     peoplePartner: record.peoplePartner ?? HR,
     setupSteps: SETUP.map((step) => ({
       ...step,
@@ -1107,6 +1132,18 @@ function templateDetail(entry: MockTemplate): TemplateDetail {
     ...entry,
     // As the API: used templates are archived, never deleted, and the last one stays.
     deletable: entry.activeCount === 0 && templates.length > 1,
+    // As the API for templates that never set their own: the workspace defaults.
+    probationDays: 90,
+    checkins: [
+      { title: "30-day check-in", day: 30 },
+      { title: "60-day readiness review", day: 60 },
+    ],
+    generation: null,
+    generated: null,
+    review: entry.review ?? null,
+    createdBy: HR,
+    // The fixtures are People Ops' view: they can change every template.
+    editable: true,
     version: v(entry.version),
     publishedVersion: entry.publishedVersion === null ? null : v(entry.publishedVersion),
     stages: entry.stages.map(({ moduleIds, ...rest }) => ({
@@ -1158,6 +1195,7 @@ function templateSummary(entry: MockTemplate): OnboardingTemplate {
     weeks: entry.weeks,
     stageCount: entry.stages.length,
     moduleCount: entry.stages.reduce((sum, item) => sum + item.moduleIds.length, 0),
+    review: entry.review ?? null,
   };
 }
 
@@ -1394,7 +1432,38 @@ export const peopleOpsPageMocks = [
     templates: templates
       .filter((entry) => entry.publishedVersion !== null)
       .flatMap((entry) => templateRef(entry.id) ?? []),
+    departments: [],
+    teamDepartments: {},
   })),
+  // As the API, simplified: a template fits when one of its roles is in the job title, or its teams
+  // include the team; published templates come first.
+  mockGet(E.templateSuggestion)(({ request }) => {
+    const url = new URL(request.url);
+    const title = (url.searchParams.get("title") ?? "").toLowerCase();
+    const team = (url.searchParams.get("team") ?? "").toLowerCase();
+    const live = templates.filter((entry) => !entry.archived);
+    const fits = (entry: MockTemplate) =>
+      (title.length > 1 && entry.roles.some((role) => title.includes(role.toLowerCase()))) ||
+      (team !== "" && entry.teams.some((name) => name.toLowerCase() === team));
+    const choice = (entry: MockTemplate) => ({
+      id: entry.id,
+      name: entry.name,
+      status: entry.publishedVersion === null ? ("draft" as const) : ("published" as const),
+      generating: false,
+      fits: fits(entry),
+      fitsBy: fits(entry)
+        ? title.length > 1 && entry.roles.some((role) => title.includes(role.toLowerCase()))
+          ? ("role" as const)
+          : ("team" as const)
+        : null,
+    });
+    const ordered = [...live.filter(fits), ...live.filter((entry) => !fits(entry))].map(choice);
+    return {
+      department: null,
+      suggested: ordered.find((entry) => entry.fits) ?? null,
+      options: ordered,
+    };
+  }),
   mockPost(E.createOnboarding)((input) => {
     createdRecords += 1;
     const startsIn = Math.round(
@@ -1505,6 +1574,7 @@ export const peopleOpsPageMocks = [
     if (entry.status === "published") entry.version += 1;
     applyStages(entry, input.stages, input);
     entry.status = "published";
+    entry.review = null;
     entry.publishedVersion = entry.version;
     entry.history = [
       {
@@ -1522,6 +1592,32 @@ export const peopleOpsPageMocks = [
       },
       ...entry.history,
     ];
+    return templateDetail(entry);
+  }),
+  // As the API for a manager: the stages are saved as the draft People Ops review.
+  mockPost(E.submitTemplate)((input, { params }) => {
+    const entry = findTemplate(param(params.id));
+    if (entry.status === "published") {
+      entry.version += 1;
+      entry.status = "draft";
+    }
+    applyStages(entry, input.stages, input);
+    entry.review = {
+      state: "in_review",
+      note: input.note.trim() || null,
+      by: people.daniel,
+      at: new Date().toISOString(),
+    };
+    return templateDetail(entry);
+  }),
+  mockPost(E.sendBackTemplate)((input, { params }) => {
+    const entry = findTemplate(param(params.id));
+    entry.review = {
+      state: "changes_requested",
+      note: input.note,
+      by: HR,
+      at: new Date().toISOString(),
+    };
     return templateDetail(entry);
   }),
   mockGet(E.templateVersion)(({ params }) => {

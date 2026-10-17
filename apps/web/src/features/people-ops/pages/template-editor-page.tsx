@@ -6,6 +6,7 @@ import { Link, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { PageColumns, PageMain, PageSide } from "@/components/layout/page-columns";
 import { PreviewDataChip } from "@/components/preview-data-chip";
+import { ReviewBanner, SendBackDialog } from "@/components/review-parts";
 import { SectionCard } from "@/components/section-card";
 import {
   Breadcrumb,
@@ -30,6 +31,7 @@ import {
   ArrowUpwardIcon,
   CloseIcon,
   DeleteIcon,
+  EditIcon,
   HistoryIcon,
   InfoIcon,
   Inventory2Icon,
@@ -37,9 +39,12 @@ import {
   MoreVertIcon,
   PublishIcon,
   SaveIcon,
+  SendIcon,
+  SmartToyIcon,
   UndoIcon,
 } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Loader } from "@/components/ui/loader";
 import { MetaChip } from "@/components/ui/meta-chip";
 import {
@@ -59,10 +64,13 @@ import {
   usePublishTemplate,
   useRestoreTemplate,
   useSaveTemplateDraft,
+  useSendBackTemplate,
+  useSubmitTemplate,
 } from "@/features/people-ops/api/people-ops.queries";
 import {
   AddModuleDialog,
   PublishDialog,
+  StageDialog,
   TemplateActionDialog,
   TemplateTile,
   TemplateVersionDialog,
@@ -74,13 +82,21 @@ import {
   templateModuleMeta,
   weeksLabel,
 } from "@/features/people-ops/people-ops-meta";
+import { useCreateTutorial } from "@/features/tutorials/api/tutorials.queries";
+import { tutorialPath } from "@/features/tutorials/tutorials-meta";
+import { useIsReviewer } from "@/features/workspace/hooks/use-is-reviewer";
 import { formatCount, formatShortDate } from "@/lib/format";
 import { toastWithUndo } from "@/lib/undo-toast";
 
 /** The template editor (prototype `#templates-<id>`): stages and modules, who it is for, versions. */
 export function TemplateEditorPage() {
   const { templateId = "" } = useParams();
-  const query = useQuery(templateQuery(templateId));
+  const query = useQuery({
+    ...templateQuery(templateId),
+    // A generated template fills in once the plan is ready.
+    refetchInterval: (current) =>
+      current.state.data?.generation?.state === "running" ? 3000 : false,
+  });
   if (query.isPending) {
     return (
       <div className="grid min-h-80 place-items-center">
@@ -105,7 +121,11 @@ export function TemplateEditorPage() {
 
 type Stages = TemplateDetail["stages"];
 
+/** The stage dialog's id for a stage being added. */
+const NEW_STAGE = "new";
+
 function Editor({ template }: { template: TemplateDetail }) {
+  const probationId = useId();
   useBotContext(
     {
       chips: [{ icon: LibraryBooksIcon, label: template.name }],
@@ -121,15 +141,42 @@ function Editor({ template }: { template: TemplateDetail }) {
   const [dirty, setDirty] = useState(false);
   const [adding, setAdding] = useState<{ id: string; name: string } | null>(null);
   const [publishing, setPublishing] = useState(false);
+  const [sendingBack, setSendingBack] = useState(false);
   const [action, setAction] = useState<"archive" | "delete" | null>(null);
   const [viewing, setViewing] = useState<string | null>(null);
+  const [editingStage, setEditingStage] = useState<string | null>(null);
+  const [removedStages, setRemovedStages] = useState<string[]>([]);
+  const [probation, setProbation] = useState(String(template.probationDays));
+  const [checkins, setCheckins] = useState(template.checkins);
   const navigate = useNavigate();
   const save = useSaveTemplateDraft(template.id);
   const publish = usePublishTemplate(template.id);
+  const submit = useSubmitTemplate(template.id);
+  const sendBack = useSendBackTemplate(template.id);
+  // Owner, Admin and HR publish; managers and path curators submit their own drafts for review.
+  const reviewer = useIsReviewer();
   const archive = useArchiveTemplate(template.id);
   const restore = useRestoreTemplate(template.id);
   const deleteTemplate = useDeleteTemplate(template.id);
+  const createTutorial = useCreateTutorial();
+  /** Company-wide lessons for a built-in module, drafted from the Hub and reviewed in the Studio. */
+  const draftLessons = (module: TemplateModule) =>
+    createTutorial.mutate(
+      {
+        coversModule: module.id,
+        audience: template.roles[0] ? `New ${template.roles[0]} hires` : "New team members",
+      },
+      {
+        onSuccess: (tutorial) => {
+          toast.success("Drafting company lessons. They're ready to review in about a minute.");
+          void navigate(tutorialPath(tutorial.id));
+        },
+        onError: (error) => toast.error(error.message),
+      },
+    );
   const archived = template.archived;
+  const locked = archived || !template.editable;
+  const inReview = template.review?.state === "in_review";
   const draft = template.status === "draft";
   const number = Number(template.version.slice(1)) || 1;
   const next = draft ? template.version : `v${number + 1}`;
@@ -139,7 +186,36 @@ function Editor({ template }: { template: TemplateDetail }) {
     0,
   );
   const payload = () =>
-    stages.map((stage) => ({ id: stage.id, moduleIds: stage.modules.map((module) => module.id) }));
+    stages.map((stage) => ({
+      id: stage.id,
+      name: stage.name,
+      weekStart: stage.weekStart,
+      weekEnd: stage.weekEnd,
+      moduleIds: stage.modules.map((module) => module.id),
+    }));
+  const plan = () => ({
+    removeStages: removedStages,
+    probationDays: Number(probation) >= 1 ? Math.round(Number(probation)) : template.probationDays,
+    checkins: checkins.filter((checkin) => checkin.title.trim() && checkin.day >= 1),
+  });
+  const weeks = Math.max(0, ...stages.map((stage) => stage.weekEnd));
+  const stageEdited = (values: { name: string; weekStart: number; weekEnd: number }) => {
+    setStages((current) =>
+      (editingStage === NEW_STAGE
+        ? [...current, { id: `stage-${Date.now().toString(36)}`, ...values, modules: [] }]
+        : current.map((stage) => (stage.id === editingStage ? { ...stage, ...values } : stage))
+      ).sort((a, b) => a.weekStart - b.weekStart),
+    );
+    setEditingStage(null);
+    setDirty(true);
+  };
+  const stageRemoved = (id: string) => {
+    setStages((current) => current.filter((stage) => stage.id !== id));
+    if (template.stages.some((stage) => stage.id === id))
+      setRemovedStages((current) => [...current, id]);
+    setEditingStage(null);
+    setDirty(true);
+  };
   const changeAudience = (key: keyof typeof audience, values: string[]) => {
     setAudience((current) => ({ ...current, [key]: values }));
     setDirty(true);
@@ -204,59 +280,120 @@ function Editor({ template }: { template: TemplateDetail }) {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            disabled={archived || !dirty || save.isPending}
-            onClick={() =>
-              save.mutate(
-                { stages: payload(), ...audience },
-                {
-                  onSuccess: (saved) =>
-                    toast.success(`Draft ${saved.version} saved. Only People Ops can see it.`),
-                  onError: () => toast.error("The draft could not be saved. Please try again."),
-                },
-              )
-            }
-          >
-            <SaveIcon aria-hidden /> Save draft
-          </Button>
-          <Button disabled={archived || !(dirty || draft)} onClick={() => setPublishing(true)}>
-            <PublishIcon aria-hidden /> Publish {next}
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button variant="outline" size="icon" aria-label="More actions for this template" />
+          {template.editable ? (
+            <Button
+              variant="outline"
+              disabled={locked || !dirty || save.isPending}
+              onClick={() =>
+                save.mutate(
+                  { stages: payload(), ...audience, ...plan() },
+                  {
+                    onSuccess: (saved) =>
+                      toast.success(
+                        reviewer
+                          ? `Draft ${saved.version} saved. Only People Ops can see it.`
+                          : `Draft ${saved.version} saved. Only you and People Ops can see it.`,
+                      ),
+                    onError: () => toast.error("The draft could not be saved. Please try again."),
+                  },
+                )
               }
             >
-              <MoreVertIcon />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {archived ? (
-                <DropdownMenuItem
-                  onClick={() =>
-                    restore.mutate(undefined, {
-                      onSuccess: () => toast.success(`Restored ${template.name}`),
-                      onError: () => toast.error("It could not be restored. Please try again."),
-                    })
-                  }
-                >
-                  <UndoIcon aria-hidden /> Restore template
-                </DropdownMenuItem>
-              ) : (
-                <DropdownMenuItem onClick={() => setAction("archive")}>
-                  <Inventory2Icon aria-hidden /> Archive template
-                </DropdownMenuItem>
-              )}
-              {template.deletable ? (
-                <DropdownMenuItem variant="destructive" onClick={() => setAction("delete")}>
-                  <DeleteIcon aria-hidden /> Delete template
-                </DropdownMenuItem>
-              ) : null}
-            </DropdownMenuContent>
-          </DropdownMenu>
+              <SaveIcon aria-hidden /> Save draft
+            </Button>
+          ) : null}
+          {reviewer ? (
+            <Button disabled={archived || !(dirty || draft)} onClick={() => setPublishing(true)}>
+              <PublishIcon aria-hidden /> Publish {next}
+            </Button>
+          ) : template.editable ? (
+            <Button
+              disabled={
+                locked ||
+                template.generation?.state === "running" ||
+                !(dirty || draft) ||
+                (inReview && !dirty)
+              }
+              onClick={() => setPublishing(true)}
+            >
+              <SendIcon aria-hidden /> {inReview ? "Submitted" : "Submit for review"}
+            </Button>
+          ) : null}
+          {reviewer || (template.editable && template.deletable && !template.publishedVersion) ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    aria-label="More actions for this template"
+                  />
+                }
+              >
+                <MoreVertIcon />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {!reviewer ? null : archived ? (
+                  <DropdownMenuItem
+                    onClick={() =>
+                      restore.mutate(undefined, {
+                        onSuccess: () => toast.success(`Restored ${template.name}`),
+                        onError: () => toast.error("It could not be restored. Please try again."),
+                      })
+                    }
+                  >
+                    <UndoIcon aria-hidden /> Restore template
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem onClick={() => setAction("archive")}>
+                    <Inventory2Icon aria-hidden /> Archive template
+                  </DropdownMenuItem>
+                )}
+                {template.deletable ? (
+                  <DropdownMenuItem variant="destructive" onClick={() => setAction("delete")}>
+                    <DeleteIcon aria-hidden /> Delete template
+                  </DropdownMenuItem>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
         </div>
       </header>
+      <ReviewBanner
+        review={template.review}
+        reviewer={reviewer}
+        what="template"
+        onSendBack={() => setSendingBack(true)}
+      />
+      {template.generation?.state === "running" ? (
+        <Banner
+          tone="ai"
+          icon={<SmartToyIcon aria-hidden />}
+          title="Planning this roadmap from your company’s knowledge"
+          description="Stages, probation, check-ins and modules appear here in a minute or two. Lessons for each new module are drafted next."
+        />
+      ) : template.generation?.state === "failed" ? (
+        <Banner
+          tone="warning"
+          icon={<InfoIcon aria-hidden />}
+          title="The roadmap couldn’t be drafted"
+          description={template.generation.error ?? "Please try again."}
+        />
+      ) : template.generated ? (
+        <Banner
+          tone="ai"
+          icon={<SmartToyIcon aria-hidden />}
+          title="AI draft: review each module before publishing"
+          description={[
+            template.generated.policyNote,
+            template.generated.gaps.length
+              ? `Not covered by the Hub yet: ${template.generated.gaps.join("; ")}.`
+              : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        />
+      ) : null}
       {archived ? (
         <Banner
           tone="info"
@@ -264,19 +401,21 @@ function Editor({ template }: { template: TemplateDetail }) {
           title="This template is archived"
           description="It isn’t offered for new onboardings and can’t be edited. People already on it keep their roadmap."
           actions={
-            <Button
-              size="xs"
-              variant="outline"
-              disabled={restore.isPending}
-              onClick={() =>
-                restore.mutate(undefined, {
-                  onSuccess: () => toast.success(`Restored ${template.name}`),
-                  onError: () => toast.error("It could not be restored. Please try again."),
-                })
-              }
-            >
-              Restore
-            </Button>
+            !reviewer ? null : (
+              <Button
+                size="xs"
+                variant="outline"
+                disabled={restore.isPending}
+                onClick={() =>
+                  restore.mutate(undefined, {
+                    onSuccess: () => toast.success(`Restored ${template.name}`),
+                    onError: () => toast.error("It could not be restored. Please try again."),
+                  })
+                }
+              >
+                Restore
+              </Button>
+            )
           }
         />
       ) : null}
@@ -295,6 +434,15 @@ function Editor({ template }: { template: TemplateDetail }) {
                     {stageIndex + 1}
                   </span>
                   {stage.name}
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled={locked}
+                    aria-label={`Edit ${stage.name}`}
+                    onClick={() => setEditingStage(stage.id)}
+                  >
+                    <EditIcon aria-hidden />
+                  </Button>
                 </span>
               }
               count={`${weeksLabel(stage)} · ${formatCount(stage.modules.length, "module")}`}
@@ -315,12 +463,35 @@ function Editor({ template }: { template: TemplateDetail }) {
                           <SegmentedItemMeta>
                             <DotList parts={templateModuleMeta(module)} />
                           </SegmentedItemMeta>
+                          {template.generated?.reasons[module.id] ? (
+                            <p className="text-sm text-on-surface-variant">
+                              {template.generated.reasons[module.id]}
+                            </p>
+                          ) : null}
+                          {module.lessons === "none" && reviewer ? (
+                            <Button
+                              variant="ghost"
+                              size="xs"
+                              className="self-start"
+                              disabled={createTutorial.isPending}
+                              onClick={() => draftLessons(module)}
+                            >
+                              Draft lessons
+                            </Button>
+                          ) : module.lessons === "draft" && module.tutorialId ? (
+                            <Link
+                              to={tutorialPath(module.tutorialId)}
+                              className="self-start text-sm text-primary"
+                            >
+                              Review draft lessons
+                            </Link>
+                          ) : null}
                         </SegmentedItemBody>
                         <span className="flex shrink-0">
                           <Button
                             variant="ghost"
                             size="icon-sm"
-                            disabled={index === 0}
+                            disabled={locked || index === 0}
                             aria-label={`Move ${module.title} up`}
                             onClick={() => move(stage.id, index, -1)}
                           >
@@ -329,7 +500,7 @@ function Editor({ template }: { template: TemplateDetail }) {
                           <Button
                             variant="ghost"
                             size="icon-sm"
-                            disabled={index === stage.modules.length - 1}
+                            disabled={locked || index === stage.modules.length - 1}
                             aria-label={`Move ${module.title} down`}
                             onClick={() => move(stage.id, index, 1)}
                           >
@@ -338,6 +509,7 @@ function Editor({ template }: { template: TemplateDetail }) {
                           <Button
                             variant="ghost"
                             size="icon-sm"
+                            disabled={locked}
                             aria-label={`Remove ${module.title}`}
                             onClick={() => remove(stage.id, index)}
                           >
@@ -355,6 +527,7 @@ function Editor({ template }: { template: TemplateDetail }) {
                 variant="ghost"
                 size="xs"
                 className="self-start"
+                disabled={locked}
                 aria-label={`Add module to ${stage.name}`}
                 onClick={() => setAdding({ id: stage.id, name: stage.name })}
               >
@@ -362,25 +535,36 @@ function Editor({ template }: { template: TemplateDetail }) {
               </Button>
             </SectionCard>
           ))}
+          <Button
+            variant="outline"
+            size="sm"
+            className="self-start"
+            disabled={locked}
+            onClick={() => setEditingStage(NEW_STAGE)}
+          >
+            <AddIcon aria-hidden /> Add stage
+          </Button>
         </PageMain>
         <PageSide>
           <SectionCard title="Who it’s for">
             <AudienceField
               label="Roles"
               placeholder="Add a role"
+              disabled={locked}
               values={audience.roles}
               onChange={(values) => changeAudience("roles", values)}
             />
             <AudienceField
               label="Teams"
               placeholder="Add a team"
+              disabled={locked}
               values={audience.teams}
               onChange={(values) => changeAudience("teams", values)}
             />
             <dl className="flex flex-col gap-2.5 text-sm">
               {(
                 [
-                  ["Length", `${template.weeks} weeks`],
+                  ["Length", formatCount(weeks, "week")],
                   ["Knowledge check pass mark", `${template.passMark} of 5`],
                   ["Total learning time", minutesLabel(totalMinutes)],
                 ] as const
@@ -391,6 +575,82 @@ function Editor({ template }: { template: TemplateDetail }) {
                 </div>
               ))}
             </dl>
+          </SectionCard>
+          <SectionCard title="Probation and check-ins">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={probationId}>Probation length (days)</Label>
+              <Input
+                id={probationId}
+                type="number"
+                min={1}
+                max={730}
+                value={probation}
+                disabled={locked}
+                onChange={(event) => {
+                  setProbation(event.target.value);
+                  setDirty(true);
+                }}
+              />
+            </div>
+            <ul className="flex flex-col gap-2" aria-label="Check-ins">
+              {checkins.map((checkin, index) => (
+                <li key={index} className="flex items-center gap-2">
+                  <Input
+                    aria-label={`Check-in ${index + 1} title`}
+                    value={checkin.title}
+                    maxLength={80}
+                    disabled={locked}
+                    onChange={(event) => {
+                      const title = event.target.value;
+                      setCheckins((current) =>
+                        current.map((entry, at) => (at === index ? { ...entry, title } : entry)),
+                      );
+                      setDirty(true);
+                    }}
+                  />
+                  <Input
+                    aria-label={`Check-in ${index + 1} day`}
+                    type="number"
+                    min={1}
+                    max={730}
+                    className="w-20"
+                    value={checkin.day}
+                    disabled={locked}
+                    onChange={(event) => {
+                      const day = Math.round(Number(event.target.value));
+                      setCheckins((current) =>
+                        current.map((entry, at) => (at === index ? { ...entry, day } : entry)),
+                      );
+                      setDirty(true);
+                    }}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled={locked}
+                    aria-label={`Remove ${checkin.title || "check-in"}`}
+                    onClick={() => {
+                      setCheckins((current) => current.filter((_, at) => at !== index));
+                      setDirty(true);
+                    }}
+                  >
+                    <DeleteIcon aria-hidden />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+            <Button
+              variant="ghost"
+              size="xs"
+              className="self-start"
+              disabled={locked || checkins.length >= 12}
+              onClick={() => {
+                setCheckins((current) => [...current, { title: "", day: 30 }]);
+                setDirty(true);
+              }}
+            >
+              <AddIcon aria-hidden /> Add check-in
+            </Button>
           </SectionCard>
           <SectionCard title="Version history">
             <Timeline>
@@ -426,9 +686,11 @@ function Editor({ template }: { template: TemplateDetail }) {
           </SectionCard>
           <p className="flex items-start gap-1.5 px-1 text-xs text-on-surface-variant">
             <InfoIcon className="mt-px size-4 shrink-0" aria-hidden />
-            {template.publishedVersion
-              ? `Publishing applies to new onboardings. The ${template.activeCount} people already using ${template.publishedVersion} keep their current roadmap.`
-              : "Publishing makes this template available for new onboardings."}
+            {!reviewer
+              ? "Submitting sends it to People Ops, who publish it for new onboardings or send it back with a note."
+              : template.publishedVersion
+                ? `Publishing applies to new onboardings. The ${template.activeCount} people already using ${template.publishedVersion} keep their current roadmap.`
+                : "Publishing makes this template available for new onboardings."}
           </p>
         </PageSide>
       </PageColumns>
@@ -472,25 +734,73 @@ function Editor({ template }: { template: TemplateDetail }) {
             });
         }}
       />
+      <StageDialog
+        key={editingStage ?? "closed"}
+        stage={stages.find((stage) => stage.id === editingStage) ?? null}
+        open={editingStage !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditingStage(null);
+        }}
+        onSave={stageEdited}
+        onRemove={() => editingStage && stageRemoved(editingStage)}
+      />
       <PublishDialog
         template={template}
         next={next}
+        mode={reviewer ? "publish" : "submit"}
         open={publishing}
-        pending={publish.isPending}
+        pending={publish.isPending || submit.isPending}
         onOpenChange={setPublishing}
         onPublish={(note) =>
-          publish.mutate(
-            { stages: payload(), ...audience, note },
-            {
-              onSuccess: (published) => {
-                setPublishing(false);
-                toast.success(`Published ${published.version}`);
-              },
-              onError: () => toast.error("The template could not be published. Please try again."),
-            },
-          )
+          reviewer
+            ? publish.mutate(
+                { stages: payload(), ...audience, ...plan(), note },
+                {
+                  onSuccess: (published) => {
+                    setPublishing(false);
+                    toast.success(`Published ${published.version}`);
+                  },
+                  onError: (error) =>
+                    toast.error(
+                      error.message || "The template could not be published. Please try again.",
+                    ),
+                },
+              )
+            : submit.mutate(
+                { stages: payload(), ...audience, ...plan(), note },
+                {
+                  onSuccess: () => {
+                    setPublishing(false);
+                    toast.success("Submitted for review. People Ops have been told.");
+                  },
+                  onError: (error) =>
+                    toast.error(
+                      error.message || "The template could not be submitted. Please try again.",
+                    ),
+                },
+              )
         }
       />
+      {reviewer ? (
+        <SendBackDialog
+          open={sendingBack}
+          pending={sendBack.isPending}
+          onOpenChange={setSendingBack}
+          onSendBack={(note) =>
+            sendBack.mutate(
+              { note },
+              {
+                onSuccess: () => {
+                  setSendingBack(false);
+                  toast.success(`Sent back to ${template.review?.by?.name ?? "them"}`);
+                },
+                onError: (error) =>
+                  toast.error(error.message || "It could not be sent back. Please try again."),
+              },
+            )
+          }
+        />
+      ) : null}
     </div>
   );
 }
@@ -500,11 +810,13 @@ function AudienceField({
   label,
   placeholder,
   values,
+  disabled = false,
   onChange,
 }: {
   label: string;
   placeholder: string;
   values: string[];
+  disabled?: boolean;
   onChange: (values: string[]) => void;
 }) {
   const id = useId();
@@ -528,7 +840,8 @@ function AudienceField({
               {value}
               <button
                 type="button"
-                className="grid size-5 place-items-center rounded-full hover:bg-surface-container-high [&_svg]:size-4"
+                className="grid size-5 place-items-center rounded-full hover:bg-surface-container-high disabled:opacity-50 [&_svg]:size-4"
+                disabled={disabled}
                 aria-label={`Remove ${value}`}
                 onClick={() => onChange(values.filter((entry) => entry !== value))}
               >
@@ -542,6 +855,7 @@ function AudienceField({
         id={id}
         value={draft}
         maxLength={100}
+        disabled={disabled}
         placeholder={placeholder}
         onChange={(event) => setDraft(event.target.value)}
         onKeyDown={(event) => {

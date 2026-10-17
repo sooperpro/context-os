@@ -28,6 +28,7 @@ import { OptionalSelect } from "@/features/members/components/optional-select";
 import { ProjectPicker } from "@/features/members/components/project-picker";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
+import { TemplatePicker } from "@/features/people-ops/components/template-picker";
 import {
   departmentsQuery,
   membersQuery,
@@ -101,12 +102,16 @@ function InviteMemberForm({ close }: { close: () => void }) {
       managerId: "",
       startDate: "",
       isNewHire: false,
+      templateId: "",
       projectIds: [],
     },
   });
   const errors = form.formState.errors;
   const role = useWatch({ control: form.control, name: "role" });
   const departmentId = useWatch({ control: form.control, name: "departmentId" });
+  const jobTitle = useWatch({ control: form.control, name: "jobTitle" });
+  const teamId = useWatch({ control: form.control, name: "teamId" });
+  const isNewHire = useWatch({ control: form.control, name: "isNewHire" });
 
   // A chosen department narrows the teams; a chosen team fills in its department.
   const teamOptions = (teams.data ?? []).filter(
@@ -117,7 +122,8 @@ function InviteMemberForm({ close }: { close: () => void }) {
   );
 
   const onSubmit = form.handleSubmit((values) => {
-    invite.mutate(values, {
+    // Only a new hire takes a template.
+    invite.mutate(values.isNewHire ? values : { ...values, templateId: undefined }, {
       onSuccess: (result) => {
         if (result.status === "already_member") toast.info(`${values.email} is already a member`);
         else if (result.delivery === "local")
@@ -335,6 +341,29 @@ function InviteMemberForm({ close }: { close: () => void }) {
             />
           </div>
         )}
+        {role !== "guest" && isNewHire ? (
+          // The onboarding template for their role, suggested from the job title, team and
+          // department (N-18). Templates are made in Templates, not here.
+          <div className="space-y-2">
+            <Label htmlFor={`${id}-template`}>Onboarding template</Label>
+            <Controller
+              control={form.control}
+              name="templateId"
+              render={({ field }) => (
+                <TemplatePicker
+                  id={`${id}-template`}
+                  role={{
+                    title: jobTitle ?? "",
+                    teamId: teamId?.length ? teamId : null,
+                    departmentId: departmentId?.length ? departmentId : null,
+                  }}
+                  value={field.value?.length ? field.value : null}
+                  onChange={(next) => field.onChange(next ?? "")}
+                />
+              )}
+            />
+          </div>
+        ) : null}
       </fieldset>
 
       <DialogFooter>

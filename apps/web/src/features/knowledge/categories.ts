@@ -13,14 +13,13 @@ import type { ShapeKind } from "@/components/ui/shape";
 
 /**
  * The Knowledge Hub's collections, exactly as the prototype lists them (CATS): names, order, icons,
- * shapes and descriptions. Company, Products, Projects and Processes are projects by their stored
- * category (chosen when the project is created or renamed).
- * Systems, Decisions and Glossary come from the context items extracted from each project.
+ * shapes and descriptions. Each collection lists the projects filed under it (chosen when the
+ * project is created or renamed) and the context items of its kinds extracted from each project.
  */
 export type CategoryId =
   "company" | "product" | "project" | "system" | "process" | "decision" | "glossary";
 
-interface CategoryBase {
+export interface KnowledgeCategory {
   id: CategoryId;
   name: string;
   description: string;
@@ -28,17 +27,11 @@ interface CategoryBase {
   shape: ShapeKind;
   /** Shown when the collection is empty. */
   emptyNote: string;
+  /** Projects filed under this collection. */
+  projectCategory: ProjectCategory;
+  /** Extracted context items listed in this collection. */
+  kinds: ContextItemKind[];
 }
-
-export type KnowledgeCategory = CategoryBase &
-  (
-    | { source: "projects"; projectCategory: ProjectCategory }
-    | {
-        source: "items";
-        kinds: ContextItemKind[];
-        /** The project section that lists these items. */ tab: string;
-      }
-  );
 
 export const CATEGORIES: readonly KnowledgeCategory[] = [
   {
@@ -47,9 +40,9 @@ export const CATEGORIES: readonly KnowledgeCategory[] = [
     description: "Mission, strategy, how we're organized",
     icon: ApartmentIcon,
     shape: "cookie6",
-    source: "projects",
     projectCategory: "company",
-    emptyNote: "No company pages yet.",
+    kinds: ["company"],
+    emptyNote: "Nothing here yet. Company facts appear as sources describe the company.",
   },
   {
     id: "product",
@@ -57,9 +50,9 @@ export const CATEGORIES: readonly KnowledgeCategory[] = [
     description: "What we sell and how it works",
     icon: LocalShippingIcon,
     shape: "clover4",
-    source: "projects",
     projectCategory: "product",
-    emptyNote: "No product pages yet.",
+    kinds: ["product"],
+    emptyNote: "Nothing here yet. Products appear as sources describe what you offer.",
   },
   {
     id: "project",
@@ -67,9 +60,9 @@ export const CATEGORIES: readonly KnowledgeCategory[] = [
     description: "Initiatives in flight and their history",
     icon: RocketLaunchFilledIcon,
     shape: "sunny",
-    source: "projects",
     projectCategory: "project",
-    emptyNote: "No projects yet.",
+    kinds: ["initiative"],
+    emptyNote: "Nothing here yet. Projects appear as sources describe initiatives.",
   },
   {
     id: "system",
@@ -77,9 +70,8 @@ export const CATEGORIES: readonly KnowledgeCategory[] = [
     description: "Architecture, services and data",
     icon: AccountTreeIcon,
     shape: "cookie9",
-    source: "items",
+    projectCategory: "system",
     kinds: ["component", "dependency"],
-    tab: "system",
     emptyNote: "Nothing here yet. Systems appear as sources describe services and integrations.",
   },
   {
@@ -88,9 +80,9 @@ export const CATEGORIES: readonly KnowledgeCategory[] = [
     description: "How work gets done here",
     icon: ConversionPathIcon,
     shape: "flower",
-    source: "projects",
     projectCategory: "process",
-    emptyNote: "No process pages yet.",
+    kinds: ["process"],
+    emptyNote: "Nothing here yet. Processes appear as sources describe how work gets done.",
   },
   {
     id: "decision",
@@ -98,9 +90,8 @@ export const CATEGORIES: readonly KnowledgeCategory[] = [
     description: "Decision records and why we chose them",
     icon: GavelIcon,
     shape: "cookie4",
-    source: "items",
+    projectCategory: "decision",
     kinds: ["decision"],
-    tab: "decisions",
     emptyNote: "Nothing here yet. Decisions appear as sources state what was decided and why.",
   },
   {
@@ -109,36 +100,24 @@ export const CATEGORIES: readonly KnowledgeCategory[] = [
     description: "The words and acronyms we use",
     icon: MenuBookIcon,
     shape: "clover8",
-    source: "items",
+    projectCategory: "glossary",
     kinds: ["term"],
-    tab: "terms",
     emptyNote: "Nothing here yet. Terms appear as sources define them.",
   },
 ];
 
 /** The collections a project can be filed under, for the New project and Rename pickers. */
-export const PROJECT_CATEGORY_OPTIONS = CATEGORIES.flatMap((category) =>
-  category.source === "projects"
-    ? [
-        {
-          value: category.projectCategory,
-          label: category.name,
-          description: category.description,
-        },
-      ]
-    : [],
-);
+export const PROJECT_CATEGORY_OPTIONS = CATEGORIES.map((category) => ({
+  value: category.projectCategory,
+  label: category.name,
+  description: category.description,
+}));
 
 export function categoryById(id: string | null): KnowledgeCategory | undefined {
   return CATEGORIES.find((category) => category.id === id);
 }
 
 /** The collection an extracted item belongs to, if it is one the hub lists. */
-export function categoryForKind(
-  kind: ContextItemKind,
-): Extract<KnowledgeCategory, { source: "items" }> | undefined {
-  return CATEGORIES.find(
-    (category): category is Extract<KnowledgeCategory, { source: "items" }> =>
-      category.source === "items" && category.kinds.includes(kind),
-  );
+export function categoryForKind(kind: ContextItemKind): KnowledgeCategory | undefined {
+  return CATEGORIES.find((category) => category.kinds.includes(kind));
 }

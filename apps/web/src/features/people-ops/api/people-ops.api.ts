@@ -1,6 +1,8 @@
 import {
   NewOnboardingInputSchema,
   NewTemplateInputSchema,
+  RoadmapGenerateInputSchema,
+  type RoadmapGenerateInput,
   OnboardingAssignmentInputSchema,
   OnboardingMessageInputSchema,
   OnboardingMessageResultSchema,
@@ -15,12 +17,14 @@ import {
   PersonDetailsSchema,
   ReminderInputSchema,
   ReminderResultSchema,
+  ReviewSendBackInputSchema,
   SetupStepInputSchema,
   TemplateArchiveInputSchema,
   TemplateDetailSchema,
   TemplateDraftInputSchema,
   TemplateLibrarySchema,
   TemplatePublishInputSchema,
+  TemplateSuggestionSchema,
   TemplateVersionSchema,
   type NewOnboardingInput,
   type NewTemplateInput,
@@ -31,6 +35,7 @@ import {
   type ProbationDecisionInput,
   type ProbationDiscussInput,
   type ReminderInput,
+  type ReviewSendBackInput,
   type SetupStepId,
   type TemplateDraftInput,
   type TemplatePublishInput,
@@ -40,6 +45,7 @@ import { apiRequest } from "@/lib/api-client";
 
 /**
  * People Ops (HR) endpoints, for the `hr` role only (apps/api/src/modules/platform/people-ops.routes.ts).
+ * Templates are also open to admins, and to managers and path curators for their own drafts.
  * Tests use the fixtures in src/mocks/people-ops.ts. Contracts:
  * packages/shared/src/schemas/people-ops.ts. The probation list and the template list are HR Home's
  * (`HOME_ENDPOINTS.probationReviews`, `.templates`).
@@ -118,12 +124,34 @@ export const PEOPLE_OPS_ENDPOINTS = {
     schema: TemplateDetailSchema,
     input: TemplatePublishInputSchema,
   },
+  /** Managers and path curators send their draft to People Ops instead of publishing it. */
+  submitTemplate: {
+    path: "/v1/people-ops/templates/:id/submit",
+    schema: TemplateDetailSchema,
+    input: TemplatePublishInputSchema,
+  },
+  sendBackTemplate: {
+    path: "/v1/people-ops/templates/:id/send-back",
+    schema: TemplateDetailSchema,
+    input: ReviewSendBackInputSchema,
+  },
   createTemplate: {
     path: "/v1/people-ops/templates",
     schema: TemplateDetailSchema,
     input: NewTemplateInputSchema,
   },
   library: { path: "/v1/people-ops/template-library", schema: TemplateLibrarySchema },
+  /** The template for someone joining, from their job title, team and department. */
+  templateSuggestion: {
+    path: "/v1/people-ops/template-suggestion",
+    schema: TemplateSuggestionSchema,
+  },
+  /** Draft a template for a job title from the Knowledge Hub, in the background. */
+  generateTemplate: {
+    path: "/v1/roadmaps/generate",
+    schema: TemplateDetailSchema,
+    input: RoadmapGenerateInputSchema,
+  },
 } as const;
 
 const E = PEOPLE_OPS_ENDPOINTS;
@@ -229,11 +257,51 @@ export const saveTemplateDraft = (id: string, input: TemplateDraftInput) =>
 export const publishTemplate = (id: string, input: TemplatePublishInput) =>
   apiRequest(withId(E.publish.path, id), { method: "POST", body: input, schema: E.publish.schema });
 
+export const submitTemplate = (id: string, input: TemplatePublishInput) =>
+  apiRequest(withId(E.submitTemplate.path, id), {
+    method: "POST",
+    body: input,
+    schema: E.submitTemplate.schema,
+  });
+
+export const sendBackTemplate = (id: string, input: ReviewSendBackInput) =>
+  apiRequest(withId(E.sendBackTemplate.path, id), {
+    method: "POST",
+    body: input,
+    schema: E.sendBackTemplate.schema,
+  });
+
 export const createTemplate = (input: NewTemplateInput) =>
   apiRequest(E.createTemplate.path, {
     method: "POST",
     body: input,
     schema: E.createTemplate.schema,
+  });
+
+export const generateTemplate = (input: RoadmapGenerateInput) =>
+  apiRequest(E.generateTemplate.path, {
+    method: "POST",
+    body: input,
+    schema: E.generateTemplate.schema,
+  });
+
+export interface RoleLookup {
+  title: string;
+  team?: string | null;
+  teamId?: string | null;
+  departmentId?: string | null;
+}
+
+export const fetchTemplateSuggestion = (role: RoleLookup, signal?: AbortSignal) =>
+  apiRequest(E.templateSuggestion.path, {
+    query: {
+      title: role.title,
+      team: role.team ?? undefined,
+      teamId: role.teamId ?? undefined,
+      departmentId: role.departmentId ?? undefined,
+    },
+    schema: E.templateSuggestion.schema,
+    signal,
   });
 
 export const fetchTemplateLibrary = (signal?: AbortSignal) =>

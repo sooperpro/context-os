@@ -1,6 +1,7 @@
 import type {
   NewOnboardingInput,
   NewTemplateInput,
+  RoadmapGenerateInput,
   OnboardingAssignmentInput,
   OnboardingFilter,
   OnboardingMessageInput,
@@ -8,6 +9,7 @@ import type {
   ProbationDecisionInput,
   ProbationDiscussInput,
   ReminderInput,
+  ReviewSendBackInput,
   SetupStepId,
   TemplateDraftInput,
   TemplatePublishInput,
@@ -21,6 +23,7 @@ import {
   completeSetupStep,
   createOnboarding,
   createTemplate,
+  generateTemplate,
   decideProbation,
   deleteTemplate,
   discussProbation,
@@ -32,12 +35,16 @@ import {
   fetchProbation,
   fetchTemplate,
   fetchTemplateLibrary,
+  fetchTemplateSuggestion,
   fetchTemplateVersion,
+  type RoleLookup,
   messageOnboarding,
   publishTemplate,
   remindManagers,
   restoreTemplate,
   saveTemplateDraft,
+  sendBackTemplate,
+  submitTemplate,
   updateOnboarding,
   updatePersonDetails,
 } from "./people-ops.api";
@@ -69,6 +76,15 @@ export const onboardingQuery = (id: string) =>
   queryOptions({
     queryKey: peopleOpsKeys.onboarding(id),
     queryFn: ({ signal }) => fetchOnboarding(id, signal),
+  });
+
+/** The template to suggest for someone joining; the previous answer stays while typing. */
+export const templateSuggestionQuery = (role: RoleLookup) =>
+  queryOptions({
+    queryKey: [...peopleOpsKeys.all, "template-suggestion", role] as const,
+    queryFn: ({ signal }) => fetchTemplateSuggestion(role, signal),
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
   });
 
 export const onboardingOptionsQuery = () =>
@@ -200,6 +216,22 @@ export function usePublishTemplate(id: string) {
   });
 }
 
+export function useSubmitTemplate(id: string) {
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: (input: TemplatePublishInput) => submitTemplate(id, input),
+    onSuccess: () => refresh(),
+  });
+}
+
+export function useSendBackTemplate(id: string) {
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: (input: ReviewSendBackInput) => sendBackTemplate(id, input),
+    onSuccess: () => refresh(),
+  });
+}
+
 /** Saves new job details; the profile, directory, members list and onboarding records reload. */
 export function useUpdatePersonDetails(userId: string) {
   const refresh = useRefresh();
@@ -229,6 +261,14 @@ export function useRestoreTemplate(id: string) {
 export function useDeleteTemplate(id: string) {
   const refresh = useRefresh();
   return useMutation({ mutationFn: () => deleteTemplate(id), onSuccess: () => refresh() });
+}
+
+export function useGenerateTemplate() {
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: (input: RoadmapGenerateInput) => generateTemplate(input),
+    onSuccess: () => refresh(),
+  });
 }
 
 export function useCreateTemplate() {

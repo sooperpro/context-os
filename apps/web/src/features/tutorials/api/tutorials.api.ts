@@ -1,4 +1,5 @@
 import {
+  ReviewSendBackInputSchema,
   TutorialAssignInputSchema,
   TutorialAssignmentSchema,
   TutorialCreateInputSchema,
@@ -7,6 +8,7 @@ import {
   TutorialPublishInputSchema,
   TutorialRegenerateInputSchema,
   TutorialUpdateInputSchema,
+  type ReviewSendBackInput,
   type TutorialAssignInput,
   type TutorialCreateInput,
   type TutorialDetail,
@@ -39,6 +41,13 @@ export const TUTORIAL_ENDPOINTS = {
     path: "/v1/tutorials/:id/publish",
     schema: TutorialDetailSchema,
     input: TutorialPublishInputSchema,
+  },
+  /** Path curators and managers send their draft to People Ops instead of publishing it. */
+  submit: { path: "/v1/tutorials/:id/submit", schema: TutorialDetailSchema },
+  sendBack: {
+    path: "/v1/tutorials/:id/send-back",
+    schema: TutorialDetailSchema,
+    input: ReviewSendBackInputSchema,
   },
   archive: { path: "/v1/tutorials/:id/archive", schema: TutorialDetailSchema },
   assign: {
@@ -75,6 +84,16 @@ export const regenerateTutorial = (
 
 export const publishTutorial = (id: string, input: TutorialPublishInput) =>
   apiRequest(withId(E.publish.path, id), { method: "POST", body: input, schema: E.publish.schema });
+
+export const submitTutorial = (id: string) =>
+  apiRequest(withId(E.submit.path, id), { method: "POST", body: {}, schema: E.submit.schema });
+
+export const sendBackTutorial = (id: string, input: ReviewSendBackInput) =>
+  apiRequest(withId(E.sendBack.path, id), {
+    method: "POST",
+    body: input,
+    schema: E.sendBack.schema,
+  });
 
 export const archiveTutorial = (id: string) =>
   apiRequest(withId(E.archive.path, id), { method: "POST", body: {}, schema: E.archive.schema });

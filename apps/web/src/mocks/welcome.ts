@@ -53,6 +53,8 @@ const seed = (): Welcome => ({
     "Your rating of each module goes to its owner",
   ],
   completedAt: null,
+  // The mock app doesn't send the previewer to the welcome on load; open it from Home.
+  due: false,
 });
 
 let welcome = seed();
@@ -64,7 +66,7 @@ export function resetWelcomeMocks(): void {
 export const welcomeMocks = [
   mockGet(E.welcome)(() => welcome),
   mockPost(E.complete)((input) => {
-    welcome = { ...welcome, profile: input, completedAt: new Date().toISOString() };
+    welcome = { ...welcome, profile: input, completedAt: new Date().toISOString(), due: false };
     return welcome;
   }),
 ];

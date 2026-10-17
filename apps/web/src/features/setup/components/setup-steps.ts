@@ -26,6 +26,13 @@ export const STEP_COPY: Record<
       "A project reconstructs how a piece of work got here, why, and what is true now. Start with the one a new hire will ask about first.",
     evidence: "Completes when the workspace has at least one project.",
   },
+  onboarding_templates: {
+    title: "Generate onboarding templates",
+    short: "Templates",
+    description:
+      "Draft an onboarding template for every role in the company, from its own knowledge: stages, probation, check-ins and modules. People Ops review and publish each one before anyone gets it.",
+    evidence: "Completes when every role listed has a template.",
+  },
   invite_team: {
     title: "Invite your team",
     short: "Team",

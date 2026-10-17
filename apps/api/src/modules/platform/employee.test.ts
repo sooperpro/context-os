@@ -243,7 +243,12 @@ describe("Employee: people, knowledge updates, team news, welcome, preferences a
       items: [],
     });
     const welcome = await get(WelcomeSchema, "/me/welcome");
-    expect(welcome).toMatchObject({ people: [], completedAt: null, title: "team member" });
+    expect(welcome).toMatchObject({
+      people: [],
+      completedAt: null,
+      title: "team member",
+      due: false,
+    });
   });
 
   it("lists the manager, buddy, People partner, mentors and a few experts, once each", async () => {
@@ -359,6 +364,7 @@ describe("Employee: people, knowledge updates, team news, welcome, preferences a
       title: "Product Engineer",
       team: "Platform",
       completedAt: null,
+      due: true,
       profile: { preferredName: "Maya", pronouns: "", location: "", known: [], reminders: "slack" },
     });
     expect(before.people.map((entry) => entry.relation)).toEqual([
@@ -385,6 +391,8 @@ describe("Employee: people, knowledge updates, team news, welcome, preferences a
     const saved = WelcomeSchema.parse(await (await send("/me/welcome", input)).json());
     expect(saved.profile).toEqual(input);
     expect(saved.completedAt).not.toBeNull();
+    // Finishing it ends the first-sign-in redirect.
+    expect(saved.due).toBe(false);
     // A topic outside the suggestions stays selectable.
     expect(saved.knownOptions).toContain("Logistics");
     expect(await get(WelcomeSchema, "/me/welcome")).toEqual(saved);

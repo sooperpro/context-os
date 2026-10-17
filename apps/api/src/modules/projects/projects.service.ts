@@ -19,6 +19,9 @@ export interface ProjectServiceDeps {
   identity: IdentityService;
 }
 
+/** The project connected content feeds when no project is chosen. */
+export const COMPANY_KNOWLEDGE_SLUG = "company-knowledge";
+
 export function toProject(row: ProjectRow): Project {
   return {
     id: row.id,
@@ -90,6 +93,23 @@ export function createProjectService({ repo, audit, identity }: ProjectServiceDe
         targetId: row.id,
       });
       return withStats(row, actor);
+    },
+
+    /**
+     * The workspace's "Company knowledge" project (category Company), made the first time it is
+     * needed: connected folders that don't belong to one project feed it (N-18 Phase 9).
+     */
+    companyKnowledge(actor: Actor): ProjectRow {
+      const existing = repo.findBySlug(COMPANY_KNOWLEDGE_SLUG, actor.workspaceId);
+      if (existing) return existing;
+      const created = this.create(actor, {
+        name: "Company knowledge",
+        slug: COMPANY_KNOWLEDGE_SLUG,
+        description:
+          "Company-wide documents from connected tools that don't belong to one project.",
+        category: "company",
+      });
+      return repo.findByIdUnscoped(created.id)!;
     },
 
     update(actor: Actor, project: ProjectRow, input: UpdateProjectInput): ProjectWithStats {

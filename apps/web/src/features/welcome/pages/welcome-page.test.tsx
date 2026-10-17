@@ -1,7 +1,9 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { http, HttpResponse } from "msw";
 import { Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it } from "vitest";
+import { useFirstDayRedirect } from "@/features/welcome/hooks/use-first-day-redirect";
 import { WelcomePage } from "@/features/welcome/pages/welcome-page";
 import { buildApiUrl } from "@/lib/api-client";
 import { employeeHandlers } from "@/test/employee-mocks";
@@ -62,6 +64,58 @@ describe("First-day welcome", () => {
       preferredName: "May",
       known: ["TypeScript", "APIs", "Kafka"],
       reminders: "both",
+    });
+  });
+
+  describe("on first sign-in", () => {
+    function Home() {
+      useFirstDayRedirect();
+      return <h1>Home</h1>;
+    }
+    const open = () =>
+      renderWithProviders(
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/welcome" element={<h1>Your welcome</h1>} />
+        </Routes>,
+      );
+    const serve = async (due: boolean) => {
+      const base = (await (
+        await fetch(new URL(buildApiUrl("/v1/me/welcome"), window.location.origin))
+      ).json()) as object;
+      mockServer.use(
+        http.get("*/v1/me/welcome", () => HttpResponse.json({ ...base, due })),
+        http.get("*/v1/users/me", () =>
+          HttpResponse.json({
+            id: "maya",
+            name: "Maya",
+            email: null,
+            role: "member",
+            workspaceId: "w1",
+            preferences: {},
+          }),
+        ),
+      );
+    };
+    beforeEach(() => sessionStorage.clear());
+
+    it("opens the welcome once for a new hire who hasn't finished it", async () => {
+      await serve(true);
+      const first = open();
+      expect(await screen.findByRole("heading", { name: "Your welcome" })).toBeInTheDocument();
+      first.unmount();
+      // Skipping returns to the app, which stays put for the rest of the sign-in.
+      open();
+      expect(await screen.findByRole("heading", { name: "Home" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Your welcome" })).not.toBeInTheDocument();
+    });
+
+    it("leaves everyone else on Home", async () => {
+      await serve(false);
+      open();
+      expect(await screen.findByRole("heading", { name: "Home" })).toBeInTheDocument();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(screen.queryByRole("heading", { name: "Your welcome" })).not.toBeInTheDocument();
     });
   });
 });

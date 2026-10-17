@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { IsoDateTimeSchema } from "./common.js";
 
 /** Building blocks shared by the screen contracts (home, contributions, learning). */
 
@@ -9,6 +10,26 @@ export const PersonRefSchema = z.object({
   title: z.string().nullable(),
 });
 export type PersonRef = z.infer<typeof PersonRefSchema>;
+
+/**
+ * A manager's or path curator's draft waiting for People Ops (N-18): Owner, Admin and HR publish
+ * directly; everyone else submits, and a reviewer publishes it or sends it back with a note.
+ */
+export const ReviewStateSchema = z.object({
+  state: z.enum(["in_review", "changes_requested"]),
+  /** The reviewer's note when it was sent back. */
+  note: z.string().nullable(),
+  /** Who submitted it (in review), or who sent it back. */
+  by: PersonRefSchema.nullable(),
+  at: IsoDateTimeSchema,
+});
+export type ReviewState = z.infer<typeof ReviewStateSchema>;
+
+/** `POST …/send-back`: what the submitter should change. */
+export const ReviewSendBackInputSchema = z
+  .object({ note: z.string().trim().min(1).max(1000) })
+  .strict();
+export type ReviewSendBackInput = z.infer<typeof ReviewSendBackInputSchema>;
 
 /** Where someone is against their onboarding plan. */
 export const OnboardingStatusSchema = z.enum([

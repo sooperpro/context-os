@@ -245,6 +245,7 @@ export function createIdentityService(db: Db, devActor: Actor, auth: Auth | null
         managerId?: string;
         startDate?: string;
         isNewHire?: boolean;
+        templateId?: string;
         projectIds?: string[];
       };
       const role = data.role ?? ("member" as const);
@@ -284,6 +285,8 @@ export function createIdentityService(db: Db, devActor: Actor, auth: Auth | null
           ...(data.teamId ? { teamId: data.teamId } : {}),
           ...(data.startDate ? { startDate: data.startDate } : {}),
           isNewHire: data.isNewHire ?? false,
+          // Their onboarding record takes it when People Ops' list is next loaded (N-18).
+          ...(data.isNewHire && data.templateId ? { onboardingTemplateId: data.templateId } : {}),
         },
       };
       db.transaction((tx) => {
@@ -453,6 +456,22 @@ export function createIdentityService(db: Db, devActor: Actor, auth: Auth | null
                     eq(assignments.scopeId, actor.workspaceId),
                   ),
             ),
+            or(isNull(assignments.expiresAt), gt(assignments.expiresAt, new Date())),
+          ),
+        )
+        .get();
+    },
+    /** Holds a path curator assignment for any project (or the whole workspace). */
+    curatesAny(actor: Actor): boolean {
+      if (actor.role === "guest") return false;
+      return !!db
+        .select({ id: assignments.id })
+        .from(assignments)
+        .where(
+          and(
+            eq(assignments.workspaceId, actor.workspaceId),
+            eq(assignments.userId, actor.id),
+            eq(assignments.type, "path_curator"),
             or(isNull(assignments.expiresAt), gt(assignments.expiresAt, new Date())),
           ),
         )

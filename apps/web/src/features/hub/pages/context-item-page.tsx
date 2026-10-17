@@ -205,6 +205,10 @@ function facts(item: ContextItem, hub: Hub): Array<[string, string]> {
         ...common,
       ];
     case "term":
+    case "company":
+    case "product":
+    case "initiative":
+    case "process":
       return common;
   }
 }

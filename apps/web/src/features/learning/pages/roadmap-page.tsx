@@ -30,6 +30,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { LEARNING_ENDPOINTS as E } from "@/features/learning/api/learning.api";
 import { roadmapQuery } from "@/features/learning/api/learning.queries";
 import { ModuleRow } from "@/features/learning/components/module-row";
+import { RevisitLaterCard } from "@/features/learning/components/revisit-later";
 import {
   ClarificationDialog,
   RoadmapChangeDialog,
@@ -107,7 +108,20 @@ export function RoadmapPage() {
         }
       />
       {!roadmap ? (
-        query.error instanceof ApiClientError && query.error.status === 404 ? (
+        query.error instanceof ApiClientError &&
+        query.error.status === 404 &&
+        (query.error.details as { preparing?: boolean } | undefined)?.preparing ? (
+          // No template fit their job yet: People Ops are reviewing one drafted for them (N-18).
+          <Empty className="rounded-card bg-card py-12">
+            <EmptyHeader>
+              <EmptyTitle>Your roadmap is being prepared</EmptyTitle>
+              <EmptyDescription>
+                People Ops are putting together your onboarding plan from the company’s own
+                knowledge. You’ll get a notification as soon as it’s ready.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        ) : query.error instanceof ApiClientError && query.error.status === 404 ? (
           // Not onboarding: nothing is wrong, there's just no plan.
           <Empty className="rounded-card bg-card py-12">
             <EmptyHeader>
@@ -188,6 +202,7 @@ export function RoadmapPage() {
               ) : null}
             </PageMain>
             <PageSide>
+              <RevisitLaterCard />
               <SectionCard
                 title="Progress"
                 action={<OnboardingStatusChip status={roadmap.status} />}

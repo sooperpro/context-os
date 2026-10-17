@@ -14,14 +14,22 @@ import {
   EditIcon,
   Inventory2Icon,
   LibraryBooksIcon,
+  RateReviewIcon,
+  SmartToyIcon,
+  UndoIcon,
 } from "@/components/ui/icons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusChip } from "@/components/ui/status-chip";
 import { Switch } from "@/components/ui/switch";
 import { HOME_ENDPOINTS } from "@/features/home/api/home.api";
 import { homeQuery } from "@/features/home/api/home.queries";
-import { NewTemplateDialog, TemplateTile } from "@/features/people-ops/components/template-parts";
+import {
+  GenerateTemplateDialog,
+  NewTemplateDialog,
+  TemplateTile,
+} from "@/features/people-ops/components/template-parts";
 import { templatePath } from "@/features/people-ops/people-ops-meta";
+import { useIsReviewer } from "@/features/workspace/hooks/use-is-reviewer";
 import { formatShortDate } from "@/lib/format";
 
 /** Onboarding templates (prototype `#templates`): reusable roadmaps by role. */
@@ -42,18 +50,30 @@ export function TemplatesPage() {
     homeQuery("templates", showArchived ? { archived: "include" } : undefined),
   );
   const [creating, setCreating] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const items = query.data?.items ?? [];
+  const reviewer = useIsReviewer();
+  const waiting = items.filter((template) => template.review?.state === "in_review").length;
 
   return (
     <div className="mx-auto flex max-w-360 flex-col gap-3 medium:gap-4">
       <PageHeader
         kicker="People Operations"
         title="Onboarding templates"
-        description="Reusable roadmaps by role. Managers start from a template and adjust it for each person."
+        description={
+          reviewer
+            ? `Reusable roadmaps by role. Managers start from a template and adjust it for each person.${waiting ? ` ${waiting} waiting for your review.` : ""}`
+            : "Reusable roadmaps by role. Draft one for your team, then submit it: People Ops review and publish it."
+        }
         actions={
-          <Button disabled={!items.length} onClick={() => setCreating(true)}>
-            <AddIcon aria-hidden /> New template
-          </Button>
+          <>
+            <Button variant="outline" disabled={!items.length} onClick={() => setCreating(true)}>
+              <AddIcon aria-hidden /> New template
+            </Button>
+            <Button onClick={() => setGenerating(true)}>
+              <SmartToyIcon aria-hidden /> Generate with AI
+            </Button>
+          </>
         }
       />
       <div className="flex flex-wrap items-center justify-end gap-3">
@@ -86,6 +106,14 @@ export function TemplatesPage() {
           endpoint={HOME_ENDPOINTS.templates.path}
           status={query}
         />
+      ) : !items.length ? (
+        <SectionCard title="No templates yet">
+          <p className="text-sm text-on-surface-variant">
+            Templates come from your company’s knowledge. Choose “Generate with AI” and enter a job
+            title: ContextOS plans the stages, probation and modules from the Knowledge Hub, and you
+            review them before anyone sees them.
+          </p>
+        </SectionCard>
       ) : (
         <ul
           aria-label="Templates"
@@ -99,6 +127,7 @@ export function TemplatesPage() {
         </ul>
       )}
       <NewTemplateDialog open={creating} onOpenChange={setCreating} templates={items} />
+      <GenerateTemplateDialog open={generating} onOpenChange={setGenerating} />
     </div>
   );
 }
@@ -121,6 +150,14 @@ function TemplateCard({ template }: { template: OnboardingTemplate }) {
         <TemplateTile family={template.family} />
         {template.archived ? (
           <StatusChip icon={<Inventory2Icon />}>Archived</StatusChip>
+        ) : template.review?.state === "in_review" ? (
+          <StatusChip tone="info" icon={<RateReviewIcon />}>
+            In review
+          </StatusChip>
+        ) : template.review?.state === "changes_requested" ? (
+          <StatusChip tone="warning" icon={<UndoIcon />}>
+            Sent back
+          </StatusChip>
         ) : template.status === "draft" ? (
           <StatusChip icon={<EditIcon />}>Draft {template.version}</StatusChip>
         ) : (

@@ -477,8 +477,10 @@ roadmap modules optional yet.
 
 - **Returns** `WelcomeSchema`: `firstDay, title, team, people[] {person, relation, detail}` (manager,
   buddy, people partner and how each helps), `profile {preferredName, pronouns, location, known[],
-reminders}`, `knownOptions[]`, `expectations[]`, `support[]`, `completedAt`.
-- **UI:** `/welcome` (full screen); employee Home shows a welcome banner until `completedAt` is set.
+reminders}`, `knownOptions[]`, `expectations[]`, `support[]`, `completedAt`, `due` (true for someone
+  being onboarded, with an active onboarding record or invited as a new hire, who hasn't finished).
+- **UI:** `/welcome` (full screen). The app opens it once per sign-in while `due` is true (skipping
+  returns to the app); employee Home shows a welcome banner until `completedAt` is set.
 - **Reuse:** `users.name`, `memberships.organization`, `onboarding_plan`.
 
 #### `POST /v1/me/welcome`

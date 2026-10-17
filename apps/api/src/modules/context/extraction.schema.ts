@@ -22,6 +22,14 @@ const date = z
   .describe("Date as YYYY-MM-DD when the source states or clearly implies it; omit otherwise")
   .optional();
 
+/** A company fact, product, initiative or process: the subject and what the source says about it. */
+const collectionEntry = z.object({
+  name: z.string(),
+  summary: z.string(),
+  evidenceQuote: quote,
+  confidence,
+});
+
 export const ExtractionOutputSchema = z.object({
   decisions: z.array(
     z.object({
@@ -95,7 +103,19 @@ export const ExtractionOutputSchema = z.object({
       confidence,
     }),
   ),
+  companyFacts: z
+    .array(collectionEntry)
+    .describe("Facts about the company itself: mission, strategy, structure, policies"),
+  products: z
+    .array(collectionEntry)
+    .describe("Products and services the company sells or offers, and how they work"),
+  initiatives: z
+    .array(collectionEntry)
+    .describe("Projects and initiatives in flight or finished, and their history"),
+  processes: z
+    .array(collectionEntry)
+    .describe("How work gets done: workflows, procedures, approvals, routines"),
 });
 export type ExtractionOutput = z.infer<typeof ExtractionOutputSchema>;
 
-export const EXTRACTION_PROMPT_VERSION = "extract-v1";
+export const EXTRACTION_PROMPT_VERSION = "extract-v2";

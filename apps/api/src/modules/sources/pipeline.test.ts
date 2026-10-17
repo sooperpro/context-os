@@ -10,6 +10,7 @@ import {
   createFakeGemini,
   createProject,
   createTestApp,
+  EMPTY_EXTRACTION,
   SAMPLE_SOURCE,
   type TestApp,
 } from "../../test/helpers.js";
@@ -96,6 +97,10 @@ describe("source ingestion pipeline", () => {
         ],
         dependencies: [],
         terms: [],
+        companyFacts: [],
+        products: [],
+        initiatives: [],
+        processes: [],
       },
     });
     t = createTestApp({ gemini });
@@ -106,6 +111,37 @@ describe("source ingestion pipeline", () => {
       await (await t.app.request(`/api/v1/projects/${project.id}/context-items`)).json(),
     );
     expect(items.items).toHaveLength(0);
+  });
+
+  it("files company facts, products, initiatives and processes as their own items", async () => {
+    const entry = (name: string, evidenceQuote: string) => [
+      { name, summary: `${name} summary`, evidenceQuote, confidence: "high" as const },
+    ];
+    const gemini = createFakeGemini({
+      extraction: {
+        ...EMPTY_EXTRACTION,
+        companyFacts: entry("Audit requirements", "rejected both because of audit requirements"),
+        products: entry("Billing", "Billing logic currently lives inside the monolith"),
+        initiatives: entry(
+          "Historical invoice migration",
+          "Migration of historical invoices is planned for Q2 2026",
+        ),
+        processes: entry("Data retention review", "blocked on the data retention review"),
+      },
+    });
+    t = createTestApp({ gemini });
+    const project = await createProject(t.app);
+    await addSource(t.app, project.id);
+    await t.drain();
+    const items = ContextItemListSchema.parse(
+      await (await t.app.request(`/api/v1/projects/${project.id}/context-items`)).json(),
+    );
+    expect(items.items.map((item) => [item.kind, item.title]).sort()).toEqual([
+      ["company", "Audit requirements"],
+      ["initiative", "Historical invoice migration"],
+      ["process", "Data retention review"],
+      ["product", "Billing"],
+    ]);
   });
 
   it("keeps working when embeddings fail", async () => {

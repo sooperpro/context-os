@@ -9,6 +9,7 @@ import {
 } from "@/components/layout/assistant-context";
 import { useDeclaredBotContext, type BotPageContext } from "@/components/layout/bot-context";
 import { NAV_ITEMS } from "@/components/layout/navigation";
+import { Markdown } from "@/components/markdown";
 import { BotGlyph } from "@/components/ui/bot-glyph";
 import { Button } from "@/components/ui/button";
 import {
@@ -49,10 +50,12 @@ import { AnswerBody } from "@/features/ask/components/answer-card";
 import { WorkspaceAnswer } from "@/features/ask/components/workspace-answer";
 import { useCreateFlag } from "@/features/feedback/api/feedback.queries";
 import { hubQuery } from "@/features/hub/api/hub.queries";
+import { SourceDrawerProvider } from "@/features/sources/components/source-drawer";
 import { currentWorkspaceQuery } from "@/features/workspace/api/workspace.queries";
 import { useViewer } from "@/features/workspace/hooks/use-viewer";
 import { ApiClientError } from "@/lib/api-client";
 import { formatCount } from "@/lib/format";
+import { stripCitations } from "@/lib/citations";
 
 /*
  * Context Bot, the assistant on every page (prototype bot.js). Inside a project it asks through the
@@ -410,25 +413,30 @@ export function AssistantPanel() {
             </>
           ) : null}
 
-          {messages.map((answer) => (
-            <div key={answer.id} className="flex flex-col gap-5">
-              <UserBubble text={answer.question} />
-              <BotMessage>
-                {answer.confidence === "insufficient" ? (
-                  <NoAnswerCard
-                    answer={answer}
-                    projectName={projectName}
-                    readySources={readySources}
-                    reported={reported.has(answer.id)}
-                    reporting={createFlag.isPending && createFlag.variables.targetId === answer.id}
-                    onReport={() => reportGap(answer)}
-                  />
-                ) : (
-                  <AnswerBody answer={answer} />
-                )}
-              </BotMessage>
-            </div>
-          ))}
+          {/* Citations open the source in a drawer; the project page's own drawer is out of reach here. */}
+          <SourceDrawerProvider projectId={projectId}>
+            {messages.map((answer) => (
+              <div key={answer.id} className="flex flex-col gap-5">
+                <UserBubble text={answer.question} />
+                <BotMessage>
+                  {answer.confidence === "insufficient" ? (
+                    <NoAnswerCard
+                      answer={answer}
+                      projectName={projectName}
+                      readySources={readySources}
+                      reported={reported.has(answer.id)}
+                      reporting={
+                        createFlag.isPending && createFlag.variables.targetId === answer.id
+                      }
+                      onReport={() => reportGap(answer)}
+                    />
+                  ) : (
+                    <AnswerBody answer={answer} />
+                  )}
+                </BotMessage>
+              </div>
+            ))}
+          </SourceDrawerProvider>
 
           {inProject
             ? null
@@ -576,7 +584,12 @@ function NoAnswerCard({
       <p className="text-[15px] leading-6">
         I couldn't find anything that answers this in sources you can access, so I won't guess.
       </p>
-      {answer.answer ? <p className="text-sm text-on-surface-variant">{answer.answer}</p> : null}
+      {answer.answer ? (
+        <Markdown
+          text={stripCitations(answer.answer)}
+          className="text-sm text-on-surface-variant"
+        />
+      ) : null}
       <p className="flex items-start gap-1.5 text-xs text-on-surface-variant [&_svg]:mt-px [&_svg]:size-4 [&_svg]:shrink-0">
         <ManageSearchIcon aria-hidden />
         Searched {formatCount(readySources, "source")} in {projectName}
@@ -606,10 +619,13 @@ const DEMO_QUESTION = {
   error: "What is the event bus used for?",
 } as const;
 const NO_ANSWER = "No reliable answer found. Nothing in the sources you can access answers this.";
+/** Answer Markdown as plain words for the screen-reader announcement. */
 const unmark = (text: string) =>
   text
     .replace(/\[\d+\]/g, "")
-    .replace(/\*\*/g, "")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/^\s{0,3}(#{1,6}|[-*+]|\d+\.)\s+/gm, "")
+    .replace(/[*_`]/g, "")
     .replace(/\s+/g, " ")
     .trim();
 const sourcesLine = (count: number) =>

@@ -143,9 +143,11 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: LibraryBooksIcon,
     activeIcon: LibraryBooksFilledIcon,
     to: "/templates",
-    roles: ["hr"],
-    personas: ["people_ops"],
+    // Admins publish templates too; managers and path curators draft theirs for review (N-18).
+    roles: ["hr", "admin", "manager"],
+    personas: ["people_ops", "admin", "manager"],
     alsoForOwner: true,
+    alsoForCurators: true,
   },
   {
     id: "tutorials",

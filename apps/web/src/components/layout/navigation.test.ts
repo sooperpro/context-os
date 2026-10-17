@@ -29,6 +29,8 @@ describe("navigation config", () => {
     expect(rail("manager", "manager")).toEqual([
       "home",
       "team",
+      // Managers draft templates for their team and submit them for review (N-18).
+      "templates",
       "knowledge",
       "reviews",
       "people",
@@ -49,6 +51,7 @@ describe("navigation config", () => {
     expect(rail("member", "people_ops")).toEqual(["home", "people", "knowledge"]);
     expect(rail("admin", "admin")).toEqual([
       "overview",
+      "templates",
       "tutorials",
       "members",
       "connectors",

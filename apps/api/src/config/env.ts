@@ -43,6 +43,18 @@ const EnvSchema = z
     /** Model for retrieval embeddings. */
     GEMINI_EMBEDDING_MODEL: z.string().min(1).default("gemini-embedding-001"),
     GEMINI_EMBEDDING_DIMENSIONS: z.coerce.number().int().positive().default(768),
+    /** Most AI template generations per workspace per day: ContextOS's ceiling on AI costs. */
+    AI_DAILY_TEMPLATE_LIMIT: z.coerce.number().int().min(0).default(5),
+    /** Most AI module drafts and updates per workspace per day. */
+    AI_DAILY_MODULE_LIMIT: z.coerce.number().int().min(0).default(60),
+    /** Of those, most module updates that start on their own after the Hub changes. */
+    AI_DAILY_AUTOMATIC_LIMIT: z.coerce.number().int().min(0).default(20),
+    /**
+     * One-time allowance for workspace setup, which drafts a template for every role at once.
+     * Used once per workspace; after it, the daily limits apply.
+     */
+    AI_SETUP_TEMPLATE_ALLOWANCE: z.coerce.number().int().min(0).default(30),
+    AI_SETUP_MODULE_ALLOWANCE: z.coerce.number().int().min(0).default(300),
 
     /** Run the background job worker inside this process. */
     WORKER_ENABLED: booleanString.default(true),

@@ -25,8 +25,10 @@ import {
   AddIcon,
   CheckCircleFilledIcon,
   DescriptionIcon,
+  RateReviewIcon,
   SchoolIcon,
   SmartToyIcon,
+  UndoIcon,
   WarningIcon,
 } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
@@ -44,7 +46,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { projectsQuery } from "@/features/projects/api/projects.queries";
 import { TUTORIAL_ENDPOINTS } from "@/features/tutorials/api/tutorials.api";
 import { tutorialsQuery, useCreateTutorial } from "@/features/tutorials/api/tutorials.queries";
-import { TUTORIAL_STATUS, tutorialPath } from "@/features/tutorials/tutorials-meta";
+import { COMPANY_WIDE, TUTORIAL_STATUS, tutorialPath } from "@/features/tutorials/tutorials-meta";
+import { useViewer } from "@/features/workspace/hooks/use-viewer";
 import { formatRelativeTime } from "@/lib/format";
 
 /**
@@ -139,17 +142,28 @@ function TutorialCard({ tutorial }: { tutorial: TutorialSummary }) {
             : ""}
         </StatusChip>
         {tutorial.generating && tutorial.status !== "generating" ? (
-          <StatusChip tone="info" icon={<SmartToyIcon />}>Writing new draft</StatusChip>
+          <StatusChip tone="info" icon={<SmartToyIcon />}>
+            Writing new draft
+          </StatusChip>
         ) : null}
         {tutorial.staleSources ? (
           <StatusChip tone="warning" icon={<WarningIcon />}>
             Needs update
           </StatusChip>
         ) : null}
+        {tutorial.review?.state === "in_review" ? (
+          <StatusChip tone="info" icon={<RateReviewIcon />}>
+            In review
+          </StatusChip>
+        ) : tutorial.review?.state === "changes_requested" ? (
+          <StatusChip tone="warning" icon={<UndoIcon />}>
+            Sent back
+          </StatusChip>
+        ) : null}
       </span>
       <b className="font-heading text-base font-medium">{tutorial.title}</b>
       <span className="text-xs text-on-surface-variant">
-        {tutorial.project.name} · for {tutorial.audience}
+        {tutorial.project?.name ?? COMPANY_WIDE} · for {tutorial.audience}
         {tutorial.minutes ? ` · ~${tutorial.minutes} min` : ""}
       </span>
       <dl className="my-1 grid grid-cols-3 gap-0.5">
@@ -173,6 +187,9 @@ function TutorialCard({ tutorial }: { tutorial: TutorialSummary }) {
   );
 }
 
+/** The project picker's value for a tutorial drafted from every project. */
+const COMPANY = "company";
+
 /** "New tutorial": project, audience and an optional focus; the draft is written in the background. */
 function NewTutorialDialog({
   open,
@@ -188,7 +205,13 @@ function NewTutorialDialog({
   const [projectId, setProjectId] = useState<string | null>(null);
   const [audience, setAudience] = useState("New team members");
   const [focus, setFocus] = useState("");
-  const list = projects.data?.items ?? [];
+  // Owners, admins and People Ops can draft from every project at once.
+  const { role } = useViewer();
+  const companyWide = role === "owner" || role === "admin" || role === "hr";
+  const list = [
+    ...(projects.data?.items ?? []),
+    ...(companyWide ? [{ id: COMPANY, name: `${COMPANY_WIDE} (all projects)` }] : []),
+  ];
   const chosen = projectId ?? list[0]?.id ?? null;
 
   return (
@@ -201,7 +224,7 @@ function NewTutorialDialog({
             if (!chosen || !audience.trim()) return;
             create.mutate(
               {
-                projectId: chosen,
+                ...(chosen === COMPANY ? {} : { projectId: chosen }),
                 audience: audience.trim(),
                 ...(focus.trim() ? { focus: focus.trim() } : {}),
               },

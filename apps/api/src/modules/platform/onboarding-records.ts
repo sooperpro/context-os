@@ -26,6 +26,7 @@ import {
   type RoadmapData,
 } from "./onboarding-roadmap.js";
 import { workspaceSettings } from "./settings.js";
+import { isReviewer, reviewView, type ReviewData } from "./review.js";
 import { createPlatformStore, type PlatformRecord } from "./store.js";
 import { reportsOf as sharedReportsOf } from "./reports.js";
 
@@ -80,9 +81,16 @@ export interface OnboardingData {
   title: string;
   email: string | null;
   team: string;
+  /** Their department, with the job title what decides which template fits (N-18). */
+  departmentId?: string | null;
   managerId: string | null;
   buddyId: string | null;
   templateId: string | null;
+  /**
+   * No template fit their job title or team, so one is being drafted for them (N-18): they get it
+   * when it is published, unless People Ops picks another one first.
+   */
+  pendingTemplateId?: string | null;
   peoplePartnerId: string | null;
   startDate: string;
   invitationId: string | null;
@@ -108,6 +116,15 @@ export interface TemplateStage {
   weekEnd: number;
   moduleIds: string[];
 }
+export interface TemplateCheckin {
+  title: string;
+  day: number;
+}
+/** Check-ins every onboarding expects unless its template sets its own. */
+export const DEFAULT_CHECKINS: TemplateCheckin[] = [
+  { title: "30-day check-in", day: 30 },
+  { title: "60-day readiness review", day: 60 },
+];
 export interface TemplateData {
   name: string;
   family: TemplateFamily;
@@ -119,10 +136,29 @@ export interface TemplateData {
   weeks: number;
   passMark: number;
   stages: TemplateStage[];
+  /** Set by People Ops or the generator; the workspace defaults apply when missing. */
+  probationDays?: number;
+  checkins?: TemplateCheckin[];
   history: Array<{ version: number; on: string; note: string; snapshot?: TemplateSnapshot }>;
   updatedBy: string;
   /** When People Ops archived it: hidden from new onboardings, kept for the people already on it. */
   archivedAt?: string | null;
+  /** The department it is for: with the job title, what makes two new hires "the same role". */
+  departmentId?: string | null;
+  /** Drafted from the Hub by the roadmap generator (N-18). */
+  generation?: { state: "running" | "failed" | "done"; error: string | null; at: string };
+  generated?: TemplateGenerated;
+  /** A manager's or curator's draft waiting for People Ops, or sent back (Phase 6). */
+  review?: ReviewData | null;
+}
+export interface TemplateGenerated {
+  jobTitle: string;
+  team: string | null;
+  runId: string | null;
+  policyNote: string;
+  gaps: string[];
+  /** Why each module is there, by module id. */
+  reasons: Record<string, string>;
 }
 /** What a version looked like when it was published, so an old version can still be opened. */
 export interface TemplateSnapshot {
@@ -200,6 +236,35 @@ const FAMILY_WORDS: Array<[TemplateFamily, RegExp]> = [
   ["support", /\b(support|customer|success|helpdesk)\b/],
   ["sales", /\b(sales|account executive|sdr|bdr|business development)\b/],
 ];
+export const familyOf = (text: string): TemplateFamily =>
+  FAMILY_WORDS.find(([, words]) => words.test(text.toLowerCase()))?.[0] ?? "other";
+
+/** Seniority words that don't change the role: "Senior Sales executive" is a Sales executive. */
+const SENIORITY =
+  /^(senior|sr|junior|jr|lead|principal|staff|associate|intern|trainee|graduate)\s+/;
+/**
+ * A job title reduced to the role it names, for matching templates: lower case, no punctuation,
+ * no leading seniority words and no trailing level ("Software Engineer II" → "software engineer").
+ */
+export const roleKey = (title: string) => {
+  let key = title
+    .toLowerCase()
+    .replace(/[^a-z0-9&]+/g, " ")
+    .trim();
+  for (let previous = ""; previous !== key;) {
+    previous = key;
+    key = key.replace(SENIORITY, "").replace(/\s+(i{1,3}|iv|[1-5])$/, "");
+  }
+  return key;
+};
+
+/** Who a template is looked up for: their job title and where they sit. */
+export interface RoleQuery {
+  title: string;
+  team?: string | null;
+  teamId?: string | null;
+  departmentId?: string | null;
+}
 
 const STARTER_TEMPLATES: Array<
   Pick<TemplateData, "name" | "family" | "roles" | "teams" | "stages">
@@ -271,6 +336,31 @@ const STARTER_TEMPLATES: Array<
     ),
   },
 ];
+
+/**
+ * Topics onboardings for a family usually cover, from the built-in modules: hints for the roadmap
+ * generator, which only turns them into modules when the company's knowledge covers them.
+ */
+export function topicsFor(family: TemplateFamily): string[] {
+  const starter = STARTER_TEMPLATES.find((template) => template.family === family);
+  const ids = starter
+    ? starter.stages.flatMap((stage) => stage.moduleIds)
+    : STARTER_TEMPLATES.flatMap((template) => template.stages[0]?.moduleIds ?? []);
+  return [...new Set(ids)].flatMap((id) => BUILT_IN.find((entry) => entry.id === id)?.title ?? []);
+}
+
+/** The generic starter templates, as published v1 records. Tests seed them; workspaces don't. */
+export const starterTemplateData = (): TemplateData[] =>
+  STARTER_TEMPLATES.map((seed) => ({
+    ...seed,
+    version: 1,
+    status: "published",
+    publishedVersion: 1,
+    weeks: 12,
+    passMark: 4,
+    history: [{ version: 1, on: today(), note: "Standard template" }],
+    updatedBy: "ContextOS",
+  }));
 
 /* ---- Dates ---------------------------------------------------------------------------------- */
 
@@ -359,28 +449,10 @@ export function createOnboardingRecords(container: Container) {
 
   /* ---- Templates ------------------------------------------------------------------------- */
 
-  const templateRows = (actor: Actor) => {
-    const rows = store.listWhere(actor.workspaceId, TEMPLATE, {}, 500);
-    if (rows.length) return rows.reverse();
-    // First visit: start the workspace with the standard templates, published as v1.
-    return STARTER_TEMPLATES.map((seed) =>
-      store.create(
-        actor,
-        TEMPLATE,
-        {
-          ...seed,
-          version: 1,
-          status: "published",
-          publishedVersion: 1,
-          weeks: 12,
-          passMark: 4,
-          history: [{ version: 1, on: today(), note: "Standard template" }],
-          updatedBy: "ContextOS",
-        } satisfies TemplateData,
-        { status: "published" },
-      ),
-    );
-  };
+  // No generic starter templates (N-18): a workspace's templates are generated from its own
+  // knowledge or made by People Ops.
+  const templateRows = (actor: Actor) =>
+    store.listWhere(actor.workspaceId, TEMPLATE, {}, 500).reverse();
   const templateData = (row: PlatformRecord) => row.data as unknown as TemplateData;
   const isArchived = (row: PlatformRecord) => Boolean(templateData(row).archivedAt);
   /** Templates that can be offered for a new onboarding: published and not archived. */
@@ -388,6 +460,86 @@ export function createOnboardingRecords(container: Container) {
     templateData(row).publishedVersion !== null && !isArchived(row);
   const findTemplate = (workspaceId: string, id: string | null) =>
     id ? store.find(workspaceId, TEMPLATE, id) : undefined;
+
+  /** A person's or template's department: the one given, or their team's (by id or by name). */
+  const departmentFor = (workspaceId: string, place: Omit<RoleQuery, "title">): string | null => {
+    if (place.departmentId) return place.departmentId;
+    const team = place.teamId
+      ? db
+          .select({ departmentId: teams.departmentId })
+          .from(teams)
+          .where(and(eq(teams.workspaceId, workspaceId), eq(teams.id, place.teamId)))
+          .get()
+      : place.team
+        ? db
+            .select({ departmentId: teams.departmentId })
+            .from(teams)
+            .where(and(eq(teams.workspaceId, workspaceId), eq(teams.name, place.team)))
+            .get()
+        : undefined;
+    if (team) return team.departmentId;
+    // Workspaces without teams pick a department name where a team would go.
+    return place.team
+      ? (db
+          .select({ id: departments.id })
+          .from(departments)
+          .where(and(eq(departments.workspaceId, workspaceId), eq(departments.name, place.team)))
+          .get()?.id ?? null)
+      : null;
+  };
+  const templateDepartment = (row: PlatformRecord) => {
+    const data = templateData(row);
+    return data.departmentId ?? departmentFor(row.workspaceId, { team: data.teams[0] ?? null });
+  };
+  /** Not archived, and either published or a draft that can still be published. */
+  const isCandidate = (row: PlatformRecord) =>
+    !isArchived(row) &&
+    (templateData(row).publishedVersion !== null ||
+      templateData(row).generation?.state !== "failed");
+
+  /**
+   * How well a template fits someone, 0 when it doesn't (N-18). The same role is the same job title,
+   * ignoring seniority, in the same department: a template for another department's Sales
+   * executive doesn't fit. A template for their team fits too, whatever the title.
+   */
+  const fitScore = (row: PlatformRecord, person: RoleQuery, department: string | null) => {
+    const data = templateData(row);
+    const key = roleKey(person.title);
+    const roles = data.roles.map(roleKey).filter(Boolean);
+    const exact = key !== "" && roles.includes(key);
+    const role = exact || (key !== "" && roles.some((entry) => key.includes(entry)));
+    const team = person.team?.trim().toLowerCase();
+    const sameTeam = Boolean(team) && data.teams.some((entry) => entry.toLowerCase() === team);
+    const own = templateDepartment(row);
+    const sameDepartment = Boolean(department) && own === department;
+    if (role && department && own && own !== department && !sameTeam) return 0;
+    if (!role && !sameTeam) return 0;
+    return (exact ? 8 : role ? 6 : 0) + (sameDepartment ? 2 : 0) + (sameTeam ? 1 : 0);
+  };
+
+  /**
+   * Templates that fit someone, best first: published ones before drafts at the same fit. Drafts
+   * count, generated or copied, so a second new hire waits for the same draft as the first.
+   */
+  const rankTemplates = (workspaceId: string, person: RoleQuery) => {
+    const department = departmentFor(workspaceId, person);
+    return store
+      .listWhere(workspaceId, TEMPLATE, {}, 500)
+      .reverse()
+      .filter(isCandidate)
+      .map((row) => ({ row, score: fitScore(row, person, department) }))
+      .filter((entry) => entry.score > 0)
+      .sort(
+        (a, b) => b.score - a.score || Number(isAssignable(b.row)) - Number(isAssignable(a.row)),
+      )
+      .map((entry) => entry.row);
+  };
+  /** The published template that fits someone best, if any. */
+  const fittingTemplate = (workspaceId: string, person: RoleQuery) =>
+    rankTemplates(workspaceId, person).find(isAssignable);
+  /** The template that fits someone best, published or a draft waiting for review. */
+  const bestTemplate = (workspaceId: string, person: RoleQuery) =>
+    rankTemplates(workspaceId, person)[0];
 
   /** Published learning paths can be added to templates as modules, next to the built-in ones. */
   const pathModules = (workspaceId: string): TemplateModule[] =>
@@ -402,30 +554,38 @@ export function createOnboardingRecords(container: Container) {
         owner: personRef(workspaceId, path.ownerId)?.name ?? null,
       };
     });
-  /** Published tutorials, so templates and "Assign learning" can use them (`tutorial-<id>`). */
-  const tutorialModules = (workspaceId: string): TemplateModule[] =>
-    store.listWhere(workspaceId, "tutorial", { status: "published" }, 500).flatMap((row) => {
-      const content = row.data.content as
-        | { title: string; kind: TemplateModule["kind"]; lessons: Array<{ minutes: number }> }
-        | null
-        | undefined;
-      if (!content) return [];
-      return [
-        {
-          id: `tutorial-${row.id}`,
-          title: content.title,
-          kind: content.kind,
-          minutes: content.lessons.reduce((sum, lesson) => sum + lesson.minutes, 0) || null,
-          owner: personRef(workspaceId, row.ownerId)?.name ?? null,
-        },
-      ];
-    });
-  const catalog = (workspaceId: string) =>
+  /**
+   * Published tutorials, so templates and "Assign learning" can use them (`tutorial-<id>`). Template
+   * drafts may also hold draft tutorials (a generated roadmap's new modules); they can't be published
+   * until those are.
+   */
+  const tutorialModules = (workspaceId: string, drafts = false): TemplateModule[] =>
+    store
+      .listWhere(workspaceId, "tutorial", drafts ? {} : { status: "published" }, 1000)
+      .flatMap((row) => {
+        if (row.status === "archived") return [];
+        const content = row.data.content as
+          | { title: string; kind: TemplateModule["kind"]; lessons: Array<{ minutes: number }> }
+          | null
+          | undefined;
+        if (!content && row.status === "published") return [];
+        const planned = row.data.plannedTitle;
+        return [
+          {
+            id: `tutorial-${row.id}`,
+            title: content?.title ?? (typeof planned === "string" ? planned : "New module"),
+            kind: content?.kind ?? ((row.data.plannedKind as TemplateModule["kind"]) || "project"),
+            minutes:
+              (content?.lessons.reduce((sum, lesson) => sum + lesson.minutes, 0) ?? 0) || null,
+            owner: personRef(workspaceId, row.ownerId)?.name ?? null,
+          },
+        ];
+      });
+  const catalog = (workspaceId: string, drafts = false) =>
     new Map(
-      [...BUILT_IN, ...pathModules(workspaceId), ...tutorialModules(workspaceId)].map((entry) => [
-        entry.id,
-        entry,
-      ]),
+      [...BUILT_IN, ...pathModules(workspaceId), ...tutorialModules(workspaceId, drafts)].map(
+        (entry) => [entry.id, entry],
+      ),
     );
 
   const activeCount = (workspaceId: string, templateId: string) =>
@@ -454,9 +614,35 @@ export function createOnboardingRecords(container: Container) {
     return { id: row.id, name: `${data.name} v${data.publishedVersion ?? data.version}` };
   };
 
-  const templateDetail = (row: PlatformRecord) => {
+  /** Built-in modules with whether company lessons teach them yet (published, or a draft). */
+  const withLessons = (workspaceId: string) => {
+    const tutorials = store.listWhere(workspaceId, "tutorial", {}, 1000);
+    return (entry: TemplateModule): TemplateModule => {
+      if (entry.id.startsWith("tutorial-")) {
+        const row = tutorials.find((tutorial) => `tutorial-${tutorial.id}` === entry.id);
+        return {
+          ...entry,
+          lessons: row?.status === "published" ? "ready" : "draft",
+          tutorialId: row?.id ?? null,
+        };
+      }
+      if (!entry.id.startsWith("mod-")) return entry;
+      const covering = tutorials.filter((row) => row.data.coversModule === entry.id);
+      const published = covering.find((row) => row.status === "published");
+      const draft = covering.find((row) => row.status === "draft");
+      return {
+        ...entry,
+        lessons: published ? "ready" : draft ? "draft" : "none",
+        tutorialId: (published ?? draft)?.id ?? null,
+      };
+    };
+  };
+
+  /** `viewer` decides `editable`: People Ops, admins and owners change any template, others their own. */
+  const templateDetail = (row: PlatformRecord, viewer?: Actor) => {
     const data = templateData(row);
-    const modules = catalog(row.workspaceId);
+    const modules = catalog(row.workspaceId, true);
+    const lessons = withLessons(row.workspaceId);
     return {
       id: row.id,
       name: data.name,
@@ -471,11 +657,31 @@ export function createOnboardingRecords(container: Container) {
       teams: data.teams,
       weeks: data.weeks,
       passMark: data.passMark,
+      probationDays: data.probationDays ?? probationDays(row.workspaceId),
+      checkins: data.checkins ?? DEFAULT_CHECKINS,
+      generation: data.generation
+        ? { state: data.generation.state, error: data.generation.error }
+        : null,
+      generated: data.generated
+        ? {
+            jobTitle: data.generated.jobTitle,
+            team: data.generated.team,
+            policyNote: data.generated.policyNote,
+            gaps: data.generated.gaps,
+            reasons: data.generated.reasons,
+          }
+        : null,
+      review: reviewView(data.review, (userId) => personRef(row.workspaceId, userId)),
+      createdBy: personRef(row.workspaceId, row.ownerId),
+      editable: viewer ? isReviewer(viewer) || row.ownerId === viewer.id : false,
       updatedAt: row.updatedAt.toISOString(),
       updatedBy: data.updatedBy,
       stages: data.stages.map(({ moduleIds, ...stage }) => ({
         ...stage,
-        modules: moduleIds.flatMap((id) => modules.get(id) ?? []),
+        modules: moduleIds.flatMap((id) => {
+          const entry = modules.get(id);
+          return entry ? [lessons(entry)] : [];
+        }),
       })),
       history: data.history.map(({ snapshot, ...entry }) => ({
         ...entry,
@@ -500,6 +706,7 @@ export function createOnboardingRecords(container: Container) {
       stageCount: data.stages.length,
       moduleCount: data.stages.reduce((sum, stage) => sum + stage.moduleIds.length, 0),
       updatedBy: data.updatedBy,
+      review: reviewView(data.review, (userId) => personRef(row.workspaceId, userId)),
     };
   };
 
@@ -532,18 +739,50 @@ export function createOnboardingRecords(container: Container) {
     data: TemplateData,
     input: TemplateDraftInput,
   ): TemplateData => {
-    const modules = catalog(workspaceId);
+    const modules = catalog(workspaceId, true);
     for (const stage of input.stages)
       for (const id of stage.moduleIds)
         if (!modules.has(id)) throw new BadRequestError(`Unknown module: ${id}`);
+    const removed = new Set(input.removeStages ?? []);
+    const stages = data.stages
+      .filter((stage) => !removed.has(stage.id))
+      .map((stage) => {
+        const next = input.stages.find((entry) => entry.id === stage.id);
+        return next
+          ? {
+              ...stage,
+              name: next.name ?? stage.name,
+              weekStart: next.weekStart ?? stage.weekStart,
+              weekEnd: next.weekEnd ?? stage.weekEnd,
+              moduleIds: [...new Set(next.moduleIds)],
+            }
+          : stage;
+      });
+    for (const entry of input.stages) {
+      if (data.stages.some((stage) => stage.id === entry.id) || removed.has(entry.id)) continue;
+      if (!entry.name || !entry.weekStart || !entry.weekEnd)
+        throw new BadRequestError("A new stage needs a name, a first week and a last week");
+      stages.push({
+        id: entry.id,
+        name: entry.name,
+        weekStart: entry.weekStart,
+        weekEnd: entry.weekEnd,
+        moduleIds: [...new Set(entry.moduleIds)],
+      });
+    }
+    if (!stages.length) throw new BadRequestError("A template needs at least one stage");
+    for (const stage of stages)
+      if (stage.weekEnd < stage.weekStart)
+        throw new BadRequestError(`${stage.name} ends before it starts`);
+    stages.sort((a, b) => a.weekStart - b.weekStart);
     return {
       ...data,
       roles: input.roles ?? data.roles,
       teams: input.teams ?? data.teams,
-      stages: data.stages.map((stage) => {
-        const next = input.stages.find((entry) => entry.id === stage.id);
-        return next ? { ...stage, moduleIds: [...new Set(next.moduleIds)] } : stage;
-      }),
+      stages,
+      weeks: Math.max(...stages.map((stage) => stage.weekEnd)),
+      probationDays: input.probationDays ?? data.probationDays,
+      checkins: input.checkins ?? data.checkins,
     };
   };
 
@@ -552,6 +791,16 @@ export function createOnboardingRecords(container: Container) {
   const recordData = (row: PlatformRecord) => row.data as unknown as OnboardingData;
   const probationDays = (workspaceId: string) =>
     workspaceSettings(db, workspaceId).policies.probationDefaultDays;
+  /** The template's probation length, else the workspace default. */
+  const probationFor = (workspaceId: string, templateId: string | null) => {
+    const template = findTemplate(workspaceId, templateId);
+    return (template && templateData(template).probationDays) ?? probationDays(workspaceId);
+  };
+  /** The check-ins a record expects: its template's, else the defaults. */
+  const checkinPlan = (row: PlatformRecord) => {
+    const template = findTemplate(row.workspaceId, recordData(row).templateId);
+    return (template && templateData(template).checkins) ?? DEFAULT_CHECKINS;
+  };
 
   const newRecord = (
     workspaceId: string,
@@ -562,7 +811,7 @@ export function createOnboardingRecords(container: Container) {
     setup: {},
     ...input,
     probation: {
-      reviewOn: addDays(input.startDate, probationDays(workspaceId)),
+      reviewOn: addDays(input.startDate, probationFor(workspaceId, input.templateId)),
       recommendation: null,
       recommendedOn: null,
       ratings: null,
@@ -598,27 +847,32 @@ export function createOnboardingRecords(container: Container) {
       });
     }
     // A new hire's roadmap comes from their record's template. Records made here (from an invite
-    // marked "new hire", or a manager's plan) get the standard template their job title points at,
+    // marked "new hire", or a manager's plan) get the template that fits their job title or team,
     // so the roadmap starts on its own; People Ops can change it on the record.
-    const templates = () => templateRows(actor).filter(isAssignable);
-    const matchTemplate = (title: string, team: string) => {
-      const text = `${title} ${team}`.toLowerCase();
-      const options = templates();
-      const byRole = options.find((row) =>
-        templateData(row).roles.some((role) => role && text.includes(role.toLowerCase())),
-      );
-      if (byRole) return byRole.id;
-      const family = FAMILY_WORDS.find(([, words]) => words.test(text))?.[0];
-      return family
-        ? (options.find((row) => templateData(row).family === family)?.id ?? null)
-        : null;
-    };
     const backfill = (userId: string, input: Partial<OnboardingData> & { startDate: string }) => {
       const member = members.find((entry) => entry.userId === userId);
       if (!member || linked.has(userId)) return;
       linked.add(userId);
-      const title = member.organization.jobTitle;
+      const { jobTitle, departmentId, teamId, onboardingTemplateId } = member.organization;
+      const title = typeof jobTitle === "string" ? jobTitle : "";
       const team = teamName(actor.workspaceId, member.organization);
+      const place = {
+        title,
+        team,
+        teamId: typeof teamId === "string" ? teamId : null,
+        departmentId: typeof departmentId === "string" ? departmentId : null,
+      };
+      // The template chosen when they were invited; otherwise the one that fits their job.
+      const chosen = findTemplate(
+        actor.workspaceId,
+        typeof onboardingTemplateId === "string" ? onboardingTemplateId : null,
+      );
+      const templateId =
+        chosen && isAssignable(chosen)
+          ? chosen.id
+          : chosen
+            ? null
+            : (fittingTemplate(actor.workspaceId, place)?.id ?? null);
       store.insert({
         workspaceId: actor.workspaceId,
         ownerId: userId,
@@ -627,12 +881,16 @@ export function createOnboardingRecords(container: Container) {
         data: newRecord(actor.workspaceId, {
           personId: userId,
           name: member.name,
-          title: typeof title === "string" ? title : "",
+          title,
           email: member.email?.toLowerCase() ?? null,
           team,
+          departmentId: departmentFor(actor.workspaceId, place),
           managerId: member.managerId,
           buddyId: null,
-          templateId: matchTemplate(typeof title === "string" ? title : "", team),
+          templateId,
+          // A draft chosen at the invite: they get it once People Ops publish it.
+          pendingTemplateId:
+            chosen && !isAssignable(chosen) && isCandidate(chosen) ? chosen.id : null,
           peoplePartnerId: null,
           ...input,
           setup: {
@@ -668,7 +926,12 @@ export function createOnboardingRecords(container: Container) {
         roadmapRow(actor.workspaceId, data.personId)
       )
         continue;
-      const templateId = matchTemplate(data.title, data.team);
+      const templateId =
+        fittingTemplate(actor.workspaceId, {
+          title: data.title,
+          team: data.team,
+          departmentId: data.departmentId ?? null,
+        })?.id ?? null;
       if (templateId) store.patch(row, { data: { ...data, templateId } });
     }
   };
@@ -813,6 +1076,48 @@ export function createOnboardingRecords(container: Container) {
         ],
       },
     });
+  };
+
+  /**
+   * A template drafted for new hires was published: everyone waiting for it gets it, with its
+   * probation length (unless a recommendation is already in), and is told their roadmap is ready.
+   */
+  const assignWaiting = (template: PlatformRecord) => {
+    const ws = template.workspaceId;
+    const name = templateData(template).name;
+    const at = new Date().toISOString();
+    let assigned = 0;
+    for (const row of store.listWhere(ws, ONBOARDING, { status: "active" }, 1000)) {
+      const data = recordData(row);
+      if (data.pendingTemplateId !== template.id) continue;
+      store.patch(row, {
+        data: {
+          ...data,
+          templateId: template.id,
+          pendingTemplateId: null,
+          setup: { ...data.setup, roadmap: { at, by: null } },
+          probation: data.probation.recommendation
+            ? data.probation
+            : {
+                ...data.probation,
+                reviewOn: addDays(data.startDate, probationFor(ws, template.id)),
+              },
+          activity: [
+            activity(`Roadmap ready: the ${name} template was published`, "started"),
+            ...data.activity,
+          ],
+        } satisfies OnboardingData,
+      });
+      notifyPerson(
+        ws,
+        data.personId,
+        "Your onboarding roadmap is ready",
+        "/roadmap",
+        "onboarding.roadmap_ready",
+      );
+      assigned += 1;
+    }
+    return assigned;
   };
 
   /** The roadmap's modules as they stand today, or null when the person has no roadmap. */
@@ -1046,12 +1351,30 @@ export function createOnboardingRecords(container: Container) {
         doneBy: view.data.setup[step.id]?.by ?? null,
       })),
       milestones: [
-        milestone("30-day review", addDays(view.data.startDate, 30)),
-        milestone("60-day readiness review", addDays(view.data.startDate, 60)),
+        ...checkinPlan(row).map((checkin) =>
+          milestone(checkin.title, addDays(view.data.startDate, checkin.day)),
+        ),
         milestone("Probation review", view.data.probation.reviewOn),
       ],
       lastCheckin: view.checkins.last ? `Last check-in ${shortDate(view.checkins.last)}` : null,
       probationReviewId: view.started ? row.id : null,
+      templateDraft: templateDraftFor(row),
+    };
+  };
+  /** The template being drafted for someone no template fit, while it waits to be published. */
+  const templateDraftFor = (row: PlatformRecord) => {
+    const draft = findTemplate(row.workspaceId, recordData(row).pendingTemplateId ?? null);
+    if (!draft) return null;
+    const data = templateData(draft);
+    return {
+      id: draft.id,
+      name: data.name,
+      state:
+        data.generation?.state === "running"
+          ? ("generating" as const)
+          : data.generation?.state === "failed"
+            ? ("failed" as const)
+            : ("draft" as const),
     };
   };
 
@@ -1093,9 +1416,10 @@ export function createOnboardingRecords(container: Container) {
       (plan?.data.milestones as
         Array<{ title: string; dueDate: string; status: string }> | undefined) ?? [];
     const now = today();
-    const checkpoint = (title: string, day: number) => {
+    /** The nth expected check-in is done once n check-ins are recorded. */
+    const checkpoint = (title: string, day: number, nth: number) => {
       const due = addDays(startDate, day);
-      const done = view.checkins.count >= day / 30;
+      const done = view.checkins.count >= nth;
       return {
         title,
         detail: done
@@ -1107,8 +1431,9 @@ export function createOnboardingRecords(container: Container) {
       };
     };
     const milestones = [
-      checkpoint("30-day check-in", 30),
-      checkpoint("60-day readiness review", 60),
+      ...checkinPlan(row).map((checkin, index) =>
+        checkpoint(checkin.title, checkin.day, index + 1),
+      ),
       {
         title: "Onboarding roadmap",
         detail: `${Math.round(view.progress * 100)}% complete · ${Math.round(view.expected * 100)}% expected`,
@@ -1191,11 +1516,11 @@ export function createOnboardingRecords(container: Container) {
     if (!view.started || view.data.probation.decision) return [];
     const now = today();
     const items: Array<{ id: string; milestone: string; dueOn: string }> = [];
-    for (const day of [30, 60]) {
+    checkinPlan(row).forEach(({ title, day }, index) => {
       const due = addDays(view.data.startDate, day);
-      if (view.elapsed > day + 7 && view.checkins.count < day / 30)
-        items.push({ id: `${row.id}:checkin${day}`, milestone: `${day}-day check-in`, dueOn: due });
-    }
+      if (view.elapsed > day + 7 && view.checkins.count < index + 1)
+        items.push({ id: `${row.id}:checkin${day}`, milestone: title, dueOn: due });
+    });
     const plan = view.checkins.plan;
     for (const entry of (plan?.data.milestones as
       Array<{ key: string; title: string; dueDate: string; status: string }> | undefined) ?? [])
@@ -1242,6 +1567,59 @@ export function createOnboardingRecords(container: Container) {
       templates: templateRows(actor)
         .filter(isAssignable)
         .flatMap((row) => templateRef(actor.workspaceId, row.id) ?? []),
+      departments: db
+        .select({ id: departments.id, name: departments.name })
+        .from(departments)
+        .where(eq(departments.workspaceId, actor.workspaceId))
+        .all()
+        .sort((a, b) => a.name.localeCompare(b.name)),
+      teamDepartments: Object.fromEntries(
+        db
+          .select({ name: teams.name, departmentId: teams.departmentId })
+          .from(teams)
+          .where(eq(teams.workspaceId, actor.workspaceId))
+          .all()
+          .map((row) => [row.name, row.departmentId]),
+      ),
+    };
+  };
+
+  /**
+   * The templates to offer someone joining (N-18): the best fit first (published before a draft
+   * waiting for review), then every other template that can be chosen.
+   */
+  const suggestTemplates = (workspaceId: string, person: RoleQuery) => {
+    const departmentId = departmentFor(workspaceId, person);
+    const department = departmentId
+      ? db
+          .select({ id: departments.id, name: departments.name })
+          .from(departments)
+          .where(and(eq(departments.workspaceId, workspaceId), eq(departments.id, departmentId)))
+          .get()
+      : undefined;
+    const fitting = person.title.trim() || person.team ? rankTemplates(workspaceId, person) : [];
+    const fit = new Set(fitting.map((row) => row.id));
+    const choice = (row: PlatformRecord) => {
+      const data = templateData(row);
+      // A role match scores 6 or more; a team alone at most 3 (see fitScore).
+      const score = fit.has(row.id) ? fitScore(row, person, departmentId) : 0;
+      return {
+        id: row.id,
+        name: data.name,
+        status: isAssignable(row) ? ("published" as const) : ("draft" as const),
+        generating: data.generation?.state === "running",
+        fits: fit.has(row.id),
+        fitsBy: score >= 6 ? ("role" as const) : score > 0 ? ("team" as const) : null,
+      };
+    };
+    const rest = store
+      .listWhere(workspaceId, TEMPLATE, {}, 500)
+      .reverse()
+      .filter((row) => isCandidate(row) && !fit.has(row.id));
+    return {
+      department: department ?? null,
+      suggested: fitting[0] ? choice(fitting[0]) : null,
+      options: [...fitting, ...rest].map(choice),
     };
   };
 
@@ -1376,6 +1754,14 @@ export function createOnboardingRecords(container: Container) {
     templateVersion,
     templateData,
     findTemplate,
+    fittingTemplate,
+    bestTemplate,
+    rankTemplates,
+    suggestTemplates,
+    departmentFor,
+    templateDepartment,
+    isCandidate,
+    assignWaiting,
     pathModules,
     tutorialModules,
     catalog,

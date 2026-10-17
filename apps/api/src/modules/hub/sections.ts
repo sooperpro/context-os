@@ -24,6 +24,10 @@ export const FRESHNESS_DAYS: Record<ContextItemKind, number | null> = {
   term: 365,
   decision: null,
   event: null,
+  company: null,
+  product: null,
+  initiative: null,
+  process: null,
 };
 
 export const KHS_WEIGHTS = {

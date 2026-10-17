@@ -1,7 +1,7 @@
 import type { ModuleKind, TutorialCheck, TutorialContent, TutorialLesson } from "@contextos/shared";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { Container } from "../../container.js";
-import { platformRecords } from "../../db/schema.js";
+import { platformRecords, sourceObjects } from "../../db/schema.js";
 import type { Actor } from "../../types.js";
 import {
   roadmapData,
@@ -53,6 +53,8 @@ export interface ProgressData {
   attempts: Array<{ at: string; score: number; total: number; passed: boolean }>;
   passed: boolean | null;
   ratings: Record<string, "up" | "down">;
+  /** Lesson ids, and `module` for the module itself, the learner wants to come back to. */
+  revisit?: string[];
   startedAt: string;
   completedAt: string | null;
   /** My learning entries: who assigned it and by when. */
@@ -319,16 +321,48 @@ export function createLearningContent(container: Container) {
       data: { ...row.data, ...data },
     });
 
+  /** Projects the person can open. */
+  const readableProjects = (actor: Actor) =>
+    container.repos.projects.list(actor.workspaceId).filter((project) => {
+      try {
+        container.identity.requireProject(actor, project.id);
+        return true;
+      } catch {
+        return false;
+      }
+    });
+
+  /**
+   * Of these sources, the ones the person can read. Each is checked in its own project, so a
+   * company-wide tutorial (sources from several projects) follows every project's permissions.
+   */
+  const visibleOf = (actor: Actor, sourceIds: string[]) => {
+    const visible = new Set<string>();
+    if (!sourceIds.length) return visible;
+    const rows = db
+      .select({ id: sourceObjects.id, projectId: sourceObjects.projectId })
+      .from(sourceObjects)
+      .where(inArray(sourceObjects.id, [...new Set(sourceIds)]))
+      .all();
+    for (const projectId of new Set(rows.map((row) => row.projectId))) {
+      let allowed: Set<string>;
+      try {
+        allowed = new Set(container.identity.visibleSourceIds(actor, projectId));
+      } catch {
+        continue;
+      }
+      for (const row of rows)
+        if (row.projectId === projectId && allowed.has(row.id)) visible.add(row.id);
+    }
+    return visible;
+  };
+
   /** Lessons a learner may open: ones whose sources they can read (restricted ones are locked). */
   const access = (actor: Actor, content: ModuleContent) => {
-    if (!content.projectId)
+    const ids = [...content.sourceIds, ...content.lessons.flatMap((lesson) => lesson.sourceIds)];
+    if (!ids.length)
       return { open: true, lessonOpen: () => true, questions: content.check?.questions ?? [] };
-    let visible: Set<string>;
-    try {
-      visible = new Set(container.identity.visibleSourceIds(actor, content.projectId));
-    } catch {
-      visible = new Set();
-    }
+    const visible = visibleOf(actor, ids);
     // A tutorial is written from all of its sources at once (summary, objectives and questions
     // draw on every one), so it opens only for someone who can read every source behind it.
     const open = content.sourceIds.every((id) => visible.has(id));
@@ -417,6 +451,8 @@ export function createLearningContent(container: Container) {
     startProgress,
     patchProgress,
     access,
+    visibleOf,
+    readableProjects,
     isComplete,
     fraction,
     roadmapRow,

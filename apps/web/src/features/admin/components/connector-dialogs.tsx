@@ -58,6 +58,9 @@ const reason = (error: unknown, fallback: string) =>
     : fallback;
 
 const STEPS = ["Authorize", "Choose content", "Sync settings"] as const;
+/** The project picker's "no project" choice: the API files it under Company knowledge. */
+const COMPANY_KNOWLEDGE = "company-knowledge";
+const COMPANY_KNOWLEDGE_LABEL = "Company knowledge (no project)";
 const SKIP = { never: "Never skip", "3y": "3 years", "1y": "1 year" } as const;
 
 /** Connect a source (prototype `connectWizard`): read-only consent, what to index, how often. */
@@ -91,9 +94,12 @@ function Wizard({ connector: opened, close }: { connector: AdminConnector; close
   const [frequency, setFrequency] = useState<SyncFrequency>("2d");
   const [skip, setSkip] = useState<ConnectInput["skipOlderThan"]>("3y");
   const [shared, setShared] = useState(true);
-  const [projectChoice, setProjectChoice] = useState<string | null>(null);
-  const projectItems = projects.data?.items ?? [];
-  const projectId = projectChoice ?? projectItems[0]?.id ?? null;
+  // No project: the folders feed the workspace's "Company knowledge" project (N-18).
+  const [projectChoice, setProjectChoice] = useState<string>(COMPANY_KNOWLEDGE);
+  const projectItems = (projects.data?.items ?? []).filter(
+    (project) => project.slug !== "company-knowledge",
+  );
+  const projectId = projectChoice === COMPANY_KNOWLEDGE ? null : projectChoice;
   const unit = connector.unit.toLowerCase();
 
   const toggle = (id: string) =>
@@ -245,31 +251,30 @@ function Wizard({ connector: opened, close }: { connector: AdminConnector; close
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor={ids.project}>Add to project</Label>
-            {projectItems.length ? (
-              <Select
-                value={projectId ?? ""}
-                onValueChange={(value) => setProjectChoice(String(value))}
-              >
-                <SelectTrigger id={ids.project} className="w-full">
-                  <SelectValue>
-                    {projectItems.find((project) => project.id === projectId)?.name}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {projectItems.map((project) => (
-                    <SelectItem key={project.id} value={project.id}>
-                      {project.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <span className="text-sm text-on-surface-variant">
-                {projects.isPending
-                  ? "Loading projects…"
-                  : "Create a project first: everything ContextOS indexes belongs to one."}
-              </span>
-            )}
+            <Select
+              value={projectChoice}
+              onValueChange={(value) => setProjectChoice(String(value))}
+            >
+              <SelectTrigger id={ids.project} className="w-full">
+                <SelectValue>
+                  {projectId
+                    ? projectItems.find((project) => project.id === projectId)?.name
+                    : COMPANY_KNOWLEDGE_LABEL}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={COMPANY_KNOWLEDGE}>{COMPANY_KNOWLEDGE_LABEL}</SelectItem>
+                {projectItems.map((project) => (
+                  <SelectItem key={project.id} value={project.id}>
+                    {project.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span className="text-xs text-on-surface-variant">
+              Company-wide documents (policies, handbooks, pricing) don’t need a project. They’re
+              still sorted into the Hub’s Company, Products, Projects and Processes collections.
+            </span>
           </div>
           <fieldset className="flex flex-col gap-2">
             <legend className="mb-2 text-sm font-medium">Sync frequency</legend>
@@ -358,7 +363,7 @@ function Wizard({ connector: opened, close }: { connector: AdminConnector; close
           </Button>
         ) : (
           <Button
-            disabled={connect.isPending || !projectId}
+            disabled={connect.isPending}
             onClick={() =>
               connect.mutate(
                 {

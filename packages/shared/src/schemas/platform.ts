@@ -89,6 +89,8 @@ export const InvitationSchema = z
     managerId: z.string().min(1).max(200).optional(),
     startDate: IsoDateSchema.optional(),
     isNewHire: z.boolean().default(false),
+    /** A new hire's onboarding template: published, or a draft they get once it is published. */
+    templateId: z.string().min(1).max(200).optional(),
     /** A guest sees only the projects they're added to: these, once they accept. */
     projectIds: z.array(IdSchema).max(50).optional(),
   })
@@ -166,6 +168,9 @@ export const PoliciesSettingsSchema = z.object({
   /** k-anonymity floor for aggregated Ask gap signals; 3 is the fixed minimum (FR-ASK-014). */
   askKAnonymityThreshold: z.number().int().min(3).max(100).default(3),
   piiRedaction: z.boolean().default(false),
+  /** The Owner's own daily AI limits. They can only lower ContextOS's ceiling. */
+  aiDailyTemplates: z.number().int().min(0).max(1000).optional(),
+  aiDailyModules: z.number().int().min(0).max(10_000).optional(),
   nudges: NudgeSettingsSchema.prefault({}),
   retention: RetentionSettingsSchema.prefault({}),
 });
@@ -380,11 +385,79 @@ export const SetupStepSchema = z.enum([
   "connect_source",
   "select_scopes",
   "create_project",
+  "onboarding_templates",
   "invite_team",
   "assign_new_hire",
 ]);
 export type SetupStep = z.infer<typeof SetupStepSchema>;
 export const SETUP_STEPS = SetupStepSchema.options;
+
+/** A job in the company: a title in a department (and team), for the setup step's templates. */
+export const SetupRoleSchema = z
+  .object({
+    title: z.string().trim().min(2).max(100),
+    departmentId: z.uuid().nullable(),
+    teamId: z.uuid().nullable(),
+  })
+  .strict();
+export type SetupRole = z.infer<typeof SetupRoleSchema>;
+
+/**
+ * `GET /v1/workspaces/current/setup/roles`: every role the company has, from its people, its
+ * invitations and onboardings, and roles added here before anyone is hired, each with the template
+ * that covers it. Generating uses a one-time allowance so every role can be drafted at once.
+ */
+export const SetupRolesSchema = z.object({
+  departments: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      teams: z.array(z.object({ id: z.string(), name: z.string() })),
+    }),
+  ),
+  roles: z.array(
+    z.object({
+      title: z.string(),
+      departmentId: z.string().nullable(),
+      departmentName: z.string().nullable(),
+      teamId: z.string().nullable(),
+      teamName: z.string().nullable(),
+      /** People in it today, invited or onboarding. */
+      people: z.number().int().min(0),
+      /** Added in setup (not from anyone's job title): can be removed. */
+      planned: z.boolean(),
+      template: z
+        .object({
+          id: z.string(),
+          name: z.string(),
+          status: z.enum(["published", "draft"]),
+          generating: z.boolean(),
+          failed: z.boolean(),
+        })
+        .nullable(),
+    }),
+  ),
+  allowance: z.object({
+    templates: z.object({ used: z.number().int(), total: z.number().int() }),
+    modules: z.object({ used: z.number().int(), total: z.number().int() }),
+  }),
+});
+export type SetupRoles = z.infer<typeof SetupRolesSchema>;
+
+/** `PUT /v1/workspaces/current/setup/roles`: the roles added in setup, replacing the list. */
+export const SetupRolesInputSchema = z
+  .object({ roles: z.array(SetupRoleSchema).max(200) })
+  .strict();
+/** `POST /v1/workspaces/current/setup/roles/generate`: draft templates for roles that have none. */
+export const SetupGenerateInputSchema = z
+  .object({ roles: z.array(SetupRoleSchema).min(1).max(100) })
+  .strict();
+export const SetupGenerateResultSchema = SetupRolesSchema.extend({
+  /** New drafts started; roles that already had a template keep it. */
+  started: z.number().int().min(0),
+  /** Why the rest weren't started (the AI allowance and today's limit are used up), or null. */
+  stopped: z.string().nullable(),
+});
 
 export const SetupStepStatusSchema = z.enum(["pending", "completed", "skipped"]);
 export type SetupStepStatus = z.infer<typeof SetupStepStatusSchema>;
@@ -449,6 +522,7 @@ export const InviteFormSchema = z
     managerId: optionalField(z.string().min(1).max(200)),
     startDate: optionalField(IsoDateSchema),
     isNewHire: z.boolean().default(false),
+    templateId: optionalField(z.string().min(1).max(200)),
     /** A guest's projects; left out when none are chosen. */
     projectIds: z
       .array(IdSchema)

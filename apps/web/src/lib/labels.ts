@@ -45,6 +45,10 @@ export const KIND_LABEL: Record<ContextItemKind, string> = {
   component: "Component",
   dependency: "Dependency",
   term: "Term",
+  company: "Company",
+  product: "Product",
+  initiative: "Project",
+  process: "Process",
 };
 
 export const VERIFICATION_LABEL: Record<Verification, string> = {

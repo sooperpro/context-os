@@ -471,8 +471,10 @@ export function createAdminConnectorRoutes(container: Container, drive: DriveSer
           const entry = catalogEntry(c.req.valid("param").id);
           if (entry.id !== DRIVE) throw notAvailable(entry);
           const input = c.req.valid("json");
-          if (!input.projectId) throw new BadRequestError("Choose the project these folders feed");
-          const project = identity.requireProject(actor, input.projectId);
+          // Without a project the folders feed the workspace's "Company knowledge" (N-18).
+          const project = input.projectId
+            ? identity.requireProject(actor, input.projectId)
+            : container.services.projects.companyKnowledge(actor);
           const connection = ownConnection(actor);
           if (!connection) throw new AppError(409, "CONFLICT", "Authorize Google Drive first");
           const { types, options } = await scopeOptions(actor, true);
