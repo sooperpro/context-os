@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { Route, Routes } from "react-router";
@@ -373,6 +373,27 @@ describe("Templates", () => {
     expect(within(version).queryByRole("button", { name: "Save draft" })).not.toBeInTheDocument();
   });
 
+  it("suggests the organisation's roles and teams, and has a department", async () => {
+    renderAt("/templates/tpl-sales-ae");
+    await screen.findByRole("heading", { level: 1, name: "Sales · Account executive" });
+    const side = screen.getByRole("region", { name: "Who it’s for" });
+    expect(within(side).getByRole("combobox", { name: "Department" })).toHaveTextContent(
+      "Any department",
+    );
+    // Other templates' roles are offered; the ones already on it aren't.
+    const roles = within(side).getByLabelText("Roles");
+    await waitFor(() =>
+      expect(document.querySelector('datalist option[value="Software engineers"]')).not.toBeNull(),
+    );
+    expect(document.querySelector('datalist option[value="Account executives"]')).toBeNull();
+    // Picking one (not typing it) adds it at once.
+    fireEvent.change(roles, { target: { value: "Software engineers" } });
+    expect(
+      await within(side).findByRole("button", { name: "Remove Software engineers" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("· Unsaved changes")).toBeInTheDocument();
+  });
+
   it("publishes a generated template together with its draft modules", async () => {
     const user = userEvent.setup();
     const module = (id: string, title: string) => ({
@@ -411,6 +432,7 @@ describe("Templates", () => {
       review: null,
       createdBy: null,
       editable: true,
+      department: null,
       updatedAt: "2026-10-17T05:00:00.000Z",
       updatedBy: "Elena Brooks",
       stages: [

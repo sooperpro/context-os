@@ -74,6 +74,7 @@ export function createPeopleOpsRoutes(container: Container) {
     findTemplate,
     departmentFor,
     suggestTemplates,
+    audienceOptions,
     deleteBlocker,
     templateVersion,
     templateData,
@@ -106,7 +107,9 @@ export function createPeopleOpsRoutes(container: Container) {
 
   /** Template routes check their own access: see `templateViewer`. */
   const templateRoute = (path: string) =>
-    /\/people-ops\/(templates|template-library|template-suggestion)(\/|$)/.test(path);
+    /\/people-ops\/(templates|template-library|template-suggestion|template-audience)(\/|$)/.test(
+      path,
+    );
   /** People Ops, admins and owners; managers and path curators for their own drafts. */
   const templateViewer = (actor: Actor) => {
     if (isReviewer(actor) || actor.role === "manager" || identity.curatesAny(actor)) return;
@@ -1049,6 +1052,11 @@ export function createPeopleOpsRoutes(container: Container) {
 
       /* ---- Templates ---------------------------------------------------------------------- */
 
+      .get("/people-ops/template-audience", (c) => {
+        const actor = c.get("actor");
+        templateViewer(actor);
+        return c.json(audienceOptions(actor.workspaceId));
+      })
       .get(
         "/people-ops/template-suggestion",
         zValidator(

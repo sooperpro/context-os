@@ -208,6 +208,7 @@ interface MockTemplate extends Omit<
   | "review"
   | "createdBy"
   | "editable"
+  | "department"
 > {
   /** A manager's draft waiting for People Ops, or sent back (none in the seed). */
   review?: TemplateDetail["review"];
@@ -1144,6 +1145,7 @@ function templateDetail(entry: MockTemplate): TemplateDetail {
     createdBy: HR,
     // The fixtures are People Ops' view: they can change every template.
     editable: true,
+    department: null,
     version: v(entry.version),
     publishedVersion: entry.publishedVersion === null ? null : v(entry.publishedVersion),
     stages: entry.stages.map(({ moduleIds, ...rest }) => ({
@@ -1434,6 +1436,19 @@ export const peopleOpsPageMocks = [
       .flatMap((entry) => templateRef(entry.id) ?? []),
     departments: [],
     teamDepartments: {},
+  })),
+  // The organisation's job titles and teams, from the fixtures' templates and records.
+  mockGet(E.templateAudience)(() => ({
+    roles: [
+      ...new Set([
+        ...templates.flatMap((entry) => entry.roles),
+        ...records.map((record) => record.person.title ?? "").filter(Boolean),
+      ]),
+    ].sort((a, b) => a.localeCompare(b)),
+    teams: [...new Set(templates.flatMap((entry) => entry.teams))]
+      .sort((a, b) => a.localeCompare(b))
+      .map((name) => ({ name, departmentId: null })),
+    departments: [],
   })),
   // As the API, simplified: a template fits when one of its roles is in the job title, or its teams
   // include the team; published templates come first.

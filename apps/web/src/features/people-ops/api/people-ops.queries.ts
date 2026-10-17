@@ -34,6 +34,7 @@ import {
   fetchPersonOnboarding,
   fetchProbation,
   fetchTemplate,
+  fetchTemplateAudience,
   fetchTemplateLibrary,
   fetchTemplateSuggestion,
   fetchTemplateVersion,
@@ -76,6 +77,14 @@ export const onboardingQuery = (id: string) =>
   queryOptions({
     queryKey: peopleOpsKeys.onboarding(id),
     queryFn: ({ signal }) => fetchOnboarding(id, signal),
+  });
+
+/** Job titles, teams and departments the organisation already has, to suggest in templates. */
+export const templateAudienceQuery = () =>
+  queryOptions({
+    queryKey: [...peopleOpsKeys.all, "template-audience"] as const,
+    queryFn: ({ signal }) => fetchTemplateAudience(signal),
+    staleTime: 5 * 60_000,
   });
 
 /** The template to suggest for someone joining; the previous answer stays while typing. */

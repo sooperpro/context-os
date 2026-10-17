@@ -422,6 +422,8 @@ export const TemplateDetailSchema = z.object({
   createdBy: PersonRefSchema.nullable(),
   /** The viewer may change it: People Ops, admins and owners any template, others their own. */
   editable: z.boolean(),
+  /** The department it's for: set on it, or its team's. Null when neither is known. */
+  department: z.object({ id: z.string(), name: z.string() }).nullable(),
   updatedAt: IsoDateTimeSchema,
   updatedBy: z.string(),
   stages: z.array(
@@ -490,9 +492,22 @@ export const TemplateDraftInputSchema = z
     /** Who it's for. Omit to keep the current lists. */
     roles: z.array(z.string().trim().min(1).max(100)).max(20).optional(),
     teams: z.array(z.string().trim().min(1).max(100)).max(20).optional(),
+    /** The department it's for (null: any). With the job title, what makes two hires one role. */
+    departmentId: z.uuid().nullable().optional(),
   })
   .strict();
 export type TemplateDraftInput = z.infer<typeof TemplateDraftInputSchema>;
+
+/**
+ * `GET /v1/people-ops/template-audience`: the job titles, teams and departments the organisation
+ * already has, for the template editor's "Who it's for" suggestions.
+ */
+export const TemplateAudienceSchema = z.object({
+  roles: z.array(z.string()),
+  teams: z.array(z.object({ name: z.string(), departmentId: z.string().nullable() })),
+  departments: z.array(z.object({ id: z.string(), name: z.string() })),
+});
+export type TemplateAudience = z.infer<typeof TemplateAudienceSchema>;
 
 /** `POST /v1/people-ops/templates/:id/publish`: publish the current stages with a note for the history. */
 export const TemplatePublishInputSchema = TemplateDraftInputSchema.extend({
