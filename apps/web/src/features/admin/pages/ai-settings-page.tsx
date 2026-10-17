@@ -41,7 +41,7 @@ import { aiSettingsQuery, useUpdateAiSettings } from "@/features/admin/api/admin
 import { ACCESS_PATH, STRICTNESS } from "@/features/admin/admin-meta";
 import { formatPercent } from "@/lib/format";
 
-const STALE = { "1": "1 hour", "2": "2 hours", "6": "6 hours", "24": "24 hours" } as const;
+const STALE = { "24": "1 day", "72": "3 days", "168": "7 days", "336": "14 days" } as const;
 const ROUTE = { "2": "2 people", "3": "3 people", "5": "5 people" } as const;
 
 /** AI settings (prototype `#ai`): how Context Bot answers, cites and handles what it can't answer. */
@@ -167,7 +167,7 @@ function Settings({ data }: { data: AiSettings }) {
             </fieldset>
             <div className="grid gap-4 @min-[640px]:grid-cols-2">
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor={ids.stale}>Warn when a source hasn’t synced for</Label>
+                <Label htmlFor={ids.stale}>Warn when a manual-only folder hasn’t synced for</Label>
                 <Select
                   items={STALE}
                   value={String(data.staleAfterHours)}
@@ -189,6 +189,9 @@ function Settings({ data }: { data: AiSettings }) {
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-on-surface-variant">
+                  Folders that sync on a schedule only warn once they miss a scheduled sync.
+                </p>
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor={ids.route}>

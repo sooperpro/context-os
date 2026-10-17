@@ -9,6 +9,7 @@ import {
   platformRecords,
   sourceObjects,
   users,
+  workspaces,
 } from "../../db/schema.js";
 import {
   addSource,
@@ -115,19 +116,51 @@ describe("AI settings applied to Context Bot answers", () => {
       .where(eq(sourceObjects.id, source.id))
       .run();
 
-    // Stale after 2 hours by default: a 30-hour-old sync is flagged.
-    expect((await ask(project.id)).uncertainties).toContainEqual(
-      expect.stringContaining("was last synced 30 hours ago"),
+    const syncedHoursAgo = (hours: number, frequency: "2d" | "manual" = "2d") =>
+      t.container.db
+        .update(connectorScopes)
+        .set({ lastSyncedAt: new Date(Date.now() - hours * 3_600_000), syncFrequency: frequency })
+        .where(eq(connectorScopes.id, "scope"))
+        .run();
+    const notes = async () => (await ask(project.id)).uncertainties;
+
+    // A folder syncing every 2 days is on schedule after 30 hours: no warning (D10).
+    expect((await notes()).some((note) => note.includes("synced"))).toBe(false);
+    // Once it misses its scheduled sync, it is flagged.
+    syncedHoursAgo(70);
+    expect(await notes()).toContainEqual(
+      expect.stringContaining("missed its scheduled sync (last synced 2 days ago)"),
     );
-    // A fresh sync isn't.
+    // A manual-only folder goes by the admin's setting: 7 days by default.
+    syncedHoursAgo(30, "manual");
+    expect((await notes()).some((note) => note.includes("synced"))).toBe(false);
+    syncedHoursAgo(8 * 24, "manual");
+    expect(await notes()).toContainEqual(expect.stringContaining("was last synced 8 days ago"));
+    // Set to 1 day, 30 hours is too long.
+    syncedHoursAgo(30, "manual");
+    expect(
+      (
+        await t.app.request(
+          "/api/v1/admin/ai-settings",
+          jsonRequest({ staleAfterHours: 24 }, "PATCH"),
+        )
+      ).status,
+    ).toBe(200);
+    expect(await notes()).toContainEqual(expect.stringContaining("was last synced 30 hours ago"));
+
+    // A workspace still holding an old hour-based choice reads it as the 7-day default.
     t.container.db
-      .update(connectorScopes)
-      .set({ lastSyncedAt: new Date() })
-      .where(eq(connectorScopes.id, "scope"))
+      .update(workspaces)
+      .set({ settings: { ai: { staleAfterHours: 2 } } })
+      .where(eq(workspaces.id, t.container.workspace.id))
       .run();
-    expect((await ask(project.id)).uncertainties.some((note) => note.includes("last synced"))).toBe(
-      false,
-    );
+    expect(
+      (
+        (await (await t.app.request("/api/v1/admin/ai-settings")).json()) as {
+          staleAfterHours: number;
+        }
+      ).staleAfterHours,
+    ).toBe(168);
   });
 
   it("sends a question to the project's owners once enough people asked it without an answer", async () => {

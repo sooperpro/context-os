@@ -49,29 +49,12 @@ export const RoleRequestSchema = z.object({
 });
 export type RoleRequest = z.infer<typeof RoleRequestSchema>;
 
-/** `GET /v1/admin/role-requests`: open requests, oldest first. */
+/**
+ * `GET /v1/admin/role-requests`: requests still open from before role requests were removed (N-11),
+ * oldest first, so admins can close them. Nobody can make a new one: admins set roles on Members &
+ * roles, and People Ops through onboarding.
+ */
 export const RoleRequestListSchema = z.object({ items: z.array(RoleRequestSchema) });
-
-/** `POST /v1/role-requests`: any member asks for a different role; an admin approves or declines. */
-export const RoleRequestInputSchema = z
-  .object({
-    role: z.enum(["admin", "manager", "hr", "member"]),
-    reason: z.string().trim().min(3, "Say why you need it.").max(500),
-  })
-  .strict();
-export type RoleRequestInput = z.infer<typeof RoleRequestInputSchema>;
-
-/** `GET /v1/role-requests/mine`: the person's own requests, newest first. */
-export const MyRoleRequestSchema = z.object({
-  id: z.string(),
-  role: SystemRoleSchema,
-  reason: z.string(),
-  status: z.enum(["open", "approved", "declined"]),
-  requestedAt: IsoDateTimeSchema,
-  decidedAt: IsoDateTimeSchema.nullable(),
-});
-export type MyRoleRequest = z.infer<typeof MyRoleRequestSchema>;
-export const MyRoleRequestListSchema = z.object({ items: z.array(MyRoleRequestSchema) });
 
 /** `POST /v1/admin/role-requests/:id/decision`: approving changes their role and writes the audit log. */
 export const RoleRequestDecisionInputSchema = z
@@ -285,7 +268,8 @@ export const AiSettingsSchema = z.object({
   }),
   rules: z.array(AiSettingSchema),
   strictness: AnswerStrictnessSchema,
-  staleAfterHours: z.union([z.literal(1), z.literal(2), z.literal(6), z.literal(24)]),
+  /** For manual-only folders: 1, 3, 7 or 14 days. Scheduled folders go by their schedule. */
+  staleAfterHours: z.union([z.literal(24), z.literal(72), z.literal(168), z.literal(336)]),
   routeAfterAsks: z.union([z.literal(2), z.literal(3), z.literal(5)]),
   weeklyDigest: z.boolean(),
   /** Never used in answers, and the policy that says so. */

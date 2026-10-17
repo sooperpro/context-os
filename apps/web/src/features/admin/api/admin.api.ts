@@ -17,19 +17,15 @@ import {
   ConnectorRequestResultSchema,
   DirectorySyncResultSchema,
   MembersOverviewSchema,
-  MyRoleRequestListSchema,
-  MyRoleRequestSchema,
   ReconnectInputSchema,
   ResolveConflictInputSchema,
   RoleRequestDecisionInputSchema,
   RoleRequestDecisionSchema,
-  RoleRequestInputSchema,
   RoleRequestListSchema,
   type AccessPolicyInput,
   type AiSettingsInput,
   type ConnectInput,
   type ConnectorRequestInput,
-  type RoleRequestInput,
 } from "@contextos/shared";
 import { z } from "zod";
 import { apiRequest } from "@/lib/api-client";
@@ -106,13 +102,6 @@ export const ADMIN_ENDPOINTS = {
   },
   /** Newest first; `from`/`to` (ISO) narrow the range before paging. */
   audit: { path: "/v1/audit", schema: AuditEntryListSchema },
-  /** Any member: ask for a role, and see their own requests. */
-  requestRole: {
-    path: "/v1/role-requests",
-    schema: MyRoleRequestSchema,
-    input: RoleRequestInputSchema,
-  },
-  myRoleRequests: { path: "/v1/role-requests/mine", schema: MyRoleRequestListSchema },
 } as const;
 
 const E = ADMIN_ENDPOINTS;
@@ -220,9 +209,3 @@ export const fetchAudit = (from?: string, signal?: AbortSignal) =>
     schema: E.audit.schema,
     signal,
   });
-
-export const requestRole = (input: RoleRequestInput) =>
-  apiRequest(E.requestRole.path, { method: "POST", body: input, schema: E.requestRole.schema });
-
-export const fetchMyRoleRequests = (signal?: AbortSignal) =>
-  apiRequest(E.myRoleRequests.path, { schema: E.myRoleRequests.schema, signal });

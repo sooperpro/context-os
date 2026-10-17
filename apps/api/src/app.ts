@@ -117,6 +117,7 @@ export function createApp({ env, container, version = "0.1.0" }: AppDeps) {
   container.connectors.templateForRole = (actor, person, options) =>
     roadmaps.templateFor(actor, person, options);
   container.connectors.hubChanged = (projectId) => tutorials.hubChanged(projectId);
+  container.connectors.publishModules = (actor, ids) => tutorials.publishModules(actor, ids);
 
   // ----- global middleware -----
   app.use(requestId());

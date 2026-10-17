@@ -74,6 +74,7 @@ export function createPeopleOpsRoutes(container: Container) {
     findTemplate,
     departmentFor,
     suggestTemplates,
+    audienceOptions,
     deleteBlocker,
     templateVersion,
     templateData,
@@ -106,7 +107,9 @@ export function createPeopleOpsRoutes(container: Container) {
 
   /** Template routes check their own access: see `templateViewer`. */
   const templateRoute = (path: string) =>
-    /\/people-ops\/(templates|template-library|template-suggestion)(\/|$)/.test(path);
+    /\/people-ops\/(templates|template-library|template-suggestion|template-audience)(\/|$)/.test(
+      path,
+    );
   /** People Ops, admins and owners; managers and path curators for their own drafts. */
   const templateViewer = (actor: Actor) => {
     if (isReviewer(actor) || actor.role === "manager" || identity.curatesAny(actor)) return;
@@ -1049,6 +1052,11 @@ export function createPeopleOpsRoutes(container: Container) {
 
       /* ---- Templates ---------------------------------------------------------------------- */
 
+      .get("/people-ops/template-audience", (c) => {
+        const actor = c.get("actor");
+        templateViewer(actor);
+        return c.json(audienceOptions(actor.workspaceId));
+      })
       .get(
         "/people-ops/template-suggestion",
         zValidator(
@@ -1238,11 +1246,20 @@ export function createPeopleOpsRoutes(container: Container) {
           const next = applyStages(actor.workspaceId, data, input);
           if (!next.stages.some((stage) => stage.moduleIds.length))
             throw new BadRequestError("Add at least one module before publishing");
-          // A generated roadmap's new modules are tutorial drafts: each one is reviewed first.
-          const published = catalog(actor.workspaceId);
-          const drafts = next.stages
+          // A generated roadmap's new modules are tutorial drafts. They're published with it when
+          // asked (the dialog lists them); otherwise each one is published first.
+          let published = catalog(actor.workspaceId);
+          let drafts = next.stages
             .flatMap((stage) => stage.moduleIds)
             .filter((id) => !published.has(id));
+          const tutorialIds = drafts
+            .filter((id) => id.startsWith("tutorial-"))
+            .map((id) => id.slice("tutorial-".length));
+          if (drafts.length && input.publishModules && tutorialIds.length === drafts.length) {
+            container.connectors.publishModules?.(actor, tutorialIds);
+            published = catalog(actor.workspaceId);
+            drafts = drafts.filter((id) => !published.has(id));
+          }
           if (drafts.length)
             throw new AppError(
               409,

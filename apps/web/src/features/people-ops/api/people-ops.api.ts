@@ -25,6 +25,7 @@ import {
   TemplateLibrarySchema,
   TemplatePublishInputSchema,
   TemplateSuggestionSchema,
+  TemplateAudienceSchema,
   TemplateVersionSchema,
   type NewOnboardingInput,
   type NewTemplateInput,
@@ -141,6 +142,8 @@ export const PEOPLE_OPS_ENDPOINTS = {
     input: NewTemplateInputSchema,
   },
   library: { path: "/v1/people-ops/template-library", schema: TemplateLibrarySchema },
+  /** The organisation's job titles, teams and departments, for "Who it's for" suggestions. */
+  templateAudience: { path: "/v1/people-ops/template-audience", schema: TemplateAudienceSchema },
   /** The template for someone joining, from their job title, team and department. */
   templateSuggestion: {
     path: "/v1/people-ops/template-suggestion",
@@ -303,6 +306,9 @@ export const fetchTemplateSuggestion = (role: RoleLookup, signal?: AbortSignal) 
     schema: E.templateSuggestion.schema,
     signal,
   });
+
+export const fetchTemplateAudience = (signal?: AbortSignal) =>
+  apiRequest(E.templateAudience.path, { schema: E.templateAudience.schema, signal });
 
 export const fetchTemplateLibrary = (signal?: AbortSignal) =>
   apiRequest(E.library.path, { schema: E.library.schema, signal });

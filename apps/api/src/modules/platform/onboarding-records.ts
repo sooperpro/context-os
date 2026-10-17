@@ -487,6 +487,67 @@ export function createOnboardingRecords(container: Container) {
           .get()?.id ?? null)
       : null;
   };
+  const departmentRef = (workspaceId: string, id: string | null) =>
+    id
+      ? (db
+          .select({ id: departments.id, name: departments.name })
+          .from(departments)
+          .where(and(eq(departments.workspaceId, workspaceId), eq(departments.id, id)))
+          .get() ?? null)
+      : null;
+
+  /**
+   * What the organisation already has, for the template editor's suggestions: job titles (people's,
+   * invitations', onboardings' and templates'), teams with their department, and departments.
+   */
+  const audienceOptions = (workspaceId: string) => {
+    const titles = new Map<string, string>();
+    const addTitle = (title: unknown) => {
+      if (typeof title !== "string" || !title.trim()) return;
+      const key = title.trim().toLowerCase();
+      if (!titles.has(key)) titles.set(key, title.trim());
+    };
+    for (const member of activeMembers(workspaceId)) addTitle(member.organization.jobTitle);
+    for (const invitation of store.listWhere(
+      workspaceId,
+      "invitation",
+      { status: "pending" },
+      1000,
+    ))
+      addTitle(invitation.data.jobTitle);
+    for (const row of store.listWhere(workspaceId, ONBOARDING, {}, 1000)) addTitle(row.data.title);
+    for (const row of store.listWhere(workspaceId, TEMPLATE, {}, 500))
+      for (const role of templateData(row).roles) addTitle(role);
+    for (const row of store.listWhere(workspaceId, "setup_roles", {}, 1))
+      for (const role of (row.data.roles as Array<{ title?: string }> | undefined) ?? [])
+        addTitle(role.title);
+    const teamRows = db
+      .select({ name: teams.name, departmentId: teams.departmentId })
+      .from(teams)
+      .where(eq(teams.workspaceId, workspaceId))
+      .all();
+    const teamNames = new Set(teamRows.map((row) => row.name.toLowerCase()));
+    const extraTeams = new Set<string>();
+    for (const row of store.listWhere(workspaceId, ONBOARDING, {}, 1000)) {
+      const team = row.data.team;
+      if (typeof team === "string" && team !== "Unassigned" && !teamNames.has(team.toLowerCase()))
+        extraTeams.add(team);
+    }
+    const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name);
+    return {
+      roles: [...titles.values()].sort((a, b) => a.localeCompare(b)),
+      teams: [...teamRows, ...[...extraTeams].map((name) => ({ name, departmentId: null }))].sort(
+        byName,
+      ),
+      departments: db
+        .select({ id: departments.id, name: departments.name })
+        .from(departments)
+        .where(eq(departments.workspaceId, workspaceId))
+        .all()
+        .sort(byName),
+    };
+  };
+
   const templateDepartment = (row: PlatformRecord) => {
     const data = templateData(row);
     return data.departmentId ?? departmentFor(row.workspaceId, { team: data.teams[0] ?? null });
@@ -674,6 +735,7 @@ export function createOnboardingRecords(container: Container) {
       review: reviewView(data.review, (userId) => personRef(row.workspaceId, userId)),
       createdBy: personRef(row.workspaceId, row.ownerId),
       editable: viewer ? isReviewer(viewer) || row.ownerId === viewer.id : false,
+      department: departmentRef(row.workspaceId, templateDepartment(row)),
       updatedAt: row.updatedAt.toISOString(),
       updatedBy: data.updatedBy,
       stages: data.stages.map(({ moduleIds, ...stage }) => ({
@@ -775,10 +837,14 @@ export function createOnboardingRecords(container: Container) {
       if (stage.weekEnd < stage.weekStart)
         throw new BadRequestError(`${stage.name} ends before it starts`);
     stages.sort((a, b) => a.weekStart - b.weekStart);
+    if (input.departmentId && !departmentRef(workspaceId, input.departmentId))
+      throw new BadRequestError("That department does not exist");
     return {
       ...data,
       roles: input.roles ?? data.roles,
       teams: input.teams ?? data.teams,
+      departmentId:
+        input.departmentId === undefined ? (data.departmentId ?? null) : input.departmentId,
       stages,
       weeks: Math.max(...stages.map((stage) => stage.weekEnd)),
       probationDays: input.probationDays ?? data.probationDays,
@@ -1758,6 +1824,7 @@ export function createOnboardingRecords(container: Container) {
     bestTemplate,
     rankTemplates,
     suggestTemplates,
+    audienceOptions,
     departmentFor,
     templateDepartment,
     isCandidate,

@@ -46,6 +46,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader } from "@/components/ui/loader";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { MetaChip } from "@/components/ui/meta-chip";
 import {
   SegmentedItem,
@@ -58,6 +65,7 @@ import {
 import { Timeline, TimelineItem } from "@/components/ui/timeline";
 import { PEOPLE_OPS_ENDPOINTS as E } from "@/features/people-ops/api/people-ops.api";
 import {
+  templateAudienceQuery,
   templateQuery,
   useArchiveTemplate,
   useDeleteTemplate,
@@ -123,9 +131,14 @@ type Stages = TemplateDetail["stages"];
 
 /** The stage dialog's id for a stage being added. */
 const NEW_STAGE = "new";
+/** The department field's "no department" choice. */
+const ANY_DEPARTMENT = "any";
 
 function Editor({ template }: { template: TemplateDetail }) {
   const probationId = useId();
+  const departmentId = useId();
+  // What the organisation already has, suggested in "Who it's for".
+  const audienceOptions = useQuery(templateAudienceQuery());
   useBotContext(
     {
       chips: [{ icon: LibraryBooksIcon, label: template.name }],
@@ -138,6 +151,7 @@ function Editor({ template }: { template: TemplateDetail }) {
   );
   const [stages, setStages] = useState<Stages>(template.stages);
   const [audience, setAudience] = useState({ roles: template.roles, teams: template.teams });
+  const [department, setDepartment] = useState(template.department?.id ?? ANY_DEPARTMENT);
   const [dirty, setDirty] = useState(false);
   const [adding, setAdding] = useState<{ id: string; name: string } | null>(null);
   const [publishing, setPublishing] = useState(false);
@@ -194,11 +208,18 @@ function Editor({ template }: { template: TemplateDetail }) {
       moduleIds: stage.modules.map((module) => module.id),
     }));
   const plan = () => ({
+    departmentId: department === ANY_DEPARTMENT ? null : department,
     removeStages: removedStages,
     probationDays: Number(probation) >= 1 ? Math.round(Number(probation)) : template.probationDays,
     checkins: checkins.filter((checkin) => checkin.title.trim() && checkin.day >= 1),
   });
   const weeks = Math.max(0, ...stages.map((stage) => stage.weekEnd));
+  // Draft modules (a generated roadmap's) are published together with the template.
+  const draftModules = stages.flatMap((stage) =>
+    stage.modules.filter(
+      (module) => module.lessons === "draft" && module.id.startsWith("tutorial-"),
+    ),
+  );
   const stageEdited = (values: { name: string; weekStart: number; weekEnd: number }) => {
     setStages((current) =>
       (editingStage === NEW_STAGE
@@ -552,13 +573,61 @@ function Editor({ template }: { template: TemplateDetail }) {
               placeholder="Add a role"
               disabled={locked}
               values={audience.roles}
+              suggestions={audienceOptions.data?.roles ?? []}
               onChange={(values) => changeAudience("roles", values)}
             />
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor={departmentId} className="text-xs font-medium text-on-surface-variant">
+                Department
+              </label>
+              <Select
+                items={{
+                  [ANY_DEPARTMENT]: "Any department",
+                  ...Object.fromEntries(
+                    (audienceOptions.data?.departments ?? []).map((entry) => [
+                      entry.id,
+                      entry.name,
+                    ]),
+                  ),
+                  // The saved one shows even before the list loads.
+                  ...(template.department
+                    ? { [template.department.id]: template.department.name }
+                    : {}),
+                }}
+                value={department}
+                disabled={locked}
+                onValueChange={(next) => {
+                  setDepartment(String(next));
+                  setDirty(true);
+                }}
+              >
+                <SelectTrigger id={departmentId} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ANY_DEPARTMENT}>Any department</SelectItem>
+                  {(audienceOptions.data?.departments ?? []).map((entry) => (
+                    <SelectItem key={entry.id} value={entry.id}>
+                      {entry.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <AudienceField
               label="Teams"
               placeholder="Add a team"
               disabled={locked}
               values={audience.teams}
+              // The chosen department's teams (and teams not in a department).
+              suggestions={(audienceOptions.data?.teams ?? [])
+                .filter(
+                  (team) =>
+                    department === ANY_DEPARTMENT ||
+                    team.departmentId === null ||
+                    team.departmentId === department,
+                )
+                .map((team) => team.name)}
               onChange={(values) => changeAudience("teams", values)}
             />
             <dl className="flex flex-col gap-2.5 text-sm">
@@ -748,13 +817,20 @@ function Editor({ template }: { template: TemplateDetail }) {
         template={template}
         next={next}
         mode={reviewer ? "publish" : "submit"}
+        draftModules={draftModules.map((module) => module.title)}
         open={publishing}
         pending={publish.isPending || submit.isPending}
         onOpenChange={setPublishing}
         onPublish={(note) =>
           reviewer
             ? publish.mutate(
-                { stages: payload(), ...audience, ...plan(), note },
+                {
+                  stages: payload(),
+                  ...audience,
+                  ...plan(),
+                  note,
+                  ...(draftModules.length ? { publishModules: true } : {}),
+                },
                 {
                   onSuccess: (published) => {
                     setPublishing(false);
@@ -806,28 +882,37 @@ function Editor({ template }: { template: TemplateDetail }) {
 }
 
 /** Roles or teams a template is for: chips to remove, and a field that adds one on Enter. */
+/**
+ * Roles or teams a template is for: chips to remove, and a field that adds one on Enter. It
+ * suggests what the organisation already has; picking a suggestion adds it straight away.
+ */
 function AudienceField({
   label,
   placeholder,
   values,
+  suggestions = [],
   disabled = false,
   onChange,
 }: {
   label: string;
   placeholder: string;
   values: string[];
+  suggestions?: string[];
   disabled?: boolean;
   onChange: (values: string[]) => void;
 }) {
   const id = useId();
+  const listId = useId();
   const [draft, setDraft] = useState("");
-  const add = () => {
-    const value = draft.trim();
+  const chosen = new Set(values.map((entry) => entry.toLowerCase()));
+  const offered = suggestions.filter((entry) => !chosen.has(entry.toLowerCase()));
+  const addValue = (raw: string) => {
+    const value = raw.trim();
     if (!value) return;
-    if (!values.some((entry) => entry.toLowerCase() === value.toLowerCase()))
-      onChange([...values, value]);
+    if (!chosen.has(value.toLowerCase())) onChange([...values, value]);
     setDraft("");
   };
+  const add = () => addValue(draft);
   return (
     <div className="flex flex-col gap-1.5">
       <label htmlFor={id} className="text-xs font-medium text-on-surface-variant">
@@ -857,7 +942,16 @@ function AudienceField({
         maxLength={100}
         disabled={disabled}
         placeholder={placeholder}
-        onChange={(event) => setDraft(event.target.value)}
+        list={offered.length ? listId : undefined}
+        autoComplete="off"
+        onChange={(event) => {
+          const value = event.target.value;
+          // Picking from the suggestions (not typing or deleting) adds it at once.
+          const kind = (event.nativeEvent as InputEvent).inputType as string | undefined;
+          const picked = kind === "insertReplacementText" || !kind;
+          if (picked && offered.some((entry) => entry === value)) addValue(value);
+          else setDraft(value);
+        }}
         onKeyDown={(event) => {
           if (event.key !== "Enter") return;
           event.preventDefault();
@@ -865,6 +959,13 @@ function AudienceField({
         }}
         onBlur={add}
       />
+      {offered.length ? (
+        <datalist id={listId}>
+          {offered.map((entry) => (
+            <option key={entry} value={entry} />
+          ))}
+        </datalist>
+      ) : null}
     </div>
   );
 }

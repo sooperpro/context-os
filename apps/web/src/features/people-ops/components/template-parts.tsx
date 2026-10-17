@@ -33,6 +33,7 @@ import { Shape } from "@/components/ui/shape";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  templateAudienceQuery,
   templateLibraryQuery,
   templateVersionQuery,
   useCreateTemplate,
@@ -273,6 +274,7 @@ export function PublishDialog({
   template,
   next,
   mode = "publish",
+  draftModules = [],
   open,
   pending,
   onPublish,
@@ -281,6 +283,8 @@ export function PublishDialog({
   template: TemplateDetail;
   next: string;
   mode?: "publish" | "submit";
+  /** Titles of its modules whose lessons are still drafts: published with it. */
+  draftModules?: string[];
   open: boolean;
   pending: boolean;
   onPublish: (note: string) => void;
@@ -352,6 +356,23 @@ export function PublishDialog({
               ? `The ${template.activeCount} people on ${template.publishedVersion} keep their current roadmap. Their managers can switch them from the member page.`
               : "No one uses this template yet."}
           </p>
+          {draftModules.length ? (
+            <div className="flex flex-col gap-1.5 rounded-xl bg-pane px-3.5 py-3 text-sm">
+              <b className="font-medium">
+                This also publishes the lessons of{" "}
+                {formatCount(draftModules.length, "draft module")}:
+              </b>
+              <ul className="list-disc ps-5 text-on-surface-variant">
+                {draftModules.slice(0, 8).map((title) => (
+                  <li key={title}>{title}</li>
+                ))}
+                {draftModules.length > 8 ? <li>and {draftModules.length - 8} more</li> : null}
+              </ul>
+              <span className="text-xs text-on-surface-variant">
+                To check a module’s lessons first, open “Review draft lessons” under it.
+              </span>
+            </div>
+          ) : null}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor={noteId}>What changed?</Label>
             <Textarea
@@ -367,7 +388,9 @@ export function PublishDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={pending}>
-              Publish {next}
+              {draftModules.length
+                ? `Publish ${next} and ${formatCount(draftModules.length, "module")}`
+                : `Publish ${next}`}
             </Button>
           </DialogFooter>
         </form>
@@ -640,6 +663,9 @@ export function StageDialog({
   );
 }
 
+/** The department field's "no department" choice. */
+const ANY_DEPARTMENT = "any";
+
 /** "Generate with AI": a template for a job title, planned from the Knowledge Hub. */
 export function GenerateTemplateDialog({
   open,
@@ -648,11 +674,28 @@ export function GenerateTemplateDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const ids = { title: useId(), team: useId(), seniority: useId() };
+  const ids = {
+    title: useId(),
+    team: useId(),
+    department: useId(),
+    seniority: useId(),
+    titles: useId(),
+    teams: useId(),
+  };
   const [jobTitle, setJobTitle] = useState("");
   const [team, setTeam] = useState("");
+  const [department, setDepartment] = useState(ANY_DEPARTMENT);
   const [seniority, setSeniority] = useState("");
   const generate = useGenerateTemplate();
+  // The organisation's job titles, teams and departments, suggested as they type.
+  const audience = useQuery({ ...templateAudienceQuery(), enabled: open });
+  const departments = audience.data?.departments ?? [];
+  const teamChoices = (audience.data?.teams ?? []).filter(
+    (entry) =>
+      department === ANY_DEPARTMENT ||
+      entry.departmentId === null ||
+      entry.departmentId === department,
+  );
   const navigate = useNavigate();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -666,6 +709,7 @@ export function GenerateTemplateDialog({
               {
                 jobTitle: jobTitle.trim(),
                 ...(team.trim() ? { team: team.trim() } : {}),
+                ...(department === ANY_DEPARTMENT ? {} : { departmentId: department }),
                 ...(seniority.trim() ? { seniority: seniority.trim() } : {}),
               },
               {
@@ -694,17 +738,56 @@ export function GenerateTemplateDialog({
               value={jobTitle}
               maxLength={100}
               placeholder="Account executive"
+              list={ids.titles}
+              autoComplete="off"
               onChange={(event) => setJobTitle(event.target.value)}
             />
+            <datalist id={ids.titles}>
+              {(audience.data?.roles ?? []).map((role) => (
+                <option key={role} value={role} />
+              ))}
+            </datalist>
           </div>
+          {departments.length ? (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={ids.department}>Department (optional)</Label>
+              <Select
+                items={{
+                  [ANY_DEPARTMENT]: "Any department",
+                  ...Object.fromEntries(departments.map((entry) => [entry.id, entry.name])),
+                }}
+                value={department}
+                onValueChange={(next) => setDepartment(String(next))}
+              >
+                <SelectTrigger id={ids.department} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ANY_DEPARTMENT}>Any department</SelectItem>
+                  {departments.map((entry) => (
+                    <SelectItem key={entry.id} value={entry.id}>
+                      {entry.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor={ids.team}>Team (optional)</Label>
             <Input
               id={ids.team}
               value={team}
               maxLength={100}
+              list={ids.teams}
+              autoComplete="off"
               onChange={(event) => setTeam(event.target.value)}
             />
+            <datalist id={ids.teams}>
+              {teamChoices.map((entry) => (
+                <option key={entry.name} value={entry.name} />
+              ))}
+            </datalist>
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor={ids.seniority}>Seniority (optional)</Label>

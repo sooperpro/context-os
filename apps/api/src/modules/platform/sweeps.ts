@@ -55,7 +55,7 @@ export interface SweepReport {
  * that's what keeps access close to Drive's sharing. Both are metadata listings plus work for what
  * changed, never run on a page load.
  */
-const SYNC_INTERVAL_MS = { "2d": 2 * 86_400_000, manual: null } as const;
+export const SYNC_INTERVAL_MS = { "2d": 2 * 86_400_000, manual: null } as const;
 const ACCESS_REFRESH_MS = 6 * 3_600_000;
 
 const OWNERSHIP_BOUNTY_RP = 30;

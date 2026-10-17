@@ -76,12 +76,12 @@ describe("InviteMemberDialog", () => {
     renderWithProviders(<InviteMemberDialog open onOpenChange={vi.fn()} />);
 
     const role = screen.getByRole("combobox", { name: "Role" });
-    expect(role).toHaveTextContent("Member");
+    expect(role).toHaveTextContent("Employee");
     expect(screen.getByText(/Reads the hub, asks questions/)).toBeInTheDocument();
     await user.click(role);
     const options = await screen.findAllByRole("option");
     expect(options.map((option) => option.textContent)).toEqual([
-      "Member",
+      "Employee",
       "Manager",
       "HR",
       "Admin",

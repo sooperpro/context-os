@@ -1,6 +1,7 @@
 import {
   OnboardingRecordSchema,
   SetupGenerateResultSchema,
+  TemplateAudienceSchema,
   SetupRolesSchema,
   TemplateDetailSchema,
   TemplateSuggestionSchema,
@@ -210,6 +211,65 @@ describe("Templates for roles: suggested, shared and drafted once", () => {
     expect((await t.app.request("/api/v1/people-ops/template-suggestion?title=x")).status).toBe(
       403,
     );
+  });
+
+  it("suggests the organisation's roles, teams and departments, and saves a template's department", async () => {
+    await setUp();
+    member("rep1", "member", { jobTitle: "Sales executive", departmentId: SALES, teamId: INBOUND });
+    member("rep2", "member", { jobTitle: "sales executive" });
+    member("eng1", "member", { jobTitle: "Backend engineer" });
+    as("hr1", "hr");
+    const generated = await t.app.request(
+      "/api/v1/roadmaps/generate",
+      jsonRequest({ jobTitle: "Partner manager", departmentId: PARTNERS }),
+    );
+    const { id } = (await generated.json()) as { id: string };
+    await t.drain();
+    const audience = TemplateAudienceSchema.parse(
+      await (await t.app.request("/api/v1/people-ops/template-audience")).json(),
+    );
+    // Each title once, whatever its case; teams with their department.
+    expect(audience.roles).toEqual(["Backend engineer", "Partner manager", "Sales executive"]);
+    expect(audience.teams).toEqual([{ name: "Inbound", departmentId: SALES }]);
+    expect(audience.departments.map((department) => department.name)).toEqual([
+      "Partnerships",
+      "Sales",
+    ]);
+
+    // The editor saves a department; the template then fits that department's hires.
+    const read = async () =>
+      TemplateDetailSchema.parse(
+        await (await t.app.request(`/api/v1/people-ops/templates/${id}`)).json(),
+      );
+    const before = await read();
+    expect(before.department).toEqual({ id: PARTNERS, name: "Partnerships" });
+    const stages = before.stages.map((stage) => ({
+      id: stage.id,
+      moduleIds: stage.modules.map((module) => module.id),
+    }));
+    const saved = await t.app.request(
+      `/api/v1/people-ops/templates/${id}/draft`,
+      jsonRequest({ stages, departmentId: SALES }),
+    );
+    expect(await saved.json()).toMatchObject({ department: { id: SALES, name: "Sales" } });
+    expect((await suggest(`title=Partner%20manager&departmentId=${SALES}`)).suggested?.id).toBe(id);
+    expect(
+      (await suggest(`title=Partner%20manager&departmentId=${PARTNERS}`)).suggested,
+    ).toBeNull();
+    // Clearing it: any department.
+    await t.app.request(
+      `/api/v1/people-ops/templates/${id}/draft`,
+      jsonRequest({ stages, departmentId: null }),
+    );
+    expect((await read()).department).toBeNull();
+    expect(
+      (
+        await t.app.request(
+          `/api/v1/people-ops/templates/${id}/draft`,
+          jsonRequest({ stages, departmentId: "55555555-5555-4555-8555-555555555555" }),
+        )
+      ).status,
+    ).toBe(400);
   });
 
   it("never drafts a template on its own when HR or an admin chooses later", async () => {

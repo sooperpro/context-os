@@ -464,7 +464,7 @@ describe("AI settings", () => {
         locked,
       })),
       strictness: "balanced",
-      staleAfterHours: 2,
+      staleAfterHours: 168,
       routeAfterAsks: 3,
       weeklyDigest: true,
       excluded: [],

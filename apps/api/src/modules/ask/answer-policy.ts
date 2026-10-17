@@ -10,6 +10,7 @@ import {
 } from "../../db/schema.js";
 import type { Actor } from "../../types.js";
 import { SYSTEM_USER_ID } from "../platform/bounties.js";
+import { SYNC_INTERVAL_MS } from "../platform/sweeps.js";
 import { createNotifier } from "../platform/notify.js";
 import { workspaceSettings } from "../platform/settings.js";
 import { createPlatformStore } from "../platform/store.js";
@@ -60,6 +61,10 @@ export function domainOwnersOf(db: Db, workspaceId: string, projectId: string | 
  * The workspace's Context Bot settings (admin › AI settings) as Ask applies them: which answers to
  * keep, which sources to flag as stale, and when an unanswered question goes to its owner.
  */
+/** "5 hours ago", "3 days ago". */
+const ago = (hours: number) =>
+  hours < 48 ? `${hours} hour${hours === 1 ? "" : "s"} ago` : `${Math.floor(hours / 24)} days ago`;
+
 export function createAnswerPolicy(db: Db) {
   const store = createPlatformStore(db);
   const notifier = createNotifier(db);
@@ -70,10 +75,12 @@ export function createAnswerPolicy(db: Db) {
     },
 
     /**
-     * Cited sources that come from a connector and haven't synced for longer than `hours`, as
-     * notes for the answer. Pasted and uploaded sources don't sync, so they never go stale here.
+     * Cited sources that come from a connector and are out of date, as notes for the answer (D10).
+     * A folder on a schedule is stale once it has missed a scheduled sync (its interval plus a
+     * quarter); a manual-only folder after `manualHours` (the admin's setting). Pasted and uploaded
+     * sources don't sync, so they never go stale here.
      */
-    staleWarnings(projectId: string, sourceIds: string[], hours: number): string[] {
+    staleWarnings(projectId: string, sourceIds: string[], manualHours: number): string[] {
       if (!sourceIds.length) return [];
       const cited = db
         .select({
@@ -85,11 +92,10 @@ export function createAnswerPolicy(db: Db) {
         .where(inArray(sourceObjects.id, sourceIds))
         .all()
         .filter((source) => source.connector !== "manual" && source.connectionId);
-      const cutoff = Date.now() - hours * HOUR;
       const warnings: string[] = [];
       for (const source of cited) {
-        const synced = db
-          .select({ at: connectorScopes.lastSyncedAt })
+        const scopes = db
+          .select({ at: connectorScopes.lastSyncedAt, frequency: connectorScopes.syncFrequency })
           .from(connectorScopes)
           .where(
             and(
@@ -97,14 +103,21 @@ export function createAnswerPolicy(db: Db) {
               eq(connectorScopes.connectionId, source.connectionId!),
             ),
           )
-          .all()
-          .map((row) => row.at?.getTime() ?? 0);
-        const last = synced.length ? Math.max(...synced) : 0;
-        if (last >= cutoff) continue;
+          .all();
+        const last = Math.max(0, ...scopes.map((row) => row.at?.getTime() ?? 0));
+        const intervals = scopes.flatMap((row) => {
+          const interval = SYNC_INTERVAL_MS[row.frequency === "manual" ? "manual" : "2d"];
+          return interval === null ? [] : [interval];
+        });
+        const allowed = intervals.length ? Math.min(...intervals) * 1.25 : manualHours * HOUR;
+        if (last && Date.now() - last <= allowed) continue;
+        const hoursAgo = Math.floor((Date.now() - last) / HOUR);
         warnings.push(
-          last
-            ? `“${source.title}” was last synced ${Math.floor((Date.now() - last) / HOUR)} hours ago, so it may be out of date.`
-            : `“${source.title}” hasn't synced yet, so it may be out of date.`,
+          !last
+            ? `“${source.title}” hasn't synced yet, so it may be out of date.`
+            : intervals.length
+              ? `“${source.title}” missed its scheduled sync (last synced ${ago(hoursAgo)}), so it may be out of date.`
+              : `“${source.title}” was last synced ${ago(hoursAgo)}, so it may be out of date.`,
         );
       }
       return [...new Set(warnings)];

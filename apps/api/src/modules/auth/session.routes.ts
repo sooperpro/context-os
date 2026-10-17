@@ -1,4 +1,5 @@
 import {
+  PasswordInputSchema,
   SelectWorkspaceSchema,
   type AuthOptions,
   type SessionDevice,
@@ -10,7 +11,9 @@ import { and, eq, gt, ne } from "drizzle-orm";
 import { Hono } from "hono";
 import type { Container } from "../../container.js";
 import { authAccounts, authSessions, users } from "../../db/schema.js";
-import { AppError, NotFoundError } from "../../lib/errors.js";
+import { AppError, BadRequestError, NotFoundError } from "../../lib/errors.js";
+import { linkEmail } from "../../lib/mailer.js";
+import { publicOrigin } from "./auth.js";
 import { validationHook } from "../../middleware/validation.js";
 import type { AppEnv } from "../../types.js";
 
@@ -128,6 +131,77 @@ export function createSessionRoutes(container: Container) {
             throw new NotFoundError("Workspace");
           identity.setActiveWorkspace(session.id, workspaceId);
           return c.json(await sessionState(c.req.raw));
+        },
+      )
+      .post(
+        "/session/password",
+        zValidator("json", PasswordInputSchema, validationHook),
+        async (c) => {
+          if (!auth) throw new BadRequestError("Passwords are only used with account sign-in");
+          const { session, user } = await requireSession(c.req.raw);
+          const input = c.req.valid("json");
+          const hasPassword = Boolean(
+            db
+              .select({ id: authAccounts.id })
+              .from(authAccounts)
+              .where(
+                and(eq(authAccounts.userId, user.id), eq(authAccounts.providerId, "credential")),
+              )
+              .get(),
+          );
+          const headers = c.req.raw.headers;
+          let changed: "changed" | "added";
+          if (input.currentPassword) {
+            if (!hasPassword)
+              throw new AppError(409, "CONFLICT", "You don't have a password yet: add one instead");
+            try {
+              await auth.api.changePassword({
+                body: {
+                  currentPassword: input.currentPassword,
+                  newPassword: input.newPassword,
+                  revokeOtherSessions: false,
+                },
+                headers,
+              });
+            } catch {
+              throw new BadRequestError("Your current password isn't right");
+            }
+            changed = "changed";
+          } else {
+            if (hasPassword)
+              throw new AppError(
+                409,
+                "CONFLICT",
+                "You already have a password: enter it to change it",
+              );
+            await auth.api.setPassword({ body: { newPassword: input.newPassword }, headers });
+            changed = "added";
+          }
+          // Signing out elsewhere keeps this device; Better Auth would also end this session.
+          if (input.signOutOtherDevices)
+            db.delete(authSessions)
+              .where(and(eq(authSessions.userId, user.id), ne(authSessions.id, session.id)))
+              .run();
+          // A security email, straight away, so someone else's change doesn't go unnoticed.
+          if (user.email)
+            await container.mailer.send(
+              linkEmail({
+                to: user.email,
+                subject:
+                  changed === "added"
+                    ? "A password was added to your ContextOS account"
+                    : "Your ContextOS password was changed",
+                intro:
+                  changed === "added"
+                    ? "A password was just added to your ContextOS account. You can now also sign in with your email and this password."
+                    : "Your ContextOS password was just changed.",
+                action: "Review your sign-in settings",
+                url: `${publicOrigin(env)}/settings?tab=security`,
+                outro:
+                  "If this wasn't you, reset your password from the sign-in page straight away and sign out of your other devices.",
+              }),
+            );
+          return c.json({ password: changed });
         },
       )
       .get("/session/devices", async (c) => {

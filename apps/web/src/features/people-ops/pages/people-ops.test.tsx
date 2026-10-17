@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { Route, Routes } from "react-router";
@@ -24,8 +24,15 @@ import { renderWithProviders } from "@/test/utils";
 
 setupMockApi();
 
-function renderAt(route: string, { role = "hr" }: { role?: "hr" | "manager" } = {}) {
+function renderAt(
+  route: string,
+  {
+    role = "hr",
+    handlers = [],
+  }: { role?: "hr" | "manager"; handlers?: Parameters<typeof mockServer.use> } = {},
+) {
   mockServer.use(
+    ...handlers,
     ...peopleOpsHandlers(),
     // HR opens a manager's member and check-in pages too.
     ...managerHandlers(),
@@ -364,6 +371,102 @@ describe("Templates", () => {
     expect(await within(version).findByText(/CRM before pricing/)).toBeInTheDocument();
     expect(version).toHaveTextContent("Pricing and packaging 2026");
     expect(within(version).queryByRole("button", { name: "Save draft" })).not.toBeInTheDocument();
+  });
+
+  it("suggests the organisation's roles and teams, and has a department", async () => {
+    renderAt("/templates/tpl-sales-ae");
+    await screen.findByRole("heading", { level: 1, name: "Sales · Account executive" });
+    const side = screen.getByRole("region", { name: "Who it’s for" });
+    expect(within(side).getByRole("combobox", { name: "Department" })).toHaveTextContent(
+      "Any department",
+    );
+    // Other templates' roles are offered; the ones already on it aren't.
+    const roles = within(side).getByLabelText("Roles");
+    await waitFor(() =>
+      expect(document.querySelector('datalist option[value="Software engineers"]')).not.toBeNull(),
+    );
+    expect(document.querySelector('datalist option[value="Account executives"]')).toBeNull();
+    // Picking one (not typing it) adds it at once.
+    fireEvent.change(roles, { target: { value: "Software engineers" } });
+    expect(
+      await within(side).findByRole("button", { name: "Remove Software engineers" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("· Unsaved changes")).toBeInTheDocument();
+  });
+
+  it("publishes a generated template together with its draft modules", async () => {
+    const user = userEvent.setup();
+    const module = (id: string, title: string) => ({
+      id: `tutorial-${id}`,
+      title,
+      kind: "project" as const,
+      minutes: 20,
+      owner: "Elena Brooks",
+      lessons: "draft" as const,
+      tutorialId: id,
+    });
+    const generated = {
+      id: "tpl-gen",
+      name: "Associate Backend Engineer",
+      family: "engineering",
+      version: "v1",
+      status: "draft",
+      publishedVersion: null,
+      activeCount: 0,
+      archived: false,
+      deletable: true,
+      roles: ["Associate Backend Engineer"],
+      teams: [],
+      weeks: 4,
+      passMark: 4,
+      probationDays: 90,
+      checkins: [{ title: "30-day check-in", day: 30 }],
+      generation: { state: "done", error: null },
+      generated: {
+        jobTitle: "Associate Backend Engineer",
+        team: null,
+        policyNote: "Defaults were used.",
+        gaps: [],
+        reasons: {},
+      },
+      review: null,
+      createdBy: null,
+      editable: true,
+      department: null,
+      updatedAt: "2026-10-17T05:00:00.000Z",
+      updatedBy: "Elena Brooks",
+      stages: [
+        {
+          id: "stage-1",
+          name: "Onboarding",
+          weekStart: 1,
+          weekEnd: 4,
+          modules: [module("t1", "Our platform"), module("t2", "How we make money")],
+        },
+      ],
+      history: [],
+    };
+    let body: unknown;
+    renderAt("/templates/tpl-gen", {
+      handlers: [
+        http.get(buildApiUrl("/v1/people-ops/templates/tpl-gen"), () =>
+          HttpResponse.json(generated),
+        ),
+        http.post(buildApiUrl("/v1/people-ops/templates/tpl-gen/publish"), async ({ request }) => {
+          body = await request.json();
+          return HttpResponse.json({ ...generated, status: "published", publishedVersion: "v1" });
+        }),
+      ],
+    });
+    await user.click(await screen.findByRole("button", { name: "Publish v1" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Publish v1 of Associate Backend Engineer?",
+    });
+    expect(dialog).toHaveTextContent("This also publishes the lessons of 2 draft modules");
+    expect(dialog).toHaveTextContent("Our platform");
+    expect(dialog).toHaveTextContent("How we make money");
+    await user.click(within(dialog).getByRole("button", { name: "Publish v1 and 2 modules" }));
+    await waitFor(() => expect(body).toMatchObject({ publishModules: true }));
   });
 
   it("lets a manager submit their template for review instead of publishing it", async () => {

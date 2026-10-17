@@ -221,7 +221,25 @@ export const AiPolicySettingsSchema = z.object({
     })
     .prefault({}),
   strictness: z.enum(["strict", "balanced", "lenient"]).default("balanced"),
-  staleAfterHours: z.union([z.literal(1), z.literal(2), z.literal(6), z.literal(24)]).default(2),
+  /**
+   * When a manual-only folder's sources count as out of date, in hours: 1, 3, 7 or 14 days. Folders
+   * on a schedule are stale once they miss a scheduled sync (D10). The old 1, 2 and 6 hour choices
+   * read as the 7-day default.
+   */
+  staleAfterHours: z
+    .union([
+      z.literal(1),
+      z.literal(2),
+      z.literal(6),
+      z.literal(24),
+      z.literal(72),
+      z.literal(168),
+      z.literal(336),
+    ])
+    .default(168)
+    .transform((hours): 24 | 72 | 168 | 336 =>
+      hours === 1 || hours === 2 || hours === 6 ? 168 : hours,
+    ),
   routeAfterAsks: z.union([z.literal(2), z.literal(3), z.literal(5)]).default(3),
   weeklyDigest: z.boolean().default(true),
 });
