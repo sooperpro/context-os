@@ -378,6 +378,8 @@ export const teams = sqliteTable(
       .references(() => departments.id),
     parentId: text("parent_id"),
     name: text("name").notNull(),
+    /** The team lead (N-9), a workspace member; optional. */
+    leadId: text("lead_id"),
     createdAt: ts("created_at").notNull().$defaultFn(now),
   },
   (t) => [

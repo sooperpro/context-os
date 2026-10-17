@@ -279,14 +279,14 @@ export function createOnboardingRoutes(container: Container) {
         type: "onboarding.plan_assigned",
         category: "onboarding",
         title: "Your onboarding plan is ready",
-        link: "/onboarding",
+        link: "/",
         projectId: input.projectId,
       });
       notifier.notify(actor.workspaceId, input.mentorId, {
         type: "onboarding.mentee_assigned",
         category: "onboarding",
         title: "You are mentoring a new hire",
-        link: `/mentor/${input.userId}`,
+        link: `/people/${input.userId}`,
         projectId: input.projectId,
       });
       return c.json(withHealth(actor, plan), 201);
@@ -375,7 +375,7 @@ export function createOnboardingRoutes(container: Container) {
           type: "checkin.published",
           category: "onboarding",
           title: "Your manager published a check-in",
-          link: `/onboarding/checkins/${row.id}`,
+          link: "/",
           projectId: plan.projectId ?? undefined,
         });
         return c.json(row, 201);
@@ -407,7 +407,7 @@ export function createOnboardingRoutes(container: Container) {
           type: "checkin.responded",
           category: "onboarding",
           title: `${actor.name} responded to your check-in`,
-          link: `/onboarding/checkins/${row.id}`,
+          link: `/team/${row.ownerId}`,
         });
         return c.json(checkinForPerson(updated));
       },
@@ -504,14 +504,14 @@ export function createOnboardingRoutes(container: Container) {
           type: "milestone.achieved",
           category: "onboarding",
           title: `Milestone reached: ${target.title}`,
-          link: "/onboarding",
+          link: "/",
           projectId: plan.projectId ?? undefined,
         });
         if (actor.id !== String(plan.data.managerId))
           notifier.notify(actor.workspaceId, String(plan.data.managerId), {
             type: "milestone.achieved",
             category: "onboarding",
-            title: `${plan.ownerId} reached "${target.title}"`,
+            title: `${notifier.nameOf(plan.ownerId)} reached "${target.title}"`,
             link: `/team/${plan.ownerId}`,
           });
         audit.record({
@@ -619,7 +619,7 @@ export function createOnboardingRoutes(container: Container) {
           type: "probation.outcome",
           category: "onboarding",
           title: `Probation outcome recorded: ${input.outcome}`,
-          link: "/onboarding",
+          link: "/",
         });
         audit.record({
           actor,

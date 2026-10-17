@@ -23,6 +23,7 @@ import { AppError, BadRequestError, NotFoundError } from "../../lib/errors.js";
 import { validationHook } from "../../middleware/validation.js";
 import type { Actor, AppEnv } from "../../types.js";
 import { isStaleCandidate, renderClaim, sectionForKind } from "../hub/sections.js";
+import { flagLink } from "./links.js";
 import { createNotifier } from "./notify.js";
 import { createOnboardingRecords } from "./onboarding-records.js";
 import { awardReputation, BASE_POINTS } from "./reputation.js";
@@ -176,7 +177,7 @@ export function createKnowledgeRoutes(container: Container) {
       category: "maintenance",
       title: `Your flag was ${status.replaceAll("_", " ")}`,
       body: reason,
-      link: `/queue/flags/${flag.id}`,
+      link: flagLink(flag.projectId, flag.data),
       batchKey: `flags:${flag.ownerId}`,
       projectId: flag.projectId ?? undefined,
     });
@@ -275,7 +276,7 @@ export function createKnowledgeRoutes(container: Container) {
           type: "flag.routed",
           category: "maintenance",
           title: `A ${input.kind.replaceAll("_", " ")} flag was routed to you`,
-          link: `/queue/flags/${row.id}`,
+          link: flagLink(row.projectId, row.data),
           batchKey: `flags-routed:${routedTo.userId}`,
           projectId: input.projectId,
         });
@@ -453,7 +454,7 @@ export function createKnowledgeRoutes(container: Container) {
             type: "correction.pending",
             category: "maintenance",
             title: "A correction needs your verification",
-            link: `/queue/flags/${flag.id}`,
+            link: flagLink(flag.projectId, flag.data),
             batchKey: `corrections:${ownerId}`,
             projectId: flag.projectId ?? undefined,
           });
@@ -533,7 +534,7 @@ export function createKnowledgeRoutes(container: Container) {
             category: "maintenance",
             title: "Your correction was not accepted",
             body: input.reason,
-            link: `/queue/flags/${flag.id}`,
+            link: flagLink(flag.projectId, flag.data),
             projectId: flag.projectId ?? undefined,
           });
         }

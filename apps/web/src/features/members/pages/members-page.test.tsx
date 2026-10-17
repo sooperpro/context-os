@@ -226,4 +226,93 @@ describe("MembersPage", () => {
       ).toEqual({ name: "Platform" }),
     );
   });
+
+  it("lets People Ops add people to a team, choose its lead and take someone off it (N-9)", async () => {
+    const writes = liveApi("hr");
+    const write = async (request: Request) =>
+      writes.push({
+        url: request.url,
+        method: request.method,
+        body: request.method === "DELETE" ? null : await request.json(),
+      });
+    mockServer.use(
+      http.get(buildApiUrl("/v1/users"), () =>
+        HttpResponse.json({
+          items: [
+            {
+              id: "u1",
+              name: "Maya Okafor",
+              role: "member",
+              status: "active",
+              organization: { teamId: TEAM },
+            },
+            { id: "u2", name: "Tom Becker", role: "owner", status: "active", organization: {} },
+            { id: "u3", name: "Daniel Reyes", role: "manager", status: "active", organization: {} },
+          ],
+        }),
+      ),
+      http.post(buildApiUrl("/v1/org/teams/:id/members"), async ({ request }) => {
+        await write(request);
+        return HttpResponse.json({ added: ["u3"] });
+      }),
+      http.patch(buildApiUrl("/v1/org/teams/:id"), async ({ request }) => {
+        await write(request);
+        return HttpResponse.json({
+          id: TEAM,
+          departmentId: DEPT,
+          parentId: null,
+          name: "Billing",
+          leadId: "u1",
+        });
+      }),
+      http.delete(buildApiUrl("/v1/org/teams/:id/members/:userId"), async ({ request }) => {
+        await write(request);
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderWithProviders(<MembersPage />);
+    await user.click(await screen.findByRole("tab", { name: "Departments and teams" }));
+    const onTeam = await screen.findByRole("list", { name: "People on Billing" });
+    expect(within(onTeam).getByText("Maya Okafor")).toBeInTheDocument();
+    expect(screen.getByText("1 person")).toBeInTheDocument();
+    // Roles and invitations stay with admins.
+    expect(screen.queryByRole("button", { name: "Invite people" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Manage Billing" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Add people" }));
+    const add = await screen.findByRole("dialog", { name: "Add people to Billing" });
+    // Maya is on the team already.
+    expect(within(add).queryByLabelText(/Maya Okafor/)).not.toBeInTheDocument();
+    await user.click(within(add).getByLabelText(/Daniel Reyes/));
+    await user.click(within(add).getByRole("button", { name: "Add" }));
+    await waitFor(() =>
+      expect(writes.find((entry) => entry.url.endsWith("/members"))?.body).toEqual({
+        userIds: ["u3"],
+      }),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Manage Billing" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Set team lead" }));
+    const lead = await screen.findByRole("dialog", { name: "Lead of Billing" });
+    await user.click(within(lead).getByLabelText(/Maya Okafor/));
+    await user.click(within(lead).getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(
+        writes.find((entry) => entry.method === "PATCH" && entry.url.includes("/org/teams/"))?.body,
+      ).toEqual({ leadId: "u1" }),
+    );
+
+    await user.click(
+      await screen.findByRole("button", { name: "Remove Maya Okafor from Billing" }),
+    );
+    await waitFor(() =>
+      expect(
+        writes.some(
+          (entry) =>
+            entry.method === "DELETE" && entry.url.endsWith(`/org/teams/${TEAM}/members/u1`),
+        ),
+      ).toBe(true),
+    );
+  });
 });

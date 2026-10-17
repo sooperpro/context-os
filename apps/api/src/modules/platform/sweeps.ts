@@ -20,6 +20,7 @@ import {
   syncFrequencyOf,
   type ScopeCursor,
 } from "../connectors/google-drive.js";
+import { flagLink } from "./links.js";
 import { createNotifier } from "./notify.js";
 import { resolveSettings } from "./settings.js";
 import { createPlatformStore } from "./store.js";
@@ -257,7 +258,7 @@ export function createSweeps({ db, bounties, logger, queue }: SweepDeps) {
                 category: "onboarding",
                 title: `${learner?.name ?? "A learner"} might need help with a learning item`,
                 body: "Suggested: a 15-minute walkthrough.",
-                link: `/learning/assignments/${String(assignment?.id)}`,
+                link: "/learning",
                 nudge: true,
                 projectId: progress.projectId ?? undefined,
               },
@@ -313,7 +314,7 @@ export function createSweeps({ db, bounties, logger, queue }: SweepDeps) {
                 type: "signoff.escalated",
                 category: "onboarding",
                 title: "A sign-off request has been pending for more than 72 hours",
-                link: `/learning/signoffs/${progress.id}`,
+                link: "/learning",
                 nudge: true,
               },
               settings,
@@ -357,7 +358,8 @@ export function createSweeps({ db, bounties, logger, queue }: SweepDeps) {
                     type: "milestone.overdue",
                     category: "onboarding",
                     title: `Milestone overdue: ${String(milestone.title)}`,
-                    link: "/onboarding",
+                    // The employee's Home; the mentor sees them on their profile.
+                    link: recipient === plan.ownerId ? "/" : `/people/${plan.ownerId}`,
                     nudge: true,
                     projectId: plan.projectId ?? undefined,
                   },
@@ -373,7 +375,7 @@ export function createSweeps({ db, bounties, logger, queue }: SweepDeps) {
                 {
                   type: "milestone.overdue",
                   category: "onboarding",
-                  title: `Milestone still overdue for ${plan.ownerId}: ${String(milestone.title)}`,
+                  title: `Milestone still overdue for ${notifier.nameOf(plan.ownerId)}: ${String(milestone.title)}`,
                   link: `/team/${plan.ownerId}`,
                   nudge: true,
                 },
@@ -394,7 +396,7 @@ export function createSweeps({ db, bounties, logger, queue }: SweepDeps) {
                   type: "probation.summary_ready",
                   category: "onboarding",
                   title: "Probation summary is ready",
-                  link: `/probation/${plan.ownerId}/summary`,
+                  link: recipient === plan.ownerId ? "/" : `/team/${plan.ownerId}`,
                 },
                 settings,
               );
@@ -416,6 +418,18 @@ export function createSweeps({ db, bounties, logger, queue }: SweepDeps) {
           ) {
             store.patch(invitation, { status: "expired" });
             report.invitationsExpired += 1;
+            notifier.notify(
+              workspaceId,
+              invitation.ownerId,
+              {
+                type: "invitation.expired",
+                category: "system",
+                title: `Your invitation to ${String(invitation.data.email)} expired`,
+                body: "Invite them again from Members & roles if they still need access.",
+                link: "/members",
+              },
+              settings,
+            );
           }
 
         // Unowned areas 7 days after offboarding become "Become the owner of X" bounties (§8.11).
@@ -482,7 +496,7 @@ export function createSweeps({ db, bounties, logger, queue }: SweepDeps) {
                 type: "flag.escalated",
                 category: "maintenance",
                 title: "A knowledge flag has been open for more than 10 business days",
-                link: `/queue/flags/${flag.id}`,
+                link: flagLink(flag.projectId, flag.data),
               },
               settings,
             );

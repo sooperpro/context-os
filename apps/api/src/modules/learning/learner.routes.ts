@@ -331,7 +331,7 @@ export function createLearnerRoutes(container: Container) {
     if (resolved.module) {
       const best = data.attempts.filter((attempt) => attempt.passed).at(-1);
       const last = data.attempts.at(-1);
-      learning.syncRoadmapModule(
+      const roadmapDone = learning.syncRoadmapModule(
         actor.workspaceId,
         actor.id,
         resolved.module.id,
@@ -350,8 +350,27 @@ export function createLearnerRoutes(container: Container) {
         },
         finished ? `${actor.name} finished “${resolved.module.title}”` : undefined,
       );
+      if (roadmapDone) tellRoadmapDone(actor);
     }
     return { row: saved, done };
+  };
+  /** The last module is done: their manager and People partner hear it (N-12). */
+  const tellRoadmapDone = (actor: Actor) => {
+    const manager = identity.requireMemberOptional(actor.workspaceId, actor.id)?.managerId;
+    const record = recordFor(actor);
+    const partner = record?.data.peoplePartnerId;
+    const notice = {
+      type: "onboarding.roadmap_completed",
+      category: "onboarding" as const,
+      title: `${actor.name} finished their onboarding roadmap`,
+    };
+    if (manager)
+      notifier.notify(actor.workspaceId, manager, { ...notice, link: `/team/${actor.id}` });
+    if (typeof partner === "string" && partner !== manager)
+      notifier.notify(actor.workspaceId, partner, {
+        ...notice,
+        link: record ? `/onboarding/${record.id}` : "/onboarding",
+      });
   };
 
   /* ---- Views ------------------------------------------------------------------------------- */

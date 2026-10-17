@@ -88,7 +88,17 @@ function renderAt(route: string, viewerId = "p-maya") {
       HttpResponse.json({
         items: [
           { id: teamPlatform, name: "Platform", departmentId: "d1", parentId: null },
-          { id: teamSales, name: "Sales", departmentId: "d2", parentId: null },
+          // Marcus leads Sales, chosen in Departments and teams.
+          { id: teamSales, name: "Sales", departmentId: "d2", parentId: null, leadId: "p-marcus" },
+          { id: "team-new", name: "Growth", departmentId: "d2", parentId: null },
+        ],
+      }),
+    ),
+    http.get(buildApiUrl("/v1/org/departments"), () =>
+      HttpResponse.json({
+        items: [
+          { id: "d1", name: "Engineering" },
+          { id: "d2", name: "Sales" },
         ],
       }),
     ),
@@ -160,7 +170,7 @@ describe("People", () => {
     const user = userEvent.setup();
     renderAt("/people");
 
-    expect(await screen.findByText("5 people · 2 teams")).toBeInTheDocument();
+    expect(await screen.findByText("5 people · 3 teams")).toBeInTheDocument();
     expect(await screen.findByRole("list", { name: "People" })).toBeInTheDocument();
     expect(card("Daniel Reyes")).toHaveAttribute("href", "/people/p-daniel");
     expect(within(card("Daniel Reyes")).getByText("Your manager")).toBeInTheDocument();
@@ -218,7 +228,15 @@ describe("People", () => {
       "href",
       "/people/p-leah",
     );
-    expect(screen.getByRole("article", { name: "Sales" })).toHaveTextContent("1 person");
+    const sales = screen.getByRole("article", { name: "Sales" });
+    expect(sales).toHaveTextContent("1 person");
+    // Each card names the team's department.
+    expect(screen.getByRole("article", { name: "Platform" })).toHaveTextContent("Engineering");
+    expect(within(sales).getByRole("link", { name: /Marcus Cole/ })).toHaveTextContent("Lead");
+    // A team nobody is on yet is still listed.
+    expect(screen.getByRole("article", { name: "Growth" })).toHaveTextContent(
+      "No one on this team yet",
+    );
   });
 
   it("shows a profile: what they own and their reporting line", async () => {

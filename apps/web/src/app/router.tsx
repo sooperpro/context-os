@@ -335,7 +335,7 @@ const appChildren = [
       const { MembersPage } = await import("@/features/members/pages/members-page");
       return {
         Component: () => (
-          <AdminOnly>
+          <AdminOnly alsoFor={["people_ops"]}>
             <MembersPage />
           </AdminOnly>
         ),

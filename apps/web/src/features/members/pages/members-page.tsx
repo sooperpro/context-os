@@ -60,6 +60,8 @@ export function MembersPage() {
   const me = useQuery(meQuery());
   const members = useQuery(membersQuery());
   const canManage = viewer.role === "owner" || viewer.role === "admin";
+  // People Ops runs departments and teams too; roles and invitations stay with admins (N-9).
+  const canEditOrg = canManage || viewer.role === "hr";
   const overview = useQuery({ ...membersOverviewQuery(), enabled: canManage });
   const sync = useDirectorySync();
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -121,7 +123,7 @@ export function MembersPage() {
         }
       />
 
-      <Tabs defaultValue="members">
+      <Tabs defaultValue={viewer.role === "hr" ? "org" : "members"}>
         <TabsList>
           <TabsTrigger value="members">Members</TabsTrigger>
           <TabsTrigger value="org">Departments and teams</TabsTrigger>
@@ -217,7 +219,7 @@ export function MembersPage() {
         </TabsContent>
 
         <TabsContent value="org" className="pt-4">
-          <OrgStructure canManage={canManage} />
+          <OrgStructure canManage={canEditOrg} />
         </TabsContent>
 
         {canManage ? (

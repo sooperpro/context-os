@@ -15,6 +15,7 @@ import { AppError, NotFoundError } from "../../lib/errors.js";
 import { validationHook } from "../../middleware/validation.js";
 import type { AppEnv } from "../../types.js";
 import { requireRole } from "../identity/identity.service.js";
+import { createNotifier } from "../platform/notify.js";
 import { AUTH_BASE_PATH, publicOrigin } from "./auth.js";
 
 const VERIFICATION_PREFIX = "contextos-domain-verification=";
@@ -29,6 +30,7 @@ type ProviderRow = typeof ssoProviders.$inferSelect;
  */
 export function createSsoRoutes(container: Container) {
   const { db, env, identity, audit } = container;
+  const notifier = createNotifier(db);
   const auth = identity.auth;
   const base = `${publicOrigin(env)}${AUTH_BASE_PATH}`;
 
@@ -224,6 +226,7 @@ export function createSsoRoutes(container: Container) {
         tx.delete(ssoProviders).where(eq(ssoProviders.id, row.id)).run();
       });
       // Enforcement needs a working connection; without one, nobody but owners could sign in.
+      const wasEnforced = settings(actor.workspaceId).enforced;
       if (!providersOf(actor.workspaceId).some((entry) => entry.domainVerified))
         setEnforced(actor.workspaceId, false);
       audit.record({
@@ -231,6 +234,15 @@ export function createSsoRoutes(container: Container) {
         action: "workspace.sso.provider.delete",
         targetType: "sso_provider",
         targetId: row.providerId,
+      });
+      notifier.notifyAdmins(actor.workspaceId, {
+        type: "security.sso_provider_removed",
+        category: "security",
+        title: `${actor.name} removed the single sign-on connection for ${row.domain}`,
+        ...(wasEnforced && !settings(actor.workspaceId).enforced
+          ? { body: "Single sign-on is no longer required." }
+          : {}),
+        link: "/access",
       });
       return c.body(null, 204);
     })
@@ -258,6 +270,7 @@ export function createSsoRoutes(container: Container) {
               "Sign in with single sign-on before requiring it, so you keep access",
             );
         }
+        const was = settings(actor.workspaceId).enforced;
         setEnforced(actor.workspaceId, enforced);
         audit.record({
           actor,
@@ -266,6 +279,27 @@ export function createSsoRoutes(container: Container) {
           targetId: actor.workspaceId,
           metadata: { enforced },
         });
+        // Admins hear about it; everyone else learns how they sign in from now on (N-12).
+        if (was !== enforced) {
+          notifier.notifyAdmins(actor.workspaceId, {
+            type: "security.sso_enforcement",
+            category: "security",
+            title: `${actor.name} ${enforced ? "required" : "stopped requiring"} single sign-on`,
+            link: "/access",
+          });
+          if (enforced)
+            notifier.notifyRoles(
+              actor.workspaceId,
+              ["manager", "hr", "member", "guest"],
+              {
+                type: "security.sso_required",
+                category: "security",
+                title: "Sign in with your company's single sign-on from now on",
+                body: "Other ways of signing in to this workspace stop working.",
+              },
+              actor.id,
+            );
+        }
         return c.json(settings(actor.workspaceId));
       },
     );

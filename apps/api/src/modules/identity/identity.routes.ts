@@ -37,7 +37,7 @@ import {
 import { AppError, BadRequestError, NotFoundError } from "../../lib/errors.js";
 import { validationHook } from "../../middleware/validation.js";
 import type { Actor, AppEnv } from "../../types.js";
-import { createNotifier } from "../platform/notify.js";
+import { createNotifier, type NotificationInput } from "../platform/notify.js";
 import { ledgerSummary } from "../platform/reputation.js";
 import { resolveSettings, workspaceSettings } from "../platform/settings.js";
 import { createPlatformStore, type PlatformRecord } from "../platform/store.js";
@@ -72,6 +72,41 @@ export function createIdentityRoutes(container: Container) {
   };
   const nameOf = (userId: string) =>
     db.select({ name: users.name }).from(users).where(eq(users.id, userId)).get()?.name ?? userId;
+  /** What a responsibility covers, in words for the person who holds it (N-12). */
+  const describeAssignment = (
+    actor: Actor,
+    row: { type: string; scopeType: string; scopeId: string },
+  ) => {
+    const projectId =
+      row.scopeType === "project"
+        ? row.scopeId
+        : row.scopeType === "section"
+          ? row.scopeId.split(":")[0]
+          : undefined;
+    const project = projectId
+      ? db
+          .select({ name: projects.name })
+          .from(projects)
+          .where(and(eq(projects.id, projectId), eq(projects.workspaceId, actor.workspaceId)))
+          .get()
+      : undefined;
+    const where = project?.name ?? (row.scopeType === "workspace" ? "the whole workspace" : null);
+    const role =
+      row.type === "domain_owner"
+        ? "a knowledge owner"
+        : row.type === "path_curator"
+          ? "a tutorial curator"
+          : row.type === "department_head"
+            ? "a department head"
+            : null;
+    return role && where
+      ? { role, where, link: project ? `/projects/${projectId}` : "/knowledge" }
+      : null;
+  };
+  /** Tells someone about a change an admin made to them or their team, never the admin (N-12). */
+  const tell = (actor: Actor, to: string | null | undefined, input: NotificationInput) => {
+    if (to && to !== actor.id) notifier.notify(actor.workspaceId, to, input);
+  };
   const personRef = (actor: Actor, userId: string) => {
     const member = identity.requireMemberOptional(actor.workspaceId, userId);
     const title = member?.organization.jobTitle;
@@ -512,6 +547,70 @@ export function createIdentityRoutes(container: Container) {
         notifier.notify(actor.workspaceId, userId, payload);
         notifier.notifyAdmins(actor.workspaceId, payload);
       }
+      const name = nameOf(userId);
+      if (input.managerId !== undefined && input.managerId !== target.managerId) {
+        const person = { type: "manager.changed", category: "system" } as const;
+        tell(actor, userId, {
+          ...person,
+          title: input.managerId
+            ? `You now report to ${nameOf(input.managerId)}`
+            : "You no longer have a manager in ContextOS",
+          link: "/",
+        });
+        tell(actor, input.managerId, {
+          ...person,
+          title: `${name} now reports to you`,
+          link: `/team/${userId}`,
+        });
+        tell(actor, target.managerId, {
+          ...person,
+          title: `${name} no longer reports to you`,
+          link: `/people/${userId}`,
+        });
+      }
+      // Offboarding already gives the manager a hand-over checklist; a suspended person can't be told.
+      if (input.status && input.status !== target.status && input.status !== "offboarded") {
+        const back = input.status === "active";
+        tell(actor, updated.managerId, {
+          type: `user.${input.status}`,
+          category: "system",
+          title: back ? `${name} has access again` : `${name}'s access was suspended`,
+          ...(back ? { link: `/team/${userId}` } : {}),
+        });
+        if (back)
+          tell(actor, userId, {
+            type: "user.active",
+            category: "security",
+            title: "Your access to the workspace is back",
+            link: "/",
+          });
+      }
+      if (lastDay && lastDay !== target.organization.lastDay) {
+        tell(actor, userId, {
+          type: "offboarding.last_day",
+          category: "system",
+          title: `Your last day is set for ${lastDay}`,
+          body: "Hand over what you own before you go.",
+          link: "/",
+        });
+        tell(actor, updated.managerId, {
+          type: "offboarding.last_day",
+          category: "system",
+          title: `${name}'s last day is ${lastDay}`,
+          link: `/team/${userId}`,
+        });
+      }
+      if (
+        updated.role === "guest" &&
+        expires &&
+        expires.getTime() !== target.guestExpiresAt?.getTime()
+      )
+        tell(actor, userId, {
+          type: "guest.expiry_changed",
+          category: "security",
+          title: `Your guest access now ends on ${expires.toISOString().slice(0, 10)}`,
+          link: "/settings",
+        });
       return c.json(updated);
     })
     .post("/users/invite", zValidator("json", InviteInputSchema, validationHook), async (c) => {
@@ -705,6 +804,29 @@ export function createIdentityRoutes(container: Container) {
         targetType: "assignment",
         targetId: row.id,
       });
+      if (row.type === "mentor") {
+        tell(actor, row.userId, {
+          type: "assignment.mentor",
+          category: "onboarding",
+          title: `You're now mentoring ${nameOf(row.scopeId)}`,
+          link: `/people/${row.scopeId}`,
+        });
+        tell(actor, row.scopeId, {
+          type: "assignment.mentor",
+          category: "onboarding",
+          title: `${nameOf(row.userId)} is now your mentor`,
+          link: `/people/${row.userId}`,
+        });
+      } else {
+        const what = describeAssignment(actor, row);
+        if (what)
+          tell(actor, row.userId, {
+            type: `assignment.${row.type}`,
+            category: "maintenance",
+            title: `You're now ${what.role} for ${what.where}`,
+            link: what.link,
+          });
+      }
       return c.json(row, 201);
     })
     .delete("/assignments/:id", (c) => {
@@ -727,6 +849,19 @@ export function createIdentityRoutes(container: Container) {
         targetType: "assignment",
         targetId: removed.id,
       });
+      const what =
+        removed.type === "mentor"
+          ? { role: "mentoring", where: nameOf(removed.scopeId) }
+          : describeAssignment(actor, removed);
+      if (what)
+        tell(actor, removed.userId, {
+          type: `assignment.${removed.type}.removed`,
+          category: "maintenance",
+          title:
+            removed.type === "mentor"
+              ? `You're no longer mentoring ${what.where}`
+              : `You're no longer ${what.role} for ${what.where}`,
+        });
       return c.body(null, 204);
     })
     .get("/users/:id/projects", (c) => {
@@ -754,7 +889,7 @@ export function createIdentityRoutes(container: Container) {
         const actor = c.get("actor");
         requireRole(actor, ...adminRoles);
         const projectId = c.req.param("projectId");
-        identity.requireProject(actor, projectId);
+        const project = identity.requireProject(actor, projectId);
         const { userId } = c.req.valid("json");
         identity.requireMember(actor.workspaceId, userId);
         const added = db
@@ -763,7 +898,7 @@ export function createIdentityRoutes(container: Container) {
           .onConflictDoNothing()
           .returning()
           .get();
-        if (added)
+        if (added) {
           audit.record({
             actor,
             projectId,
@@ -771,6 +906,14 @@ export function createIdentityRoutes(container: Container) {
             targetType: "user",
             targetId: userId,
           });
+          tell(actor, userId, {
+            type: "project.member_added",
+            category: "system",
+            title: `You were added to ${project.name}`,
+            link: `/projects/${projectId}`,
+            projectId,
+          });
+        }
         return c.json(added ?? { projectId, userId }, 201);
       },
     )
@@ -778,7 +921,7 @@ export function createIdentityRoutes(container: Container) {
       const actor = c.get("actor");
       requireRole(actor, ...adminRoles);
       const { projectId, userId } = c.req.param();
-      identity.requireProject(actor, projectId);
+      const project = identity.requireProject(actor, projectId);
       const removed = db
         .delete(projectMemberships)
         .where(
@@ -793,6 +936,11 @@ export function createIdentityRoutes(container: Container) {
         action: "project.member.remove",
         targetType: "user",
         targetId: userId,
+      });
+      tell(actor, userId, {
+        type: "project.member_removed",
+        category: "system",
+        title: `You no longer have access to ${project.name}`,
       });
       return c.body(null, 204);
     })
@@ -850,6 +998,14 @@ export function createIdentityRoutes(container: Container) {
           targetType: "source",
           targetId: sourceId,
           metadata: { userId: input.userId },
+        });
+        // Often the answer to their access request (learner.routes.ts); tell them either way.
+        tell(actor, input.userId, {
+          type: "source.access_granted",
+          category: "system",
+          title: `You can now open "${source.title}"`,
+          link: `/projects/${projectId}/sources`,
+          projectId,
         });
         return c.json({ sourceId, ...input }, 201);
       },
@@ -1002,6 +1158,8 @@ export function createIdentityRoutes(container: Container) {
         const areas = (Array.isArray(row.data.areas) ? row.data.areas : []) as Array<
           Record<string, unknown>
         >;
+        const granted: Array<{ userId: string; type: string; scopeType: string; scopeId: string }> =
+          [];
         const updatedAreas = areas.map((area) => {
           const change = input.areas.find((entry) => entry.key === area.key);
           if (!change) return area;
@@ -1025,6 +1183,13 @@ export function createIdentityRoutes(container: Container) {
                   scopeId: String(area.scopeId),
                 })
                 .run();
+            if (grant)
+              granted.push({
+                userId: change.assigneeId,
+                type: type.data,
+                scopeType: scopeType.data,
+                scopeId: String(area.scopeId),
+              });
             return {
               ...area,
               status: "reassigned",
@@ -1054,6 +1219,26 @@ export function createIdentityRoutes(container: Container) {
             category: "system",
             title: `${actor.name} picked new owners for ${nameOf(String(row.data.leaverId))}'s responsibilities`,
             body: "Apply them to hand the responsibilities over.",
+            link: `/continuity/checklists/${row.id}`,
+          });
+        // The new owners hear what they took over; the manager hears when an admin applied it.
+        const leaver = nameOf(String(row.data.leaverId));
+        for (const area of granted) {
+          const what = describeAssignment(actor, area);
+          tell(actor, area.userId, {
+            type: "offboarding.continuity_assigned",
+            category: "maintenance",
+            title: what
+              ? `You're now ${what.role} for ${what.where}, taking over from ${leaver}`
+              : `You took over a responsibility from ${leaver}`,
+            ...(what ? { link: what.link } : {}),
+          });
+        }
+        if (granted.length)
+          tell(actor, row.ownerId, {
+            type: "offboarding.continuity_applied",
+            category: "system",
+            title: `New owners for ${leaver}'s responsibilities are in place`,
             link: `/continuity/checklists/${row.id}`,
           });
         return c.json(checklistView(actor, updated));

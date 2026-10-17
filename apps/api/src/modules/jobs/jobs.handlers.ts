@@ -58,6 +58,8 @@ export interface JobHandlerDeps {
   connectors: ConnectorSyncRegistry;
   /** Sections of a long source the AI reads for the Knowledge Hub (EXTRACTION_MAX_WINDOWS). */
   extractionSections?: number;
+  /** A source failed for good (no retries left): tell the people who keep the project right. */
+  onSourceFailed?: (source: { id: string; projectId: string; title: string }) => void;
 }
 
 /** Chunks embedded per group; a failed group loses only its own vectors. */
@@ -82,6 +84,7 @@ export function createJobHandlers(deps: JobHandlerDeps): JobHandlers {
     logger,
     connectors,
     extractionSections = 1,
+    onSourceFailed,
   } = deps;
 
   return {
@@ -187,6 +190,7 @@ export function createJobHandlers(deps: JobHandlerDeps): JobHandlers {
         });
       } catch (error) {
         sources.setStatus(source.id, { status: "failed", error: errorMessage(error) });
+        if (job.attempts >= job.maxAttempts) onSourceFailed?.(source);
         throw error;
       }
     },

@@ -42,6 +42,8 @@ describe("navigation config", () => {
       "probation",
       "templates",
       "people",
+      // Departments and teams (N-9).
+      "members",
       "knowledge",
       "learning",
       "audit",

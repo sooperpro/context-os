@@ -102,9 +102,10 @@ export const DirectoryTeamSchema = z.object({
   name: z.string(),
   area: TeamAreaSchema,
   size: Count,
-  /** What the team owns: "Ingest gateway, event bus, ledger service". */
+  /** What the team owns: "Ingest gateway, event bus, ledger service", or its department. */
   focus: z.string(),
-  lead: PersonRefSchema,
+  /** Null for a team nobody is on yet and with no lead set. */
+  lead: PersonRefSchema.nullable(),
   /** A few members for the avatar stack. */
   members: z.array(PersonRefSchema),
 });

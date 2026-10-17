@@ -697,6 +697,14 @@ export function createTutorialRoutes(container: Container) {
         targetType: "tutorial",
         targetId: row.id,
       });
+      // Its author hears when someone else archived it (N-12).
+      if (row.ownerId !== actor.id)
+        notifier.notify(actor.workspaceId, row.ownerId, {
+          type: "tutorial.archived",
+          category: "system",
+          title: `${actor.name} archived “${dataOf(row).content?.title ?? dataOf(row).plannedTitle ?? "your tutorial"}”`,
+          link: `/tutorials/${row.id}`,
+        });
       return c.json(detail(archived, actor));
     })
     .post(
@@ -965,6 +973,18 @@ export function createTutorialRoutes(container: Container) {
         error instanceof Error ? error.message : "The draft could not be written",
         error instanceof ThinKnowledgeError,
       );
+      // Whoever asked for it hears; an automatic update that fails just leaves the published one.
+      if (!update)
+        notifier.notify(found.workspaceId, requesterId, {
+          type: "tutorial.failed",
+          category: "system",
+          title: `Your tutorial draft “${data.content?.title ?? data.plannedTitle ?? "draft"}” couldn't be written`,
+          body:
+            error instanceof ThinKnowledgeError
+              ? "There isn't enough company knowledge on it yet."
+              : "Open it to try again.",
+          link: `/tutorials/${id}`,
+        });
     }
   }
 

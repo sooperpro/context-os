@@ -710,6 +710,8 @@ export const TeamSchema = z.object({
   departmentId: z.string(),
   parentId: z.string().nullable(),
   name: z.string(),
+  /** The team lead, if one is set (N-9). */
+  leadId: z.string().nullable().default(null),
 });
 export type Team = z.infer<typeof TeamSchema>;
 export const TeamListSchema = z.object({ items: z.array(TeamSchema) });
@@ -724,9 +726,18 @@ export const TeamInputSchema = OrgNameInputSchema.extend({
 });
 export type TeamInput = z.infer<typeof TeamInputSchema>;
 export const TeamUpdateInputSchema = OrgNameInputSchema.partial()
-  .extend({ parentId: z.uuid().nullable().optional() })
+  .extend({
+    parentId: z.uuid().nullable().optional(),
+    leadId: z.string().min(1).max(200).nullable().optional(),
+  })
   .strict();
 export type TeamUpdateInput = z.infer<typeof TeamUpdateInputSchema>;
+/** `POST /org/teams/:id/members`: people to put on the team (and in its department). */
+export const TeamMembersInputSchema = z
+  .object({ userIds: z.array(z.string().min(1).max(200)).min(1).max(100) })
+  .strict();
+export type TeamMembersInput = z.infer<typeof TeamMembersInputSchema>;
+export const TeamMembersResultSchema = z.object({ added: z.array(z.string()) });
 
 /* ---- Notifications (`GET /notifications`, `PATCH /notifications/:id/read`) --------------- */
 
