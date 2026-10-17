@@ -25,6 +25,10 @@ function mockServiceWorker(): Plugin {
   };
 }
 
+/** The visual lesson editor's libraries, kept out of the chunk every page loads. */
+const EDITOR_PACKAGES =
+  /node_modules[\\/](@tiptap[\\/]|prosemirror-|orderedmap[\\/]|rope-sequence[\\/]|w3c-keyname[\\/]|linkifyjs[\\/]|marked[\\/])/;
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const apiProxyTarget =
@@ -74,8 +78,16 @@ export default defineConfig(({ mode }) => {
               {
                 name: "react",
                 test: /node_modules[\\/](react|react-dom|scheduler|react-router)[\\/]/,
+                priority: 3,
               },
-              { name: "vendor", test: /node_modules/ },
+              // Every other library, first, so helpers it shares with the editor stay here.
+              {
+                name: "vendor",
+                test: (id) => id.includes("node_modules") && !EDITOR_PACKAGES.test(id),
+                priority: 2,
+              },
+              // The visual lesson editor (TipTap, ProseMirror): loaded only with the editor.
+              { name: "editor", test: EDITOR_PACKAGES, priority: 1 },
             ],
           },
         },

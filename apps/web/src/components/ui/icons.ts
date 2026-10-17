@@ -56,6 +56,16 @@ import ErrorFilledIcon from "@material-symbols/svg-400/rounded/error-fill.svg?re
 import EventIcon from "@material-symbols/svg-400/rounded/event.svg?react";
 import FlagIcon from "@material-symbols/svg-400/rounded/flag.svg?react";
 import FormatQuoteIcon from "@material-symbols/svg-400/rounded/format_quote.svg?react";
+import FormatBoldIcon from "@material-symbols/svg-400/rounded/format_bold.svg?react";
+import FormatItalicIcon from "@material-symbols/svg-400/rounded/format_italic.svg?react";
+import FormatListBulletedIcon from "@material-symbols/svg-400/rounded/format_list_bulleted.svg?react";
+import FormatH2Icon from "@material-symbols/svg-400/rounded/format_h2.svg?react";
+import FormatH3Icon from "@material-symbols/svg-400/rounded/format_h3.svg?react";
+import RedoIcon from "@material-symbols/svg-400/rounded/redo.svg?react";
+import TableIcon from "@material-symbols/svg-400/rounded/table.svg?react";
+import TableRowsIcon from "@material-symbols/svg-400/rounded/table_rows.svg?react";
+import ViewColumnIcon from "@material-symbols/svg-400/rounded/view_column.svg?react";
+import HorizontalRuleIcon from "@material-symbols/svg-400/rounded/horizontal_rule.svg?react";
 import GavelIcon from "@material-symbols/svg-400/rounded/gavel.svg?react";
 import GroupsIcon from "@material-symbols/svg-400/rounded/groups.svg?react";
 import HelpIcon from "@material-symbols/svg-400/rounded/help.svg?react";
@@ -458,4 +468,14 @@ export {
   SearchIcon,
   SendIcon,
   SettingsIcon,
+  FormatBoldIcon,
+  FormatItalicIcon,
+  FormatListBulletedIcon,
+  FormatH2Icon,
+  FormatH3Icon,
+  RedoIcon,
+  TableIcon,
+  TableRowsIcon,
+  ViewColumnIcon,
+  HorizontalRuleIcon,
 };

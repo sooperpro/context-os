@@ -469,6 +469,93 @@ describe("Templates", () => {
     await waitFor(() => expect(body).toMatchObject({ publishModules: true }));
   });
 
+  it("opens a published module's lessons from the template, shows what waits and publishes updates", async () => {
+    const user = userEvent.setup();
+    const module = (
+      id: string,
+      title: string,
+      lessonState: "update_ready" | "published",
+      lessonsEditable: boolean,
+    ) => ({
+      id: `tutorial-${id}`,
+      title,
+      kind: "project" as const,
+      minutes: 20,
+      owner: "Elena Brooks",
+      lessons: "ready" as const,
+      tutorialId: id,
+      lessonState,
+      lessonsEditable,
+    });
+    const live = {
+      id: "tpl-live",
+      name: "Support specialist",
+      family: "support",
+      version: "v1",
+      status: "published",
+      publishedVersion: "v1",
+      activeCount: 2,
+      archived: false,
+      deletable: false,
+      roles: ["Support specialist"],
+      teams: [],
+      weeks: 4,
+      passMark: 4,
+      probationDays: 90,
+      checkins: [{ title: "30-day check-in", day: 30 }],
+      generation: null,
+      generated: null,
+      review: null,
+      createdBy: null,
+      editable: true,
+      department: null,
+      updatedAt: "2026-10-17T05:00:00.000Z",
+      updatedBy: "Elena Brooks",
+      stages: [
+        {
+          id: "stage-1",
+          name: "Induction",
+          weekStart: 1,
+          weekEnd: 2,
+          modules: [
+            module("t-tickets", "Handling tickets", "update_ready", true),
+            module("t-mission", "Our mission", "published", false),
+          ],
+        },
+      ],
+      history: [],
+    };
+    let published = false;
+    renderAt("/templates/tpl-live", {
+      handlers: [
+        http.get(buildApiUrl("/v1/people-ops/templates/tpl-live"), () => HttpResponse.json(live)),
+        http.post(buildApiUrl("/v1/people-ops/templates/tpl-live/publish-lessons"), () => {
+          published = true;
+          return HttpResponse.json(live);
+        }),
+      ],
+    });
+
+    // Its state and a way into the Studio, only where the viewer may edit.
+    const tickets = (await screen.findByText("Handling tickets")).closest(
+      "[data-slot=segmented-item]",
+    ) as HTMLElement;
+    expect(within(tickets).getByText("Update ready to review")).toBeInTheDocument();
+    expect(within(tickets).getByRole("link", { name: "Edit lessons" })).toHaveAttribute(
+      "href",
+      "/tutorials/t-tickets?template=tpl-live",
+    );
+    const mission = screen
+      .getByText("Our mission")
+      .closest("[data-slot=segmented-item]") as HTMLElement;
+    expect(within(mission).queryByRole("link", { name: "Edit lessons" })).not.toBeInTheDocument();
+
+    // The waiting update goes out on its own, without a new template version.
+    expect(await screen.findByText("1 module has a lesson update waiting")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Publish lesson updates" }));
+    await waitFor(() => expect(published).toBe(true));
+  });
+
   it("lets a manager submit their template for review instead of publishing it", async () => {
     const user = userEvent.setup();
     renderAt("/templates/tpl-sales-ae", { role: "manager" });

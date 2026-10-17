@@ -7,6 +7,7 @@ import type {
   TemplateDraftInput,
   TemplateFamily,
   TemplateModule,
+  TutorialUsage,
 } from "@contextos/shared";
 import { and, eq } from "drizzle-orm";
 import type { Container } from "../../container.js";
@@ -14,6 +15,7 @@ import { departments, memberships, teams, users } from "../../db/schema.js";
 import { AppError, BadRequestError, NotFoundError } from "../../lib/errors.js";
 import type { Actor } from "../../types.js";
 import { sendInvitationEmail } from "../auth/invitations.js";
+import { lessonState, staleSourceCount, WAITING_UPDATE } from "../learning/lesson-state.js";
 import { createNotifier } from "./notify.js";
 import {
   buildRoadmap,
@@ -675,35 +677,108 @@ export function createOnboardingRecords(container: Container) {
     return { id: row.id, name: `${data.name} v${data.publishedVersion ?? data.version}` };
   };
 
+  /**
+   * The tutorial that teaches a template module: a generated module's own, or for a built-in
+   * module the published (else draft) company lessons that cover it.
+   */
+  const tutorialFor = (moduleId: string, tutorials: PlatformRecord[]) => {
+    if (moduleId.startsWith("tutorial-"))
+      return tutorials.find((row) => `tutorial-${row.id}` === moduleId) ?? null;
+    if (!moduleId.startsWith("mod-")) return null;
+    const covering = tutorials.filter((row) => row.data.coversModule === moduleId);
+    return (
+      covering.find((row) => row.status === "published") ??
+      covering.find((row) => row.status === "draft") ??
+      null
+    );
+  };
+
+  /**
+   * Who may open a module's lessons in the Studio, as the Studio decides: People Ops, admins and
+   * owners; a project's path curators; and whoever they were generated for (a manager's modules).
+   */
+  const opensLessons = (viewer: Actor, row: PlatformRecord) =>
+    isReviewer(viewer) ||
+    (row.projectId !== null && identity.hasAssignment(viewer, "path_curator", row.projectId)) ||
+    (row.ownerId === viewer.id && viewer.role !== "guest");
+
   /** Built-in modules with whether company lessons teach them yet (published, or a draft). */
-  const withLessons = (workspaceId: string) => {
+  const withLessons = (workspaceId: string, viewer?: Actor) => {
     const tutorials = store.listWhere(workspaceId, "tutorial", {}, 1000);
     return (entry: TemplateModule): TemplateModule => {
-      if (entry.id.startsWith("tutorial-")) {
-        const row = tutorials.find((tutorial) => `tutorial-${tutorial.id}` === entry.id);
-        return {
-          ...entry,
-          lessons: row?.status === "published" ? "ready" : "draft",
-          tutorialId: row?.id ?? null,
-        };
-      }
-      if (!entry.id.startsWith("mod-")) return entry;
-      const covering = tutorials.filter((row) => row.data.coversModule === entry.id);
-      const published = covering.find((row) => row.status === "published");
-      const draft = covering.find((row) => row.status === "draft");
+      if (!entry.id.startsWith("tutorial-") && !entry.id.startsWith("mod-")) return entry;
+      const row = tutorialFor(entry.id, tutorials);
+      const sources = (row?.data.sources ?? []) as Array<{ id: string; hash: string }>;
       return {
         ...entry,
-        lessons: published ? "ready" : draft ? "draft" : "none",
-        tutorialId: (published ?? draft)?.id ?? null,
+        lessons:
+          row?.status === "published"
+            ? "ready"
+            : row || entry.id.startsWith("tutorial-")
+              ? "draft"
+              : "none",
+        tutorialId: row?.id ?? null,
+        lessonState: row ? lessonState(row, staleSourceCount(db, sources)) : null,
+        lessonsEditable: Boolean(row && viewer && opensLessons(viewer, row)),
       };
     };
+  };
+
+  /**
+   * Published modules among `moduleIds` whose lessons have an update waiting (after the Hub
+   * changed, edits, or a submitted change): their tutorial ids, to publish with the template.
+   */
+  const waitingLessonUpdates = (workspaceId: string, moduleIds: string[]) => {
+    const tutorials = store.listWhere(workspaceId, "tutorial", {}, 1000);
+    return [
+      ...new Set(
+        moduleIds.flatMap((moduleId) => {
+          const row = tutorialFor(moduleId, tutorials);
+          if (row?.status !== "published") return [];
+          const sources = (row.data.sources ?? []) as Array<{ id: string; hash: string }>;
+          return WAITING_UPDATE.has(lessonState(row, staleSourceCount(db, sources)))
+            ? [row.id]
+            : [];
+        }),
+      ),
+    ];
+  };
+
+  /** Which templates use each tutorial as a module, and where (for the Tutorials page). */
+  const tutorialUsage = (workspaceId: string) => {
+    const tutorials = store.listWhere(workspaceId, "tutorial", {}, 1000);
+    const usage = new Map<string, TutorialUsage[]>();
+    for (const template of store.listWhere(workspaceId, TEMPLATE, {}, 500)) {
+      const data = templateData(template);
+      if (data.archivedAt) continue;
+      let position = 0;
+      for (const stage of [...data.stages].sort((a, b) => a.weekStart - b.weekStart))
+        for (const moduleId of stage.moduleIds) {
+          position += 1;
+          const row = tutorialFor(moduleId, tutorials);
+          if (!row) continue;
+          const list = usage.get(row.id) ?? [];
+          if (list.some((entry) => entry.templateId === template.id)) continue;
+          list.push({
+            templateId: template.id,
+            templateName: data.name,
+            published: data.publishedVersion !== null,
+            stage: stage.name,
+            weekStart: stage.weekStart,
+            weekEnd: stage.weekEnd,
+            position,
+          });
+          usage.set(row.id, list);
+        }
+    }
+    return usage;
   };
 
   /** `viewer` decides `editable`: People Ops, admins and owners change any template, others their own. */
   const templateDetail = (row: PlatformRecord, viewer?: Actor) => {
     const data = templateData(row);
     const modules = catalog(row.workspaceId, true);
-    const lessons = withLessons(row.workspaceId);
+    const lessons = withLessons(row.workspaceId, viewer);
     return {
       id: row.id,
       name: data.name,
@@ -1835,6 +1910,8 @@ export function createOnboardingRecords(container: Container) {
     activeCount,
     templateRef,
     templateDetail,
+    tutorialUsage,
+    waitingLessonUpdates,
     templateSummary,
     applyStages,
     recordData,

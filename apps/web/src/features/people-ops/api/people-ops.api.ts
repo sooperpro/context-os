@@ -125,6 +125,11 @@ export const PEOPLE_OPS_ENDPOINTS = {
     schema: TemplateDetailSchema,
     input: TemplatePublishInputSchema,
   },
+  /** Its modules' waiting lesson updates, without a new template version (People Ops). */
+  publishLessons: {
+    path: "/v1/people-ops/templates/:id/publish-lessons",
+    schema: TemplateDetailSchema,
+  },
   /** Managers and path curators send their draft to People Ops instead of publishing it. */
   submitTemplate: {
     path: "/v1/people-ops/templates/:id/submit",
@@ -259,6 +264,12 @@ export const saveTemplateDraft = (id: string, input: TemplateDraftInput) =>
 
 export const publishTemplate = (id: string, input: TemplatePublishInput) =>
   apiRequest(withId(E.publish.path, id), { method: "POST", body: input, schema: E.publish.schema });
+
+export const publishTemplateLessons = (id: string) =>
+  apiRequest(withId(E.publishLessons.path, id), {
+    method: "POST",
+    schema: E.publishLessons.schema,
+  });
 
 export const submitTemplate = (id: string, input: TemplatePublishInput) =>
   apiRequest(withId(E.submitTemplate.path, id), {

@@ -42,6 +42,7 @@ import {
   SendIcon,
   SmartToyIcon,
   UndoIcon,
+  WarningIcon,
 } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -62,6 +63,7 @@ import {
   SegmentedItemTitle,
   SegmentedList,
 } from "@/components/ui/segmented-list";
+import { StatusChip } from "@/components/ui/status-chip";
 import { Timeline, TimelineItem } from "@/components/ui/timeline";
 import { PEOPLE_OPS_ENDPOINTS as E } from "@/features/people-ops/api/people-ops.api";
 import {
@@ -70,6 +72,7 @@ import {
   useArchiveTemplate,
   useDeleteTemplate,
   usePublishTemplate,
+  usePublishTemplateLessons,
   useRestoreTemplate,
   useSaveTemplateDraft,
   useSendBackTemplate,
@@ -91,7 +94,11 @@ import {
   weeksLabel,
 } from "@/features/people-ops/people-ops-meta";
 import { useCreateTutorial } from "@/features/tutorials/api/tutorials.queries";
-import { tutorialPath } from "@/features/tutorials/tutorials-meta";
+import {
+  LESSON_STATE,
+  tutorialFromTemplate,
+  tutorialPath,
+} from "@/features/tutorials/tutorials-meta";
 import { useIsReviewer } from "@/features/workspace/hooks/use-is-reviewer";
 import { formatCount, formatShortDate } from "@/lib/format";
 import { toastWithUndo } from "@/lib/undo-toast";
@@ -165,6 +172,7 @@ function Editor({ template }: { template: TemplateDetail }) {
   const navigate = useNavigate();
   const save = useSaveTemplateDraft(template.id);
   const publish = usePublishTemplate(template.id);
+  const publishLessons = usePublishTemplateLessons(template.id);
   const submit = useSubmitTemplate(template.id);
   const sendBack = useSendBackTemplate(template.id);
   // Owner, Admin and HR publish; managers and path curators submit their own drafts for review.
@@ -218,6 +226,16 @@ function Editor({ template }: { template: TemplateDetail }) {
   const draftModules = stages.flatMap((stage) =>
     stage.modules.filter(
       (module) => module.lessons === "draft" && module.id.startsWith("tutorial-"),
+    ),
+  );
+  // Published modules whose lessons have an update waiting: offered to publish with the template.
+  const lessonUpdates = stages.flatMap((stage) =>
+    stage.modules.filter(
+      (module) =>
+        module.lessons === "ready" &&
+        (module.lessonState === "update_ready" ||
+          module.lessonState === "unpublished_edits" ||
+          module.lessonState === "in_review"),
     ),
   );
   const stageEdited = (values: { name: string; weekStart: number; weekEnd: number }) => {
@@ -440,6 +458,32 @@ function Editor({ template }: { template: TemplateDetail }) {
           }
         />
       ) : null}
+      {reviewer && !archived && !dirty && lessonUpdates.length ? (
+        <Banner
+          tone="info"
+          icon={<PublishIcon aria-hidden />}
+          title={`${formatCount(lessonUpdates.length, "module")} ${lessonUpdates.length === 1 ? "has" : "have"} a lesson update waiting`}
+          description={`${lessonUpdates.map((module) => module.title).join(", ")}. Publishing them doesn't change the template's version. People part-way through a module finish the version they started.`}
+          actions={
+            <Button
+              size="xs"
+              variant="outline"
+              disabled={publishLessons.isPending}
+              onClick={() =>
+                publishLessons.mutate(undefined, {
+                  onSuccess: () =>
+                    toast.success(
+                      `Published lesson updates for ${formatCount(lessonUpdates.length, "module")}`,
+                    ),
+                  onError: (error) => toast.error(error.message),
+                })
+              }
+            >
+              Publish lesson updates
+            </Button>
+          }
+        />
+      ) : null}
 
       <PageColumns>
         <PageMain>
@@ -489,6 +533,15 @@ function Editor({ template }: { template: TemplateDetail }) {
                               {template.generated.reasons[module.id]}
                             </p>
                           ) : null}
+                          {module.lessonState && LESSON_STATE[module.lessonState].attention ? (
+                            <StatusChip
+                              tone={LESSON_STATE[module.lessonState].tone}
+                              icon={<WarningIcon />}
+                              className="self-start"
+                            >
+                              {LESSON_STATE[module.lessonState].label}
+                            </StatusChip>
+                          ) : null}
                           {module.lessons === "none" && reviewer ? (
                             <Button
                               variant="ghost"
@@ -499,12 +552,13 @@ function Editor({ template }: { template: TemplateDetail }) {
                             >
                               Draft lessons
                             </Button>
-                          ) : module.lessons === "draft" && module.tutorialId ? (
+                          ) : module.tutorialId && module.lessonsEditable ? (
+                            // The module's lessons in the Studio, published or a draft.
                             <Link
-                              to={tutorialPath(module.tutorialId)}
+                              to={tutorialFromTemplate(module.tutorialId, template.id)}
                               className="self-start text-sm text-primary"
                             >
-                              Review draft lessons
+                              {module.lessons === "draft" ? "Review draft lessons" : "Edit lessons"}
                             </Link>
                           ) : null}
                         </SegmentedItemBody>
@@ -818,10 +872,11 @@ function Editor({ template }: { template: TemplateDetail }) {
         next={next}
         mode={reviewer ? "publish" : "submit"}
         draftModules={draftModules.map((module) => module.title)}
+        lessonUpdates={lessonUpdates.map((module) => module.title)}
         open={publishing}
         pending={publish.isPending || submit.isPending}
         onOpenChange={setPublishing}
-        onPublish={(note) =>
+        onPublish={(note, { withLessonUpdates }) =>
           reviewer
             ? publish.mutate(
                 {
@@ -830,6 +885,9 @@ function Editor({ template }: { template: TemplateDetail }) {
                   ...plan(),
                   note,
                   ...(draftModules.length ? { publishModules: true } : {}),
+                  ...(withLessonUpdates && lessonUpdates.length
+                    ? { publishLessonUpdates: true }
+                    : {}),
                 },
                 {
                   onSuccess: (published) => {

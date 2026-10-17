@@ -2,7 +2,12 @@ import { z } from "zod";
 import { IsoDateTimeSchema } from "./common.js";
 import { TemplateFamilySchema } from "./home.js";
 import { ModuleKindSchema } from "./learning.js";
-import { OnboardingStatusSchema, PersonRefSchema, ReviewStateSchema } from "./refs.js";
+import {
+  LessonStateSchema,
+  OnboardingStatusSchema,
+  PersonRefSchema,
+  ReviewStateSchema,
+} from "./refs.js";
 
 /*
  * Contracts for People Ops (HR): onboarding records across the company, probation reviews and the
@@ -376,6 +381,10 @@ export const TemplateModuleSchema = z.object({
    */
   lessons: z.enum(["ready", "draft", "none"]).optional(),
   tutorialId: z.string().nullable().optional(),
+  /** Where its lessons stand ("Update ready to review", "Sources changed"…). */
+  lessonState: LessonStateSchema.nullable().optional(),
+  /** The viewer may open its lessons in the Studio (People Ops, admins, owners, or who made them). */
+  lessonsEditable: z.boolean().optional(),
 });
 export type TemplateModule = z.infer<typeof TemplateModuleSchema>;
 
@@ -514,6 +523,11 @@ export const TemplatePublishInputSchema = TemplateDraftInputSchema.extend({
   note: z.string().max(500),
   /** Also publish the lessons of its draft modules, all at once (People Ops, admins, owners). */
   publishModules: z.boolean().optional(),
+  /**
+   * Also publish its modules' lesson updates waiting for review (an update after the Hub changed,
+   * edits, or a submitted change). People part-way through keep the version they started.
+   */
+  publishLessonUpdates: z.boolean().optional(),
 }).strict();
 export type TemplatePublishInput = z.infer<typeof TemplatePublishInputSchema>;
 
