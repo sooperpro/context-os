@@ -307,7 +307,7 @@ export function createAssistantRoutes(container: Container) {
         category: "maintenance" as const,
         title: `Context Bot could not answer: ${input.question.slice(0, 120)}`,
         body: `${actor.name} asked this and got no answer.`,
-        link: project ? `/projects/${project.slug ?? project.id}` : "/knowledge",
+        link: project ? `/knowledge-gaps?project=${project.id}` : "/knowledge-gaps",
         data: { gapId: gap.id },
       };
       if (owners.length)

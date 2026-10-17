@@ -16,6 +16,7 @@ import { AUTH_BASE_PATH } from "./modules/auth/auth.js";
 import { createSessionRoutes } from "./modules/auth/session.routes.js";
 import { createSsoRoutes } from "./modules/auth/sso.routes.js";
 import { createAssistantRoutes } from "./modules/ask/assistant.routes.js";
+import { createKnowledgeGapRoutes } from "./modules/ask/knowledge-gaps.js";
 import { createMessageRoutes } from "./modules/ask/messages.routes.js";
 import { createThreadRoutes } from "./modules/ask/threads.routes.js";
 import { createAdminConnectorRoutes } from "./modules/connectors/admin-connectors.routes.js";
@@ -231,6 +232,7 @@ export function createApp({ env, container, version = "0.1.0" }: AppDeps) {
     .route("/api/v1", createThreadRoutes(container))
     .route("/api/v1", createMessageRoutes(container))
     .route("/api/v1", createAssistantRoutes(container))
+    .route("/api/v1", createKnowledgeGapRoutes(container))
     .route("/api/v1", createKnowledgeRoutes(container))
     .route("/api/v1", createBountyRoutes(container))
     .route("/api/v1", createLearningRoutes(container))

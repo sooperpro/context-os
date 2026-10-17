@@ -27,6 +27,7 @@ import { StatusChip } from "@/components/ui/status-chip";
 import { StateBadge } from "@/features/hub/components/badges";
 import { KIND_ICON, SOURCE_KIND_ICON } from "@/features/hub/components/kind-icon";
 import { OverviewCard } from "@/features/hub/components/overview-card";
+import { ProjectGapsCard } from "@/features/knowledge-gaps/components/project-gaps-card";
 import { sourcesQuery } from "@/features/sources/api/sources.queries";
 import { formatCount, formatDate } from "@/lib/format";
 import { SOURCE_KIND_LABEL } from "@/lib/labels";
@@ -116,14 +117,12 @@ export function OverviewTab({
                 groups={groups.map((group) => ({
                   label: `${group.label} · ${group.items.length}`,
                   icon: KIND_ICON[group.icon],
-                  items: group.items
-                    .slice(0, 4)
-                    .map((item) => ({
-                      id: item.id,
-                      title: item.title,
-                      subtitle: subtitle(item),
-                      to: itemPath(item),
-                    })),
+                  items: group.items.slice(0, 4).map((item) => ({
+                    id: item.id,
+                    title: item.title,
+                    subtitle: subtitle(item),
+                    to: itemPath(item),
+                  })),
                   more: { count: group.items.length - 4, to: `${base}?tab=${group.tab}` },
                 }))}
               />
@@ -190,6 +189,7 @@ export function OverviewTab({
       </div>
 
       <aside className="space-y-4">
+        <ProjectGapsCard projectId={projectId} />
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2.5">

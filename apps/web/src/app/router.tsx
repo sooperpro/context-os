@@ -364,6 +364,15 @@ const appChildren = [
     },
   },
   {
+    // Domain owners and admins; the API refuses everyone else and the page says so.
+    path: "knowledge-gaps",
+    lazy: async () => {
+      const { KnowledgeGapsPage } =
+        await import("@/features/knowledge-gaps/pages/knowledge-gaps-page");
+      return { Component: KnowledgeGapsPage };
+    },
+  },
+  {
     path: "notifications",
     lazy: async () => {
       const { NotificationsPage } =

@@ -81,4 +81,58 @@ export const KnowledgeGapInputSchema = z
 export const KnowledgeGapResultSchema = z.object({ id: z.string(), notified: z.string() });
 export type KnowledgeGapResult = z.infer<typeof KnowledgeGapResultSchema>;
 
+/* ---- The knowledge gaps list (`/knowledge-gaps`) -------------------------------------------- */
+
+const GapCount = z.number().int().min(0);
+export const GapStatusSchema = z.enum(["open", "answered", "dismissed"]);
+export type GapStatus = z.infer<typeof GapStatusSchema>;
+
+/**
+ * Questions Context Bot couldn't answer, grouped when they mean the same thing ("How do I reset my
+ * password?" and "reset password"). A group shows once someone reported it, or once enough
+ * different people asked (`privacyFloor`): asking is private until then. Never says who asked.
+ */
+export const KnowledgeGapEntrySchema = z.object({
+  id: z.string(),
+  /** The wording asked most often. */
+  question: z.string(),
+  /** How many different wordings were grouped into this gap. */
+  wordings: GapCount,
+  asks: GapCount,
+  askers: GapCount,
+  /** Times someone reported it as a gap (shared on purpose). */
+  reports: GapCount,
+  project: z.object({ id: z.string(), name: z.string() }).nullable(),
+  status: GapStatusSchema,
+  firstAskedAt: IsoDateTimeSchema,
+  lastAskedAt: IsoDateTimeSchema,
+  /** Who marked it answered or dismissed, when and why; null while open. */
+  resolution: z
+    .object({ by: PersonRefSchema, at: IsoDateTimeSchema, note: z.string().nullable() })
+    .nullable(),
+});
+export type KnowledgeGapEntry = z.infer<typeof KnowledgeGapEntrySchema>;
+
+/** `GET /knowledge-gaps?status=&projectId=`: most asked first. */
+export const KnowledgeGapEntryListSchema = z.object({
+  items: z.array(KnowledgeGapEntrySchema),
+  counts: z.object({ open: GapCount, answered: GapCount, dismissed: GapCount }),
+  /** Different people who must ask before an unreported question shows. */
+  privacyFloor: GapCount,
+  /** "workspace" for admins, owners and workspace-wide domain owners; "projects" otherwise. */
+  scope: z.enum(["workspace", "projects"]),
+});
+export type KnowledgeGapEntryList = z.infer<typeof KnowledgeGapEntryListSchema>;
+
+export const KnowledgeGapQuerySchema = z.object({
+  status: GapStatusSchema.default("open"),
+  projectId: z.string().min(1).optional(),
+});
+
+/** `POST /knowledge-gaps/:id/status`: answered tells the people who reported it. */
+export const GapStatusInputSchema = z
+  .object({ status: GapStatusSchema, note: z.string().trim().max(500).optional() })
+  .strict();
+export type GapStatusInput = z.infer<typeof GapStatusInputSchema>;
+
 export const AcknowledgedSchema = z.object({ ok: z.literal(true) });
