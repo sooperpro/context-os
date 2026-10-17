@@ -372,6 +372,117 @@ export function createTutorialRoutes(container: Container) {
     return content;
   };
 
+  /** Why a draft can't be published yet, or null when it can. */
+  const publishProblem = (row: PlatformRecord) => {
+    const data = dataOf(row);
+    const title = data.content?.title ?? data.plannedTitle ?? "This tutorial";
+    if (data.generation.state === "running") return `“${title}” is still being drafted`;
+    if (!data.content?.lessons.length)
+      return data.generation.state === "failed"
+        ? `“${title}” couldn't be drafted: ${data.generation.error ?? "try again"}`
+        : `“${title}” has no lessons yet`;
+    return null;
+  };
+
+  /** Publish a tutorial's draft as its next version (reviewers only; checked by callers). */
+  const publish = (actor: Actor, id: string, { updateLearners = false } = {}) => {
+    const row = editable(actor, id);
+    const data = dataOf(row);
+    const problem = publishProblem(row);
+    if (problem) throw new AppError(409, "CONFLICT", problem);
+    const content = validContent(TutorialContentSchema.parse(data.content));
+    const now = new Date().toISOString();
+    const version = (data.publishedVersion ?? 0) + 1;
+    const published = db.transaction(() => {
+      const snapshot = store.insert({
+        workspaceId: row.workspaceId,
+        ownerId: actor.id,
+        kind: TUTORIAL_VERSION,
+        projectId: row.projectId,
+        parentId: row.id,
+        status: "published",
+        data: {
+          version,
+          content,
+          sources: data.sources,
+          publishedAt: now,
+          publishedBy: actor.id,
+        },
+      });
+      // FR-LRN-012: people part-way through stay on their version unless the curator moves them.
+      if (updateLearners) {
+        const lessonIds = new Set(content.lessons.map((lesson) => lesson.id));
+        for (const progress of store.listWhere(
+          row.workspaceId,
+          PROGRESS,
+          { parentId: row.id },
+          5000,
+        )) {
+          const current = progress.data as unknown as ProgressData;
+          if (current.completedAt) continue;
+          learning.patchProgress(progress, {
+            versionId: snapshot.id,
+            lessonsDone: current.lessonsDone.filter((id) => lessonIds.has(id)),
+          });
+        }
+      }
+      return store.patch(row, {
+        status: "published",
+        data: {
+          ...data,
+          publishedVersion: version,
+          publishedVersionId: snapshot.id,
+          publishedRevision: data.draftRevision,
+          publishedAt: now,
+          publishedBy: actor.id,
+          review: null,
+          update: null,
+        },
+      });
+    });
+    // An update after the Hub changed: people who already finished it hear what's new.
+    if (data.update)
+      for (const progress of store.listWhere(row.workspaceId, PROGRESS, { parentId: row.id }, 5000))
+        if ((progress.data as unknown as ProgressData).completedAt)
+          notifier.notify(row.workspaceId, progress.ownerId, {
+            type: "learning.updated",
+            category: "onboarding",
+            title: `“${content.title}” was updated with the company's latest knowledge`,
+            link: "/learning",
+          });
+    audit.record({
+      actor,
+      projectId: row.projectId,
+      action: "tutorial.publish",
+      targetType: "tutorial",
+      targetId: row.id,
+      metadata: { version },
+    });
+    const submitter = data.review?.state === "in_review" ? data.review.by : null;
+    if (submitter && submitter !== actor.id)
+      notifier.notify(actor.workspaceId, submitter, {
+        type: "tutorial.published",
+        category: "system",
+        title: `${actor.name} published your tutorial “${content.title}”`,
+        link: `/tutorials/${row.id}`,
+      });
+    return published;
+  };
+
+  /**
+   * Publish a template's draft modules in one go (N-18): every one is checked first, so nothing is
+   * published unless all of them can be.
+   */
+  const publishModules = (actor: Actor, ids: string[]) => {
+    if (!isReviewer(actor))
+      throw new AppError(403, "FORBIDDEN", "Only People Ops, admins and owners publish modules");
+    const rows = ids.map((id) => editable(actor, id));
+    const problems = rows.flatMap((row) => publishProblem(row) ?? []);
+    if (problems.length) throw new AppError(409, "CONFLICT", `${problems.join(". ")}.`);
+    for (const row of rows) publish(actor, row.id);
+    return rows.length;
+  };
+
   const routes = new Hono<AppEnv>()
     .get("/tutorials", (c) => {
       const actor = c.get("actor");
@@ -481,94 +592,14 @@ export function createTutorialRoutes(container: Container) {
             "FORBIDDEN",
             "Only People Ops, admins and owners publish tutorials. Submit it for review instead.",
           );
-        const row = editable(actor, c.req.param("id"));
-        const data = dataOf(row);
-        if (!data.content?.lessons.length)
-          throw new AppError(409, "CONFLICT", "Add at least one lesson before publishing");
-        if (data.generation.state === "running")
-          throw new AppError(409, "CONFLICT", "Wait for the new draft before publishing");
-        const content = validContent(TutorialContentSchema.parse(data.content));
-        const now = new Date().toISOString();
-        const version = (data.publishedVersion ?? 0) + 1;
-        const published = db.transaction(() => {
-          const snapshot = store.insert({
-            workspaceId: row.workspaceId,
-            ownerId: actor.id,
-            kind: TUTORIAL_VERSION,
-            projectId: row.projectId,
-            parentId: row.id,
-            status: "published",
-            data: {
-              version,
-              content,
-              sources: data.sources,
-              publishedAt: now,
-              publishedBy: actor.id,
-            },
-          });
-          // FR-LRN-012: people part-way through stay on their version unless the curator moves them.
-          if (c.req.valid("json").updateLearners) {
-            const lessonIds = new Set(content.lessons.map((lesson) => lesson.id));
-            for (const progress of store.listWhere(
-              row.workspaceId,
-              PROGRESS,
-              { parentId: row.id },
-              5000,
-            )) {
-              const current = progress.data as unknown as ProgressData;
-              if (current.completedAt) continue;
-              learning.patchProgress(progress, {
-                versionId: snapshot.id,
-                lessonsDone: current.lessonsDone.filter((id) => lessonIds.has(id)),
-              });
-            }
-          }
-          return store.patch(row, {
-            status: "published",
-            data: {
-              ...data,
-              publishedVersion: version,
-              publishedVersionId: snapshot.id,
-              publishedRevision: data.draftRevision,
-              publishedAt: now,
-              publishedBy: actor.id,
-              review: null,
-              update: null,
-            },
-          });
-        });
-        // An update after the Hub changed: people who already finished it hear what's new.
-        if (data.update)
-          for (const progress of store.listWhere(
-            row.workspaceId,
-            PROGRESS,
-            { parentId: row.id },
-            5000,
-          ))
-            if ((progress.data as unknown as ProgressData).completedAt)
-              notifier.notify(row.workspaceId, progress.ownerId, {
-                type: "learning.updated",
-                category: "onboarding",
-                title: `“${content.title}” was updated with the company's latest knowledge`,
-                link: "/learning",
-              });
-        audit.record({
-          actor,
-          projectId: row.projectId,
-          action: "tutorial.publish",
-          targetType: "tutorial",
-          targetId: row.id,
-          metadata: { version },
-        });
-        const submitter = data.review?.state === "in_review" ? data.review.by : null;
-        if (submitter && submitter !== actor.id)
-          notifier.notify(actor.workspaceId, submitter, {
-            type: "tutorial.published",
-            category: "system",
-            title: `${actor.name} published your tutorial “${content.title}”`,
-            link: `/tutorials/${row.id}`,
-          });
-        return c.json(detail(published, actor));
+        return c.json(
+          detail(
+            publish(actor, c.req.param("id"), {
+              updateLearners: c.req.valid("json").updateLearners,
+            }),
+            actor,
+          ),
+        );
       },
     )
     .post("/tutorials/:id/submit", (c) => {
@@ -1028,5 +1059,5 @@ export function createTutorialRoutes(container: Container) {
     }
   }
 
-  return { routes, generate, createDraft, runs, hubChanged };
+  return { routes, generate, createDraft, runs, hubChanged, publishModules };
 }

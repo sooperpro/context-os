@@ -129,6 +129,85 @@ describe("Roadmap generation: a template drafted from the Hub, reviewed by Peopl
     Object.assign(t.container.devActor, owner);
   });
 
+  it("publishes a template and all its draft modules at once, or none if one isn't ready", async () => {
+    t = createTestApp({ gemini: createFakeGemini(), starterTemplates: false });
+    const project = await createProject(t.app);
+    await addSource(t.app, project.id);
+    await t.drain();
+    t.container.db.update(sourceObjects).set({ visibility: "workspace" }).run();
+    member("hr1", "hr");
+    as("hr1", "hr");
+    const started = await generate({ jobTitle: "Account executive", team: "Sales" });
+    const { id } = (await started.json()) as { id: string };
+    await t.drain();
+    const read = async () =>
+      TemplateDetailSchema.parse(
+        await (await t.app.request(`/api/v1/people-ops/templates/${id}`)).json(),
+      );
+    const template = await read();
+    const modules = template.stages.flatMap((stage) => stage.modules);
+    expect(modules.map((module) => module.lessons)).toEqual(["draft", "draft"]);
+    // Its draft modules don't stop it being edited and saved.
+    const saved = await t.app.request(
+      `/api/v1/people-ops/templates/${id}/draft`,
+      jsonRequest({
+        stages: template.stages.map((stage) => ({
+          id: stage.id,
+          moduleIds: stage.modules.map((module) => module.id),
+        })),
+        probationDays: 120,
+      }),
+    );
+    expect(saved.status).toBe(200);
+    expect(await saved.json()).toMatchObject({ probationDays: 120 });
+    const publish = () =>
+      t.app.request(
+        `/api/v1/people-ops/templates/${id}/publish`,
+        jsonRequest({
+          stages: template.stages.map((stage) => ({
+            id: stage.id,
+            moduleIds: stage.modules.map((module) => module.id),
+          })),
+          note: "",
+          publishModules: true,
+        }),
+      );
+
+    // One module is being redrafted: nothing is published, and it says which.
+    const busy = t.container.db
+      .select()
+      .from(platformRecords)
+      .where(eq(platformRecords.id, modules[1]!.tutorialId!))
+      .get()!;
+    t.container.db
+      .update(platformRecords)
+      .set({ data: { ...busy.data, generation: { state: "running", error: null, at: "" } } })
+      .where(eq(platformRecords.id, busy.id))
+      .run();
+    const refused = await publish();
+    expect(refused.status).toBe(409);
+    expect(await refused.text()).toContain("is still being drafted");
+    expect((await read()).stages.flatMap((stage) => stage.modules).map((m) => m.lessons)).toEqual([
+      "draft",
+      "draft",
+    ]);
+
+    // Once it's ready, one click publishes both modules and the template.
+    t.container.db
+      .update(platformRecords)
+      .set({ data: busy.data })
+      .where(eq(platformRecords.id, busy.id))
+      .run();
+    const done = await publish();
+    expect(done.status).toBe(200);
+    const after = await read();
+    expect(after).toMatchObject({ status: "published", publishedVersion: "v1" });
+    expect(after.stages.flatMap((stage) => stage.modules).map((m) => m.lessons)).toEqual([
+      "ready",
+      "ready",
+    ]);
+  });
+
   it("lets new hires wait for a template draft HR made, and gives it to them once published", async () => {
     t = createTestApp({ gemini: createFakeGemini(), starterTemplates: false });
     const owner = { ...t.container.devActor };

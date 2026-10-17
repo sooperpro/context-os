@@ -199,6 +199,12 @@ function Editor({ template }: { template: TemplateDetail }) {
     checkins: checkins.filter((checkin) => checkin.title.trim() && checkin.day >= 1),
   });
   const weeks = Math.max(0, ...stages.map((stage) => stage.weekEnd));
+  // Draft modules (a generated roadmap's) are published together with the template.
+  const draftModules = stages.flatMap((stage) =>
+    stage.modules.filter(
+      (module) => module.lessons === "draft" && module.id.startsWith("tutorial-"),
+    ),
+  );
   const stageEdited = (values: { name: string; weekStart: number; weekEnd: number }) => {
     setStages((current) =>
       (editingStage === NEW_STAGE
@@ -748,13 +754,20 @@ function Editor({ template }: { template: TemplateDetail }) {
         template={template}
         next={next}
         mode={reviewer ? "publish" : "submit"}
+        draftModules={draftModules.map((module) => module.title)}
         open={publishing}
         pending={publish.isPending || submit.isPending}
         onOpenChange={setPublishing}
         onPublish={(note) =>
           reviewer
             ? publish.mutate(
-                { stages: payload(), ...audience, ...plan(), note },
+                {
+                  stages: payload(),
+                  ...audience,
+                  ...plan(),
+                  note,
+                  ...(draftModules.length ? { publishModules: true } : {}),
+                },
                 {
                   onSuccess: (published) => {
                     setPublishing(false);

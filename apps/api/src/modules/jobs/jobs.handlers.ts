@@ -39,6 +39,8 @@ export interface ConnectorSyncRegistry {
     },
     options?: { setup?: boolean },
   ) => { template: PlatformRecord; started: boolean };
+  /** Publish a template's draft modules (tutorial ids) together; returns how many (N-18). */
+  publishModules?: (actor: Actor, tutorialIds: string[]) => number;
   /** A project's Hub was refreshed after a sync: draft updates of modules built on it (N-18). */
   hubChanged?: (projectId: string) => void;
 }

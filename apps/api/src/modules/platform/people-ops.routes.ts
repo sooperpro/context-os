@@ -1238,11 +1238,20 @@ export function createPeopleOpsRoutes(container: Container) {
           const next = applyStages(actor.workspaceId, data, input);
           if (!next.stages.some((stage) => stage.moduleIds.length))
             throw new BadRequestError("Add at least one module before publishing");
-          // A generated roadmap's new modules are tutorial drafts: each one is reviewed first.
-          const published = catalog(actor.workspaceId);
-          const drafts = next.stages
+          // A generated roadmap's new modules are tutorial drafts. They're published with it when
+          // asked (the dialog lists them); otherwise each one is published first.
+          let published = catalog(actor.workspaceId);
+          let drafts = next.stages
             .flatMap((stage) => stage.moduleIds)
             .filter((id) => !published.has(id));
+          const tutorialIds = drafts
+            .filter((id) => id.startsWith("tutorial-"))
+            .map((id) => id.slice("tutorial-".length));
+          if (drafts.length && input.publishModules && tutorialIds.length === drafts.length) {
+            container.connectors.publishModules?.(actor, tutorialIds);
+            published = catalog(actor.workspaceId);
+            drafts = drafts.filter((id) => !published.has(id));
+          }
           if (drafts.length)
             throw new AppError(
               409,

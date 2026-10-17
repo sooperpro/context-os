@@ -497,6 +497,8 @@ export type TemplateDraftInput = z.infer<typeof TemplateDraftInputSchema>;
 /** `POST /v1/people-ops/templates/:id/publish`: publish the current stages with a note for the history. */
 export const TemplatePublishInputSchema = TemplateDraftInputSchema.extend({
   note: z.string().max(500),
+  /** Also publish the lessons of its draft modules, all at once (People Ops, admins, owners). */
+  publishModules: z.boolean().optional(),
 }).strict();
 export type TemplatePublishInput = z.infer<typeof TemplatePublishInputSchema>;
 

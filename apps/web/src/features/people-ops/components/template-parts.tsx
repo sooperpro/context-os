@@ -273,6 +273,7 @@ export function PublishDialog({
   template,
   next,
   mode = "publish",
+  draftModules = [],
   open,
   pending,
   onPublish,
@@ -281,6 +282,8 @@ export function PublishDialog({
   template: TemplateDetail;
   next: string;
   mode?: "publish" | "submit";
+  /** Titles of its modules whose lessons are still drafts: published with it. */
+  draftModules?: string[];
   open: boolean;
   pending: boolean;
   onPublish: (note: string) => void;
@@ -352,6 +355,23 @@ export function PublishDialog({
               ? `The ${template.activeCount} people on ${template.publishedVersion} keep their current roadmap. Their managers can switch them from the member page.`
               : "No one uses this template yet."}
           </p>
+          {draftModules.length ? (
+            <div className="flex flex-col gap-1.5 rounded-xl bg-pane px-3.5 py-3 text-sm">
+              <b className="font-medium">
+                This also publishes the lessons of{" "}
+                {formatCount(draftModules.length, "draft module")}:
+              </b>
+              <ul className="list-disc ps-5 text-on-surface-variant">
+                {draftModules.slice(0, 8).map((title) => (
+                  <li key={title}>{title}</li>
+                ))}
+                {draftModules.length > 8 ? <li>and {draftModules.length - 8} more</li> : null}
+              </ul>
+              <span className="text-xs text-on-surface-variant">
+                To check a module’s lessons first, open “Review draft lessons” under it.
+              </span>
+            </div>
+          ) : null}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor={noteId}>What changed?</Label>
             <Textarea
@@ -367,7 +387,9 @@ export function PublishDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={pending}>
-              Publish {next}
+              {draftModules.length
+                ? `Publish ${next} and ${formatCount(draftModules.length, "module")}`
+                : `Publish ${next}`}
             </Button>
           </DialogFooter>
         </form>
