@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { Markdown } from "@/components/markdown";
 import { renderWithProviders } from "@/test/utils";
-import { lessonExtensions } from "./extensions";
+import { lessonExtensions, lessonMarkdown } from "./extensions";
 import RichMarkdownEditor from "./rich-markdown-editor";
 
 /** A lesson using everything lessons are written with. */
@@ -49,6 +49,19 @@ describe("Visual lesson editor", () => {
     const markdown = editor.getMarkdown();
     editor.destroy();
     expect(rendered(markdown)).toBe(rendered(LESSON));
+  });
+
+  it("keeps a draft's [S#] citation markers as written instead of escaping them", () => {
+    const text =
+      "Invoices update in minutes [S18], refunds too [S1, S2]. See the [ADR](https://example.test/adr).";
+    const editor = new Editor({
+      extensions: lessonExtensions(),
+      content: text,
+      contentType: "markdown",
+    });
+    const markdown = lessonMarkdown(editor);
+    editor.destroy();
+    expect(markdown).toBe(text);
   });
 
   it("shows the lesson formatted and reports nothing until it is edited", async () => {

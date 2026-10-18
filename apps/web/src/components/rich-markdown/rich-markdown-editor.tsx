@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { lessonExtensions } from "./extensions";
+import { lessonExtensions, lessonMarkdown } from "./extensions";
 
 /** The editing surface, styled like the learner view (components/markdown.tsx). */
 const PROSE = cn(
@@ -89,7 +89,7 @@ export default function RichMarkdownEditor({
       },
     },
     onUpdate: ({ editor: current }) => {
-      const markdown = current.getMarkdown();
+      const markdown = lessonMarkdown(current);
       last.current = markdown;
       changed.current(markdown);
     },

@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ModuleDetail } from "@contextos/shared";
 import { http, HttpResponse } from "msw";
@@ -215,6 +215,13 @@ describe("Lessons and knowledge checks", () => {
   });
 
   it("grades the check on submit: a pass completes the module", async () => {
+    // Fetching a check opens Context Bot's pause on the server: only for the attempt itself.
+    let fetched = 0;
+    mockServer.use(
+      http.get(buildApiUrl("/v1/me/checks/:id"), () => {
+        fetched += 1;
+      }),
+    );
     const user = userEvent.setup();
     renderAt("/roadmap/checks/m4-check");
 
@@ -231,6 +238,9 @@ describe("Lessons and knowledge checks", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/Next: Product tour: Tessellate Track/)).toBeInTheDocument();
     expect(screen.getByText("2 of 6 passed")).toBeInTheDocument();
+    // Progress refreshes everywhere, but the check itself isn't fetched again.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 100)));
+    expect(fetched).toBe(1);
   });
 
   it("shows what was wrong and allows a retake when the check is not passed", async () => {

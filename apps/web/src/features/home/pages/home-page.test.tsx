@@ -22,7 +22,12 @@ setupMockApi();
 const api = (path: string) => buildApiUrl(path);
 
 /** The live endpoints Home reads; the rest come from the mock layer. */
-function live({ role = "member", connectors = [] as object[], audit = [] as object[] } = {}) {
+function live({
+  role = "member",
+  connectors = [] as object[],
+  audit = [] as object[],
+  sources = [] as number[],
+} = {}) {
   mockServer.use(
     // HR and manager Home's endpoints are live too, as are some of the employee's; these fixtures
     // stand in for the API.
@@ -77,6 +82,27 @@ function live({ role = "member", connectors = [] as object[], audit = [] as obje
       }),
     ),
     http.get(api("/v1/audit"), () => HttpResponse.json({ items: audit })),
+    // One project per entry, with that many sources.
+    http.get(api("/v1/projects"), () =>
+      HttpResponse.json({
+        items: sources.map((count, index) => ({
+          id: `0000000${index}-0000-4000-8000-000000000000`,
+          workspaceId: "99999999-9999-4999-8999-999999999999",
+          slug: null,
+          name: `Project ${index + 1}`,
+          description: null,
+          createdAt: "2026-10-01T00:00:00.000Z",
+          updatedAt: "2026-10-01T00:00:00.000Z",
+          stats: {
+            sources: count,
+            readySources: count,
+            contextItems: 0,
+            questions: 0,
+            lastProcessedAt: null,
+          },
+        })),
+      }),
+    ),
     // The admin overview cards are live too.
     http.get(api("/v1/admin/security"), () =>
       HttpResponse.json({
@@ -364,6 +390,9 @@ describe("HomePage", () => {
       await screen.findByRole("heading", { level: 1, name: "Workspace overview" }),
     ).toBeInTheDocument();
     expect(await screen.findByRole("alert")).toHaveTextContent("Google Drive needs attention");
+    expect(
+      await screen.findByText("3 members · 0 knowledge sources · 1 connector"),
+    ).toBeInTheDocument();
 
     const audit = screen.getByRole("region", { name: "Audit log" });
     const rows = await within(audit).findAllByText(/Connected a knowledge source|Invited someone/);
@@ -382,6 +411,14 @@ describe("HomePage", () => {
       await within(screen.getByRole("region", { name: "Access & security" })).findByText(
         "Company SSO · tessellate.io · required",
       ),
+    ).toBeInTheDocument();
+  });
+
+  it("counts uploaded sources on the overview, apart from connectors", async () => {
+    live({ role: "owner", sources: [20, 7] });
+    renderHome();
+    expect(
+      await screen.findByText("3 members · 27 knowledge sources · no connectors yet"),
     ).toBeInTheDocument();
   });
 

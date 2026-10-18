@@ -26,6 +26,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateSource } from "@/features/sources/api/sources.queries";
+import { SharingSwitch } from "@/features/sources/components/drive-import-dialog";
 import { dateInputToIso } from "@/lib/format";
 import { SOURCE_KIND_OPTIONS } from "@/lib/labels";
 
@@ -44,6 +45,8 @@ const FormSchema = z.object({
   url: z.union([z.literal(""), z.url("Enter a full URL, including https://")]),
   author: z.string().trim().max(200),
   sourceCreatedAt: z.string(),
+  /** On: everyone who can open the project reads it. Off: only the uploader, until it's shared. */
+  shared: z.boolean(),
 });
 type FormValues = z.infer<typeof FormSchema>;
 
@@ -66,6 +69,8 @@ export function AddSourceDialog({ projectId, open, onOpenChange }: AddSourceDial
       url: "",
       author: "",
       sourceCreatedAt: "",
+      // Like a Drive import: what's added to a project is for the people in it.
+      shared: true,
     },
   });
   const errors = form.formState.errors;
@@ -79,6 +84,8 @@ export function AddSourceDialog({ projectId, open, onOpenChange }: AddSourceDial
         url: values.url || undefined,
         author: values.author || undefined,
         sourceCreatedAt: dateInputToIso(values.sourceCreatedAt),
+        // Always said: the API keeps a source to its uploader when it isn't.
+        visibility: values.shared ? "workspace" : "restricted",
       },
       {
         onSuccess: () => {
@@ -202,6 +209,21 @@ export function AddSourceDialog({ projectId, open, onOpenChange }: AddSourceDial
                   and analysed in the background.
                 </p>
               )}
+            </div>
+            <div className="sm:col-span-2">
+              <Controller
+                control={form.control}
+                name="shared"
+                render={({ field }) => (
+                  <SharingSwitch
+                    id={`${id}-shared`}
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    shared="Everyone who can open this project can read it, and lessons and answers can use it. Access policies still apply."
+                    restricted="Only you and workspace owners can read it until an admin shares it. Lessons built on it stay locked for everyone else."
+                  />
+                )}
+              />
             </div>
           </div>
 

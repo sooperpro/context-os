@@ -41,9 +41,70 @@ export interface ModuleContent {
   /** Who wrote it (the curator who created the tutorial). */
   ownerId: string | null;
   projectId: string | null;
-  /** Every source behind it; a learner who can't open all of them gets it locked. */
+  /** Every source it cites; a learner who can't open all of them gets it locked. */
   sourceIds: string[];
 }
+
+/**
+ * The sources a tutorial's lessons and questions cite: what decides who may read it and what
+ * "Needs update" watches. A draft reads far more (every passage retrieved for it) than it cites.
+ */
+export const citedSourceIds = (
+  content: Pick<TutorialContent, "lessons" | "check"> | null | undefined,
+) =>
+  content
+    ? [
+        ...new Set([
+          ...content.lessons.flatMap((lesson) => lesson.sourceIds),
+          ...(content.check?.questions ?? []).flatMap((question) =>
+            question.sourceId ? [question.sourceId] : [],
+          ),
+        ]),
+      ]
+    : [];
+
+/**
+ * "[S3]", "[S1, S4]" or (saved by the visual editor before it kept them) "\[S3\]": numbers of
+ * the sources in the prompt a draft was written from. They mean nothing after generation (the
+ * lesson's "Based on" names its sources), so learners never see them.
+ */
+const CITATION_MARKER = /[ \t]*\\?\[S\d+(?:\s*[,;]\s*S?\d+)*\\?\](?!\()/g;
+export const withoutCitationMarkers = (text: string) => text.replace(CITATION_MARKER, "");
+
+/** Every text of a tutorial without citation markers. */
+export const withoutMarkers = <T extends TutorialContent>(content: T): T => ({
+  ...content,
+  summary: withoutCitationMarkers(content.summary),
+  objectives: content.objectives.map(withoutCitationMarkers),
+  lessons: content.lessons.map((lesson) => ({
+    ...lesson,
+    body: withoutCitationMarkers(lesson.body),
+  })),
+  check: content.check && {
+    ...content.check,
+    questions: content.check.questions.map((question) => ({
+      ...question,
+      prompt: withoutCitationMarkers(question.prompt),
+      options: question.options.map((option) => ({
+        ...option,
+        text: withoutCitationMarkers(option.text),
+      })),
+      explanation: withoutCitationMarkers(question.explanation),
+    })),
+  },
+});
+
+/** What `citedSources` reads from a tutorial record's data. */
+export interface CitingData<T extends { id: string }> {
+  sources?: T[] | null;
+  content?: Pick<TutorialContent, "lessons" | "check"> | null;
+}
+
+/** A tutorial's recorded sources that its draft cites (older drafts recorded all they read). */
+export const citedSources = <T extends { id: string }>(data: CitingData<T>) => {
+  const cited = new Set(citedSourceIds(data.content));
+  return (data.sources ?? []).filter((source) => cited.has(source.id));
+};
 
 export interface ProgressData {
   moduleKey: string;
@@ -174,16 +235,12 @@ export function createLearningContent(container: Container) {
       versionRow(workspaceId, pinnedVersionId) ??
       versionRow(workspaceId, tutorial.data.publishedVersionId as string | undefined);
     if (!version) return null;
-    const content = version.data.content as TutorialContent;
-    const sources = (version.data.sources as Array<{ id: string }> | undefined) ?? [];
+    // Versions published before markers were dropped at generation may still have them.
+    const content = withoutMarkers(version.data.content as TutorialContent);
     return {
       ...content,
-      sourceIds: [
-        ...new Set([
-          ...sources.map((source) => source.id),
-          ...content.lessons.flatMap((lesson) => lesson.sourceIds),
-        ]),
-      ],
+      // What it cites, not everything the generator read (older versions stored all of that).
+      sourceIds: citedSourceIds(content),
       tutorialId: tutorial.id,
       versionId: version.id,
       version: Number(version.data.version),
@@ -333,46 +390,51 @@ export function createLearningContent(container: Container) {
     });
 
   /**
-   * Of these sources, the ones the person can read. Each is checked in its own project, so a
-   * company-wide tutorial (sources from several projects) follows every project's permissions.
+   * Of these sources, the ones the person can read (`visible`), and the ones that still exist but
+   * they can't (`locked`). Each is checked in its own project, so a company-wide tutorial (sources
+   * from several projects) follows every project's permissions. A deleted source is in neither:
+   * it can't be opened, but it hides nothing from anyone either.
    */
-  const visibleOf = (actor: Actor, sourceIds: string[]) => {
+  const sourceAccessOf = (actor: Actor, sourceIds: string[]) => {
     const visible = new Set<string>();
-    if (!sourceIds.length) return visible;
+    const locked = new Set<string>();
+    if (!sourceIds.length) return { visible, locked };
     const rows = db
       .select({ id: sourceObjects.id, projectId: sourceObjects.projectId })
       .from(sourceObjects)
       .where(inArray(sourceObjects.id, [...new Set(sourceIds)]))
       .all();
     for (const projectId of new Set(rows.map((row) => row.projectId))) {
-      let allowed: Set<string>;
+      let allowed = new Set<string>();
       try {
         allowed = new Set(container.identity.visibleSourceIds(actor, projectId));
       } catch {
-        continue;
+        // A project they can't open: its sources stay locked.
       }
       for (const row of rows)
-        if (row.projectId === projectId && allowed.has(row.id)) visible.add(row.id);
+        if (row.projectId === projectId) (allowed.has(row.id) ? visible : locked).add(row.id);
     }
-    return visible;
+    return { visible, locked };
   };
+  const visibleOf = (actor: Actor, sourceIds: string[]) => sourceAccessOf(actor, sourceIds).visible;
+  const lockedOf = (actor: Actor, sourceIds: string[]) => sourceAccessOf(actor, sourceIds).locked;
 
   /** Lessons a learner may open: ones whose sources they can read (restricted ones are locked). */
   const access = (actor: Actor, content: ModuleContent) => {
     const ids = [...content.sourceIds, ...content.lessons.flatMap((lesson) => lesson.sourceIds)];
     if (!ids.length)
       return { open: true, lessonOpen: () => true, questions: content.check?.questions ?? [] };
-    const visible = visibleOf(actor, ids);
-    // A tutorial is written from all of its sources at once (summary, objectives and questions
-    // draw on every one), so it opens only for someone who can read every source behind it.
-    const open = content.sourceIds.every((id) => visible.has(id));
+    const locked = lockedOf(actor, ids);
+    // A tutorial's summary, objectives and questions draw on every source it cites, so it opens
+    // only for someone who can read all of them.
+    const open = !content.sourceIds.some((id) => locked.has(id));
     return {
       open,
       lessonOpen: (lesson: TutorialLesson) =>
-        open && lesson.sourceIds.every((id) => visible.has(id)),
+        open && !lesson.sourceIds.some((id) => locked.has(id)),
       questions: open
         ? (content.check?.questions ?? []).filter(
-            (question) => !question.sourceId || visible.has(question.sourceId),
+            (question) => !question.sourceId || !locked.has(question.sourceId),
           )
         : [],
     };
@@ -455,7 +517,9 @@ export function createLearningContent(container: Container) {
     startProgress,
     patchProgress,
     access,
+    sourceAccessOf,
     visibleOf,
+    lockedOf,
     readableProjects,
     isComplete,
     fraction,

@@ -54,7 +54,7 @@ const answer = (id: string, confidence: string, text: string) => ({
   createdAt: "2026-10-14T00:00:00.000Z",
 });
 
-function mockApi(streamed: object | "error") {
+function mockApi(streamed: object | "error" | "paused") {
   const calls: Array<{ url: string; method: string; body: unknown }> = [];
   let messages: object[] = [];
   vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
@@ -99,6 +99,20 @@ function mockApi(streamed: object | "error") {
         }),
       );
     if (url.endsWith(`/v1/ask/threads/${THREAD}/messages`)) {
+      if (streamed === "paused")
+        return Promise.resolve(
+          jsonResponse(
+            {
+              error: {
+                code: "CONFLICT",
+                message:
+                  "Context Bot is paused while your knowledge check is open. Submit your answers to ask again.",
+                details: { pausedUntil: "2026-10-14T10:30:00.000Z" },
+              },
+            },
+            { status: 409 },
+          ),
+        );
       if (streamed === "error")
         return Promise.resolve(
           new Response(
@@ -230,5 +244,18 @@ describe("AssistantPanel", () => {
     expect(await screen.findByText("Couldn't get an answer")).toBeInTheDocument();
     expect(screen.getAllByText("Why events?").length).toBeGreaterThan(0);
     await waitFor(() => expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled());
+  });
+
+  it("says Context Bot is paused for a knowledge check, not that something went wrong", async () => {
+    mockApi("paused");
+    const user = userEvent.setup();
+    renderPanel();
+    await user.type(await screen.findByLabelText("Ask Context Bot"), "Why events?{Enter}");
+    expect(await screen.findByText("Paused for your knowledge check")).toBeInTheDocument();
+    expect(
+      screen.getByText(/paused while your knowledge check is open. Submit your answers/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Something went wrong reaching ContextOS/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ask again" })).toBeInTheDocument();
   });
 });
